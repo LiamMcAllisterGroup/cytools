@@ -1,0 +1,28 @@
+# Compiled python or sage files
+*.pyc
+__pycache__
+*.sage.py
+
+# Jupyter notebooks (if you want to add one use the --force option)
+*.ipynb
+.ipynb_checkpoints
+
+# Data files
+*.dat
+*.zip
+*.rar
+*.tar*
+
+# Mosek license
+*.lic
+
+# Python package build files
+build
+dist
+*.egg-info
+
+# testing
+private.py
+unittests
+examples
+
