@@ -35,7 +35,8 @@ class Triangulation:
     """A class that handles triangulations of point configurations."""
 
     def __init__(self, triang_pts, poly=None, heights=None, make_star=False,
-                 simplices=None, backend="qhull", backend_dir=None):
+                 simplices=None, check_input_simplices=True, backend="cgal",
+                 backend_dir=None):
         """
         Creates a Triangulation object.
 
@@ -72,7 +73,7 @@ class Triangulation:
                 is useful when a triangulation was previously computed and it
                 needs to be inputted again.  Note that the ordering of the
                 points needs to be consistent.
-            backend (string, optional, default="qhull"): Specifies the backend
+            backend (string, optional, default="cgal"): Specifies the backend
                 used to compute the triangulation.  The available options are
                 "qhull", "cgal", and "topcom".  QHull is the default one as it
                 is included in scipy, but it has some problems when there is
@@ -165,14 +166,27 @@ class Triangulation:
         self._pts_dict = {ii:i for i,ii in enumerate(triang_pts_tup)}
         self._backend = backend
         self._backend_dir = backend_dir
+        # Initialize hidden attributes
+        self._is_regular = None
+        self._is_valid = None
+        self._is_fine = None
+        self._is_star = None
+        self._gkz_phi = None
+        self._sr_ideal = None
+        self._cpl_cone = None
+        self._cy = None
         # Now save input triangulation or construct it
         if simplices is not None:
             self._simplices = np.array(simplices)
             if self._simplices.shape[1] != self._triang_pts.shape[1]+1:
                 raise Exception("Input simplices have wrong dimension.")
             self._heights = None
+            if check_input_simplices and not self.is_valid():
+                raise Exception("Input simplices do not form a valid triangulation.")
         else:
             backends = ["qhull", "cgal", "topcom", None]
+            self._is_regular = (None if backend == "qhull" else True)
+            self._is_valid = True
             if heights is None:
                 # Heights need to be perturbed around the Delaunay heights for
                 # QHull or the triangulation might not be regular. If using
@@ -224,15 +238,6 @@ class Triangulation:
                     self._simplices = convert_to_star(self._simplices,
                                                       facets_ind,
                                                       self._origin_index)
-        # Initialize remaining hidden attributes
-        self._is_fine = None
-        self._is_regular = None
-        self._is_star = None
-        self._is_valid = None
-        self._gkz_phi = None
-        self._sr_ideal = None
-        self._cpl_cone = None
-        self._cy = None
 
     def clear_cache(self, recursive=True):
         """Clears the cached results of any previous computation."""
@@ -314,10 +319,19 @@ class Triangulation:
         pts_ext = np.empty((pts.shape[0],pts.shape[1]+1), dtype=int)
         pts_ext[:,:-1] = pts
         pts_ext[:,-1] = 1
-        # First check if the dimensions of the simplices and polytope match up
+        # Check if the dimensions of the simplices and polytope match up
         if simps.shape[1] != self.dim()+1:
             self._is_valid = False
             return self._is_valid
+        # If the triangulation is presumably regular, then we can check if
+        # heights inside the CPL cone yield the same triangulation.
+        if self.is_regular():
+            cpl = self.cpl_cone()
+            heights = cpl.dmin(0.1)[1]
+            tmp_triang = Triangulation(self.points(), self.polytope(),
+                                        heights=heights, make_star=False)
+            return (sorted(sorted(s) for s in self.simplices().tolist()) ==
+                    sorted(sorted(s) for s in tmp_triang.simplices().tolist()))
         # Then check if the volumes add up to the volume of the polytope
         v = 0
         for s in simps:
@@ -408,7 +422,7 @@ class Triangulation:
         triangs = []
         for t in triangs_list:
             triangs.append(Triangulation(self._triang_pts, self._poly,
-                                         simplices=t))
+                                         simplices=t, check_input_simplices=False))
         return triangs
 
     def neighbor_triangs(self, only_regular=True, topcom_dir=None):

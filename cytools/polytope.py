@@ -1266,7 +1266,8 @@ class Polytope:
         return np.array(self._normal_form)
 
     def triangulate(self, heights=None, make_star=None, only_pts=None,
-                    simplices=None, backend="cgal", backend_dir=None):
+                    simplices=None, check_input_simplices=True, backend="cgal",
+                    backend_dir=None):
         """
         Returns a single regular triangulation of the polytope.
 
@@ -1323,6 +1324,7 @@ class Polytope:
             make_star = False
         return Triangulation(triang_pts, poly=self, heights=heights,
                              make_star=make_star, simplices=simplices,
+                             check_input_simplices=check_input_simplices,
                              backend=backend, backend_dir=backend_dir)
 
     def random_triangulations(self, N, n_walk, n_flip, initial_walk_steps,
@@ -1500,16 +1502,18 @@ class Polytope:
             old_pt = new_pt/np.linalg.norm(new_pt)
         return triangulation_list
 
-    def all_triangulations(self, use_all_points=None, only_fine=True,
+    def all_triangulations(self, only_pts=None, only_fine=True,
                            only_regular=True, only_star=True, star_origin=None,
                            topcom_dir=None):
         """
         Computes all triangulations of the polytop using TOPCOM.
 
         Args:
-            use_all_points (boolean, optional): Whether to use all points or
-                only points not interior to facets. If not specified, this is
-                set to False for reflexive polytopes and True otherwise.
+            only_pts (list or string, optional): A list of the indices of the
+                points to be included in the triangulation.  If not specified,
+                it uses points not interior to facets when the polytope is
+                reflexive, and all of them otherwise.  When it is desired to
+                force the inclusion of all points, it can be set to "all".
             only_fine (boolean, optional, default=True): Restricts to only
                 fine triangulations.
             only_regular (boolean, optional, default=True): Restricts to only
@@ -1526,8 +1530,6 @@ class Polytope:
             list: A list of all triangulations of the polytope with the
                 specified properties.
         """
-        if use_all_points is None:
-            use_all_points = not self.is_reflexive()
         if star_origin is None:
             if self.is_reflexive():
                 star_origin = 0
@@ -1535,11 +1537,21 @@ class Polytope:
                 raise Exception("The star_origin parameter must be specified "
                                 "when finding star triangulations of "
                                 "non-reflexive polytopes.")
-        pts = (self.points() if use_all_points else self.points_not_interior_to_facets())
-        triangs = all_triangulations(pts, only_fine=only_fine, only_regular=only_regular,
+        if only_pts is not None and not isinstance(only_pts, str):
+            pts = self.points()
+            triang_pts = [tuple(pts[i]) for i in only_pts]
+        elif (only_pts is not None and isinstance(only_pts, str)
+                and only_pts == "all"):
+            triang_pts = self.points()
+        elif self.is_reflexive():
+            triang_pts = self.points_not_interior_to_facets()
+        else:
+            triang_pts = self.points()
+        triangs = all_triangulations(triang_pts, only_fine=only_fine, only_regular=only_regular,
                                      only_star=only_star, star_origin=star_origin,
                                      topcom_dir=topcom_dir)
-        return [Triangulation(pts, poly=self, simplices=simps, backend_dir=topcom_dir)
+        return [Triangulation(triang_pts, poly=self, simplices=simps,
+                              check_input_simplices=False, backend_dir=topcom_dir)
                     for simps in triangs]
 
     def automorphisms(self, square_to_one=False):
