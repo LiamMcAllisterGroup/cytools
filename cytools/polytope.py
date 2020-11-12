@@ -17,7 +17,7 @@
 This module contains tools designed to perform polytope computations.
 """
 
-from cytools.triangulation import Triangulation
+from cytools.triangulation import Triangulation, all_triangulations
 from cytools.polytopeface import PolytopeFace
 from cytools.utils import gcd_list
 from cytools.utils import remove_duplicate_triangulations
@@ -392,7 +392,7 @@ class Polytope:
         anticanonical hypersurface in the toric variety given by a
         desingularization of the face fan of the polytope.
 
-        Equivalently, returns the Hodge number h^{2,1} of the Calabi-Yau 
+        Equivalently, returns the Hodge number h^{2,1} of the Calabi-Yau
         obtained as the anticanonical hypersurface in the toric variety given by a
         desingularization of the normal fan of the polytope.
 
@@ -424,7 +424,7 @@ class Polytope:
         anticanonical hypersurface in the toric variety given by a
         desingularization of the face fan of the polytope.
 
-        Equivalently, returns the Hodge number h^{1,1} of the Calabi-Yau 
+        Equivalently, returns the Hodge number h^{1,1} of the Calabi-Yau
         obtained as the anticanonical hypersurface in the toric variety given by a
         desingularization of the normal fan of the polytope.
 
@@ -462,7 +462,7 @@ class Polytope:
 
         An exception is raised if it is not a 4-dimensional reflexive
         polytope.
-        
+
         It is recommended to use the function:
         Polytope.chi(lattice='N')
         to avoid confusion.
@@ -489,7 +489,7 @@ class Polytope:
 
         Args:
             lattice (string): Specifies the lattice on which the polytope is
-            defined. Options are 'N' and 'M'. 
+            defined. Options are 'N' and 'M'.
         """
         if lattice=='N':
             return self._compute_h11()
@@ -516,7 +516,7 @@ class Polytope:
 
         Args:
             lattice (string): Specifies the lattice on which the polytope is
-            defined. Options are 'N' and 'M'. 
+            defined. Options are 'N' and 'M'.
         """
         if lattice=='N':
             return self._compute_h21()
@@ -543,7 +543,7 @@ class Polytope:
 
         Args:
             lattice (string): Specifies the lattice on which the polytope is
-            defined. Options are 'N' and 'M'. 
+            defined. Options are 'N' and 'M'.
         """
         if lattice=='N':
             return self._compute_chi()
@@ -1499,6 +1499,48 @@ class Polytope:
             step_per_tri_ctr += 1
             old_pt = new_pt/np.linalg.norm(new_pt)
         return triangulation_list
+
+    def all_triangulations(self, use_all_points=None, only_fine=True,
+                           only_regular=True, only_star=True, star_origin=None,
+                           topcom_dir=None):
+        """
+        Computes all triangulations of the polytop using TOPCOM.
+
+        Args:
+            use_all_points (boolean, optional): Whether to use all points or
+                only points not interior to facets. If not specified, this is
+                set to False for reflexive polytopes and True otherwise.
+            only_fine (boolean, optional, default=True): Restricts to only
+                fine triangulations.
+            only_regular (boolean, optional, default=True): Restricts to only
+                regular triangulations.
+            only_star (boolean, optional, default=True): Restricts to only
+                star triangulations.
+            star_origin (int, optional): The index of the point that will be
+                used as the star origin. If the polytope is reflexive this
+                is set to 0, but otherwise it must be specified.
+            topcom_dir (string, optional): This can be used to specify the
+                location of the TOPCOM binaries when they are not in PATH.
+
+        Returns:
+            list: A list of all triangulations of the polytope with the
+                specified properties.
+        """
+        if use_all_points is None:
+            use_all_points = not self.is_reflexive()
+        if star_origin is None:
+            if self.is_reflexive():
+                star_origin = 0
+            else:
+                raise Exception("The star_origin parameter must be specified "
+                                "when finding star triangulations of "
+                                "non-reflexive polytopes.")
+        pts = (self.points() if use_all_points else self.points_not_interior_to_facets())
+        triangs = all_triangulations(pts, only_fine=only_fine, only_regular=only_regular,
+                                     only_star=only_star, star_origin=star_origin,
+                                     topcom_dir=topcom_dir)
+        return [Triangulation(pts, poly=self, simplices=simps, backend_dir=topcom_dir)
+                    for simps in triangs]
 
     def automorphisms(self, square_to_one=False):
         """

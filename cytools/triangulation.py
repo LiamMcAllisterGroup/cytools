@@ -79,7 +79,7 @@ class Triangulation:
                 degeneracy with the heights and when polytopes are too large.
                 CGAL is far better in general, but it requires additional
                 software to be installed.
-            backend_path (string, optional): This can be used to specify the
+            backend_dir (string, optional): This can be used to specify the
                 location of CGAL or TOPCOM binaries when they are not in PATH.
         """
         self._triang_pts = np.array(triang_pts, dtype=int)
@@ -615,18 +615,29 @@ def topcom_triangulate(points, topcom_dir=None):
     return np.array(sorted([sorted(s) for s in simp]))
 
 
-def all_triangulations(points, only_regular=True, only_fine=True):
+def all_triangulations(points, only_fine=True, only_regular=True,
+                       only_star=True, star_origin=None, topcom_dir=None):
     """
-    Computes all triangularions of the inputted point configuration using
+    Computes all triangulations of the inputted point configuration using
     TOPCOM.  There is the option to only compute regular or fine
     triangulations.
 
     Args:
+        points (list): The list of points to be triangulated.
         only_regular (boolean, optional, default=True): Whether to restrict to
             regular triangulations.
         only_fine (boolean, optional, default=True): Whether to restrict to
             fine triangulations.
+        only_star (boolean, optional, default=True): Whether to restrict to
+            star triangulations.
+        star_origin (int, optional): The index of the point used as the star
+            origin. It needs to be specified if only_star=True.
+        topcom_dir (string, optional): This can be used to specify the
+            location of the TOPCOM binaries when they are not in PATH.
     """
+    if only_star and star_origin is None:
+        raise Exception("The star_origin parameter must be specified when "
+                        "restricting to star triangulations.")
     topcom_bin = ((topcom_dir + "/" if topcom_dir is not None else "")
                 + ("topcom-points2finetriangs" if only_fine
                     else "topcom-points2triangs"))
@@ -643,5 +654,5 @@ def all_triangulations(points, only_regular=True, only_fine=True):
     except:
         raise Exception("Error: Failed to parse TOPCOM output. "
                         f"stderr: {topcom_err}")
-    return [np.array(sorted([sorted(s) for s in t])) for t in triangs]
-
+    return [np.array(sorted([sorted(s) for s in t])) for t in triangs
+                if (not only_star or all(star_origin in ss for ss in t))]
