@@ -590,8 +590,11 @@ def cgal_triangulate(points, heights, cgal_dir=None):
     Computes a regular triangulation using CGAL.  See the Triangulation class
     for more details.
     """
+    dim = points.shape[1]
+    if dim > 10:
+        raise Exception("CGAL code is only compiled up to d=10.")
     cgal_bin = ((cgal_dir + "/" if cgal_dir is not None else "")
-                + "cgal-triangulate")
+                + f"cgal-triangulate-{dim}d")
     cgal = subprocess.Popen((cgal_bin,), stdin=subprocess.PIPE,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                             universal_newlines=True)

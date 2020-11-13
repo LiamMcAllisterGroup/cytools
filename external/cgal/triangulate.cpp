@@ -1,3 +1,20 @@
+/******************************************************************************
+* This file is part of CYTools.
+*
+* CYTools is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* CYTools is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with CYTools.  If not, see <https://www.gnu.org/licenses/>.
+******************************************************************************/
+
 #define CGAL_EIGEN3_ENABLED
 #include <CGAL/Epick_d.h>
 #include <CGAL/Regular_triangulation.h>
@@ -144,7 +161,10 @@ int main(int argc, char *argv[])
   // Read point list
   std::vector<std::vector<int> > points = readPoints(std::cin);
   int nPoints = points.size();
-  if(nPoints == 0) return 1;
+  if(nPoints == 0){
+    std::cerr << "Error: points list was empty" << std::endl;
+    return 1;
+  }
   // Read weights or heights
   std::vector<double> weights = readWeights(std::cin);
   if(nPoints != weights.size()){
