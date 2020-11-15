@@ -24,7 +24,7 @@ import numpy as np
 import re
 
 
-def read_polytopes(input, input_type="file", dualize=False):
+def polytope_generator(input, input_type="file", dualize=False):
     """
     Read the polytopes from a file or a string containing a list of polytopes
     in the format used in the Kreuzer-Skarke database.
@@ -88,9 +88,32 @@ def read_polytopes(input, input_type="file", dualize=False):
                 break
 
 
+def read_polytopes(input, input_type="file", dualize=False, as_list=False):
+    """
+    Read the polytopes from a file or a string containing a list of polytopes
+    in the format used in the Kreuzer-Skarke database.
+
+    Args:
+        input (string): Specifies the name of the file to read or the string
+            containing the polytopes.
+        input_type (string, optional, default="file"): Specifies whether to
+            read from a file or from the input string.  Options are "file" or
+            "string".
+        dualize (boolean, optional, default=False): Flag that indicates whether
+            to dualize all the polytopes before returning them.
+
+    Returns:
+        A list or generator of Polytope objects.
+    """
+    g = polytope_generator(input, input_type=input_type, dualize=dualize)
+    if as_list:
+        return list(g)
+    return g
+
+
 def fetch_polytopes(h11=None, h21=None, chi=None, lattice=None, n_points=None,
                     n_vertices=None, n_dual_points=None, n_facets=None,
-                    limit=1000, timeout=60, dualize=False):
+                    limit=1000, timeout=60, dualize=False, as_list=False):
     """
     Fetch reflexive polytopes from the Kreuzer-Skarke database.  The data is
     pulled from website http://hep.itp.tuwien.ac.at/~kreuzer/CY/.
@@ -160,4 +183,7 @@ def fetch_polytopes(h11=None, h21=None, chi=None, lattice=None, n_points=None,
     parameters = {n:str(v) for n, v in zip(names, variables) if v is not None}
     r = requests.get("http://quark.itp.tuwien.ac.at/cgi-bin/cy/cydata.cgi",
                      params=parameters, timeout=timeout)
-    return read_polytopes(r.text, input_type="string", dualize=dualize)
+    g = polytope_generator(r.text, input_type="string", dualize=dualize)
+    if as_list:
+        return list(g)
+    return g
