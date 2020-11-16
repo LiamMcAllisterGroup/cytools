@@ -29,6 +29,7 @@ from scipy.optimize import nnls
 from flint import fmpz_mat
 import re
 import copy
+import random
 
 
 class Triangulation:
@@ -673,3 +674,206 @@ def all_triangulations(points, only_fine=True, only_regular=True,
                         f"stderr: {topcom_err}")
     return [np.array(sorted([sorted(s) for s in t])) for t in triangs
                 if (not only_star or all(star_origin in ss for ss in t))]
+
+
+def random_triangulations_fast_generator(triang_pts, N=None, c=0.01,
+                            max_retries=500, make_star=None, only_fine=True,
+                            backend="cgal", backend_dir=None, poly=None):
+    """
+    Constructs a pseudorandom generator of regular (optionally fine and star)
+    triangulations of a given point set. This is done by picking random
+    heights around the Delaunay heights from a Gaussian distribution.
+
+    Args:
+        triang_pts (list): The list of points to be trianglated.
+        N (int, optional): Number of desired unique triangulations.
+        c (float, optional, default=0.01): A contant used as a coefficient of
+            the Gaussian distribution used to pick the heights. A larger c
+            results in a wider range of possible triangulations, but with a
+            larger fraction of them being non-fine.
+        max_retries (int, optional, default=500): Maximum number of attempts
+            to obtain a new triangulation before the process is terminated.
+        make_star (boolean, optional): Whether to return star triangulations
+            only, where the center is the origin. If not specified, defaults to
+            True for reflexive polytopes, False for non-reflexive polytopes.
+        only_fine (boolean, optional, default=True): Whether to find only
+            fine triangulations.
+        backend (string, optional, default="cgal"): Specifies the backend
+            used to compute the triangulation.  The available options are
+            "cgal" and "qhull".
+        backend_dir (string, optional): This can be used to specify the
+            location of CGAL or TOPCOM binaries when they are not in PATH.
+        poly (Polytope, optional): The ambient polytope.
+
+    Returns:
+        generator: A generator of Triangulation objects.
+    """
+    triang_pts = np.array(triang_pts)
+    triang_hashes = set()
+    n_retries = 0
+    while True:
+        if n_retries >= max_retries or (N is not None and len(triang_hashes) > N):
+            break
+        heights= [pt.dot(pt) + c*np.random.random() for pt in triang_pts]
+        t = Triangulation(triang_pts, poly=poly, heights=heights,
+                          make_star=make_star, backend=backend,
+                          backend_dir=backend_dir)
+        if only_fine and not t.is_fine():
+            n_retries += 1
+            continue
+        h = hash(tuple(sorted(tuple(sorted(s)) for s in t.simplices())))
+        if h in triang_hashes:
+            n_retries += 1
+            continue
+        triang_hashes.add(h)
+        n_retries = 0
+        yield t
+
+
+def random_triangulations_fair_generator(triang_pts, N=None, n_walk=10, n_flip=10,
+                    initial_walk_steps=20, walk_step_size=1e-2,
+                    max_steps_to_wall=10, fine_tune_steps=8, max_retries=50,
+                    make_star=None, backend="cgal", backend_dir=None, poly=None):
+    """
+    Constructs a pseudorandom generator of fine, regular (optionally star)
+    triangulations of a given point set. Implements Algorithm #3 from:
+
+                Bounding the Kreuzer-Skarke Landscape
+            Mehmet Demirtas, Liam McAllister, Andres Rios-Tascon
+                    https://arxiv.org/abs/2008.01730
+
+    This is a Markov chain Monte Carlo algorithm that involves
+    * taking random walks inside the subset of the secondary fan
+         that result in fine triangulations.
+    * performing random flips.
+    For details, please see Section 4.1 in the paper.
+
+    Args:
+        triang_pts (list): The list of points to be trianglated.
+        N (int, optional): Number of desired unique triangulations.
+        n_walk (int, optional, default=10): Number of hit-and-run steps per triangulation.
+        n_flip (int, optional, default=10): Number of random flips performed per triangulation.
+        initial_walk_steps (int, optional, default=20): Number of
+            hit-and-run steps to take before starting to record triangulations.
+            Small values may result in a bias towards Delaunay-like triangulations.
+        walk_step_size (float, optional, default=1e-2): Determines size of random steps taken
+            in the secondary fan. Algorithm may stall if too small.
+        max_steps_to_wall (int, optional, default=10): Maximum Number of steps to
+            take towards a wall of the subset of the secondary fan that correspond to
+            fine triangulations. If a wall is not found, a new random direction is
+            selected. Setting this to be very large (>100) reduces performance.
+            If this, or walk_step_size, is set to be too low, the algorithm may stall.
+        fine_tune_steps (int, optional, default=8): Number of steps to determine the
+            location of a wall. Decreasing improves performance, but might result in
+            biased samples.
+        max_retries (int, optional, default=50): Maximum number of attempts
+            to obtain a new triangulation before the process is terminated.
+        make_star (boolean, optional): Whether to return star triangulations only,
+            where the center is the origin. If not specified, defaults to
+            True for reflexive polytopes, False for non-reflexive polytopes.
+        backend (string, optional, default=cgal): Specifies the backend
+            used to compute the triangulation.  The available options are
+            "qhull", "cgal", and "topcom".
+        backend_dir (string, optional): This can be used to specify the
+            location of CGAL or TOPCOM binaries when they are not in PATH.
+        poly (Polytope, optional): The ambient polytope.
+
+    Returns:
+        generator: A generator of Triangulation objects.
+    """
+    triang_hashes = set()
+    triang_pts = np.array(triang_pts)
+    num_points = len(triang_pts)
+    n_retries = 0
+
+    # Obtain a random Delaunay triangulation by picking a random point as the origin.
+    rand_ind = np.random.randint(0,len(triang_pts))
+    points_shifted = [p-triang_pts[rand_ind] for p in triang_pts]
+    delaunay_heights = [walk_step_size*(np.dot(p,p)) for p in points_shifted]
+    start_pt = delaunay_heights
+    step_size = walk_step_size*np.mean(delaunay_heights)
+    old_pt = start_pt
+
+    # Pick a random direction, and move until a non-fine
+    # or non-star triangulation is found.
+    step_ctr = 0 # Total number of random walk steps taken.
+    step_per_tri_ctr = 0 # Number of random walk steps
+                         # taken for the given triangulation.
+    while True:
+        if n_retries >= max_retries or (N is not None and len(triang_hashes) > N):
+            break
+        outside_bounds = False
+        while not outside_bounds:
+            in_pt = old_pt
+            random_dir = np.random.normal(size=num_points)
+            random_dir = random_dir / np.linalg.norm(random_dir)
+            steps_to_wall = 0 # Number of steps taken towards a wall
+            while not outside_bounds and steps_to_wall < max_steps_to_wall:
+                new_pt = in_pt + random_dir*step_size
+                temp_tri = Triangulation(triang_pts, poly=poly, heights=new_pt,
+                            make_star=False, backend=backend,
+                            backend_dir=backend_dir)
+                if temp_tri.is_fine():
+                    in_pt = new_pt
+                else:
+                    out_pt = new_pt
+                    outside_bounds = True
+                steps_to_wall += 1
+        # Find the location of the boundary
+        fine_tune_ctr = 0
+        in_pt_found = False
+        while fine_tune_ctr < fine_tune_steps or not in_pt_found:
+            new_pt = (in_pt + out_pt)/2
+            temp_tri = Triangulation(triang_pts, poly=poly, heights=new_pt,
+                            make_star=False, backend=backend,
+                            backend_dir=backend_dir)
+            if temp_tri.is_fine():
+                in_pt = new_pt
+                in_pt_found = True
+            else:
+                out_pt = new_pt
+            fine_tune_ctr += 1
+
+        # Take a random walk step
+        in_pt = in_pt/np.linalg.norm(in_pt)
+        random_coef = np.random.uniform(0,1)
+        new_pt = (random_coef*np.array(old_pt)
+                 + (1-random_coef)*np.array(in_pt))
+        # After initial walk steps are done and n_walk steps
+        # are taken, move on to random flips
+        if step_ctr > initial_walk_steps and step_per_tri_ctr >= n_walk:
+            flip_seed_tri = Triangulation(triang_pts, poly=poly, heights=new_pt,
+                                make_star=make_star, backend=backend,
+                                backend_dir=backend_dir)
+            if n_flip > 0:
+                good_flip = False
+                flip_ctr = 0
+                while flip_ctr < n_flip:
+                    random_flips = flip_seed_tri.random_flips(1, only_regular=False)
+                    if len(random_flips)==0:
+                        # Triangulation has no flips to other fine
+                        # and star triangulations. Skip this step.
+                        break
+                    random.shuffle(random_flips)
+                    good_flip = False
+                    flip_check_ctr = 0
+                    while not good_flip and flip_check_ctr < len(random_flips):
+                        temp_tri = random_flips[flip_check_ctr]
+                        if temp_tri.is_regular():
+                            good_flip = True
+                            flip_seed_tri = temp_tri
+                            flip_ctr += 1
+                        flip_check_ctr += 1
+            # Random walks and random flips complete. Record triangulation.
+            h = hash(tuple(sorted(tuple(sorted(s)) for s in temp_tri.simplices())))
+            if h in triang_hashes:
+                n_retries += 1
+                continue
+            triang_hashes.add(h)
+            n_retries = 0
+            step_per_tri_ctr = 0
+            yield temp_tri
+
+        step_ctr += 1
+        step_per_tri_ctr += 1
+        old_pt = new_pt/np.linalg.norm(new_pt)

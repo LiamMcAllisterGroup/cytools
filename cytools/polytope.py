@@ -17,7 +17,7 @@
 This module contains tools designed to perform polytope computations.
 """
 
-from cytools.triangulation import Triangulation, all_triangulations
+from cytools.triangulation import *
 from cytools.polytopeface import PolytopeFace
 from cytools.utils import gcd_list
 from cytools.utils import remove_duplicate_triangulations
@@ -1327,10 +1327,98 @@ class Polytope:
                              check_input_simplices=check_input_simplices,
                              backend=backend, backend_dir=backend_dir)
 
-    def random_triangulations(self, N, n_walk, n_flip, initial_walk_steps,
-                         walk_step_size=1e-2, max_steps_to_wall=10,
-                         fine_tune_steps=8, make_star=None, only_pts=None,
-                         backend="cgal", backend_dir=None, progress_bar=True):
+    def random_triangulations_fast(self, N=None, c=0.01, max_retries=500,
+                                make_star=True, only_fine=True, only_pts=None,
+                                backend="cgal", backend_dir=None,
+                                as_list=False, progress_bar=False):
+        """
+        Constructs pseudorandom regular (optionally fine and star)
+        triangulations of a given point set. This is done by picking random
+        heights around the Delaunay heights from a Gaussian distribution.
+
+        Args:
+            N (int, optional): Number of desired unique triangulations. If not
+                specified, it will return as many triangulations as it can find
+                until it has to retry more than max_retries times to obtain a new
+                triangulation.
+            c (float, optional, default=0.01): A contant used as a coefficient of
+                the Gaussian distribution used to pick the heights. A larger c
+                results in a wider range of possible triangulations, but with a
+                larger fraction of them being non-fine.
+            max_retries (int, optional, default=500): Maximum number of attempts
+                to obtain a new triangulation before the process is terminated.
+            make_star (boolean, optional): Whether to return star triangulations only,
+                where the center is the origin. If not specified, defaults to
+                True for reflexive polytopes, False for non-reflexive polytopes.
+            only_fine (boolean, optional, default=True): Whether to find only
+                fine triangulations.
+            only_pts (list or string, optional): A list of the indices of the
+                points to be included in the triangulation.  If not specified,
+                it uses points not interior to facets when the polytope is
+                reflexive, and all of them otherwise.  When it is desired to
+                force the inclusion of all points, it can be set to "all".
+            backend (string, optional, default="cgal"): Specifies the backend
+                used to compute the triangulation.  The available options are
+                "cgal" and "qhull".
+            backend_dir (string, optional): This can be used to specify the
+                location of CGAL or TOPCOM binaries when they are not in PATH.
+            progress_bar (boolean, optional, default=True): Shows number of
+                triangulations obtained and progress bar. This is ignored when
+                returning a generator.
+
+        Returns:
+            A list or a generator of Triangulation objects.
+        """
+        if self._ambient_dim > self._dim:
+            raise Exception("Only triangulations of full-dimensional polytopes"
+                            "are supported.")
+        if N is None and as_list:
+            raise Exception("Number of triangulations must be specified when "
+                            "returning a list.")
+        if only_pts is not None and not isinstance(only_pts, str):
+            pts = self.points()
+            triang_pts = [tuple(pts[i]) for i in only_pts]
+        elif (only_pts is not None and isinstance(only_pts, str)
+                and only_pts == "all"):
+            triang_pts = self.points()
+        elif self.is_reflexive():
+            triang_pts = self.points_not_interior_to_facets()
+        else:
+            triang_pts = self.points()
+        triang_pts = [tuple(pt) for pt in triang_pts]
+        if make_star is None:
+            if self.is_reflexive():
+                make_star = True
+            else:
+                make_star = False
+        if (0,)*self._dim not in triang_pts:
+            make_star = False
+        g = random_triangulations_fast_generator(triang_pts, N=N, c=c,
+                max_retries=max_retries, make_star=make_star,
+                only_fine=only_fine, backend=backend, backend_dir=backend_dir,
+                poly=self)
+        if not as_list:
+            return g
+        if progress_bar:
+            from tqdm import tqdm
+            pbar = tqdm(total=N, file=sys.stdout)
+        triangs_list = []
+        for i in range(N):
+            try:
+                triangs_list.append(next(g))
+                if progress_bar:
+                    pbar.update(len(triangs_list)-pbar.n)
+            except StopIteration:
+                if progress_bar:
+                    pbar.update(N-pbar.n)
+                break
+        return triangs_list
+
+    def random_triangulations_fair(self, N=None, n_walk=None, n_flip=None,
+                        initial_walk_steps=None, walk_step_size=1e-2,
+                        max_steps_to_wall=10, fine_tune_steps=8, max_retries=50,
+                        make_star=None, only_pts=None, backend="cgal",
+                        backend_dir=None, as_list=False, progress_bar=False):
         """
         Returns a pseudorandom list of regular triangulations of a given point set.
         Implements Algorithm #3 from:
@@ -1346,10 +1434,10 @@ class Polytope:
         For details, please see Section 4.1 in the paper.
 
         Args:
-            N (int): Number of desired unique triangulations.
-            n_walk (int): Number of hit-and-run steps per triangulation.
-            n_flip (int): Number of random flips performed per triangulation.
-            initial_walk_steps (int, optional, default=100): Number of
+            N (int, optional): Number of desired unique triangulations.
+            n_walk (int, optional): Number of hit-and-run steps per triangulation.
+            n_flip (int, optional): Number of random flips performed per triangulation.
+            initial_walk_steps (int, optional): Number of
                 hit-and-run steps to take before starting to record triangulations.
                 Small values may result in a bias towards Delaunay-like triangulations.
             walk_step_size (float, optional, default=1e-2): Determines size of random steps taken
@@ -1362,6 +1450,8 @@ class Polytope:
             fine_tune_steps (int, optional, default=8): Number of steps to determine the
                 location of a wall. Decreasing improves performance, but might result in
                 biased samples.
+            max_retries (int, optional, default=500): Maximum number of attempts
+                to obtain a new triangulation before the process is terminated.
             make_star (boolean, optional): Whether to return star triangulations only,
                 where the center is the origin. If not specified, defaults to
                 True for reflexive polytopes, False for non-reflexive polytopes.
@@ -1375,8 +1465,8 @@ class Polytope:
                 "qhull", "cgal", and "topcom".
             backend_dir (string, optional): This can be used to specify the
                 location of CGAL or TOPCOM binaries when they are not in PATH.
-            progress_bar (boolean, optional, default=True): Shows # of triangulations obtained
-                and progress bar.
+            progress_bar (boolean, optional, default=False): Shows number of
+                triangulations obtained and progress bar.
 
         Returns:
             list: A list of Triangulation objects.
@@ -1385,6 +1475,9 @@ class Polytope:
         if self._ambient_dim > self._dim:
             raise Exception("Only triangulations of full-dimensional polytopes"
                             "are supported.")
+        if N is None and as_list:
+            raise Exception("Number of triangulations must be specified when "
+                            "returning a list.")
         if only_pts is not None and not isinstance(only_pts, str):
             pts = self.points()
             triang_pts = [tuple(pts[i]) for i in only_pts]
@@ -1395,6 +1488,7 @@ class Polytope:
             triang_pts = self.points_not_interior_to_facets()
         else:
             triang_pts = self.points()
+        triang_pts = [tuple(pt) for pt in triang_pts]
         if make_star is None:
             if self.is_reflexive():
                 make_star = True
@@ -1402,105 +1496,34 @@ class Polytope:
                 make_star = False
         if (0,)*self._dim not in triang_pts:
             make_star = False
-
+        if n_walk is None:
+            n_walk = len(self.points())//10 + 1
+        if n_flip is None:
+            n_flip = len(self.points())//10 + 1
+        if initial_walk_steps is None:
+            initial_walk_steps = 2*len(self.points())//10 + 1
+        g = random_triangulations_fair_generator(triang_pts, N=N, n_walk=n_walk,
+                n_flip=n_flip, initial_walk_steps=initial_walk_steps,
+                walk_step_size=walk_step_size, max_steps_to_wall=max_steps_to_wall,
+                fine_tune_steps=fine_tune_steps, max_retries=max_retries,
+                make_star=make_star, backend=backend, backend_dir=backend_dir,
+                poly=self)
+        if not as_list:
+            return g
         if progress_bar:
             from tqdm import tqdm
             pbar = tqdm(total=N, file=sys.stdout)
-
-        triangulation_list = []
-        heights_list = []
-        triang_pts = np.array(triang_pts)
-        num_points = len(triang_pts)
-
-        # Obtain a random Delaunay triangulation by picking a random point as the origin.
-        rand_ind = np.random.randint(0,len(triang_pts))
-        points_shifted = [p-triang_pts[rand_ind] for p in triang_pts]
-        delaunay_heights = [walk_step_size*(np.dot(p,p)) for p in points_shifted]
-        start_pt = delaunay_heights
-        step_size = walk_step_size*np.mean(delaunay_heights)
-        old_pt = start_pt
-
-
-        # Pick a random direction, and move until a non-fine
-        # or non-star triangulation is found.
-        tri_ctr = 0 # Number of unique triangulations obtained
-        step_ctr = 0 # Total number of random walk steps taken.
-        step_per_tri_ctr = 0 # Number of random walk steps
-                             # taken for the given triangulation.
-        while tri_ctr<N:
-            outside_bounds = False
-            while not outside_bounds:
-                in_pt = old_pt
-                random_dir = np.random.normal(size=num_points)
-                random_dir = random_dir / np.linalg.norm(random_dir)
-                steps_to_wall = 0 # Number of steps taken towards a wall
-                while not outside_bounds and steps_to_wall<max_steps_to_wall:
-                    new_pt = in_pt + random_dir*step_size
-                    temp_tri = Triangulation(triang_pts, poly=self, heights=new_pt,
-                                make_star=False, backend=backend,
-                                backend_dir=backend_dir)
-                    if temp_tri.is_fine():
-                        in_pt = new_pt
-                    else:
-                        out_pt = new_pt
-                        outside_bounds = True
-                    steps_to_wall += 1
-            # Find the location of the boundary
-            fine_tune_ctr = 0
-            in_pt_found = False
-            while fine_tune_ctr<fine_tune_steps or not in_pt_found:
-                new_pt = (in_pt + out_pt)/2
-                temp_tri = Triangulation(triang_pts, poly=self, heights=new_pt,
-                                make_star=False, backend=backend,
-                                backend_dir=backend_dir)
-                if temp_tri.is_fine():
-                    in_pt = new_pt
-                    in_pt_found = True
-                else:
-                    out_pt = new_pt
-                fine_tune_ctr += 1
-
-            # Take a random walk step
-            in_pt = in_pt/np.linalg.norm(in_pt)
-            random_coef = np.random.uniform(0,1)
-            new_pt = (random_coef*np.array(old_pt)
-                     + (1-random_coef)*np.array(in_pt))
-            # After initial walk steps are done and n_walk steps
-            # are taken, move on to random flips
-            if step_ctr>initial_walk_steps and step_per_tri_ctr>=n_walk:
-                flip_seed_tri = Triangulation(triang_pts, poly=self, heights=new_pt,
-                                    make_star=make_star, backend=backend,
-                                    backend_dir=backend_dir)
-                if n_flip>0:
-                    good_flip = False
-                    flip_ctr = 0
-                    while flip_ctr<n_flip:
-                        random_flips = flip_seed_tri.random_flips(1, only_regular=False)
-                        if len(random_flips)==0:
-                            # Triangulation has no flips to other fine
-                            # and star triangulations. Skip this step.
-                            break
-                        random.shuffle(random_flips)
-                        good_flip = False
-                        flip_check_ctr = 0
-                        while not good_flip and flip_check_ctr<len(random_flips):
-                            temp_tri = random_flips[flip_check_ctr]
-                            if temp_tri.is_regular():
-                                good_flip = True
-                                flip_seed_tri = temp_tri
-                                flip_ctr += 1
-                            flip_check_ctr += 1
-                # Random walks and random flips complete. Record triangulation.
-                triangulation_list.append(temp_tri)
-                triangulation_list = remove_duplicate_triangulations(triangulation_list)
-                tri_ctr = len(triangulation_list)
-                step_per_tri_ctr = 0
+        triangs_list = []
+        for i in range(N):
+            try:
+                triangs_list.append(next(g))
                 if progress_bar:
-                    pbar.update(tri_ctr-pbar.n)
-            step_ctr += 1
-            step_per_tri_ctr += 1
-            old_pt = new_pt/np.linalg.norm(new_pt)
-        return triangulation_list
+                    pbar.update(len(triangs_list)-pbar.n)
+            except StopIteration:
+                if progress_bar:
+                    pbar.update(N-pbar.n)
+                break
+        return triangs_list
 
     def all_triangulations(self, only_pts=None, only_fine=True,
                            only_regular=True, only_star=True, star_origin=None,
