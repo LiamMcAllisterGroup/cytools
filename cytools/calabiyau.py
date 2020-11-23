@@ -173,8 +173,8 @@ class CalabiYau:
                                     use_all_points=self.frst()._all_poly_pts,
                                     n_retries=n_retries)
 
-    def divisor_basis(self, integral_basis=False, exclude_origin=False,
-                   n_retries=100):
+    def divisor_basis(self, integral=False, exclude_origin=False,
+                      n_retries=100):
         """
         Return the current basis of divisors of the ambient toric Variety.
 
@@ -185,7 +185,7 @@ class CalabiYau:
             use_all_points (boolean, optional, default=False): By default only
                 boundary points not interior to facets are used. If this flag
                 is set to true then points interior to facets are also used.
-            integral_basis (boolean, optional, default=False): Indicates
+            integral (boolean, optional, default=False): Indicates
                 whether to try to find an integer basis for the columns of the
                 GLSM charge matrix. (i.e. so that remaining columns can be
                 written as an integer linear combination of the basis.)
@@ -195,11 +195,12 @@ class CalabiYau:
 
         Returns: A list of column indices that form a basis
         """
-        if self._divisor_basis is None or integral_basis:
+        if self._divisor_basis is None or integral:
             self._divisor_basis = self.polytope().glsm_basis(
-                                                integral_basis=integral_basis,
-                                                exclude_origin=exclude_origin,
-                                                n_retries=n_retries)
+                                    integral=integral,
+                                    exclude_origin=exclude_origin,
+                                    use_all_points=self.frst()._all_poly_pts,
+                                    n_retries=n_retries)
             self.clear_cache(only_in_basis=True)
         return np.array(self._divisor_basis)
 

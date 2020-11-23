@@ -936,7 +936,7 @@ class Polytope:
         return np.array(self._glsm_linrels[args_id])
 
     def glsm_basis(self, exclude_origin=False, use_all_points=False,
-                   integral_basis=True, n_retries=100):
+                   integral=False, n_retries=100):
         """
         Compute a basis for the column span of the GLSM charge matrix.
 
@@ -947,7 +947,7 @@ class Polytope:
             use_all_points (boolean, optional, default=False): By default only
                 boundary points not interior to facets are used. If this flag
                 is set to true then points interior to facets are also used.
-            integral_basis (boolean, optional, default=False): Indicates
+            integral (boolean, optional, default=False): Indicates
                 whether to try to find an integer basis for the columns of the
                 GLSM charge matrix. (i.e. so that remaining columns can be
                 written as an integer linear combination of the basis.)
@@ -957,7 +957,7 @@ class Polytope:
 
         Returns: A list of column indices that form a basis
         """
-        args_id = 1*use_all_points + 2*integral_basis
+        args_id = 1*use_all_points + 2*integral
         if self._glsm_basis[args_id] is not None:
             if exclude_origin:
                 return np.array(self._glsm_basis[args_id]) - 1
@@ -982,7 +982,7 @@ class Polytope:
             for v in linrel_rand:
                 for i,ii in enumerate(v):
                     if ii != 0:
-                        if integral_basis:
+                        if integral:
                             if abs(ii) == 1:
                                 v *= ii
                             else:
@@ -1002,8 +1002,9 @@ class Polytope:
         if (np.linalg.matrix_rank(ker_np) != len(basis_ind)
                 or any(ker_np.dot(linrel_np.T).flatten())):
             raise Exception("Error finding basis")
-        if integral_basis:
+        if integral:
             self._glsm_linrels[1*use_all_points] = linrel_np
+            self._glsm_basis[1*use_all_points] = basis_ind
         self._glsm_basis[args_id] = basis_ind
         if exclude_origin:
             return np.array(self._glsm_basis[args_id]) - 1
