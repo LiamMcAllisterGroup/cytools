@@ -198,6 +198,7 @@ class Cone:
                 self._dual = Cone(hyperplanes=self.rays(), check=False)
             else:
                 self._dual = Cone(rays=self.hyperplanes(), check=False)
+            self._dual._dual = self
         return self._dual
 
     def extremal_rays(self, tol=1e-4, n_threads=1, verbose=False):

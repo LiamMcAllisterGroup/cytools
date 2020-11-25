@@ -641,11 +641,19 @@ class Polytope:
             if d is not None:
                 return np.array(self._faces[d], dtype=object)
             return np.array(self._faces, dtype=object)
+        if self._dual is not None and self._dual._faces is not None:
+            self._faces = ([[f.dual() for f in ff]
+                                for ff in self._dual._faces[::-1][1:]]
+                          + [[PolytopeFace(self, self.vertices(),
+                                           frozenset(), dim=self._dim)]])
+            if d is not None:
+                return np.array(self._faces[d], dtype=object)
+            return np.array(self._faces, dtype=object)
         if self._dim == 4:
             self._faces = self._faces4d()
             if d is not None:
-                return np.array(self._faces[d])
-            return np.array(self._faces)
+                return np.array(self._faces[d], dtype=object)
+            return np.array(self._faces, dtype=object)
         pts_sat = self._points_saturated()
         vert = [tuple(pt) for pt in self.vertices()]
         vert_sat = [tuple(pt) for pt in pts_sat if pt[0] in vert]
@@ -756,6 +764,7 @@ class Polytope:
                             "supported.")
         pts = np.array(self._input_ineqs[:,:-1])
         self._dual = Polytope(pts, backend=self._backend)
+        self._dual._dual = self
         return self._dual
 
     def polar(self):

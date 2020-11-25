@@ -39,6 +39,7 @@ class PolytopeFace:
         """
         self._ambient_poly = ambient_poly
         self._vertices = np.array(vertices)
+        self._ambient_dim = self._ambient_poly.ambient_dim()
         self._saturated_ineqs = saturated_ineqs
         if dim is not None:
             self._dim = dim
@@ -71,7 +72,7 @@ class PolytopeFace:
         """Returns a string describing the face of the face."""
         return (f"A {self._dim}-dimensional face of a "
                 f"{self._ambient_poly._dim}-dimensional polytope in "
-                f"ZZ^{self._ambient_poly._ambient_dim}")
+                f"ZZ^{self._ambient_dim}")
 
     def _points_saturated(self):
         if self._points_sat is not None:
@@ -131,6 +132,7 @@ class PolytopeFace:
         dual_face_dim = self._ambient_poly._dim - self._dim - 1
         self._dual_face = PolytopeFace(dual_poly, dual_vert,
                                        dual_saturated_ineqs, dim=dual_face_dim)
+        self._dual_face._dual_face = self
         return self._dual_face
 
     def vertices(self):
@@ -158,4 +160,4 @@ class PolytopeFace:
 
     def ambient_dim(self):
         """Returns the dimension of the ambient lattice."""
-        return self._ambient_poly._ambient_dim
+        return self._ambient_dim
