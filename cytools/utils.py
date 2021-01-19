@@ -15,25 +15,33 @@
 
 """This module contains various common functions that are used in CYTools."""
 
-from functools import reduce
-import numpy as np
-from scipy.sparse import dok_matrix
+# Standard imports
 from itertools import permutations
 from fractions import Fraction
-from flint import fmpz_mat, fmpq_mat, fmpz, fmpq
-from multiprocessing import Process, Queue
-from scipy.optimize import nnls
+from functools import reduce
+import subprocess
+import requests
+# Third party imports
+from flint import fmpz_mat, fmpq
+from scipy.sparse import dok_matrix
+import numpy as np
+# CYTools imports
+from cytools import config
+
+
 
 def gcd_float(a, b, tol=1e-5):
-    """Compute the greatest common (floating point) divisor of a and b.
+    """
+    **Description:**
+    Compute the greatest common (floating-point) divisor of a and b.
 
-    Args:
-        a (float): The first number.
-        b (float): The second number.
-        tol (float, optional, default=1e-5): The tolerance for rounding.
+    **Arguments:**
+    - ```a``` (float): The first number.
+    - ```b``` (float): The second number.
+    - ```tol``` (float, optional, default=1e-5): The tolerance for rounding.
 
-    Returns:
-        float: The gcd of a and b.
+    **Returns:**
+    (float) The gcd of a and b.
     """
     if abs(b) < tol:
         return abs(a)
@@ -41,26 +49,29 @@ def gcd_float(a, b, tol=1e-5):
 
 
 def gcd_list(arr):
-    """Compute the greatest common divisor of the elements in an array.
+    """
+    **Description:**
+    Compute the greatest common divisor of the elements in an array.
 
-    Args:
-        arr (list): A list of floating point numbers.
+    **Arguments:**
+    - ```arr``` (list): A list of floating-point numbers.
 
-    Returns:
-        float: The gcd of all the elements in the input list.
+    **Returns:**
+    (float) The gcd of all the elements in the input list.
     """
     return reduce(gcd_float,arr)
 
 
 def to_sparse(rule_arr_in):
-    """Converts an matrix of the form [[a,b, M_ab]] to a dok_matrix.
+    """
+    **Description:**
+    Converts an matrix of the form [[a,b, M_ab],...] to a dok_matrix.
 
-    Args:
-        rule_arr_in (list): A list containing the rules.
+    **Arguments:**
+    - ```rule_arr_in``` (list): A list of the form [[a,b, M_ab],...].
 
-    Returns:
-        scipy dok_matrix: The sparse dok_matrix. 
-
+    **Returns:**
+    (dok_matrix) The sparse dok_matrix.
     """
     rule_arr = np.array(rule_arr_in)
     dim_0 = max(rule_arr[:,0])
@@ -74,24 +85,25 @@ def to_sparse(rule_arr_in):
 def solve_linear_system(M, C, backend="all", check=True,
                         backend_error_tol=1e-4, verbose=0):
     """
+    **Description:**
     Solves the sparse linear system M*x=C.
 
-    Args:
-        M (dok_matrix): A scipy dok_matrix.
-        C (list): A vector of floats.
-        backend (string, optional, default="all"): The sparse linear solver to
-            use. Options are "all", "sksparse" and "scipy". When set to "all" 
-            tries all available backends.
-        check (boolean, optional, default=True): Whether to explicitly check
-            the solution to the linear system.
-        backend_error_tol (float, optional, default=1e-4): Error tolerance for
-            the solution of the linear system.
-        verbose (int, optional, default=0): Verbosity level:
-            - verbose = 0: Do not print anything.
-            - verbose = 1: Print warnings when backends fail.
+    **Arguments:**
+    - ```M``` (dok_matrix): A scipy dok_matrix.
+    - ```C``` (list): A vector of floats.
+    - ```backend``` (string, optional, default="all"): The sparse linear solver
+      to use. Options are "all", "sksparse" and "scipy". When set to "all" it
+      tries all available backends.
+    - ```check``` (boolean, optional, default=True): Whether to explicitly
+      check the solution to the linear system.
+    - ```backend_error_tol``` (float, optional, default=1e-4): Error tolerance
+      for the solution of the linear system.
+    - ```verbose``` (integer, optional, default=0): The verbosity level.
+      - verbose = 0: Do not print anything.
+      - verbose = 1: Print warnings when backends fail.
 
-    Returns:
-        list: Floating point solution to the linear system.
+    **Returns:**
+    (list) Floating-point solution to the linear system.
     """
     backends = ["all", "sksparse", "scipy"]
     if backend not in backends:
@@ -128,8 +140,8 @@ def solve_linear_system(M, C, backend="all", check=True,
                 print("Linear backend error: scipy failed.")
             system_solved = False
     if system_solved and check:
-        res = np.dot(M.todense(), solution) + C
-        max_error = max(abs(s) for s in res.flatten().tolist()[0])
+        res = M.dot(solution) + C
+        max_error = max(abs(s) for s in res.flat)
         if max_error > backend_error_tol:
             system_solved = False
             if verbose >= 1:
@@ -142,22 +154,20 @@ def solve_linear_system(M, C, backend="all", check=True,
 
 def filter_tensor_indices(tensor, indices):
     """
-    Selects a specific subset of indices from a tensor.  The tensor is
+    **Description:**
+    Selects a specific subset of indices from a tensor. The tensor is
     reindexed so that indices are in the range 0..len(indices) with the
-    ordering specified by the input indices.
+    ordering specified by the input indices. This function can be used to
+    convert the tensor of intersection numbers to a given basis.
 
-    This function can be used to convert the tensor of triple intersection
-    numbers to a given basis.
+    **Arguments:**
+    - ```tensor``` (list): The input symmetric sparse tensor of the form
+      [[a,b,...,c,M_ab...c]].
+    - ```indices``` (list): The list of indices that will be preserved.
 
-    Args:
-        tensor (list): A list describing a n-tensor. Each element of the list
-            is a list of length n+1, with the first n elements being indices
-            and the last entry being the value at the corresponding position.
-        indices (list): The list of indices that will be preserved.
-
-    Returns:
-        np.array: A matrix describing a tensor in the same format as the input,
-            but only with the desired indices.
+    **Returns:**
+    (list) A matrix describing a tensor in the same format as the input, but
+    only with the desired indices.
     """
     dim = len(tensor[0]) - 1
     tensor_filtered = [c for c in tensor
@@ -168,14 +178,18 @@ def filter_tensor_indices(tensor, indices):
     return np.array(tensor_reindexed)
 
 
-def symmetric_sparse_to_dense_in_basis(tensor, basis, check=True):
+def symmetric_sparse_to_dense_in_basis(tensor, basis):
     """
-    Converts a symmetric sparse tensor of the form [[a,b, ... , M_ab...]] to a
+    **Description:**
+    Converts a symmetric sparse tensor of the form [[a,...,b,M_a...b]] to a
     dense tensor and then applies the basis transformation.
 
-    The inverse transformation is used to make sure that the change of basis
-    succeeded, and if not the computation is performed again using arbitrary
-    precision integers instead of 64-bit integers.
+    **Arguments:**
+    - ```tensor``` (list): A sparse tensor of the form [[a,...,b,M_a...b]].
+    - ```basis``` (list): A matrix where the rows are the basis elements.
+
+    **Returns:**
+    (list) A dense tensor in the chosen basis.
     """
     dense_tensor = np.zeros((basis.shape[1],)*(tensor.shape[1]-1),
                             dtype=tensor.dtype)
@@ -188,147 +202,355 @@ def symmetric_sparse_to_dense_in_basis(tensor, basis, check=True):
     return dense_result
 
 
-def is_extremal(A, b, i=None, q=None, tol=10e-4):
+def float_to_fmpq(c):
     """
-    Returns True if the ray is extremal and False otherwise. It has additional
-    parameters that are used when parallelizing.
+    **Description:**
+    Converts a float to an fmpq.
 
-    Args:
-        A (list): A matrix where the columns are rays (excluding b).
-        b (list): The vector that will be checked if it can be expressed as a
-            positive linear combination of the columns of A.
-        i (int): An id number that is used when parallelizing.
-        q (Queue): A queue that is used when parallelizing.
-        tol (float): The tolerance for determining whether a ray is extremal.
+    **Arguments:**
+    - ```c``` (float): The input number.
 
-    Returns:
-        bool: True if the ray is extremal and False otherwise.
+    **Returns:**
+    (fmpq) The rational number that most reasonably approximates the input.
     """
-    try:
-        v = nnls(A,b)
-        is_ext = abs(v[1]) > tol
-        if q is not None:
-            q.put((i, is_ext))
-        return is_ext
-    except:
-        if q is not None:
-            q.put((i,None))
-        return
+    f = Fraction(c).limit_denominator()
+    return fmpq(f.numerator, f.denominator)
 
 
-def find_extremal(in_rays, tol=1e-4, n_threads=1, verbose=False):
-    rays = np.array(in_rays, dtype=np.int)
-    current_rays = set(range(rays.shape[0]))
-    ext_rays = set()
-    error_rays = set()
-    rechecking_rays = False
-    failed_after_rechecking = False
-    while True:
-        checking = []
-        for i in current_rays:
-            if i not in ext_rays and (i not in error_rays or rechecking_rays):
-                checking.append(i)
-            if len(checking) >= n_threads:
-                break
-        if len(checking) == 0:
-            if rechecking_rays:
-                break
-            else:
-                rechecking_rays = True
-        As = [np.array([rays[j] for j in current_rays if j != k], dtype=int).T
-                for k in checking]
-        bs = [rays[k] for k in checking]
-        q = Queue()
-        procs = [Process(target=is_extremal,
-                 args=(As[k], bs[k], k, q, tol)) for k in range(len(checking))]
-        for t in procs:
-            t.start()
-        for t in procs:
-            t.join()
-        results = [q.get() for j in range(len(checking))]
-        for res in results:
-            if res[1] is None:
-                error_rays.add(checking[res[0]])
-                if rechecking_rays:
-                    failed_after_rechecking = True
-                    ext_rays.add(checking[res[0]])
-                elif verbose:
-                    print("Minimizatio failed. Ray will be rechecked later...")
-            elif not res[1]:
-                current_rays.remove(checking[res[0]])
-            else:
-                ext_rays.add(checking[res[0]])
-            if rechecking_rays:
-                error_rays.remove(checking[res[0]])
-        if verbose:
-            print(f"Eliminated {sum(not r[1] for r in results)}. "
-                  f"Current number of rays: {len(current_rays)}")
-    if failed_after_rechecking:
-        print("Warning: Minimization failed after multiple attempts. "
-              "Some rays may not be extremal.")
-    return rays[list(ext_rays),:]
-
-
-def np_int_to_fmpz(mat):
+def fmpq_to_float(c):
     """
-    Converts a numpy array with integer entries to fmpz entries.
+    **Description:**
+    Converts an fmpq to a float.
+
+    **Arguments:**
+    - ```c``` (fmpq): The input number.
+
+    **Returns:**
+    (float) The input number as a float.
     """
-    m = np.array(mat, dtype=int)
-    return np.array(fmpz_mat(m.tolist()).table())
+    return int(c.p)/int(c.q)
 
 
-def np_float_to_fmpq(mat):
+def array_int_to_fmpz(arr):
     """
+    **Description:**
+    Converts a numpy array with 64-bit integer entries to fmpz entries.
+
+    **Arguments:**
+    - ```arr``` (list): A numpy array with 64-bit integer entries.
+
+    **Returns:**
+    A numpy array with fmpz entries.
+    """
+    in_arr = np.array(arr, dtype=int)
+    return np.array(fmpz_mat(in_arr.tolist()).tolist())
+
+
+def array_float_to_fmpq(arr):
+    """
+    **Description:**
     Converts a numpy array with floating-point entries to fmpq entries.
+
+    **Arguments:**
+    - ```arr``` (list): A numpy array with floating-point entries.
+
+    **Returns:**
+    A numpy array with fmpq entries.
     """
-    in_flat = mat.flatten()
-    fmpq_flat = np.empty(in_flat.shape[0], dtype=fmpq)
-    for i in range(in_flat.shape[0]):
-        f = Fraction(in_flat[i]).limit_denominator()
+    in_arr = np.array(arr, dtype=float)
+    fmpq_flat = np.empty(len(in_arr.flat), dtype=fmpq)
+    for i,c in enumerate(in_arr.flat):
+        f = Fraction(c).limit_denominator()
         fmpq_flat[i] = fmpq(f.numerator, f.denominator)
-    return fmpq_flat.reshape(mat.shape)
+    return fmpq_flat.reshape(in_arr.shape)
 
 
-def np_fmpz_to_int(mat):
+def array_fmpz_to_int(arr):
     """
-    Converts a numpy array with fmpq entries to integer entries.
+    **Description:**
+    Converts a numpy array with fmpz entries to 64-bit integer entries.
+
+    **Arguments:**
+    - ```arr``` (list): A numpy array with fmpz entries.
+
+    **Returns:**
+    A numpy array with 64-bit integer entries.
     """
-    return np.array(mat, dtype=int)
+    return np.array(arr, dtype=int)
 
 
-def np_fmpq_to_float(mat):
+def array_fmpq_to_float(arr):
     """
+    **Description:**
     Converts a numpy array with fmpq entries to floating-point entries.
+
+    **Arguments:**
+    - ```arr``` (list): A numpy array with fmpq entries.
+
+    **Returns:**
+    A numpy array with floating-point entries.
     """
-    in_flat = mat.flatten()
-    float_flat = np.empty(in_flat.shape[0], dtype=float)
-    for i in range(in_flat.shape[0]):
-        float_flat[i] = int(in_flat[i].p)/int(in_flat[i].q)
-    return float_flat.reshape(mat.shape)
+    in_arr = np.array(arr, dtype=fmpq)
+    float_flat = np.empty(len(in_arr.flat), dtype=float)
+    for i,c in enumerate(in_arr.flat):
+        float_flat[i] = int(c.p)/int(c.q)
+    return float_flat.reshape(in_arr.shape)
 
-def unique(sequence):
+
+def polytope_generator(input, input_type="file", format="ks", backend=None,
+                       dualize=False):
     """
-    Finds indices of the unique elements of a tuple.
+    **Description:**
+    Reads the polytopes from a file or a string containing a list of polytopes
+    in the format used in the Kreuzer-Skarke database, or a list of weight
+    systems.
 
-    Args:
-        sequence(tuple): A tuple.
+    **Arguments:**
+    - ```input``` (string): Specifies the name of the file to read or the
+      string containing the polytopes.
+    - ```input_type``` (string, optional, default="file"): Specifies whether to
+      read from a file or from the input string.  Options are "file" or
+      "string".
+    - ```format``` (string, optional, default="ks"): Specifies the format to
+      read. The options are "ks", which is the format used in the KS database,
+      and "ws", if the polytopes should be constructed from weight systems.
+    - ```backend``` (string, optional): A string that specifies the backend
+      used for the [```Polytope```](./polytope) class.
+    - ```dualize``` (boolean, optional, default=False): Flag that indicates
+      whether to dualize all the polytopes before returning them.
 
-    Returns:
-        tuple: A tuple containing indices of the unique elements.
+    **Returns:**
+    (generator) A generator of [```Polytope```](./polytope) objects.
     """
-    seen = set()
-    return [i for i,x in enumerate(sequence) if not (x in seen or seen.add(x))]
+    from cytools import Polytope
+    if input_type not in ["file", "string"]:
+        raise Exception("\"input_type\" must be either \"file\" or \"string\"")
+    if input_type == "file":
+        in_file = open(input, "r")
+        l = in_file.readline()
+    else:
+        in_string = input.split("\n")
+        l = in_string[0]
+        in_string.pop(0)
+    if format == "ws":
+        while True:
+            palp = subprocess.Popen((config.palp_path + "/poly.x", "-v"),
+                                    stdin=subprocess.PIPE,
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                    universal_newlines=True)
+            palp_res, palp_err = palp.communicate(input=l+"\n")
+            palp_res = palp_res.split("\n")
+            vert = []
+            i = 0
+            while i < len(palp_res):
+                if "Vertices" in palp_res[i]:
+                    for j in range(eval(palp_res[i].split()[0])):
+                        i += 1
+                        vert.append([int(c) for c in palp_res[i].split()])
+                i += 1
+            vert = np.array(vert)
+            if vert.shape[0] < vert.shape[1]:
+                vert = vert.T
+            p = Polytope(vert, backend=backend)
+            yield (p.dual() if dualize else p)
+            if input_type == "file":
+                l = in_file.readline()
+                reached_end = True
+                for i in range(5):
+                    if l != "":
+                        reached_end = False
+                        break
+                    l = in_file.readline()
+                if reached_end:
+                    in_file.close()
+                    break
+            else:
+                if len(in_string) > 0:
+                    l = in_string[0]
+                    in_string.pop(0)
+                else:
+                    break
+    elif format != "ks":
+        raise Exception("Unsupported format. Options are \"ks\" and \"ws\".")
+    while format == "ks":
+        if "M:" in l:
+            h = l.split()
+            n, m = int(h[0]), int(h[1])
+            vert = []
+            for i in range(n):
+                if input_type == "file":
+                    vert.append([int(c) for c in in_file.readline().split()])
+                else:
+                    vert.append([int(c) for c in in_string[0].split()])
+                    in_string.pop(0)
+            vert = np.array(vert)
+            if vert.shape != (n, m):
+                raise Exception("Error: Dimensions of array do not match")
+            if m > n:
+                vert = vert.T
+            p = Polytope(vert, backend=backend)
+            yield (p.dual() if dualize else p)
+        if input_type == "file":
+            l = in_file.readline()
+            reached_end = True
+            for i in range(5):
+                if l != "":
+                    reached_end = False
+                    break
+                l = in_file.readline()
+            if reached_end:
+                in_file.close()
+                break
+        else:
+            if len(in_string) > 0:
+                l = in_string[0]
+                in_string.pop(0)
+            else:
+                break
 
-def remove_duplicate_triangulations(triangulation_list):
+
+def read_polytopes(input, input_type="file", format="ks", backend=None,
+                   dualize=False, as_list=False):
     """
-    Removes duplicate triangulations.
+    **Description:**
+    Reads the polytopes from a file or a string containing a list of polytopes
+    in the format used in the Kreuzer-Skarke database, or a list of weight
+    systems.
 
-    Args:
-        triangulation_list (iterable): A list Triangulation objects.
+    **Arguments:**
+    - ```input``` (string): Specifies the name of the file to read or the
+      string containing the polytopes.
+    - ```input_type``` (string, optional, default="file"): Specifies whether to
+      read from a file or from the input string.  Options are "file" or
+      "string".
+    - ```format``` (string, optional, default="ks"): Specifies the format to
+      read. The options are "ks", which is the format used in the KS database,
+      and "ws", if the polytopes should be constructed from weight systems.
+    - ```backend``` (string, optional): A string that specifies the backend
+      used for the [```Polytope```](./polytope) class.
+    - ```dualize``` (boolean, optional, default=False): Flag that indicates
+      whether to dualize all the polytopes before returning them.
+    - ```as_list``` (boolean, optional, default=False): Return the list of
+      polytopes instead of a generator.
 
-    Returns:
-        list: A list containing unique Triangulation objects.
+    **Returns:**
+    (generator or list) A generator of [```Polytope```](./polytope) objects, or
+    the full list when setting as_list=True.
     """
-    simplices_list = (tri.simplices() for tri in triangulation_list)
-    indices_list = unique(tuple(tuple(ii) for ii in i) for i in simplices_list)
-    return [triangulation_list[i] for i in indices_list]
+    g = polytope_generator(input, input_type=input_type, format=format,
+                           backend=backend, dualize=dualize)
+    if as_list:
+        return list(g)
+    return g
+
+
+def fetch_polytopes(h11=None, h12=None, h13=None, h21=None, h22=None, h31=None,
+                    chi=None, lattice=None, dim=4, n_points=None,
+                    n_vertices=None, n_dual_points=None, n_facets=None,
+                    limit=1000, timeout=60, dualize=False, as_list=False):
+    """
+    **Description:**
+    Fetch reflexive polytopes from the Kreuzer-Skarke database or from the
+    Schöller-Skarke database. The data is fetched from websites
+    http://hep.itp.tuwien.ac.at/~kreuzer/CY/ and
+    http://rgc.itp.tuwien.ac.at/fourfolds/ respectively.
+
+    **Arguments:**
+    - ```h11``` (integer, optional): Specifies the Hodge number $h^{1,1}$ of
+      the Calabi-Yau hypersurface.
+    - ```h12``` (integer, optional): Specifies the Hodge number $h^{1,2}$ of
+      the Calabi-Yau hypersurface.
+    - ```h13``` (integer, optional): Specifies the Hodge number $h^{1,3}$ of
+      the Calabi-Yau hypersurface.
+    - ```h21``` (integer, optional): Specifies the Hodge number $h^{2,1}$ of
+      the Calabi-Yau hypersurface. This is equivalent to the h12 parameter.
+    - ```h22``` (integer, optional): Specifies the Hodge number $h^{2,2}$ of
+      the Calabi-Yau hypersurface.
+    - ```h31``` (integer, optional): Specifies the Hodge number $h^{3,1}$ of
+      the Calabi-Yau hypersurface. This is equivalent to the h13 parameter.
+    - ```chi``` (integer, optional): Specifies the Euler characteristic of the
+      Calabi-Yau hypersurface.
+    - ```lattice``` (string, optional): Specifies the lattice on which the
+      polytope is defined. Options are 'N' and 'M'. Has to be specified if the
+      Hodge numbers or the Euler characteristic is specified.
+    - ```dim``` (integer, optional, default=4): The dimension of the polytope.
+      The only available options are 4 and 5.
+    - ```n_points``` (integer, optional): Specifies the number of lattice
+      points of the desired polytopes.
+    - ```n_vertices``` (integer, optional): Specifies the number of vertices of
+      the desired polytopes.
+    - ```n_dual_points``` (integer, optional): Specifies the number of points
+      of the dual polytopes of the desired polytopes.
+    - ```n_facets``` (integer, optional): Specifies the number of facets of the
+      desired polytopes.
+    - ```limit``` (integer, optional, default=1000): Specifies the maximum
+      number of fetched polytopes.
+    - ```timeout``` (integer, optional, default=60): Specifies the maximum
+      number of seconds to wait for the server to return the data.
+    - ```dualize``` (boolean, optional, default=False): Flag that indicates
+      whether to dualize all the polytopes before returning them.
+    - ```as_list``` (boolean, optional, default=False): Return the list of
+      polytopes instead of a generator.
+
+    **Returns:**
+    (generator or list) A generator of [```Polytope```](./polytope) objects, or
+    the full list when as_list=True.
+    """
+    if dim not in (4,5):
+        raise Exception("Only polytopes of dimension 4 or 5 are available.")
+    if lattice not in ("N", "M", None):
+        raise Exception("Options for lattice are 'N' and 'M'.")
+    if h12 is not None and h21 is not None and h12 != h21:
+        raise Exception("Only one of h12 or h21 should be specified.")
+    if h12 is None and h21 is not None:
+        h12 = h21
+    if h13 is not None and h31 is not None and h13 != h31:
+        raise Exception("Only one of h13 or h31 should be specified.")
+    if h13 is None and h31 is not None:
+        h13 = h31
+    if dim == 4:
+        if h13 is not None or h22 is not None:
+            print("Ignoring inputs for h13 and h22.")
+        if (lattice is None
+                and (h11 is not None or h12 is not None or chi is not None)):
+            raise Exception("Lattice must be specified when Hodge numbers "
+                            "or Euler characteristic are given.")
+        if lattice == "N":
+            h11, h12 = h12, h11
+            chi = (-chi if chi is not None else None)
+        if (chi is not None and h11 is not None and h12 is not None
+                and chi != 2*(h11-h21)):
+            raise Exception("Inconsistent Euler characteristic input.")
+        variables = [h11, h12, n_points, n_vertices, n_dual_points, n_facets,
+                     chi, limit]
+        names = ["h11", "h12", "M", "V", "N", "F", "chi", "L"]
+        parameters = {n:str(v) for n, v in zip(names, variables)
+                        if v is not None}
+        r = requests.get("http://quark.itp.tuwien.ac.at/cgi-bin/cy/cydata.cgi",
+                         params=parameters, timeout=timeout)
+    else:
+        if lattice is None and (h11 is not None or h13 is not None):
+            raise Exception("Lattice must be specified when h11 or h13 "
+                            "are given.")
+        if lattice == "N":
+            h11, h13 = h13, h11
+            if (chi is not None and h11 is not None and h12 is not None
+                    and h13 is not None and chi != 48+6*(h11-h12+h13)):
+                raise Exception("Inconsistent Euler characteristic input.")
+            if (h22 is not None and h11 is not None and h12 is not None
+                    and h13 is not None and h22 != 44+6*h11-2*h12+4*h13):
+                raise Exception("Inconsistent h22 input.")
+        variables = [h11, h12, h13, h22, chi, limit]
+        names = ["h11", "h12", "h13", "h22", "chi", "limit"]
+        url = "http://rgc.itp.tuwien.ac.at/fourfolds/db/5d_reflexive"
+        for i,vr in enumerate(variables):
+            if vr is not None:
+                url += f",{names[i]}={vr}"
+        url += ".txt"
+        r = requests.get(url, timeout=timeout)
+    g = polytope_generator(r.text, input_type="string", dualize=dualize,
+                           format=("ks" if dim==4 else "ws"))
+    if as_list:
+        return list(g)
+    return g

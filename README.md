@@ -1,6 +1,6 @@
 
 <p align="center">
-    <img src="https://raw.githubusercontent.com/LiamMcAllisterGroup/cytools/gh-pages/img/titleimage.svg?sanitize=true" height="250"/><br>
+    <img src="https://raw.githubusercontent.com/LiamMcAllisterGroup/cytools/gh-pages/img/titleimage-circle.svg?sanitize=true" height="250"/><br>
     <b>A software package for analyzing Calabi-Yau hypersurfaces in toric varieties.</b><br>
     <img alt="Docker Build Status" src="https://img.shields.io/docker/cloud/build/liammcallistergroup/cytools"/>
     <img alt="Docker Image Size (tag)" src="https://img.shields.io/docker/image-size/liammcallistergroup/cytools/latest">

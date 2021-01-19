@@ -30,7 +30,7 @@ RUN mkdir temp
 
 # Install TOPCOM
 WORKDIR /cytools-install/external/topcom-mod
-RUN dpkg -i topcom-0.17.8+ds-2+cytools-1.deb
+RUN dpkg -i topcom-0.17.8+ds-2+cytools-2.deb
 
 # Create CGAL code for different dimensions and compile
 WORKDIR /cytools-install/external/cgal
@@ -58,6 +58,13 @@ RUN ln -s /cytools-install/external/cgal/triangulate-1d /usr/local/bin/cgal-tria
     ln -s /cytools-install/external/cgal/triangulate-8d /usr/local/bin/cgal-triangulate-8d;\
     ln -s /cytools-install/external/cgal/triangulate-9d /usr/local/bin/cgal-triangulate-9d;\
     ln -s /cytools-install/external/cgal/triangulate-10d /usr/local/bin/cgal-triangulate-10d
+
+# Install PALP
+WORKDIR /cytools-install/external/
+RUN wget http://hep.itp.tuwien.ac.at/~kreuzer/CY/palp/palp-2.20.tar.gz
+RUN tar zxvf palp-2.20.tar.gz; rm palp-2.20.tar.gz; mv palp-2.20 palp
+WORKDIR /cytools-install/external/palp
+RUN make
 
 # Set entry path
 WORKDIR /home/

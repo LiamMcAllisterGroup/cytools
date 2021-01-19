@@ -21,21 +21,48 @@ import numpy as np
 
 
 class PolytopeFace:
-    """A class that handles computations of faces of lattice polytopes."""
+    """
+    This class handles all computations relating to faces of lattice polytopes.
+
+    :::important
+    Generally, objects of this class should not be constructed directly by the
+    user. Instead, they should be created by the [faces](./polytope#faces)
+    function of the [Polytope](./polytope) class.
+    :::
+
+    ## Constructor
+
+    ### ```cytools.polytope.PolytopeFace```
+
+    **Description:**
+    Constructs a ```PolytopeFace``` object describing a face of a lattice
+    polytope. This is handled by the hidden [```__init__```](#__init__)
+    function.
+
+    **Arguments:**
+    - ```ambient_poly``` (Polytope): The ambient polytope.
+    - ```vertices``` (list): The list of vertices.
+    - ```saturated_ineqs``` (frozenset): A frozenset containing the indices of
+      the inequalities that this face saturates.
+    - ```dim``` (integer, optional): The dimension of the face. If it is not
+      given then it is computed.
+    """
 
     def __init__(self, ambient_poly, vertices, saturated_ineqs, dim=None):
         """
-        Creates a PolytopeFace object. These objects should not be directly
-        constructed by the user.  Instead, they should be obtained from a
-        Polytope object.
+        **Description:**
+        Initializes a ```PolytopeFace``` object.
 
-        Args:
-            ambient_poly (Polytope): The ambient polytope.
-            vertices (list): The list of vertices.
-            saturated_ineqs (frozenset): A frozenset containing the indices of
-                the inequalities that this face saturates.
-            dim (int, optional): The dimension of the face. If it is not given then it is
-                computed.
+        **Arguments:**
+        - ```ambient_poly``` (Polytope): The ambient polytope.
+        - ```vertices``` (list): The list of vertices.
+        - ```saturated_ineqs``` (frozenset): A frozenset containing the indices
+          of the inequalities that this face saturates.
+        - ```dim``` (integer, optional): The dimension of the face. If it is
+          not given then it is computed.
+
+        **Returns:**
+        Nothing.
         """
         self._ambient_poly = ambient_poly
         self._vertices = np.array(vertices)
@@ -59,7 +86,16 @@ class PolytopeFace:
         self._faces = None
 
     def clear_cache(self):
-        """Clears the cached results of any previous computation."""
+        """
+        **Description:**
+        Clears the cached results of any previous computation.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        Nothing.
+        """
         self._points_sat = None
         self._points = None
         self._interior_points = None
@@ -69,12 +105,42 @@ class PolytopeFace:
         self._faces = None
 
     def __repr__(self):
-        """Returns a string describing the face of the face."""
+        """
+        **Description:**
+        Returns a string describing the face.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        (string) A string describing the face.
+        """
         return (f"A {self._dim}-dimensional face of a "
                 f"{self._ambient_poly._dim}-dimensional polytope in "
                 f"ZZ^{self._ambient_dim}")
 
     def _points_saturated(self):
+        """
+        **Description:**
+        Computes the lattice points of the face along with the indices of
+        the hyperplane inequalities that they saturate.
+
+        :::note notes
+        - Points are sorted in the same way as for the
+          [_points_saturated](./polytope#_points_saturated) function of the
+          [Polytope](./polytope) class.
+        - Typically this function should not be called by the user. Instead, it
+          is called by various other functions in the PolytopeFace class.
+        :::
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        (list) A list of tuples. The first component of each tuple is the list
+        of coordinates of the point and the second component is a
+        ```frozenset``` of the hyperplane inequalities that it saturates.
+        """
         if self._points_sat is not None:
             return np.array(self._points_sat)
         self._points_sat = [pt for pt in self._ambient_poly._points_saturated()
@@ -82,14 +148,32 @@ class PolytopeFace:
         return np.array(self._points_sat)
 
     def points(self):
-        """Returns the lattice points of the face."""
+        """
+        **Description:**
+        Returns the lattice points of the face.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        (list) The list of lattice points of the face.
+        """
         if self._points is not None:
             return np.array(self._points)
         self._points = np.array(self._points_saturated()[:,0].tolist())
         return np.array(self._points)
 
     def interior_points(self):
-        """Returns the lattice points in the relative interior of the face."""
+        """
+        **Description:**
+        Returns the interior lattice points of the face.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        (list) The list of interior lattice points of the face.
+        """
         if self._interior_points is not None:
             return np.array(self._interior_points)
         self._interior_points = [pt[0] for pt in self._points_saturated()
@@ -97,7 +181,16 @@ class PolytopeFace:
         return np.array(self._interior_points)
 
     def boundary_points(self):
-        """Returns the lattice points in the boundary of the face."""
+        """
+        **Description:**
+        Returns the boundary lattice points of the face.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        (list) The list of boundary lattice points of the face.
+         """
         if self._boundary_points is not None:
             return np.array(self._boundary_points)
         self._boundary_points = [pt[0] for pt in self._points_saturated()
@@ -105,7 +198,16 @@ class PolytopeFace:
         return np.array(self._boundary_points)
 
     def as_polytope(self):
-        """Returns the face as a Polytope object."""
+        """
+        **Description:**
+        Returns the face as a Polytope object.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        (Polytope) The [Polytope](./polytope) corresponding to the face.
+        """
         if self._polytope:
             return self._polytope
         from cytools.polytope import Polytope
@@ -114,11 +216,34 @@ class PolytopeFace:
         return self._polytope
 
     def ambient_polytope(self):
-        """Returns the ambient polytope of the face."""
+        """
+        **Description:**
+        Returns the ambient polytope of the face.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        (Polytope) The ambient polytope.
+        """
         return self._ambient_poly
 
     def dual(self):
-        """Returns the dual face as a PolytopeFace object."""
+        """
+        **Description:**
+        Returns the dual face in the ambient polytope.
+
+        :::note
+        This duality is only implemented for reflexive polytopes. An exception
+        is raised if the polytope is not reflexive.
+        :::
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        (PolytopeFace) The dual face.
+        """
         if self._dual_face is not None:
             return self._dual_face
         if not self._ambient_poly.is_reflexive():
@@ -136,11 +261,33 @@ class PolytopeFace:
         return self._dual_face
 
     def vertices(self):
-        """Returns the vertices of the face."""
+        """
+        **Description:**
+        Returns the vertices of the face.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        (list) The list of vertices of the face.
+        """
         return np.array(self._vertices)
 
     def faces(self, d=None):
-        """Returns the faces of the face."""
+        """
+        **Description:**
+        Computes the faces of the face.
+
+        **Arguments:**
+        - ```d``` (integer, optional): Optional parameter that specifies the
+          dimension of the desired faces.
+
+        **Returns:**
+        (list) A list of [```PolytopeFace```](./polytopeface) objects of
+        dimension d, if specified. Otherwise, a list of lists of
+        [```PolytopeFace```](./polytopeface) objects organized in ascending
+        dimension.
+        """
         if self._faces is not None:
             if d is not None:
                 return np.array(self._faces[d], dtype=object)
@@ -155,9 +302,27 @@ class PolytopeFace:
         return np.array(self._faces, dtype=object)
 
     def dim(self):
-        """Returns the dimension of the face."""
+        """
+        **Description:**
+        Returns the dimension of the face.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        (integer) The dimension of the face.
+        """
         return self._dim
 
     def ambient_dim(self):
-        """Returns the dimension of the ambient lattice."""
+        """
+        **Description:**
+        Returns the dimension of the ambient lattice.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        (integer) The dimension of the ambient lattice.
+        """
         return self._ambient_dim
