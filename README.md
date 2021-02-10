@@ -1,6 +1,6 @@
 
 <p align="center">
-    <img src="https://raw.githubusercontent.com/LiamMcAllisterGroup/cytools/gh-pages/img/titleimage-circle.svg?sanitize=true" height="250"/><br>
+    <img src="https://raw.githubusercontent.com/LiamMcAllisterGroup/cytools-website/main/static/img/titleimage-circle.svg?sanitize=true" height="250"/><br>
     <b>A software package for analyzing Calabi-Yau hypersurfaces in toric varieties.</b><br>
     <img alt="Docker Build Status" src="https://img.shields.io/docker/cloud/build/liammcallistergroup/cytools"/>
     <img alt="Docker Image Size (tag)" src="https://img.shields.io/docker/image-size/liammcallistergroup/cytools/latest">
@@ -19,6 +19,7 @@ CYTools makes use of a variety of open-source projects including:
 
 * [TOPCOM](http://www.rambau.wm.uni-bayreuth.de/TOPCOM/)
 * [The Computational Geometry Algorithms Library](https://www.cgal.org/)
+* [PALP](http://hep.itp.tuwien.ac.at/~kreuzer/CY/CYpalp.html)
 * Code snippets from [Sage](https://www.sagemath.org/)
 
 All original CYTools code is distributed under the terms of the [GNU General Public License version 3](https://www.gnu.org/licenses/gpl-3.0.txt). All other packages are redistributed under their respective licenses.

@@ -476,8 +476,7 @@ class Triangulation:
         """
         if self._is_fine is not None:
             return self._is_fine
-        self._is_fine = (len(set.union(*[set(s) for s in self._simplices]))
-                        == len(self._triang_pts))
+        self._is_fine = all(0 in s for s in self._simplices)
         return self._is_fine
 
     def is_regular(self, backend=None):
