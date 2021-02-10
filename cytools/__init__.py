@@ -12,15 +12,16 @@ versions_with_serious_bugs = []
 def check_for_updates():
     import requests
     try:
-        p = requests.get("https://raw.githubusercontent.com/LiamMcAllisterGroup/cytools/main/cytools/__init__.py")
+        p = requests.get("https://raw.githubusercontent.com/LiamMcAllisterGroup/cytools/main/cytools/__init__.py",
+                         timeout=2)
         for l in p.text.split("\n"):
-            if "release_date" in l:
-                latest_version = int(l.split("=")[1])
-                if latest_version <= int(version):
+            if "release_date"+" =" in l:
+                latest_release_date = int(l.split("=")[1].replace("\"",""))
+                if latest_release_date <= int(release_date):
                     continue
                 print("Info: A more recent version of CYTools is available. "
                       "We recommend upgrading before continuing.")
-            if "versions_with_serious_bugs" in l:
+            elif "versions_with_serious_bugs"+" =" in l:
                 bad_versions = eval(l.split("=")[1])
                 if version in bad_versions:
                     print("****************************\n"
@@ -28,5 +29,5 @@ def check_for_updates():
                           "bug. Please update to the latest version.\n"
                           "****************************\n")
     except:
-        pass
+       pass
 check_for_updates()

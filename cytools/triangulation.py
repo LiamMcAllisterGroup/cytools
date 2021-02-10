@@ -476,7 +476,8 @@ class Triangulation:
         """
         if self._is_fine is not None:
             return self._is_fine
-        self._is_fine = all(0 in s for s in self._simplices)
+        self._is_fine = (len(set.union(*[set(s) for s in self._simplices]))
+                        == len(self._triang_pts))
         return self._is_fine
 
     def is_regular(self, backend=None):
@@ -502,21 +503,21 @@ class Triangulation:
                                 ).is_solid(backend=backend))
         return self._is_regular
 
-    def is_star(self):
+    def is_star(self, star_origin=0):
         """
         **Description:**
         Returns True if the triangulation is star and False otherwise.
 
         **Arguments:**
-        None.
+        - ```star_origin``` (integer, optional, default=0): The index of the
+          origin of the star triangulation
 
         **Returns:**
         (boolean) The truth value of the triangulation being star.
         """
         if self._is_star is not None:
             return self._is_star
-        self._is_star =  (
-                len(set.intersection(*[set(s) for s in self._simplices])) > 0)
+        self._is_star = all(star_origin in s for s in self._simplices)
         return self._is_star
 
     def is_valid(self):
