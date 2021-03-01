@@ -9,6 +9,7 @@ versions_with_serious_bugs = []
 
 # Check for more recent versions of CYTools
 def check_for_updates():
+    from ast import literal_eval
     import requests
     try:
         p = requests.get("https://raw.githubusercontent.com/LiamMcAllisterGroup/cytools/main/cytools/__init__.py",
@@ -22,7 +23,7 @@ def check_for_updates():
                 print("Info: A more recent version of CYTools is available. "
                       "We recommend upgrading before continuing.")
             elif "versions_with_serious_bugs"+" =" in l:
-                bad_versions = literal_eval(l.split("=")[1])
+                bad_versions = literal_eval(l.split("=")[1].strip())
                 if version in bad_versions:
                     print("****************************\n"
                           "Warning: This version of CYTools contains a serious"
