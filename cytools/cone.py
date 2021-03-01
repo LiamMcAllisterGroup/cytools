@@ -463,7 +463,15 @@ class Cone:
             return np.array(self._ext_rays)
         rays = np.array(list({tuple(r) for r in self.rays()}))
         if n_threads is None:
-            n_threads = cpu_count()
+            if rays.shape[0] < 32 or not self.is_pointed():
+                n_threads = 1
+            else:
+                n_threads = cpu_count()
+        elif n_threads > 1 and not self.is_pointed():
+            print("Warning: When finding the extremal rays of a non-pointed "
+                  "cone in parallel there can be conflits that end up "
+                  "producing erroneous results. It is highly recommended to "
+                  "use a single thread.")
         current_rays = set(range(rays.shape[0]))
         ext_rays = set()
         error_rays = set()

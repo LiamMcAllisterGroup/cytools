@@ -230,7 +230,7 @@ class CalabiYau:
         **Returns:**
         (boolean) The truth value of the CYs being different.
         """
-        if not isinstance(other, Polytope):
+        if not isinstance(other, CalabiYau):
             return NotImplemented
         return not (self == other)
 
@@ -869,12 +869,12 @@ class CalabiYau:
         if self._mori_cone[args_id] is not None:
             return self._mori_cone[args_id]
         rays = self.frst().cpl_cone().hyperplanes()
+        basis = self.divisor_basis()
         if not exclude_origin and not in_basis:
             new_rays = rays
         elif exclude_origin and not in_basis:
             new_rays = rays[:,1:]
         else:
-            basis = self.divisor_basis()
             if len(basis.shape) == 2: # If basis is matrix
                 new_rays = rays.dot(basis.T)
             else:
@@ -1153,7 +1153,6 @@ class CalabiYau:
             else:
                 raise Exception("Failed to construct linear system.")
         # Construct Linear System
-        num_cols = len(variable_array)
         num_rows = len(linear_relations)*len(eqn_array)
         C = np.array([0.0]*num_rows)
         M_row = []
@@ -1259,7 +1258,6 @@ class CalabiYau:
                         break
                 eqn_dict[c] += [(v[k],variable_dict[v])]
         # Construct Linear System
-        num_cols = len(variable_array)
         num_rows = len(linear_relations)*len(eqn_array)
         C = np.zeros(num_rows, dtype=float)
         M_row = []
@@ -1631,29 +1629,37 @@ class CalabiYau:
         """
         if self._ambient_eff_gens is not None:
             return np.array(self._ambient_eff_gens)
-        rays = np.eye(self.h11(), dtype=int).tolist()
+        rays = np.eye(self.h11(), dtype=float).tolist()
         glsm_cm = self.glsm_charge_matrix()
         linrels = self.glsm_linear_relations()
         basis = self.divisor_basis()
         if len(basis.shape) != 1:
-            raise Exception("Generic bases are not currently supported.")
+            raise Exception("Generic bases are not yet supported.")
         no_basis = [i for i in range(self.h11()+self.dim()+1)
                     if i not in basis]
-        for l in linrels:
+        linrels_reord = linrels[:,no_basis+basis.tolist()]
+        linrels_rref = np.array(
+                        fmpz_mat(linrels_reord.tolist()).rref()[0].tolist(),
+                        dtype=int)
+        for i in range(linrels_rref.shape[0]):
+            linrels_rref[i,:] //= int(round(gcd_list(linrels_rref[i,:])))
+        for i,ii in enumerate(no_basis):
+            linrels_reord[:,ii] = linrels_rref[:,i]
+        for i,ii in enumerate(basis,len(no_basis)):
+            linrels_reord[:,ii] = linrels_rref[:,i]
+        for l in linrels_reord:
             if l[0] != 0:
                 continue
             for i in no_basis:
                 if l[i] != 0:
-                    s = np.sign(l[i])
                     r = [0]*self.h11()
                     for j,jj in enumerate(basis):
-                        r[j] = -s*l[jj]
+                        r[j] = l[jj]/(-l[i])
                     for j in no_basis:
                         if l[j] != 0 and j != i:
-                            raise Exception("The linear relations are not in "
-                                            "reduced row echelon form")
+                            raise Exception("An unexpected error occured.")
                     rays.append(r)
-        self._ambient_eff_gens = np.array(rays, dtype=int)
+        self._ambient_eff_gens = np.array(rays, dtype=float)
         return np.array(self._ambient_eff_gens)
 
     def ambient_effective_cone(self):

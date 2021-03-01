@@ -17,7 +17,11 @@
 This module contains tools designed to perform polytope face computations.
 """
 
+# Standard imports
+import copy
+# Third party imports
 import numpy as np
+
 
 
 class PolytopeFace:
@@ -141,60 +145,68 @@ class PolytopeFace:
         of coordinates of the point and the second component is a
         ```frozenset``` of the hyperplane inequalities that it saturates.
         """
-        if self._points_sat is not None:
-            return np.array(self._points_sat)
-        self._points_sat = [pt for pt in self._ambient_poly._points_saturated()
+        if self._points_sat is None:
+            self._points_sat = [
+                            pt for pt in self._ambient_poly._points_saturated()
                             if self._saturated_ineqs.issubset(pt[1])]
-        return np.array(self._points_sat)
+        return copy.copy(self._points_sat)
 
-    def points(self):
+    def points(self, as_indices=False):
         """
         **Description:**
         Returns the lattice points of the face.
 
         **Arguments:**
-        None.
+        - ```as_indices``` (boolean): Return the points as indices of the full
+          list of points of the polytope.
 
         **Returns:**
         (list) The list of lattice points of the face.
         """
-        if self._points is not None:
-            return np.array(self._points)
-        self._points = np.array(self._points_saturated()[:,0].tolist())
+        if self._points is None:
+            self._points = np.array([pt[0] for pt in self._points_saturated()])
+        if as_indices:
+            return self._ambient_poly.points_to_indices(self._points)
         return np.array(self._points)
 
-    def interior_points(self):
+    def interior_points(self, as_indices=False):
         """
         **Description:**
         Returns the interior lattice points of the face.
 
         **Arguments:**
-        None.
+        - ```as_indices``` (boolean): Return the points as indices of the full
+          list of points of the polytope.
 
         **Returns:**
         (list) The list of interior lattice points of the face.
         """
-        if self._interior_points is not None:
-            return np.array(self._interior_points)
-        self._interior_points = [pt[0] for pt in self._points_saturated()
-                                 if len(pt[1]) == len(self._saturated_ineqs)]
+        if self._interior_points is None:
+            self._interior_points = np.array(
+                                    [pt[0] for pt in self._points_saturated()
+                                    if len(pt[1])==len(self._saturated_ineqs)])
+        if as_indices:
+            return self._ambient_poly.points_to_indices(self._interior_points)
         return np.array(self._interior_points)
 
-    def boundary_points(self):
+    def boundary_points(self, as_indices=False):
         """
         **Description:**
         Returns the boundary lattice points of the face.
 
         **Arguments:**
-        None.
+        - ```as_indices``` (boolean): Return the points as indices of the full
+          list of points of the polytope.
 
         **Returns:**
         (list) The list of boundary lattice points of the face.
          """
-        if self._boundary_points is not None:
-            return np.array(self._boundary_points)
-        self._boundary_points = [pt[0] for pt in self._points_saturated()
-                                 if len(pt[1]) > len(self._saturated_ineqs)]
+        if self._boundary_points is None:
+            self._boundary_points = np.array(
+                                    [pt[0] for pt in self._points_saturated()
+                                    if len(pt[1])>len(self._saturated_ineqs)])
+        if as_indices:
+            return self._ambient_poly.points_to_indices(self._boundary_points)
         return np.array(self._boundary_points)
 
     def as_polytope(self):
@@ -208,11 +220,10 @@ class PolytopeFace:
         **Returns:**
         (Polytope) The [Polytope](./polytope) corresponding to the face.
         """
-        if self._polytope:
-            return self._polytope
-        from cytools.polytope import Polytope
-        self._polytope = Polytope(self._vertices,
-                                  backend=self._ambient_poly._backend)
+        if self._polytope is None:
+            from cytools.polytope import Polytope
+            self._polytope = Polytope(self._vertices,
+                                      backend=self._ambient_poly._backend)
         return self._polytope
 
     def ambient_polytope(self):
@@ -288,18 +299,18 @@ class PolytopeFace:
         [```PolytopeFace```](./polytopeface) objects organized in ascending
         dimension.
         """
+        if d is not None and d not in range(self._dim + 1):
+            raise Exception(f"There are no faces of dimension {d}")
         if self._faces is not None:
-            if d is not None:
-                return np.array(self._faces[d], dtype=object)
-            return np.array(self._faces, dtype=object)
+            return copy.copy(self._faces[d] if d is not None else
+                                [copy.copy(ff) for ff in self._faces])
         faces = []
         for dd in range(self._dim + 1):
             faces.append([f for f in self._ambient_poly.faces(dd)
                         if self._saturated_ineqs.issubset(f._saturated_ineqs)])
         self._faces = faces
-        if d is not None:
-            return np.array(self._faces[d], dtype=object)
-        return np.array(self._faces, dtype=object)
+        return copy.copy(self._faces[d] if d is not None else
+                            [copy.copy(ff) for ff in self._faces])
 
     def dim(self):
         """

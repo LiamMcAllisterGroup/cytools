@@ -19,6 +19,7 @@
 from itertools import permutations
 from fractions import Fraction
 from functools import reduce
+from ast import literal_eval
 import subprocess
 import requests
 # Third party imports
@@ -173,8 +174,8 @@ def filter_tensor_indices(tensor, indices):
     tensor_filtered = [c for c in tensor
                         if all(c[i] in indices for i in range(dim))]
     indices_dict = {vv:v for v,vv in enumerate(indices)}
-    tensor_reindexed = sorted([[indices_dict[jj] for jj in ii[:-1]] + [ii[-1]]
-                               for ii in tensor_filtered])
+    tensor_reindexed = sorted([sorted([indices_dict[jj] for jj in ii[:-1]])
+                              + [ii[-1]] for ii in tensor_filtered])
     return np.array(tensor_reindexed)
 
 
@@ -345,7 +346,7 @@ def polytope_generator(input, input_type="file", format="ks", backend=None,
             i = 0
             while i < len(palp_res):
                 if "Vertices" in palp_res[i]:
-                    for j in range(eval(palp_res[i].split()[0])):
+                    for j in range(literal_eval(palp_res[i].split()[0])):
                         i += 1
                         vert.append([int(c) for c in palp_res[i].split()])
                 i += 1

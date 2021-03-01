@@ -467,7 +467,7 @@ class Polytope:
         # The original code can be found at
         # https://github.com/sagemath/sage/blob/master/src/sage/geometry/integral_points.pyx
         if self._points_sat is not None:
-            return np.array(self._points_sat, dtype=object)
+            return copy.copy(self._points_sat)
         d = self._dim
         # When using PALP as the backend we use it to compute all lattice
         # points in the polytope.
@@ -588,11 +588,10 @@ class Polytope:
                                     ((len(p[1]) if len(p[1]) > 0 else 1e9),)
                                     + tuple(p[0])),
                             reverse=True)
-        self._points_sat = np.array(self._points_sat, dtype=object)
-        self._pts_dict = {ii:i for i,ii in enumerate(self._points_sat[:,0])}
-        return np.array(self._points_sat, dtype=object)
+        self._pts_dict = {ii[0]:i for i,ii in enumerate(self._points_sat)}
+        return copy.copy(self._points_sat)
 
-    def points(self):
+    def points(self, as_indices=False):
         """
         **Description:**
         Returns the lattice points of the polytope.
@@ -605,106 +604,119 @@ class Polytope:
         :::
 
         **Arguments:**
-        None.
+        - ```as_indices``` (boolean): Return the points as indices of the full
+          list of points of the polytope.
 
         **Returns:**
         (list) The list of lattice points of the polytope.
         """
-        if self._points is not None:
-            return np.array(self._points)
-        self._points = np.array(self._points_saturated()[:,0].tolist())
+        if self._points is None:
+            self._points = np.array([pt[0] for pt in self._points_saturated()])
+        if as_indices:
+            return self.points_to_indices(self._points)
         return np.array(self._points)
 
-    def interior_points(self):
+    def interior_points(self, as_indices=False):
         """
         **Description:**
         Returns the interior lattice points of the polytope.
 
         **Arguments:**
-        None.
+        - ```as_indices``` (boolean): Return the points as indices of the full
+          list of points of the polytope.
 
         **Returns:**
         (list) The list of interior lattice points of the polytope.
         """
-        if self._interior_points is not None:
-            return np.array(self._interior_points)
-        self._interior_points = np.array(
+        if self._interior_points is None:
+            self._interior_points = np.array(
                                     [pt[0] for pt in self._points_saturated()
                                         if len(pt[1]) == 0])
+        if as_indices:
+            return self.points_to_indices(self._interior_points)
         return np.array(self._interior_points)
 
-    def boundary_points(self):
+    def boundary_points(self, as_indices=False):
         """
         **Description:**
         Returns the boundary lattice points of the polytope.
 
         **Arguments:**
-        None.
+        - ```as_indices``` (boolean): Return the points as indices of the full
+          list of points of the polytope.
 
         **Returns:**
         (list) The list of boundary lattice points of the polytope.
         """
-        if self._boundary_points is not None:
-            return np.array(self._boundary_points)
-        self._boundary_points = np.array(
+        if self._boundary_points is None:
+            self._boundary_points = np.array(
                                     [pt[0] for pt in self._points_saturated()
                                         if len(pt[1]) > 0])
+        if as_indices:
+            return self.points_to_indices(self._boundary_points)
         return np.array(self._boundary_points)
 
-    def points_interior_to_facets(self):
+    def points_interior_to_facets(self, as_indices=False):
         """
         **Description:**
         Returns the lattice points interior to facets.
 
         **Arguments:**
-        None.
+        - ```as_indices``` (boolean): Return the points as indices of the full
+          list of points of the polytope.
 
         **Returns:**
         (list) The list of lattice points interior to facets of the polytope.
         """
-        if self._points_interior_to_facets is not None:
-            return np.array(self._points_interior_to_facets)
-        self._points_interior_to_facets = np.array([
+        if self._points_interior_to_facets is None:
+            self._points_interior_to_facets = np.array([
                                     pt[0] for pt in self._points_saturated()
-                                    if len(pt[1]) == 1])
+                                        if len(pt[1]) == 1])
+        if as_indices:
+            return self.points_to_indices(self._points_interior_to_facets)
         return np.array(self._points_interior_to_facets)
 
-    def boundary_points_not_interior_to_facets(self):
+    def boundary_points_not_interior_to_facets(self, as_indices=False):
         """
         **Description:**
         Returns the boundary lattice points not interior to facets.
 
         **Arguments:**
-        None.
+        - ```as_indices``` (boolean): Return the points as indices of the full
+          list of points of the polytope.
 
         **Returns:**
         (list) The list of boundary lattice points not interior to facets of
         the polytope.
         """
-        if self._boundary_points_not_interior_to_facets is not None:
-            return np.array(self._boundary_points_not_interior_to_facets)
-        self._boundary_points_not_interior_to_facets = np.array(
+        if self._boundary_points_not_interior_to_facets is None:
+            self._boundary_points_not_interior_to_facets = np.array(
                                     [pt[0] for pt in self._points_saturated()
                                         if len(pt[1]) > 1])
+        if as_indices:
+            return self.points_to_indices(
+                                self._boundary_points_not_interior_to_facets)
         return np.array(self._boundary_points_not_interior_to_facets)
 
-    def points_not_interior_to_facets(self):
+    def points_not_interior_to_facets(self, as_indices=False):
         """
         **Description:**
         Returns the lattice points not interior to facets.
 
         **Arguments:**
-        None.
+        - ```as_indices``` (boolean): Return the points as indices of the full
+          list of points of the polytope.
 
         **Returns:**
         (list) The list of lattice points not interior to facets of the
         polytope.
         """
-        if self._points_not_interior_to_facets is not None:
-            return np.array(self._points_not_interior_to_facets)
-        self._points_not_interior_to_facets = np.array(
+        if self._points_not_interior_to_facets is None:
+            self._points_not_interior_to_facets = np.array(
                                     [pt[0] for pt in self._points_saturated()
                                         if len(pt[1]) != 1])
+        if as_indices:
+            return self.points_to_indices(self._points_not_interior_to_facets)
         return np.array(self._points_not_interior_to_facets)
 
     def is_reflexive(self):
@@ -1042,7 +1054,7 @@ class Polytope:
         organized_faces = [zerofaces_obj_list, onefaces_obj_list,
                            twofaces_obj_list, facets_obj_list,
                            fourface_obj_list]
-        return np.array(organized_faces, dtype=object)
+        return organized_faces
 
     def faces(self, d=None):
         """
@@ -1082,22 +1094,19 @@ class Polytope:
         if d is not None and d not in range(self._dim + 1):
             raise Exception(f"Polytope does not have faces of dimension {d}")
         if self._faces is not None:
-            if d is not None:
-                return np.array(self._faces[d], dtype=object)
-            return np.array(self._faces, dtype=object)
+            return copy.copy(self._faces[d] if d is not None else
+                                [copy.copy(ff) for ff in self._faces])
         if self._dual is not None and self._dual._faces is not None:
             self._faces = ([[f.dual() for f in ff]
                                 for ff in self._dual._faces[::-1][1:]]
                           + [[PolytopeFace(self, self.vertices(),
                                            frozenset(), dim=self._dim)]])
-            if d is not None:
-                return np.array(self._faces[d], dtype=object)
-            return np.array(self._faces, dtype=object)
-        if self._dim == 40:
+            return copy.copy(self._faces[d] if d is not None else
+                                [copy.copy(ff) for ff in self._faces])
+        if self._dim == 4:
             self._faces = self._faces4d()
-            if d is not None:
-                return np.array(self._faces[d], dtype=object)
-            return np.array(self._faces, dtype=object)
+            return copy.copy(self._faces[d] if d is not None else
+                                [copy.copy(ff) for ff in self._faces])
         pts_sat = self._points_saturated()
         vert = [tuple(pt) for pt in self.vertices()]
         vert_sat = [tuple(pt) for pt in pts_sat if pt[0] in vert]
@@ -1108,9 +1117,8 @@ class Polytope:
         # If thee polytope is zero-dimensional, finish the computation
         if self._dim == 0:
             self._faces = organized_faces
-            if d is not None:
-                return np.array(self._faces[d])
-            return np.array(self._faces)
+            return copy.copy(self._faces[d] if d is not None else
+                                [copy.copy(ff) for ff in self._faces])
         # Now construct the facets
         tmp_facets = []
         for j in range(len(self._input_ineqs)):
@@ -1152,9 +1160,8 @@ class Polytope:
         organized_faces.append([PolytopeFace(self, [pt[0]], pt[1], dim=0)
                                 for pt in vert_sat])
         self._faces = organized_faces[::-1]
-        if d is not None:
-            return np.array(self._faces[d], dtype=object)
-        return np.array(self._faces, dtype=object)
+        return copy.copy(self._faces[d] if d is not None else
+                            [copy.copy(ff) for ff in self._faces])
 
     def facets(self):
         """
@@ -1607,6 +1614,8 @@ class Polytope:
         if self._pts_dict is None:
             self._points_saturated()
         if len(np.array(points).shape) == 1:
+            if np.array(points).shape[0] == 0:
+                return np.zeros(0, dtype=int)
             return self._pts_dict[tuple(points)]
         return np.array([self._pts_dict[tuple(pt)] for pt in points])
 
@@ -1979,7 +1988,7 @@ class Polytope:
                              check_input_simplices=check_input_simplices,
                              backend=backend)
 
-    def random_triangulations_fast(self, N=None, c=0.01, max_retries=500,
+    def random_triangulations_fast(self, N=None, c=0.2, max_retries=500,
                                 make_star=True, only_fine=True,
                                 exclude_points_interior_to_facets=None,
                                 backend="cgal", as_list=False,
@@ -2002,11 +2011,11 @@ class Polytope:
           find until it has to retry more than max_retries times to obtain a
           new triangulation. This parameter is required when setting as_list to
           True.
-        - ```c``` (float, optional, default=0.01): A contant used as the
-          coefficient of the Gaussian distribution used to pick the heights.
-          A larger c results in a wider range of possible triangulations, but
-          with a larger fraction of them being non-fine, which slows down the
-          process when using only_fine=True.
+        - ```c``` (float, optional, default=0.2): A contant used as the standard
+          deviation of the Gaussian distribution used to pick the heights. A
+          larger c results in a wider range of possible triangulations, but with a
+          larger fraction of them being non-fine, which slows down the process when
+          using only_fine=True.
         - ```max_retries``` (integer, optional, default=50): Maximum number of
           attempts to obtain a new triangulation before the process is
           terminated.

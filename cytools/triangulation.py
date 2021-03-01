@@ -19,6 +19,7 @@ This module contains tools designed to compute triangulations.
 
 # Standard imports
 from itertools import combinations
+from ast import literal_eval
 import subprocess
 import copy
 import re
@@ -250,7 +251,7 @@ class Triangulation:
                                     "be specified when working without a "
                                     "backend")
                 if backend == "qhull":
-                    heights = [np.dot(p,p) + 0.001*np.random.random()
+                    heights = [np.dot(p,p) + np.random.normal(0,0.05)
                                 for p in self._triang_pts]
                 elif backend == "cgal":
                     heights = [np.dot(p,p) for p in self._triang_pts]
@@ -433,6 +434,8 @@ class Triangulation:
         points. Or the index of the point if only one is given.
         """
         if len(np.array(points).shape) == 1:
+            if np.array(points).shape[0] == 0:
+                return np.zeros(0, dtype=int)
             return self._pts_dict[tuple(points)]
         return np.array([self._pts_dict[tuple(pt)] for pt in points])
 
@@ -690,7 +693,7 @@ class Triangulation:
         topcom_res, topcom_err = topcom.communicate(input=topcom_input)
         if len(topcom_res)==0:
             return []
-        triangs_list = [eval(r) for r in topcom_res.strip().split("\n")]
+        triangs_list = [literal_eval(r) for r in topcom_res.strip().split("\n")]
         triangs = []
         for t in triangs_list:
             tri = Triangulation(self._triang_pts, self._poly, simplices=t,
@@ -716,7 +719,7 @@ class Triangulation:
         (list) The Stanley-Reisner ideal of the triangulation.
         """
         if self._sr_ideal is not None:
-            return np.array(self._sr_ideal)
+            return copy.deepcopy(self._sr_ideal)
         if not self.is_star():
             raise Exception("Triangulation is not star.")
         points = (frozenset(range(len(self._triang_pts)))
@@ -746,7 +749,7 @@ class Triangulation:
                         SR_ideal.add(k)
         self._sr_ideal = sorted([sorted(s)for s in SR_ideal],
                                                      key=lambda x: (len(x),x))
-        return np.array(self._sr_ideal, dtype=object)
+        return copy.deepcopy(self._sr_ideal)
 
     def cpl_cone(self, backend=None,
                  exclude_points_not_in_triangulation=False):
@@ -1016,7 +1019,7 @@ def cgal_triangulate(points, heights):
     if cgal_err != "":
         raise Exception(f"CGAL error: {cgal_err}")
     try:
-        simp = eval(cgal_res)
+        simp = literal_eval(cgal_res)
     except:
         raise Exception("Error: Failed to parse CGAL output.")
     return np.array(sorted([sorted(s) for s in simp]))
@@ -1046,7 +1049,7 @@ def topcom_triangulate(points):
     pts_str = str([list(pt)+[1] for pt in points])
     topcom_res, topcom_err = topcom.communicate(input=pts_str+"[]")
     try:
-        simp = eval(topcom_res.replace("{", "[").replace("}", "]"))
+        simp = literal_eval(topcom_res.replace("{", "[").replace("}", "]"))
     except:
         raise Exception("Error: Failed to parse TOPCOM output. "
                         f"\nstdout: {topcom_res} \nstderr: {topcom_err}")
@@ -1106,7 +1109,7 @@ def all_triangulations(points, only_fine=False, only_regular=False,
     pts_str = str([list(pt)+[1] for pt in points])
     topcom_res, topcom_err = topcom.communicate(input=pts_str+"[]")
     try:
-        triangs = [eval("[" + t.replace("{", "[").replace("}", "]") + "]")
+        triangs = [literal_eval("["+ t.replace("{","[").replace("}","]") + "]")
                     for t in re.findall(r"\{([^\:]*)\}", topcom_res)]
     except:
         raise Exception("Error: Failed to parse TOPCOM output. "
@@ -1120,7 +1123,7 @@ def all_triangulations(points, only_fine=False, only_regular=False,
             yield tri
 
 
-def random_triangulations_fast_generator(triang_pts, N=None, c=0.01,
+def random_triangulations_fast_generator(triang_pts, N=None, c=0.2,
                             max_retries=500, make_star=False, only_fine=True,
                             backend="cgal", poly=None):
     """
@@ -1148,8 +1151,8 @@ def random_triangulations_fast_generator(triang_pts, N=None, c=0.01,
       not specified, it will generate as many triangulations as it can find
       until it has to retry more than max_retries times to obtain a new
       triangulation.
-    - ```c``` (float, optional, default=0.01): A contant used as the
-      coefficient of the Gaussian distribution used to pick the heights. A
+    - ```c``` (float, optional, default=0.2): A contant used as the standard
+      deviation of the Gaussian distribution used to pick the heights. A
       larger c results in a wider range of possible triangulations, but with a
       larger fraction of them being non-fine, which slows down the process when
       using only_fine=True.
@@ -1174,7 +1177,7 @@ def random_triangulations_fast_generator(triang_pts, N=None, c=0.01,
         if (n_retries >= max_retries
                 or (N is not None and len(triang_hashes) >= N)):
             break
-        heights= [pt.dot(pt) + c*np.random.random() for pt in triang_pts]
+        heights= [pt.dot(pt) + np.random.normal(0,c) for pt in triang_pts]
         t = Triangulation(triang_pts, poly=poly, heights=heights,
                           make_star=make_star, backend=backend)
         if only_fine and not t.is_fine():
