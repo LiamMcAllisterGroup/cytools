@@ -19,6 +19,7 @@ RUN pip3 install --user scikit-sparse cysignals gmpy2==2.1.0a4
 RUN pip3 install pplpy
 RUN pip3 install -f https://download.mosek.com/stable/wheel/index.html Mosek
 ENV MOSEKLM_LICENSE_FILE=/cytools-install/external/mosek/mosek.lic
+
 # Fix cvxopt bug
 RUN sed -i -e 's/mosek.solsta.near_optimal/ /g' /usr/local/lib/python3.7/site-packages/cvxopt/coneprog.py
 
@@ -34,30 +35,13 @@ RUN dpkg -i topcom-0.17.8+ds-2+cytools-2.deb
 
 # Create CGAL code for different dimensions and compile
 WORKDIR /cytools-install/external/cgal
-RUN sed '26s/.*/const int D = 1;/' triangulate.cpp > triangulate-1d.cpp;\
-    sed '26s/.*/const int D = 2;/' triangulate.cpp > triangulate-2d.cpp;\
-    sed '26s/.*/const int D = 3;/' triangulate.cpp > triangulate-3d.cpp;\
-    sed '26s/.*/const int D = 4;/' triangulate.cpp > triangulate-4d.cpp;\
-    sed '26s/.*/const int D = 5;/' triangulate.cpp > triangulate-5d.cpp;\
-    sed '26s/.*/const int D = 6;/' triangulate.cpp > triangulate-6d.cpp;\
-    sed '26s/.*/const int D = 7;/' triangulate.cpp > triangulate-7d.cpp;\
-    sed '26s/.*/const int D = 8;/' triangulate.cpp > triangulate-8d.cpp;\
-    sed '26s/.*/const int D = 9;/' triangulate.cpp > triangulate-9d.cpp;\
-    sed '26s/.*/const int D = 10;/' triangulate.cpp > triangulate-10d.cpp;\
-    rm triangulate.cpp
+RUN for i in $(seq 1 10); do sed "26s/.*/const int D = ${i};/" triangulate.cpp > "triangulate-${i}d.cpp"; done; rm triangulate.cpp
+
 RUN cgal_create_CMakeLists -c Eigen3
 RUN cmake . -DCMAKE_BUILD_TYPE=Release
-RUN make -j 4
-RUN ln -s /cytools-install/external/cgal/triangulate-1d /usr/local/bin/cgal-triangulate-1d;\
-    ln -s /cytools-install/external/cgal/triangulate-2d /usr/local/bin/cgal-triangulate-2d;\
-    ln -s /cytools-install/external/cgal/triangulate-3d /usr/local/bin/cgal-triangulate-3d;\
-    ln -s /cytools-install/external/cgal/triangulate-4d /usr/local/bin/cgal-triangulate-4d;\
-    ln -s /cytools-install/external/cgal/triangulate-5d /usr/local/bin/cgal-triangulate-5d;\
-    ln -s /cytools-install/external/cgal/triangulate-6d /usr/local/bin/cgal-triangulate-6d;\
-    ln -s /cytools-install/external/cgal/triangulate-7d /usr/local/bin/cgal-triangulate-7d;\
-    ln -s /cytools-install/external/cgal/triangulate-8d /usr/local/bin/cgal-triangulate-8d;\
-    ln -s /cytools-install/external/cgal/triangulate-9d /usr/local/bin/cgal-triangulate-9d;\
-    ln -s /cytools-install/external/cgal/triangulate-10d /usr/local/bin/cgal-triangulate-10d
+# Must be single-threaded or it crashes on macOS
+RUN make -j 1
+RUN for i in $(seq 1 10); do ln -s "/cytools-install/external/cgal/triangulate-${i}d" "/usr/local/bin/cgal-triangulate-${i}d"; done
 
 # Install PALP
 WORKDIR /cytools-install/external/

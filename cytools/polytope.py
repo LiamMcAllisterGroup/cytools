@@ -585,9 +585,8 @@ class Polytope:
                             [(tuple(points_mat[i]), facet_ind[i])
                                 for i in range(len(points))],
                             key=(lambda p:
-                                    ((len(p[1]) if len(p[1]) > 0 else 1e9),)
-                                    + tuple(p[0])),
-                            reverse=True)
+                                    (-(len(p[1]) if len(p[1]) > 0 else 1e9),)
+                                    + tuple(p[0])))
         self._pts_dict = {ii[0]:i for i,ii in enumerate(self._points_sat)}
         return copy.copy(self._points_sat)
 
@@ -1338,8 +1337,7 @@ class Polytope:
         raise Exception("Lattice must be specified. "
                         "Options are: \"N\" or \"M\".")
 
-    def glsm_charge_matrix(self, exclude_origin=False, use_all_points=False,
-                           n_retries = 100):
+    def glsm_charge_matrix(self, exclude_origin=False, use_all_points=False):
         """
         **Description:**
         Computes the GLSM charge matrix of the theory resulting from this
@@ -1352,9 +1350,6 @@ class Polytope:
         - ```use_all_points``` (boolean, optional, default=False): By default
           only boundary points not interior to facets are used. If this flag is
           set to true then points interior to facets are also used.
-        - ```n_retries``` (integer, optional, default=100): Flint very rarely
-          fails to find the kernel of a matrix. This flag specifies the number
-          of times the points will be shuffled and the computation retried.
 
         **Returns:**
         (list) The GLSM charge matrix.
@@ -1380,16 +1375,14 @@ class Polytope:
         # Find and check GLSM charge matrix
         ker_np = None
         ctr = -1
+        indices = np.arange(pts.shape[0])
         while ((ker_np is None or any(ker_np.dot(pts).flatten()))
-                and ctr <= n_retries):
+                and ctr <= pts.shape[0]-1):
             ctr += 1
-            indices = np.array(list(range(len(pts))))
             if ctr > 0:
-                np.random.shuffle(indices[:-1])
-            ker_dict = {ii:i for i,ii in enumerate(indices)}
-            pts_rand = pts[indices,:]
+                indices[:-1] = np.roll(indices[:-1], 1)
             try:
-                ker = fmpz_mat(pts_rand.T.tolist()).nullspace()[0]
+                ker = fmpz_mat(pts[indices,:].T.tolist()).nullspace()[0]
             except:
                 continue
             ker_np = np.array([v for v in ker.transpose().tolist() if any(v)],
@@ -1397,9 +1390,9 @@ class Polytope:
             ker_np = np.array([v//int(round(gcd_list(v))) for v in ker_np],
                               dtype=int)
             # Check if the last column only has one entry. This should be the
-            # case, but if not we have to do row reduction so that the charge
-            # matrix without the origin is contained as a submatrix.
-            if sum(c != 0 for c in ker_np[:,-1]) != 1 and ker_np[-1,-1] != 0:
+            # case, but if not we have to do row reduction so that the GLSM
+            # charge matrix without the origin is contained as a submatrix.
+            if sum(c != 0 for c in ker_np[:,-1]) != 1 or ker_np[-1,-1] != 0:
                 try:
                     ker = fmpz_mat(ker_np[::-1,::-1].tolist()).rref()[0]
                 except:
@@ -1407,10 +1400,11 @@ class Polytope:
                 ker_np = np.array(ker.tolist(), dtype=int)
                 ker_np = np.array([v//int(round(gcd_list(v))) for v in ker_np],
                                   dtype=int)[::-1,::-1]
+            ker_dict = {ii:i for i,ii in enumerate(indices)}
             ker_np = np.array(ker_np[:,[ker_dict[i]
                                         for i in range(ker_np.shape[1])]])
-        if ker_np is None:
-            raise Exception("Error computing GLSM charge matrix")
+        if ker_np is None or any(ker_np.dot(pts).flatten()):
+            raise Exception("Error computing GLSM charge matrix.")
         # Reflect the matrix to get the original order
         ker_np = ker_np[::-1,::-1]
         self._glsm_charge_matrix[args_id] = ker_np
@@ -1418,8 +1412,7 @@ class Polytope:
             return np.array(self._glsm_charge_matrix[args_id][:,1:])
         return np.array(self._glsm_charge_matrix[args_id])
 
-    def glsm_linear_relations(self, exclude_origin=False, use_all_points=False,
-                              n_retries=100):
+    def glsm_linear_relations(self, exclude_origin=False, use_all_points=False):
         """
         **Description:**
         Computes the linear relations of the GLSM charge matrix.
@@ -1431,9 +1424,6 @@ class Polytope:
         - ```use_all_points``` (boolean, optional, default=False): By default
           only boundary points not interior to facets are used. If this flag is
           set to true then points interior to facets are also used.
-        - ```n_retries``` (integer, optional, default=100): Flint very rarely
-          fails to find the kernel of a matrix. This flag specifies the number
-          of times the columns will be shuffled and the computation retried.
 
         **Returns:**
         (list) A matrix of linear relations of the columns of the GLSM charge
@@ -1446,18 +1436,17 @@ class Polytope:
             return np.array(self._glsm_linrels[args_id])
         linrel_np = None
         ctr = -1
-        ker_np = self.glsm_charge_matrix(use_all_points=use_all_points,
-                                         n_retries=n_retries)
+        ker_np = self.glsm_charge_matrix(exclude_origin=False,
+                                         use_all_points=use_all_points)
         # We reverse the order of the columns because flint returns a nicer
         # matrix in this way
         ker_np = ker_np[:,::-1]
+        indices = np.arange(ker_np.shape[1])
         while ((linrel_np is None or any(ker_np.dot(linrel_np.T).flatten()))
-               and ctr <= n_retries):
+               and ctr <= ker_np.shape[1]-1):
             ctr += 1
-            indices = np.array(list(range(ker_np.shape[1])))
             if ctr > 0:
-                np.random.shuffle(indices[:-1])
-            linrel_dict = {ii:i for i,ii in enumerate(indices)}
+                indices[:-1] = np.roll(indices[:-1], 1)
             linrel_rand = ker_np[:,indices]
             try:
                 linrel = fmpz_mat(linrel_rand.tolist()
@@ -1472,7 +1461,7 @@ class Polytope:
             # case, but if not we have to do row reduction so that the charge
             # matrix without the origin is contained as a submatrix.
             if (sum(c != 0 for c in linrel_np[:,-1]) != 1
-                    and linrel_np[-1,-1] != 0):
+                    or linrel_np[-1,-1] != 0):
                 try:
                     linrel = fmpz_mat(linrel_np[::-1,::-1].tolist()).rref()[0]
                 except:
@@ -1481,6 +1470,7 @@ class Polytope:
                 linrel_np = np.array([v//int(round(gcd_list(v)))
                                         for v in linrel_np],
                                     dtype=int)[::-1,::-1]
+            linrel_dict = {ii:i for i,ii in enumerate(indices)}
             linrel_np = np.array(linrel_np[:,[linrel_dict[i]
                                           for i in range(linrel_np.shape[1])]])
         if linrel_np is None or any(ker_np.dot(linrel_np.T).flatten()):
@@ -1493,7 +1483,7 @@ class Polytope:
         return np.array(self._glsm_linrels[args_id])
 
     def glsm_basis(self, exclude_origin=False, use_all_points=False,
-                   integral=False, n_retries=100):
+                   integral=True):
         """
         **Description:**
         Computes a basis of columns of the GLSM charge matrix.
@@ -1505,14 +1495,10 @@ class Polytope:
         - ```use_all_points``` (boolean, optional, default=False): By default
           only boundary points not interior to facets are used. If this flag is
           set to true then points interior to facets are also used.
-        - ```integral``` (boolean, optional, default=False): Indicates whether
+        - ```integral``` (boolean, optional, default=True): Indicates whether
           to find an integral basis for the columns of the GLSM charge matrix.
           (i.e. so that remaining columns can be written as an integer linear
           combination of the basis elements.)
-        - ```n_retries``` (integer, optional, default=100): Flint very rarely
-          fails to find the row echelon form of a matrix. Also, finding an
-          integral basis currently involves some luck. This flag specifies the
-          number of times the computation is retried.
 
         **Returns:**
         (list) A list of column indices that form a basis.
@@ -1522,15 +1508,17 @@ class Polytope:
             if exclude_origin:
                 return np.array(self._glsm_basis[args_id]) - 1
             return np.array(self._glsm_basis[args_id])
-        linrel_np = self.glsm_linear_relations(use_all_points=use_all_points,
-                                               n_retries=n_retries)
-        for ctr in range(n_retries):
+        linrel_np = self.glsm_linear_relations(exclude_origin=False,
+                                               use_all_points=use_all_points)
+        good_exclusions = 0
+        indices = np.arange(linrel_np.shape[1])
+        for ctr in range(np.prod(linrel_np.shape)):
             found_good_basis=True
-            indices = np.array(list(range(linrel_np.shape[1])))
+            ctr += 1
             if ctr > 0:
-                np.random.shuffle(indices[1:])
+                st = max([good_exclusions,1])
+                indices[st:] = np.roll(indices[st:], -1)
             linrel_rand = np.array(linrel_np[:,indices])
-            linrel_dict = {ii:i for i,ii in enumerate(indices)}
             try:
                 linrel = fmpz_mat(linrel_rand.tolist()).rref()[0]
             except:
@@ -1545,6 +1533,8 @@ class Polytope:
                         if integral:
                             if abs(ii) == 1:
                                 v *= ii
+                                if i > good_exclusions:
+                                    good_exclusions += 1
                             else:
                                 found_good_basis = False
                         basis_exc.append(i)
@@ -1553,13 +1543,15 @@ class Polytope:
                     break
             if found_good_basis:
                 break
+        linrel_dict = {ii:i for i,ii in enumerate(indices)}
         linrel_np = np.array(linrel_rand[:,[linrel_dict[i]
                                     for i in range(linrel_rand.shape[1])]])
         basis_ind = np.array(sorted([i for i in range(len(linrel_np[0]))
                                      if linrel_dict[i] not in basis_exc]),
                                         dtype=int)
-        ker_np = self.glsm_charge_matrix(use_all_points=use_all_points)
-        if (np.linalg.matrix_rank(ker_np) != len(basis_ind)
+        ker_np = self.glsm_charge_matrix(exclude_origin=False,
+                                         use_all_points=use_all_points)
+        if (np.linalg.matrix_rank(ker_np[:,basis_ind]) != len(basis_ind)
                 or any(ker_np.dot(linrel_np.T).flatten())):
             raise Exception("Error finding basis")
         if integral:

@@ -164,11 +164,11 @@ class CalabiYau:
         d = self.dim()
         if d == 2:
             out_str = (f"A K3 hypersurface with h11={self.h11()} in a "
-                       + "in a 3-dimensional toric variety.")
+                       + "3-dimensional toric variety.")
         elif d == 3:
             out_str = ("A Calabi-Yau 3-fold hypersurface with "
                        + f"h11={self.h11()} and h21={self.h21()} in a "
-                       + "in a 4-dimensional toric variety.")
+                       + "4-dimensional toric variety.")
         elif d == 4:
             out_str = ("A Calabi-Yau 4-fold hypersurface with "
                        + f"h11={self.h11()}, h12={self.h12()}, "
