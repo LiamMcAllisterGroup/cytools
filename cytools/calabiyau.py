@@ -523,7 +523,7 @@ class CalabiYau:
         """
         return self.frst().sr_ideal()
 
-    def glsm_charge_matrix(self, exclude_origin=False, n_retries=100):
+    def glsm_charge_matrix(self, exclude_origin=False):
         """
         **Description:**
         Computes the GLSM charge matrix of the theory resulting from this
@@ -533,19 +533,15 @@ class CalabiYau:
         - ```exclude_origin``` (boolean, optional, default=False): Indicates
           whether to use the origin in the calculation. This corresponds to the
           exclusion of the canonical divisor.
-        - ```n_retries``` (integer, optional, default=100): Flint very rarely
-          fails to find the kernel of a matrix. This flag specifies the number
-          of times the points will be shuffled and the computation retried.
 
         **Returns:**
         (list) The GLSM charge matrix.
         """
         return self.polytope().glsm_charge_matrix(
                                     exclude_origin=exclude_origin,
-                                    use_all_points=self.frst()._all_poly_pts,
-                                    n_retries=n_retries)
+                                    use_all_points=self.frst()._all_poly_pts)
 
-    def glsm_linear_relations(self, exclude_origin=False, n_retries=100):
+    def glsm_linear_relations(self, exclude_origin=False):
         """
         **Description:**
         Computes the linear relations of the GLSM charge matrix.
@@ -557,9 +553,6 @@ class CalabiYau:
         - ```use_all_points``` (boolean, optional, default=False): By default
           only boundary points not interior to facets are used. If this flag is
           set to true then points interior to facets are also used.
-        - ```n_retries``` (integer, optional, default=100): Flint very rarely
-          fails to find the kernel of a matrix. This flag specifies the number
-          of times the columns will be shuffled and the computation retried.
 
         **Returns:**
         (list) A matrix of linear relations of the columns of the GLSM charge
@@ -567,11 +560,9 @@ class CalabiYau:
         """
         return self.polytope().glsm_linear_relations(
                                     exclude_origin=exclude_origin,
-                                    use_all_points=self.frst()._all_poly_pts,
-                                    n_retries=n_retries)
+                                    use_all_points=self.frst()._all_poly_pts)
 
-    def divisor_basis(self, integral=False, exclude_origin=False,
-                      n_retries=100):
+    def divisor_basis(self, integral=True, exclude_origin=False):
         """
         **Description:**
         Returns the current basis of divisors of the ambient toric variety.
@@ -580,13 +571,10 @@ class CalabiYau:
         - ```exclude_origin``` (boolean, optional, default=False): Indicates
           whether to use the origin in the calculation. This corresponds to the
           exclusion of the canonical divisor.
-        - ```integral``` (boolean, optional, default=False): Indicates whether
+        - ```integral``` (boolean, optional, default=True): Indicates whether
           to try to find an integral basis for the columns of the GLSM charge
           matrix.(i.e. so that remaining columns can be written as an integer
           linear combination of the basis.)
-        - ```n_retries``` (integer, optional, default=100): Flint very rarely
-          fails to find the kernel of a matrix. This flag specifies the number
-          of times the columns will be shuffled and the computation retried.
 
         **Returns:**
         (list) A list of column indices that form a basis. If a more generic
@@ -616,8 +604,7 @@ class CalabiYau:
             self._divisor_basis = self.polytope().glsm_basis(
                                     integral=integral,
                                     exclude_origin=exclude_origin,
-                                    use_all_points=self.frst()._all_poly_pts,
-                                    n_retries=n_retries)
+                                    use_all_points=self.frst()._all_poly_pts)
             self.clear_cache(only_in_basis=True)
         return np.array(self._divisor_basis)
 
