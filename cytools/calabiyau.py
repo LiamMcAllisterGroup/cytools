@@ -600,7 +600,7 @@ class CalabiYau:
         # Prints: array([1, 3])
         ```
         """
-        if self._divisor_basis is None or integral:
+        if self._divisor_basis is None:
             self._divisor_basis = self.polytope().glsm_basis(
                                     integral=integral,
                                     exclude_origin=exclude_origin,
