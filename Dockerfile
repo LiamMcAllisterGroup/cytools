@@ -23,15 +23,23 @@ ENV MOSEKLM_LICENSE_FILE=/cytools-install/external/mosek/mosek.lic
 # Fix cvxopt bug
 RUN sed -i -e 's/mosek.solsta.near_optimal/ /g' /usr/local/lib/python3.7/site-packages/cvxopt/coneprog.py
 
+# Install TOPCOM
+WORKDIR /cytools-install/external/topcom-mod
+RUN wget https://github.com/LiamMcAllisterGroup/topcom/releases/download/v0.17.8%2Bds-2%2Bcytools-1/topcom_0.17.8+ds-2+cytools-1_amd64.deb
+RUN dpkg -i topcom_0.17.8+ds-2+cytools-1_amd64.deb
+
+# Install PALP
+WORKDIR /cytools-install/external/
+RUN wget http://hep.itp.tuwien.ac.at/~kreuzer/CY/palp/palp-2.20.tar.gz
+RUN tar xvf palp-2.20.tar.gz; rm palp-2.20.tar.gz; mv palp-2.20 palp
+WORKDIR /cytools-install/external/palp
+RUN make
+
 # Copy code and installer
 ADD . /cytools-install/
 WORKDIR /cytools-install/
 RUN python3 setup.py install
 RUN mkdir temp
-
-# Install TOPCOM
-WORKDIR /cytools-install/external/topcom-mod
-RUN dpkg -i topcom-0.17.8+ds-2+cytools-2.deb
 
 # Create CGAL code for different dimensions and compile
 WORKDIR /cytools-install/external/cgal
@@ -42,13 +50,6 @@ RUN cmake . -DCMAKE_BUILD_TYPE=Release
 # Must be single-threaded or it crashes on macOS
 RUN make -j 1
 RUN for i in $(seq 1 10); do ln -s "/cytools-install/external/cgal/triangulate-${i}d" "/usr/local/bin/cgal-triangulate-${i}d"; done
-
-# Install PALP
-WORKDIR /cytools-install/external/
-RUN wget http://hep.itp.tuwien.ac.at/~kreuzer/CY/palp/palp-2.20.tar.gz
-RUN tar zxvf palp-2.20.tar.gz; rm palp-2.20.tar.gz; mv palp-2.20 palp
-WORKDIR /cytools-install/external/palp
-RUN make
 
 # Set entry path
 WORKDIR /home/
