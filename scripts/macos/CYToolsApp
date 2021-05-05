@@ -1,0 +1,3 @@
+#!/bin/bash
+
+open -a Terminal /Applications/CYTools.app/Contents/MacOS/launcher.sh

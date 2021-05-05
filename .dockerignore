@@ -12,3 +12,11 @@ __pycache__
 *.zip
 *.rar
 *.tar*
+
+# Other random files
+Dockerfile
+Makefile
+.gitignore
+.dockerignore
+scripts
+.git

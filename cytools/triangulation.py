@@ -1007,8 +1007,8 @@ def cgal_triangulate(points, heights):
     (list) A list of simplices defining a regular triangulation.
     """
     dim = points.shape[1]
-    if dim > 10:
-        raise Exception("CGAL code is only compiled up to d=10.")
+    if dim > 6:
+        raise Exception("CGAL code is only compiled up to d=6.")
     cgal_bin = config.cgal_path + f"/cgal-triangulate-{dim}d"
     cgal = subprocess.Popen((cgal_bin,), stdin=subprocess.PIPE,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,

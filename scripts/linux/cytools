@@ -1,0 +1,147 @@
+#!/bin/bash
+
+# Function that prints help
+showHelp() {
+cat << EOF
+CYTools: A software package for analyzing Calabi-Yau hypersurfaces in toric varieties.
+
+Usage: cytools [OPTIONS]
+The CYTools Docker image must be built for this script to work
+
+Options:
+ -h, --help     Display help
+
+ -b, --bash     Start a bash terminal in the CYTools container instead of Jupyter Lab.
+
+ -d, --dir      Specify the directory to mount on the container. Default is ~ .
+
+For more detailed instructions please visit https://cytools.liammcallistergroup.com
+
+EOF
+}
+
+# We first parse the input parameters and set the way the container will run
+options=$(getopt -l "help,bash,dir" -o "hbd:" -a -- "$@")
+eval set -- "$options"
+
+runbash=false
+mountdir=~
+while true
+do
+  case $1 in
+    -h|--help)
+      showHelp
+      exit 0
+      ;;
+    -b|--bash)
+      runbash=true
+      ;;
+    -d|--dir)
+      shift
+      mountdir=$1
+      if [ -z "$mountdir" ]
+      then
+        echo "A directory must be specified after -d flag."
+        exit
+      fi
+      ;;
+    --)
+      shift
+      break
+      ;;
+  esac
+  shift
+done
+
+# Check if there is already a cytools container
+containers=$(docker ps -a -q --filter="name=cytools")
+if [[ "$containers" == "" ]]
+then
+  exists=false
+else
+  exists=true
+fi
+
+if $exists
+then
+  echo "A CYTools container already exists!"
+  read -p "Do you want to remove it and start a new one? (y/[n]) " -n 1 -r
+  echo
+  if [[ ! $REPLY =~ ^[Yy]$ ]]
+  then
+    exit
+  fi
+  echo "Stopping and removing old CYTools container..."
+  tmp=$(docker stop cytools)
+  # Check if we have to remove the stopped container
+  containers=$(docker ps -a -q --filter="name=cytools")
+  if [[ "$containers" == "" ]]
+  then
+    exists=false
+  else
+    exists=true
+  fi
+  if $exists
+  then
+    tmp=$(docker rm cytools)
+  fi
+fi
+
+# Initialize docker container
+echo "Initializing CYTools container..."
+if $runbash
+then
+  contid=$(docker run --rm -d -it --name cytools -p 2875:2875 -v $mountdir:/home/cytools/mounted_volume cytools bash || echo "failed")
+  if [[ "$contid" == "failed" ]]
+  then
+    echo "The Docker container failed to start."
+    echo "Please make sure the CYTools Docker image has been built and that the Docker daemon is running."
+    echo "If a custom mount directory was specified please make sure you give its absolute path."
+    exit
+  fi
+  echo "To exit CYTools press Ctrl+D or use the command 'exit'"
+  echo
+else
+  contid=$(docker run --rm -d -it --name cytools -p 2875:2875 -v $mountdir:/home/cytools/mounted_volume cytools || echo "failed")
+  if [[ "$contid" == "failed" ]]
+  then
+    echo "The Docker container failed to start."
+    echo "Please make sure the CYTools Docker image has been built and that the Docker daemon is running."
+    echo "If a custom mount directory was specified please make sure you give its absolute path."
+    exit
+  fi
+  # Wait for up to 10 seconds for Jupyter Lab to initialize
+  initialized=false
+  for n in {1..20}
+  do
+    sleep .5
+    logs=$(docker logs cytools)
+    # Check if logs contain hyperlink
+    for l in $logs
+    do
+      if [[ "$l" == *"127"* ]]
+      then
+        initialized=true
+        link=$l
+        break 2
+      fi
+    done
+  done
+
+  if ! $initialized
+  then
+    echo "Something went wrong. Please make sure the CYTools Docker image has been built."
+    exit
+  fi
+
+  # We open the link in a new browser tab
+  xdg-open $link
+  echo "CYTools is now running. If a new tab in your browser was not opened, please copy and paste the following link into your web browser of choice."
+  echo "$link"
+
+  echo "To exit CYTools press Ctrl+C twice or close your terminal."
+  echo
+fi
+
+# We attach the cytools contaier so that we can see the output and close it when we want to
+docker attach cytools

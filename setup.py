@@ -15,7 +15,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     license="GNU General Public License (GPL)",
     python_requires='>=3.6',
-    install_requires=["numpy", "scipy", "cvxopt", "flint-py", "pplpy", "ortools"],
+    install_requires=[], #["numpy", "scipy", "cvxopt", "flint-py", "pplpy", "ortools"],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: GNU General Public License (GPL)",

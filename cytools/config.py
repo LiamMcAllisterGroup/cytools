@@ -24,10 +24,10 @@ import os
 # using a custom installation.
 cgal_path = "/usr/local/bin/"
 topcom_path = "/usr/bin/"
-palp_path = "/cytools-install/external/palp/"
+palp_path = "/usr/bin/"
 
 # Mosek license
-mosek_license = "/cytools-install/external/mosek/mosek.lic"
+mosek_license = "/opt/cytools/external/mosek/mosek.lic"
 def check_mosek_license():
     os.environ["MOSEKLM_LICENSE_FILE"] = mosek_license
     global mosek_is_activated
