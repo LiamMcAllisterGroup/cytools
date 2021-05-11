@@ -3,11 +3,11 @@
 $dockerinfo = docker info
 if ("$dockerinfo" -eq "" ) {
   Write-Host "`nError: Seems like Docker is not installed in your system."
-  sleep 5
+  sleep 10
   exit
 } elseif ( "$dockerinfo".Contains("error during connect") ) {
   Write-Host "`nError: The Docker daemon is not running. Please make sure it is running before starting CYTools."
-  sleep 5
+  sleep 10
   exit
 }
 
@@ -33,7 +33,7 @@ $tmp = docker run --rm -d -it --name cytools -p 2875:2875 -v ${home}:/home/cytoo
 $contid = docker ps -a -q -f "name=cytools"
 if ( "$contid" -eq "" ) {
   Write-Host "The Docker container failed to start. Please make sure that the CYTools Docker image has been built."
-  sleep 5
+  sleep 10
   exit
 }
 
@@ -51,7 +51,7 @@ for ($n = 1; $n -le 20; $n++) {
 if (-not $initialized) {
   Write-Host "Something went wrong. Please make sure that the CYTools Docker image has been built."
   docker stop cytools
-  sleep 5
+  sleep 10
   exit
 }
 
@@ -66,6 +66,8 @@ foreach ($w in $logs.split(" ")) {
 Start-Process "$link"
 Write-Host "CYTools is now running. If a new tab in your browser was bot opened, please copy and paste the following link into your web browser of choice."
 Write-Host "$link"
-Write-Host "To exit CYTools press Ctrl+C twice or close your terminal.`n"
+Write-Host "******************************************************************"
+Write-Host "*** To exit CYTools press Ctrl+C twice while on this terminal. ***"
+Write-Host "******************************************************************`n"
 
 docker attach cytools

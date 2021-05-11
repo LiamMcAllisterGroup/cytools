@@ -16,12 +16,6 @@ RUN sed -i -e 's/Eigen\/Core/eigen3\/Eigen\/Core/g' /usr/include/CGAL/Dimension.
 RUN sed -i -e 's/Eigen\/Dense/eigen3\/Eigen\/Dense/g' /usr/include/CGAL/NewKernel_d/LA_eigen/LA.h
 RUN sed -i -e 's/Eigen\/Dense/eigen3\/Eigen\/Dense/g' /usr/include/CGAL/NewKernel_d/LA_eigen/constructors.h
 
-# Create a non-root user
-ENV SHELL=/bin/bash
-RUN useradd -m cytools && echo "cytools:cytools" | chpasswd && adduser cytools sudo
-USER cytools
-ENV PATH="/home/cytools/.local/bin:${PATH}"
-
 # Install pip packages
 RUN python3 -m pip install --no-warn-script-location --upgrade pip
 RUN python3 -m pip install --no-warn-script-location numpy scipy jupyterlab cvxopt gekko flint-py pymongo ortools tqdm
@@ -30,10 +24,8 @@ RUN python3 -m pip install --no-warn-script-location pplpy
 RUN python3 -m pip install --no-warn-script-location -f https://download.mosek.com/stable/wheel/index.html Mosek
 ENV MOSEKLM_LICENSE_FILE=/opt/cytools/external/mosek/mosek.lic
 
-USER root
-
 # Fix cvxopt bug
-RUN sed -i -e 's/mosek.solsta.near_optimal/ /g' /home/cytools/.local/lib/python3.7/site-packages/cvxopt/coneprog.py
+RUN sed -i -e 's/mosek.solsta.near_optimal/ /g' /usr/local/lib/python3.7/dist-packages/cvxopt/coneprog.py
 
 # Install TOPCOM
 WORKDIR /opt/cytools/external/topcom-mod
@@ -61,10 +53,8 @@ ENV NUMEXPR_NUM_THREADS=1
 ENV OMP_NUM_THREADS=1
 ENV OPENBLAS_NUM_THREADS=1
 
-USER cytools
-
 # Set entry path
 WORKDIR /home/cytools/mounted_volume
 
 # Start jupyter lab by default
-CMD jupyter lab --ip 0.0.0.0 --port 2875 --no-browser
+CMD jupyter lab --ip 0.0.0.0 --port 2875 --no-browser --allow-root

@@ -97,6 +97,7 @@ then
     echo "The Docker container failed to start."
     echo "Please make sure the CYTools Docker image has been built and that the Docker daemon is running."
     echo "If a custom mount directory was specified please make sure you give its absolute path."
+    sleep 10
     exit
   fi
   echo "To exit CYTools press Ctrl+D or use the command 'exit'"
@@ -108,6 +109,7 @@ else
     echo "The Docker container failed to start."
     echo "Please make sure the CYTools Docker image has been built and that the Docker daemon is running."
     echo "If a custom mount directory was specified please make sure you give its absolute path."
+    sleep 10
     exit
   fi
   # Wait for up to 10 seconds for Jupyter Lab to initialize
@@ -131,6 +133,7 @@ else
   if ! $initialized
   then
     echo "Something went wrong. Please make sure the CYTools Docker image has been built."
+    sleep 10
     exit
   fi
 
