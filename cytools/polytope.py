@@ -2062,7 +2062,7 @@ class Polytope:
         if progress_bar:
             pbar = tqdm(total=N)
         triangs_list = []
-        while len(triangs_list) < range(N):
+        while len(triangs_list) < N:
             try:
                 triangs_list.append(next(g))
                 if progress_bar:
@@ -2190,7 +2190,7 @@ class Polytope:
         if progress_bar:
             pbar = tqdm(total=N)
         triangs_list = []
-        while len(triangs_list) < range(N):
+        while len(triangs_list) < N:
             try:
                 triangs_list.append(next(g))
                 if progress_bar:
