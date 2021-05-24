@@ -1,4 +1,4 @@
-
+﻿
 # Make sure that Docker is installed and running
 $dockerinfo = docker info
 if ("$dockerinfo" -eq "" ) {
