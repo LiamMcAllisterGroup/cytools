@@ -35,11 +35,16 @@ def check_mosek_license():
         import mosek
         mosek.Env().Task(0,0).optimize()
         mosek_is_activated = True
-    except:
+    except mosek.Error as e:
+        print(e)
         print("Info: Mosek is not activated. "
+              "An alternative optimizer will be used.")
+        mosek_is_activated = False
+    except:
+        print("Info: There was a problem with Mosek. "
               "An alternative optimizer will be used.")
         mosek_is_activated = False
 check_mosek_license()
 
-# Lock experimental features unless enabled by the user.
+# Lock experimental features by default.
 enable_experimental_features = False

@@ -523,58 +523,54 @@ class CalabiYau:
         """
         return self.frst().sr_ideal()
 
-    def glsm_charge_matrix(self, exclude_origin=False):
+    def glsm_charge_matrix(self, include_origin=True):
         """
         **Description:**
         Computes the GLSM charge matrix of the theory resulting from this
         polytope.
 
         **Arguments:**
-        - ```exclude_origin``` (boolean, optional, default=False): Indicates
+        - ```include_origin``` (boolean, optional, default=True): Indicates
           whether to use the origin in the calculation. This corresponds to the
-          exclusion of the canonical divisor.
+          inclusion of the canonical divisor.
 
         **Returns:**
         (list) The GLSM charge matrix.
         """
         return self.polytope().glsm_charge_matrix(
-                                    exclude_origin=exclude_origin,
-                                    use_all_points=self.frst()._all_poly_pts)
+                include_origin=include_origin,
+                include_points_interior_to_facets=self.frst()._all_poly_pts)
 
-    def glsm_linear_relations(self, exclude_origin=False):
+    def glsm_linear_relations(self, include_origin=True):
         """
         **Description:**
         Computes the linear relations of the GLSM charge matrix.
 
         **Arguments:**
-        - ```exclude_origin``` (boolean, optional, default=False): Indicates
+        - ```include_origin``` (boolean, optional, default=True): Indicates
           whether to use the origin in the calculation. This corresponds to the
-          exclusion of the canonical divisor.
-        - ```use_all_points``` (boolean, optional, default=False): By default
-          only boundary points not interior to facets are used. If this flag is
-          set to true then points interior to facets are also used.
+          inclusion of the canonical divisor.
 
         **Returns:**
         (list) A matrix of linear relations of the columns of the GLSM charge
         matrix.
         """
         return self.polytope().glsm_linear_relations(
-                                    exclude_origin=exclude_origin,
-                                    use_all_points=self.frst()._all_poly_pts)
+                include_origin=include_origin,
+                include_points_interior_to_facets=self.frst()._all_poly_pts)
 
-    def divisor_basis(self, integral=True, exclude_origin=False):
+    def divisor_basis(self, include_origin=True, integral=None):
         """
         **Description:**
         Returns the current basis of divisors of the ambient toric variety.
 
         **Arguments:**
-        - ```exclude_origin``` (boolean, optional, default=False): Indicates
-          whether to use the origin in the calculation. This corresponds to the
-          exclusion of the canonical divisor.
-        - ```integral``` (boolean, optional, default=True): Indicates whether
-          to try to find an integral basis for the columns of the GLSM charge
-          matrix.(i.e. so that remaining columns can be written as an integer
-          linear combination of the basis.)
+        - ```include_origin``` (boolean, optional, default=True): Whether to
+          interpret the indexing of the vector as including the origin.
+        - ```integral``` (boolean, optional): Indicates whether to try to find
+          an integral basis for the columns of the GLSM charge matrix. (i.e.
+          so that remaining columns can be written as an integer linear
+          combination of the basis.)
 
         **Returns:**
         (list) A list of column indices that form a basis. If a more generic
@@ -600,15 +596,20 @@ class CalabiYau:
         # Prints: array([1, 3])
         ```
         """
-        if self._divisor_basis is None:
+        if self._divisor_basis is None or integral:
             self._divisor_basis = self.polytope().glsm_basis(
-                                    integral=integral,
-                                    exclude_origin=exclude_origin,
-                                    use_all_points=self.frst()._all_poly_pts)
+                integral=True,
+                include_origin=True,
+                include_points_interior_to_facets=self.frst()._all_poly_pts)
             self.clear_cache(only_in_basis=True)
+        if len(self._divisor_basis.shape) == 1:
+            if 0 in self._divisor_basis and not include_origin:
+                raise Exception("The basis was requested not including the "
+                            "origin, but it is included in the current basis.")
+            return np.array(self._divisor_basis) - (0 if include_origin else 1)
         return np.array(self._divisor_basis)
 
-    def set_divisor_basis(self, basis, exclude_origin=False,
+    def set_divisor_basis(self, basis, include_origin=True,
                           exact_arithmetic=False):
         """
         **Description:**
@@ -633,8 +634,8 @@ class CalabiYau:
           the polytope or prime divisors of the ambient toric variety. When a
           matrix is used, the rows are taken as linear combinations of the
           aforementioned divisors.
-        - ```exclude_origin``` (boolean, optional, default=False): Whether to
-          interpret the indexing specified by the input vector as excluding the
+        - ```include_origin``` (boolean, optional, default=True): Whether to
+          interpret the indexing specified by the input vector as including the
           origin.
         - ```exact_arithmetic``` (boolean, optional, default=False): Whether to
           use exact rational arithmetic instead of floats when using a generic
@@ -648,15 +649,13 @@ class CalabiYau:
         [Experimental Features](./experimental).
         """
         b = np.array(basis)
-        glsm_cm = self.polytope().glsm_charge_matrix(
-                                    exclude_origin=False,
-                                    use_all_points=self.frst()._all_poly_pts)
+        glsm_cm = self.glsm_charge_matrix(include_origin=True)
         glsm_rnk = np.linalg.matrix_rank(glsm_cm)
         # Check if the input is a vector
         if len(b.shape) == 1:
             if b.dtype != int:
                 raise Exception("Input vector must contain integer entries.")
-            if exclude_origin:
+            if not include_origin:
                 b += 1
             # Check if it is a valid basis
             if min(b) < 0 or max(b) >= glsm_cm.shape[1]:
@@ -711,7 +710,7 @@ class CalabiYau:
         # Clear the cache of all in-basis computations
         self.clear_cache(recursive=False, only_in_basis=True)
 
-    def set_curve_basis(self, basis, exclude_origin=False,
+    def set_curve_basis(self, basis, include_origin=True,
                         exact_arithmetic=False):
         """
         **Description:**
@@ -738,8 +737,8 @@ class CalabiYau:
           basis of the dual to the lattice of prime toric divisors. When a
           matrix is used, the rows are taken as linear combinations of the
           aforementioned elements.
-        - ```exclude_origin``` (boolean, optional, default=False): Whether to
-          interpret the indexing specified by the input vector as excluding the
+        - ```include_origin``` (boolean, optional, default=True): Whether to
+          interpret the indexing specified by the input vector as including the
           origin.
         - ```exact_arithmetic``` (boolean, optional, default=False): Whether to
           use exact rational arithmetic instead of floats when using a generic
@@ -755,7 +754,7 @@ class CalabiYau:
         b = np.array(basis)
         # Check if the input is a vector
         if len(b.shape) == 1:
-            self.set_divisor_basis(b, exclude_origin=exclude_origin,
+            self.set_divisor_basis(b, include_origin=include_origin,
                                    exact_arithmetic=exact_arithmetic)
             return
         if len(b.shape) != 2:
@@ -766,8 +765,8 @@ class CalabiYau:
                             "experimental feature and must be enabled in "
                             "the configuration.")
         glsm_cm = self.polytope().glsm_charge_matrix(
-                                    exclude_origin=False,
-                                    use_all_points=self.frst()._all_poly_pts)
+                include_origin=False,
+                include_points_interior_to_facets=self.frst()._all_poly_pts)
         glsm_rnk = np.linalg.matrix_rank(glsm_cm)
         t = type(b[0,0])
         if t in [np.int64, np.float64]:
@@ -822,7 +821,7 @@ class CalabiYau:
             b_inv = np.linalg.pinv(new_b).T
         self.set_divisor_basis(b_inv, exact_arithmetic=exact_arithmetic)
 
-    def ambient_mori_cone(self, in_basis=False, exclude_origin=False,
+    def ambient_mori_cone(self, in_basis=False, include_origin=True,
                           from_intersection_numbers=False):
         """
         **Description:**
@@ -832,7 +831,7 @@ class CalabiYau:
         - ```in_basis``` (boolean, optional, default=False): Use the current
           basis of curves, which is dual to what the basis returned by the
           [```divisor_basis```](#divisor_basis) function.
-        - ```exclude_origin``` (boolean, optional, default=False): Excludes the
+        - ```include_origin``` (boolean, optional, default=True): Includes the
           origin of the polytope in the computation, which corresponds to the
           canonical divisor.
         - ```from_intersection_numbers``` (boolean, optional, default=False):
@@ -852,14 +851,14 @@ class CalabiYau:
             else:
                 self._mori_cone[0] = self.frst().cpl_cone().dual()
         # 0: All divs, 1: No origin, 2: In basis
-        args_id = (exclude_origin*1 if not in_basis else 0) + in_basis*2
+        args_id = ((not include_origin)*1 if not in_basis else 0) + in_basis*2
         if self._mori_cone[args_id] is not None:
             return self._mori_cone[args_id]
         rays = self.frst().cpl_cone().hyperplanes()
         basis = self.divisor_basis()
-        if not exclude_origin and not in_basis:
+        if include_origin and not in_basis:
             new_rays = rays
-        elif exclude_origin and not in_basis:
+        elif not include_origin and not in_basis:
             new_rays = rays[:,1:]
         else:
             if len(basis.shape) == 2: # If basis is matrix
@@ -1063,7 +1062,7 @@ class CalabiYau:
                                 dtype=int)
         pts_ext[:,:-1] = self.frst().points()
         pts_ext[:,-1] = 1
-        linear_relations = self.glsm_linear_relations(exclude_origin=True)
+        linear_relations = self.glsm_linear_relations(include_origin=False)
         # First compute the distict intersection numbers
         distintnum_array = sorted([
             [c for c in simp if c!=0]
@@ -1180,7 +1179,7 @@ class CalabiYau:
         pts_ext = np.empty((self.frst().points().shape[0],dim+2), dtype=int)
         pts_ext[:,:-1] = self.frst().points()
         pts_ext[:,-1] = 1
-        linear_relations = self.glsm_linear_relations(exclude_origin=True)
+        linear_relations = self.glsm_linear_relations(include_origin=False)
         # First compute the distict intersection numbers
         distintnum_array = sorted([
             [c for c in simp if c!=0]
@@ -1576,7 +1575,7 @@ class CalabiYau:
                     c2[ii[1]] += ii[3]
                     c2[ii[2]] += ii[3]
         if in_basis:
-            basis = self.divisor_basis(exclude_origin=True)
+            basis = self.divisor_basis(include_origin=False)
             if len(basis.shape) == 2: # If basis is matrix
                 return c2.dot(basis.T)
             return c2[basis]

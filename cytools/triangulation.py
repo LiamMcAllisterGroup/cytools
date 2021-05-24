@@ -502,7 +502,7 @@ class Triangulation:
             return self._is_regular
         self._is_regular = (True if self.simplices().shape[0] == 1 else
                             self.cpl_cone(
-                                exclude_points_not_in_triangulation=True
+                                include_points_not_in_triangulation=False
                                 ).is_solid(backend=backend))
         return self._is_regular
 
@@ -636,7 +636,10 @@ class Triangulation:
         """
         current_triang = self
         for n in range(N):
-            neighbors = current_triang.neighbor_triangulations()
+            neighbors = current_triang.neighbor_triangulations(
+                                                only_fine=False,
+                                                only_regular=False,
+                                                only_star=False)
             np.random.shuffle(neighbors)
             good_pick = False
             for t in neighbors:
@@ -644,7 +647,7 @@ class Triangulation:
                     continue
                 if only_star and not t.is_star():
                     continue
-                if only_regular and not t.is_regular():
+                if only_regular and not t.is_regular(backend=backend):
                     continue
                 good_pick = True
                 current_triang = t
@@ -702,7 +705,7 @@ class Triangulation:
                 continue
             if only_star and not tri.is_star():
                 continue
-            if only_regular and not tri.is_regular():
+            if only_regular and not tri.is_regular(backend=backend):
                 continue
             triangs.append(tri)
         return triangs
@@ -752,7 +755,7 @@ class Triangulation:
         return copy.deepcopy(self._sr_ideal)
 
     def cpl_cone(self, backend=None,
-                 exclude_points_not_in_triangulation=False):
+                 include_points_not_in_triangulation=True):
         """
         **Description:**
         Computes the cone of strictly convex piecewise linear functions
@@ -765,8 +768,8 @@ class Triangulation:
           Options are "native", which uses a native implementation of an
           algorithm by Berglund, Katz and Klemm, or "topcom" which uses
           differences of GKZ vectors for the computation.
-        - ```exclude_points_not_in_triangulation``` (boolean, optional,
-          default=False): This flag allows the exclusion of points that are
+        - ```include_points_not_in_triangulation``` (boolean, optional,
+          default=True): This flag allows the exclusion of points that are
           not part of the triangulation. This can be done to check regularity
           faster, but this cannot be used if the actual cone in the secondary
           fan is needed.
@@ -779,14 +782,14 @@ class Triangulation:
             raise Exception(f"Options for backend are: {backends}")
         if backend is None:
             backend = ("native" if self.is_fine()
-                                    or exclude_points_not_in_triangulation
+                                    or not include_points_not_in_triangulation
                                 else "topcom")
         if (backend == "native" and not self.is_fine()
-                and not exclude_points_not_in_triangulation):
+                and not include_points_not_in_triangulation):
             print("Warning: Native backend is not supported when not excluding"
                   "points that are not in the triangulation. Using TOPCOM...")
             backend = "topcom"
-        args_id = 1*exclude_points_not_in_triangulation
+        args_id = 1*include_points_not_in_triangulation
         if self._cpl_cone[args_id] is not None:
             return self._cpl_cone[args_id]
         if backend == "native":

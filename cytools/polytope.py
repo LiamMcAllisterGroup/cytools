@@ -103,8 +103,8 @@ class Polytope:
         # Convert points to numpy array and compute dimension
         self._input_pts = np.array(points, dtype=int)
         self._ambient_dim = self._input_pts.shape[1]
-        pts_ext = np.empty((self._input_pts.shape[0],
-                            self._input_pts.shape[1] + 1), dtype=int)
+        in_pts_shape = self._input_pts.shape
+        pts_ext = np.empty((in_pts_shape[0], in_pts_shape[1]+1), dtype=int)
         pts_ext[:,:-1] = self._input_pts
         pts_ext[:,-1] = 1
         self._dim = np.linalg.matrix_rank(pts_ext) - 1
@@ -112,7 +112,7 @@ class Polytope:
         # Select backend for the computation of the convex hull
         backends = ["ppl", "qhull", "palp", None]
         if backend not in backends:
-            raise Exception(f"Invalid backend. Options are {backends}.")
+            raise ValueError(f"Invalid backend. Options are {backends}.")
         if backend is None:
             if self._dim <= 4:
                 backend = "ppl"
@@ -139,7 +139,7 @@ class Polytope:
             self._optimal_pts = optimal_pts[:, self._dim_diff:]
         self._transf_matrix = np.array(transf_matrix.tolist(), dtype=int)
         inv_tranf_matrix = transf_matrix.inv(integer=True)
-        self._inv_transf_matrix = np.array(inv_tranf_matrix.tolist(), dtype=int)
+        self._inv_transf_matrix = np.array(inv_tranf_matrix.tolist(),dtype=int)
         # Flint sometimes returns an inverse that is missing a factor of -1
         check_inverse = self._inv_transf_matrix.dot(self._transf_matrix)
         id_mat = np.eye(self._ambient_dim, dtype=int)
@@ -148,7 +148,7 @@ class Polytope:
         elif all((check_inverse == -id_mat).flatten()):
             self._inv_transf_matrix = -self._inv_transf_matrix
         else:
-            raise Exception("Problem finding inverse matrix")
+            raise RuntimeError("Problem finding inverse matrix")
         # Construct convex hull and find the hyperplane representation with the
         # appropriate backend. The equations are in the form
         # c_0 * x_0 + ... + c_{d-1} * x_{d-1} + c_d >= 0
@@ -156,13 +156,13 @@ class Polytope:
             gs = ppl.Generator_System()
             vrs = [ppl.Variable(i) for i in range(self._dim)]
             for pt in self._optimal_pts:
-                gs.insert(ppl.point(sum(pt[i]*vrs[i]
-                                        for i in range(self._dim))))
+                ppl_pt = ppl.point(sum(pt[i]*vrs[i] for i in range(self._dim)))
+                gs.insert(ppl_pt)
             self._optimal_poly = ppl.C_Polyhedron(gs)
-            optimal_ineqs = []
-            for ineq in self._optimal_poly.minimized_constraints():
-                optimal_ineqs.append(list(ineq.coefficients())
-                                     + [ineq.inhomogeneous_term()])
+            optimal_ineqs = [
+                        list(ineq.coefficients())
+                        + [ineq.inhomogeneous_term()]
+                        for ineq in self._optimal_poly.minimized_constraints()]
             self._optimal_ineqs = np.array(optimal_ineqs, dtype=int)
         elif backend == "qhull":
             if self._dim == 0: # qhull cannot handle 0-dimensional polytopes
@@ -170,8 +170,8 @@ class Polytope:
                 self._optimal_ineqs = np.array([[0]])
             elif self._dim == 1: # qhull cannot handle 1-dimensional polytopes
                 self._optimal_poly = None
-                self._optimal_ineqs = np.array([[1, -min(self._optimal_pts)],
-                                                [-1, max(self._optimal_pts)]])
+                min_pt, max_pt = min(self._optimal_pts), max(self._optimal_pts)
+                self._optimal_ineqs = np.array([[1,-min_pt],[-1,max_pt]])
             else:
                 self._optimal_poly = ConvexHull(self._optimal_pts)
                 tmp_ineqs = set()
@@ -191,30 +191,30 @@ class Polytope:
                 pt_list = ""
                 optimal_pts = {tuple(pt) for pt in self._optimal_pts}
                 for pt in optimal_pts:
-                    pt_list += (str(pt).replace("(","").replace(")","")
-                                .replace(","," ") + "\n")
-                palp_out = palp.communicate(
-                                input=f"{len(optimal_pts)} {self._dim}\n"
-                                      + pt_list + "\n")[0]
+                    pt_str = str(pt).replace("(","").replace(")","")
+                    pt_str = pt_str.replace(","," ")
+                    pt_list += pt_str + "\n"
+                palp_in = f"{len(optimal_pts)} {self._dim}\n{pt_list}\n"
+                palp_out = palp.communicate(input=palp_in)[0]
                 if "Equations" not in palp_out:
-                    raise Exception(f"PALP error. Full output: {palp_out}")
+                    raise RuntimeError(f"PALP error. Full output: {palp_out}")
                 palp_out = palp_out.split("\n")
                 for i,line in enumerate(palp_out):
                     if "Equations" not in line:
                         continue
                     self._is_reflexive = "Vertices" in line
                     ineqs_shape = [int(c) for c in line.split()[:2]]
-                    tmp_ineqs = []
-                    for j in range(ineqs_shape[0]):
-                        tmp_ineqs.append(
-                                    [int(c) for c in palp_out[i+j+1].split()])
+                    tmp_ineqs = [[int(c) for c in palp_out[i+j+1].split()]
+                                    for j in range(ineqs_shape[0])]
                     break
-                tmp_ineqs = (np.array(tmp_ineqs).T
-                                if ineqs_shape[0] < ineqs_shape[1] else
-                                np.array(tmp_ineqs))
+                if ineqs_shape[0] < ineqs_shape[1]: # Check if transposed
+                    tmp_ineqs = np.array(tmp_ineqs).T
+                else:
+                    tmp_ineqs = np.array(tmp_ineqs)
                 if self._is_reflexive:
-                    tmp_ineqs2 = np.empty((tmp_ineqs.shape[0],
-                                           tmp_ineqs.shape[1]+1), dtype=int)
+                    ineqs_shape = tmp_ineqs.shape
+                    tmp_ineqs2 = np.empty((ineqs_shape[0], ineqs_shape[1]+1),
+                                          dtype=int)
                     tmp_ineqs2[:,:-1] = tmp_ineqs
                     tmp_ineqs2[:,-1] = 1
                     tmp_ineqs = tmp_ineqs2
@@ -345,7 +345,7 @@ class Polytope:
         if not isinstance(other, Polytope):
             return NotImplemented
         return not (sorted(self.vertices().tolist())
-                == sorted(other.vertices().tolist()))
+                    == sorted(other.vertices().tolist()))
 
     def __hash__(self):
         """
@@ -483,13 +483,13 @@ class Polytope:
                 pt_list = ""
                 optimal_pts = {tuple(pt) for pt in self._optimal_pts}
                 for pt in optimal_pts:
-                    pt_list += (str(pt).replace("(","").replace(")","")
-                                .replace(","," ") + "\n")
-                palp_out = palp.communicate(
-                                input=f"{len(optimal_pts)} {self._dim}\n"
-                                      + pt_list + "\n")[0]
+                    pt_str = str(pt).replace("(","").replace(")","")
+                    pt_str = pt_str.replace(","," ")
+                    pt_list += pt_str + "\n"
+                palp_in = f"{len(optimal_pts)} {self._dim}\n{pt_list}\n"
+                palp_out = palp.communicate(input=palp_in)[0]
                 if "Points of P" not in palp_out:
-                    raise Exception(f"PALP error. Full output: {palp_out}")
+                    raise RuntimeError(f"PALP error. Full output: {palp_out}")
                 palp_out = palp_out.split("\n")
                 for i,line in enumerate(palp_out):
                     if "Points of P" not in line:
@@ -500,8 +500,10 @@ class Polytope:
                         tmp_pts[j,:] = (
                                     [int(c) for c in palp_out[i+j+1].split()])
                     break
-                points = (tmp_pts.T
-                            if pts_shape[0] < pts_shape[1] else tmp_pts)
+                if pts_shape[0] < pts_shape[1]: # Check if transposed
+                    points = tmp_pts.T
+                else:
+                    points = tmp_pts
                 # Now we find which inequialities each point saturates
                 ineqs = self._optimal_ineqs
                 facet_ind = [frozenset(i for i,ii in enumerate(ineqs)
@@ -797,9 +799,7 @@ class Polytope:
             hpq = (44 + 4*self.h11(lattice="N") - 2*self.h12(lattice="N") +
                         4*self.h13(lattice="N"))
             return hpq
-        print("Warning: An unexpected situation occurred. "
-              "Result may be incorrect.")
-        return 0
+        raise RuntimeError("Error computing Hodge numbers.")
 
     def h11(self, lattice):
         """
@@ -1337,17 +1337,19 @@ class Polytope:
         raise Exception("Lattice must be specified. "
                         "Options are: \"N\" or \"M\".")
 
-    def glsm_charge_matrix(self, exclude_origin=False, use_all_points=False):
+    def glsm_charge_matrix(self, include_origin=True,
+                           include_points_interior_to_facets=False):
         """
         **Description:**
         Computes the GLSM charge matrix of the theory resulting from this
         polytope.
 
         **Arguments:**
-        - ```exclude_origin``` (boolean, optional, default=False): Indicates
+        - ```include_origin``` (boolean, optional, default=True): Indicates
           whether to use the origin in the calculation. This corresponds to the
-          exclusion of the canonical divisor.
-        - ```use_all_points``` (boolean, optional, default=False): By default
+          inclusion of the canonical divisor.
+        - ```include_points_interior_to_facets``` (boolean, optional,
+          default=False): By default
           only boundary points not interior to facets are used. If this flag is
           set to true then points interior to facets are also used.
 
@@ -1355,16 +1357,16 @@ class Polytope:
         (list) The GLSM charge matrix.
         """
         if not self.is_reflexive():
-            raise Exception("The GLSM charge matrix can only be computed for"
+            raise Exception("The GLSM charge matrix can only be computed for "
                             "reflexive polytopes.")
-        args_id = 1*use_all_points
+        args_id = 1*include_points_interior_to_facets
         if self._glsm_charge_matrix[args_id] is not None:
-            if exclude_origin:
+            if not include_origin:
                 return np.array(self._glsm_charge_matrix[args_id][:,1:])
             return np.array(self._glsm_charge_matrix[args_id])
         # Set up the list of points that will be used. We always include the
         # origin and discard it at the end if necessary.
-        if use_all_points:
+        if include_points_interior_to_facets:
             pts = np.array([tuple(pt)+(1,) for pt in self.points()])
         else:
             pts = np.array([tuple(pt)+(1,) for pt in
@@ -1408,20 +1410,22 @@ class Polytope:
         # Reflect the matrix to get the original order
         ker_np = ker_np[::-1,::-1]
         self._glsm_charge_matrix[args_id] = ker_np
-        if exclude_origin:
+        if not include_origin:
             return np.array(self._glsm_charge_matrix[args_id][:,1:])
         return np.array(self._glsm_charge_matrix[args_id])
 
-    def glsm_linear_relations(self, exclude_origin=False, use_all_points=False):
+    def glsm_linear_relations(self, include_origin=True,
+                              include_points_interior_to_facets=False):
         """
         **Description:**
         Computes the linear relations of the GLSM charge matrix.
 
         **Arguments:**
-        - ```exclude_origin``` (boolean, optional, default=False): Indicates
+        - ```include_origin``` (boolean, optional, default=True): Indicates
           whether to use the origin in the calculation. This corresponds to the
-          exclusion of the canonical divisor.
-        - ```use_all_points``` (boolean, optional, default=False): By default
+          inclusion of the canonical divisor.
+        - ```include_points_interior_to_facets``` (boolean, optional,
+          default=False): By default
           only boundary points not interior to facets are used. If this flag is
           set to true then points interior to facets are also used.
 
@@ -1429,15 +1433,15 @@ class Polytope:
         (list) A matrix of linear relations of the columns of the GLSM charge
         matrix.
         """
-        args_id = 1*use_all_points
+        args_id = 1*include_points_interior_to_facets
         if self._glsm_linrels[args_id] is not None:
-            if exclude_origin:
+            if not include_origin:
                 return np.array(self._glsm_linrels[args_id][1:,1:])
             return np.array(self._glsm_linrels[args_id])
         linrel_np = None
         ctr = -1
-        ker_np = self.glsm_charge_matrix(exclude_origin=False,
-                                         use_all_points=use_all_points)
+        ker_np = self.glsm_charge_matrix(include_origin=True,
+            include_points_interior_to_facets=include_points_interior_to_facets)
         # We reverse the order of the columns because flint returns a nicer
         # matrix in this way
         ker_np = ker_np[:,::-1]
@@ -1478,21 +1482,22 @@ class Polytope:
         # Reflect the matrix to get the original order
         linrel_np = linrel_np[::-1,::-1]
         self._glsm_linrels[args_id] = linrel_np
-        if exclude_origin:
+        if not include_origin:
             return np.array(self._glsm_linrels[args_id][1:,1:])
         return np.array(self._glsm_linrels[args_id])
 
-    def glsm_basis(self, exclude_origin=False, use_all_points=False,
-                   integral=True):
+    def glsm_basis(self, include_origin=True,
+                   include_points_interior_to_facets=False, integral=True):
         """
         **Description:**
         Computes a basis of columns of the GLSM charge matrix.
 
         **Arguments:**
-        - ```exclude_origin``` (boolean, optional, default=False): Indicates
+        - ```include_origin``` (boolean, optional, default=True): Indicates
           whether to use the origin in the calculation. This corresponds to the
-          exclusion of the canonical divisor.
-        - ```use_all_points``` (boolean, optional, default=False): By default
+          inclusion of the canonical divisor.
+        - ```include_points_interior_to_facets``` (boolean, optional,
+          default=False): By default
           only boundary points not interior to facets are used. If this flag is
           set to true then points interior to facets are also used.
         - ```integral``` (boolean, optional, default=True): Indicates whether
@@ -1503,13 +1508,13 @@ class Polytope:
         **Returns:**
         (list) A list of column indices that form a basis.
         """
-        args_id = 1*use_all_points + 2*integral
+        args_id = 1*include_points_interior_to_facets + 2*integral
         if self._glsm_basis[args_id] is not None:
-            if exclude_origin:
+            if not include_origin:
                 return np.array(self._glsm_basis[args_id]) - 1
             return np.array(self._glsm_basis[args_id])
-        linrel_np = self.glsm_linear_relations(exclude_origin=False,
-                                               use_all_points=use_all_points)
+        linrel_np = self.glsm_linear_relations(include_origin=True,
+            include_points_interior_to_facets=include_points_interior_to_facets)
         good_exclusions = 0
         indices = np.arange(linrel_np.shape[1])
         for ctr in range(np.prod(linrel_np.shape)):
@@ -1549,16 +1554,16 @@ class Polytope:
         basis_ind = np.array(sorted([i for i in range(len(linrel_np[0]))
                                      if linrel_dict[i] not in basis_exc]),
                                         dtype=int)
-        ker_np = self.glsm_charge_matrix(exclude_origin=False,
-                                         use_all_points=use_all_points)
+        ker_np = self.glsm_charge_matrix(include_origin=True,
+            include_points_interior_to_facets=include_points_interior_to_facets)
         if (np.linalg.matrix_rank(ker_np[:,basis_ind]) != len(basis_ind)
                 or any(ker_np.dot(linrel_np.T).flatten())):
             raise Exception("Error finding basis")
         if integral:
-            self._glsm_linrels[1*use_all_points] = linrel_np
-            self._glsm_basis[1*use_all_points] = basis_ind
+            self._glsm_linrels[1*include_points_interior_to_facets] = linrel_np
+            self._glsm_basis[1*include_points_interior_to_facets] = basis_ind
         self._glsm_basis[args_id] = basis_ind
-        if exclude_origin:
+        if not include_origin:
             return np.array(self._glsm_basis[args_id]) - 1
         return np.array(self._glsm_basis[args_id])
 
@@ -1654,11 +1659,11 @@ class Polytope:
             pt_list = ""
             optimal_pts = {tuple(pt) for pt in self._optimal_pts}
             for pt in optimal_pts:
-                pt_list += (str(pt).replace("(","").replace(")","")
-                            .replace(","," ") + "\n")
-            palp_out = palp.communicate(
-                            input=f"{len(optimal_pts)} {self._dim}\n"
-                                  + pt_list + "\n")[0]
+                pt_str = str(pt).replace("(","").replace(")","")
+                pt_str = pt_str.replace(","," ")
+                pt_list += pt_str + "\n"
+            palp_in = f"{len(optimal_pts)} {self._dim}\n{pt_list}\n"
+            palp_out = palp.communicate(input=palp_in)[0]
             if "ormal form" not in palp_out:
                 raise Exception(f"PALP error. Full output: {palp_out}")
             palp_out = palp_out.split("\n")
@@ -1908,7 +1913,7 @@ class Polytope:
         return np.array(self._normal_form[args_id])
 
     def triangulate(self, heights=None, make_star=None,
-                    exclude_points_interior_to_facets=None, simplices=None,
+                    include_points_interior_to_facets=None, simplices=None,
                     check_input_simplices=True, backend="cgal"):
         """
         **Description:**
@@ -1931,9 +1936,9 @@ class Polytope:
           and connecting all points to the origin, or equivalently by
           decreasing the height of the origin to be much lower than the rest.
           If not specified, this is done only for reflexive polytopes.
-        - ```exclude_points_interior_to_facets``` (boolean, optional): Whether
-          to exclude points interior to facets from the triangulation. If not
-          specified, it is set to True for reflexive polytopes and False
+        - ```include_points_interior_to_facets``` (boolean, optional): Whether
+          to include points interior to facets from the triangulation. If not
+          specified, it is set to False for reflexive polytopes and True
           otherwise.
         - ```simplices``` (list, optional): A list of simplices specifying the
           triangulation. This is useful when a triangulation was previously
@@ -1965,12 +1970,12 @@ class Polytope:
         if self._ambient_dim > self._dim:
             raise Exception("Only triangulations of full-dimensional polytopes"
                             "are supported.")
-        if exclude_points_interior_to_facets is None:
-            exclude_points_interior_to_facets = self.is_reflexive()
-        if exclude_points_interior_to_facets:
-            triang_pts = self.points_not_interior_to_facets()
-        else:
+        if include_points_interior_to_facets is None:
+            include_points_interior_to_facets = not self.is_reflexive()
+        if include_points_interior_to_facets:
             triang_pts = self.points()
+        else:
+            triang_pts = self.points_not_interior_to_facets()
         if make_star is None:
             make_star = self.is_reflexive()
         if (0,)*self._dim not in triang_pts:
@@ -1982,7 +1987,7 @@ class Polytope:
 
     def random_triangulations_fast(self, N=None, c=0.2, max_retries=500,
                                 make_star=True, only_fine=True,
-                                exclude_points_interior_to_facets=None,
+                                include_points_interior_to_facets=None,
                                 backend="cgal", as_list=False,
                                 progress_bar=True):
         """
@@ -2016,9 +2021,9 @@ class Polytope:
           to True for reflexive polytopes, and False for other polytopes.
         - ```only_fine``` (boolean, optional, default=True): Restricts to fine
           triangulations.
-        - ```exclude_points_interior_to_facets``` (boolean, optional): Whether
-          to exclude points interior to facets from the triangulation. If not
-          specified, it is set to True for reflexive polytopes and False
+        - ```include_points_interior_to_facets``` (boolean, optional): Whether
+          to include points interior to facets from the triangulation. If not
+          specified, it is set to False for reflexive polytopes and True
           otherwise.
         - ```backend``` (string, optional, default="cgal"): Specifies the
           backend used to compute the triangulation. The available options are
@@ -2043,12 +2048,12 @@ class Polytope:
         if N is None and as_list:
             raise Exception("Number of triangulations must be specified when "
                             "returning a list.")
-        if exclude_points_interior_to_facets is None:
-            exclude_points_interior_to_facets = self.is_reflexive()
-        if exclude_points_interior_to_facets:
-            triang_pts = self.points_not_interior_to_facets()
-        else:
+        if include_points_interior_to_facets is None:
+            include_points_interior_to_facets = not self.is_reflexive()
+        if include_points_interior_to_facets:
             triang_pts = self.points()
+        else:
+            triang_pts = self.points_not_interior_to_facets()
         triang_pts = [tuple(pt) for pt in triang_pts]
         if make_star is None:
             make_star = self.is_reflexive()
@@ -2077,7 +2082,7 @@ class Polytope:
                         initial_walk_steps=None, walk_step_size=1e-2,
                         max_steps_to_wall=25, fine_tune_steps=8,
                         max_retries=50, make_star=None,
-                        exclude_points_interior_to_facets=None, backend="cgal",
+                        include_points_interior_to_facets=None, backend="cgal",
                         as_list=False, progress_bar=True):
         """
         **Description:**
@@ -2134,9 +2139,9 @@ class Polytope:
         - ```make_star``` (boolean, optional): Converts the obtained
           triangulations into star triangulations. If not specified, defaults
           to True for reflexive polytopes, and False for other polytopes.
-        - ```exclude_points_interior_to_facets``` (boolean, optional): Whether
-          to exclude points interior to facets from the triangulation. If not
-          specified, it is set to True for reflexive polytopes and False
+        - ```include_points_interior_to_facets``` (boolean, optional): Whether
+          to include points interior to facets from the triangulation. If not
+          specified, it is set to False for reflexive polytopes and True
           otherwise.
         - ```backend``` (string, optional, default="cgal"): Specifies the
           backend used to compute the triangulation. The available options are
@@ -2161,12 +2166,12 @@ class Polytope:
         if N is None and as_list:
             raise Exception("Number of triangulations must be specified when "
                             "returning a list.")
-        if exclude_points_interior_to_facets is None:
-            exclude_points_interior_to_facets = self.is_reflexive()
-        if exclude_points_interior_to_facets:
-            triang_pts = self.points_not_interior_to_facets()
-        else:
+        if include_points_interior_to_facets is None:
+            include_points_interior_to_facets = not self.is_reflexive()
+        if include_points_interior_to_facets:
             triang_pts = self.points()
+        else:
+            triang_pts = self.points_not_interior_to_facets()
         triang_pts = [tuple(pt) for pt in triang_pts]
         if make_star is None:
             make_star =  self.is_reflexive()
@@ -2203,7 +2208,7 @@ class Polytope:
 
     def all_triangulations(self, only_fine=True, only_regular=True,
                            only_star=True, star_origin=None,
-                           exclude_points_interior_to_facets=None,
+                           include_points_interior_to_facets=None,
                            backend=None, as_list=False):
         """
         **Description:**
@@ -2225,9 +2230,9 @@ class Polytope:
         - ```star_origin``` (integer, optional): The index of the point that
           will be used as the star origin. If the polytope is reflexive this
           is set to 0, but otherwise it must be specified.
-        - ```exclude_points_interior_to_facets``` (boolean, optional): Whether
-          to exclude points interior to facets from the triangulation. If not
-          specified, it is set to True for reflexive polytopes and False
+        - ```include_points_interior_to_facets``` (boolean, optional): Whether
+          to include points interior to facets from the triangulation. If not
+          specified, it is set to False for reflexive polytopes and True
           otherwise.
         - ```backend``` (string, optional): The optimizer used to check
           regularity computation. The available options are the backends of the
@@ -2253,12 +2258,12 @@ class Polytope:
                 raise Exception("The star_origin parameter must be specified "
                                 "when finding star triangulations of "
                                 "non-reflexive polytopes.")
-        if exclude_points_interior_to_facets is None:
-            exclude_points_interior_to_facets = self.is_reflexive()
-        if exclude_points_interior_to_facets:
-            triang_pts = self.points_not_interior_to_facets()
-        else:
+        if include_points_interior_to_facets is None:
+            include_points_interior_to_facets = not self.is_reflexive()
+        if include_points_interior_to_facets:
             triang_pts = self.points()
+        else:
+            triang_pts = self.points_not_interior_to_facets()
         if len(triang_pts) >= 15:
             print("Warning: Polytopes with more than around 15 points usually "
                   "have too many triangulations, so this function may take "

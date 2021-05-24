@@ -27,6 +27,24 @@ if ( "$contid" -ne "" ) {
   }
 }
 
+$banner=@"
+
+   █████████  █████ █████ ███████████                   ████
+  ███░░░░░███░░███ ░░███ ░█░░░███░░░█                  ░░███
+ ███     ░░░  ░░███ ███  ░   ░███  ░   ██████   ██████  ░███   █████
+░███           ░░█████       ░███     ███░░███ ███░░███ ░███  ███░░
+░███            ░░███        ░███    ░███ ░███░███ ░███ ░███ ░░█████
+░░███     ███    ░███        ░███    ░███ ░███░███ ░███ ░███  ░░░░███
+ ░░█████████     █████       █████   ░░██████ ░░██████  █████ ██████
+  ░░░░░░░░░     ░░░░░       ░░░░░     ░░░░░░   ░░░░░░  ░░░░░ ░░░░░░
+
+        Developed by Liam McAllister's Group | Version 0.0.1
+             https://cytools.liammcallistergroup.com
+
+"@
+
+Write-Host $banner
+
 # Initialize Docker container
 Write-Host "Initializing CYTools container..."
 $tmp = docker run --rm -d -it --name cytools -p 2875:2875 -v ${home}:/home/cytools/mounted_volume cytools

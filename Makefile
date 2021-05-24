@@ -9,7 +9,7 @@ else
 	machine=UNKNOWN
 endif
 
-.PHONY: all build rebuild install uninstall run pull update
+.PHONY: all build rebuild install uninstall run pull update test
 
 all:
 	@echo "Please specify an instruction (e.g make build)"
@@ -45,3 +45,11 @@ pull:
 	git pull
 
 update: pull install
+
+unittests:
+	wget "https://github.com/LiamMcAllisterGroup/cytools/releases/download/v0.0.1/unittests.tar.gz"
+	tar zxvf unittests.tar.gz
+	rm unittests.tar.gz
+
+test: unittests
+	docker run --rm -it -v ${PWD}/unittests:/home/cytools/mounted_volume/ cytools bash -c "bash run_tests.sh"
