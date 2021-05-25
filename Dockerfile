@@ -6,10 +6,13 @@ RUN apt-get -yqq update
 RUN apt-get -yqq install build-essential nano cmake libgmp-dev libcgal-dev\
                          libmpc-dev libsuitesparse-dev libppl-dev libeigen3-dev\
                          libc6 libcdd0d libgmp10 libgmpxx4ldbl libstdc++6 palp\
-                         python3 python3-pip sudo wget
+                         libflint-dev libflint-arb-dev python3 python3-pip\
+                         cython3 wget sudo
 
 # Make a soft link for python for convenience
 RUN ln -s /usr/bin/python3 /usr/bin/python
+# Make a soft link to the arb library so that python-flint can install
+RUN ln -s /usr/lib/x86_64-linux-gnu/libflint-arb.so /usr/lib/x86_64-linux-gnu/libarb.so
 
 # Fix CGAL headers so that Eigen3 is imported correctly
 RUN sed -i -e 's/Eigen\/Core/eigen3\/Eigen\/Core/g' /usr/include/CGAL/Dimension.h
@@ -18,7 +21,8 @@ RUN sed -i -e 's/Eigen\/Dense/eigen3\/Eigen\/Dense/g' /usr/include/CGAL/NewKerne
 
 # Install pip packages
 RUN python3 -m pip install --no-warn-script-location --upgrade pip
-RUN python3 -m pip install --no-warn-script-location numpy scipy jupyterlab cvxopt gekko flint-py pymongo ortools tqdm
+RUN python3 -m pip install --no-warn-script-location numpy scipy jupyterlab cvxopt gekko pymongo ortools tqdm
+RUN python3 -m pip install --no-warn-script-location python-flint
 RUN python3 -m pip install --no-warn-script-location --user scikit-sparse cysignals gmpy2==2.1.0a4
 RUN python3 -m pip install --no-warn-script-location pplpy
 RUN python3 -m pip install --no-warn-script-location -f https://download.mosek.com/stable/wheel/index.html Mosek
