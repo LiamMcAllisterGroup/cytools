@@ -1516,6 +1516,7 @@ class Polytope:
         linrel_np = self.glsm_linear_relations(include_origin=True,
             include_points_interior_to_facets=include_points_interior_to_facets)
         good_exclusions = 0
+        basis_exc = []
         indices = np.arange(linrel_np.shape[1])
         for ctr in range(np.prod(linrel_np.shape)):
             found_good_basis=True
@@ -1531,6 +1532,7 @@ class Polytope:
             linrel_rand = np.array(linrel.tolist(), dtype=int)
             linrel_rand = np.array([v//int(round(abs(gcd_list(v))))
                                     for v in linrel_rand], dtype=int)
+            good_exclusions = 0
             basis_exc = []
             for v in linrel_rand:
                 for i,ii in enumerate(v):
@@ -1538,8 +1540,7 @@ class Polytope:
                         if integral:
                             if abs(ii) == 1:
                                 v *= ii
-                                if i > good_exclusions:
-                                    good_exclusions += 1
+                                good_exclusions += 1
                             else:
                                 found_good_basis = False
                         basis_exc.append(i)
@@ -1548,6 +1549,16 @@ class Polytope:
                     break
             if found_good_basis:
                 break
+            if ctr == np.prod(linrel_np.shape) - 1:
+                print("Warning: An integral basis could not be found. "
+                      "A non-integral one will be computed. Please let the "
+                      "developers know about the polytope that caused this "
+                      "issue.")
+                return self.glsm_basis(
+                            include_origin=include_origin,
+                            include_points_interior_to_facets=
+                                        include_points_interior_to_facets,
+                            integral=False)
         linrel_dict = {ii:i for i,ii in enumerate(indices)}
         linrel_np = np.array(linrel_rand[:,[linrel_dict[i]
                                     for i in range(linrel_rand.shape[1])]])
