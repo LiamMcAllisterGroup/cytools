@@ -25,7 +25,7 @@ import copy
 import math
 # Third party imports
 from scipy.spatial import ConvexHull
-from flint import fmpz_mat
+from flint import fmpz_mat, fmpq_mat
 from tqdm import tqdm
 import numpy as np
 import ppl
@@ -1367,49 +1367,58 @@ class Polytope:
         # Set up the list of points that will be used. We always include the
         # origin and discard it at the end if necessary.
         if include_points_interior_to_facets:
-            pts = np.array([tuple(pt)+(1,) for pt in self.points()])
+            pts = self.boundary_points()
         else:
-            pts = np.array([tuple(pt)+(1,) for pt in
-                                self.points_not_interior_to_facets()])
-        # We reverse the order of the points because flint returns a nicer
-        # matrix in this way
-        pts = pts[::-1,:]
-        # Find and check GLSM charge matrix
-        ker_np = None
-        ctr = -1
-        indices = np.arange(pts.shape[0])
-        while ((ker_np is None or any(ker_np.dot(pts).flatten()))
-                and ctr <= pts.shape[0]-1):
-            ctr += 1
-            if ctr > 0:
-                indices[:-1] = np.roll(indices[:-1], 1)
-            try:
-                ker = fmpz_mat(pts[indices,:].T.tolist()).nullspace()[0]
-            except:
-                continue
-            ker_np = np.array([v for v in ker.transpose().tolist() if any(v)],
-                              dtype=int)
-            ker_np = np.array([v//int(round(gcd_list(v))) for v in ker_np],
-                              dtype=int)
-            # Check if the last column only has one entry. This should be the
-            # case, but if not we have to do row reduction so that the GLSM
-            # charge matrix without the origin is contained as a submatrix.
-            if sum(c != 0 for c in ker_np[:,-1]) != 1 or ker_np[-1,-1] != 0:
-                try:
-                    ker = fmpz_mat(ker_np[::-1,::-1].tolist()).rref()[0]
-                except:
-                    continue
-                ker_np = np.array(ker.tolist(), dtype=int)
-                ker_np = np.array([v//int(round(gcd_list(v))) for v in ker_np],
-                                  dtype=int)[::-1,::-1]
-            ker_dict = {ii:i for i,ii in enumerate(indices)}
-            ker_np = np.array(ker_np[:,[ker_dict[i]
-                                        for i in range(ker_np.shape[1])]])
-        if ker_np is None or any(ker_np.dot(pts).flatten()):
-            raise Exception("Error computing GLSM charge matrix.")
-        # Reflect the matrix to get the original order
-        ker_np = ker_np[::-1,::-1]
-        self._glsm_charge_matrix[args_id] = ker_np
+            pts = self.boundary_points_not_interior_to_facets()
+
+        pts_norms = [np.linalg.norm(p,1) for p in pts]
+        pts_order = np.argsort(pts_norms) 
+        pts_order = np.flip(pts_order)
+
+        # Find good lattice basis
+        good_lattice_basis = pts_order[:1] # Don't pick the origin.
+        current_rank = 1
+        for p in pts_order[1:]:
+            tmp = pts[np.append(good_lattice_basis, p)] 
+            rank = np.linalg.matrix_rank(np.dot(tmp.T,tmp))
+            if rank>current_rank:
+                good_lattice_basis = np.append(good_lattice_basis, p)
+                current_rank = rank
+                if rank==self._dim:
+                    break
+        good_lattice_basis = np.sort(good_lattice_basis)
+
+        glsm_basis = [i for i in range(len(pts)) if i not in good_lattice_basis]
+        M = fmpq_mat(pts[good_lattice_basis].T.tolist())
+        M_inv = np.array(M.inv().tolist())
+        extra_pts = -1*np.dot(M_inv,pts[glsm_basis].T)
+        row_scalings = np.array([np.lcm.reduce([int(ii.q) for ii in i]) for i in extra_pts])
+        column_scalings = np.array([np.lcm.reduce([int(ii.q) for ii in i]) for i in extra_pts.T])
+        extra_rows = np.multiply(extra_pts, row_scalings[:, None])
+        extra_rows = np.array([[int(ii.p) for ii in i] for i in extra_rows])
+        extra_columns = np.multiply(extra_pts.T, column_scalings[:, None]).T
+        extra_columns = np.array([[int(ii.p) for ii in i] for i in extra_columns])
+
+        glsm = np.diag(column_scalings)
+        for p,pp in enumerate(good_lattice_basis):
+            glsm = np.insert(glsm, pp, extra_columns[p], axis=1)
+
+        origin_column = np.dot(glsm,np.ones(len(glsm[0])))
+        glsm = np.insert(glsm, 0, origin_column, axis=1)
+
+        linear_relations = extra_rows
+        extra_linear_relation_columns = -1*np.diag(row_scalings)
+        for p,pp in enumerate(good_lattice_basis):
+            linear_relations = np.insert(linear_relations, pp, extra_linear_relation_columns[p], axis=1)
+
+        linear_relations = np.insert(linear_relations, 0, np.ones(len(pts)), axis=0)
+        linear_relations = np.insert(linear_relations, 0, np.zeros(self._dim+1), axis=1)
+        linear_relations[0][0] = -1
+
+        self._glsm_charge_matrix[args_id] = glsm
+        self._glsm_linrels[args_id] = linear_relations
+        self._glsm_basis[args_id] = np.array(glsm_basis) + 1
+
         if not include_origin:
             return np.array(self._glsm_charge_matrix[args_id][:,1:])
         return np.array(self._glsm_charge_matrix[args_id])
@@ -1438,50 +1447,10 @@ class Polytope:
             if not include_origin:
                 return np.array(self._glsm_linrels[args_id][1:,1:])
             return np.array(self._glsm_linrels[args_id])
-        linrel_np = None
-        ctr = -1
-        ker_np = self.glsm_charge_matrix(include_origin=True,
+
+        self.glsm_charge_matrix(include_origin=True,
             include_points_interior_to_facets=include_points_interior_to_facets)
-        # We reverse the order of the columns because flint returns a nicer
-        # matrix in this way
-        ker_np = ker_np[:,::-1]
-        indices = np.arange(ker_np.shape[1])
-        while ((linrel_np is None or any(ker_np.dot(linrel_np.T).flatten()))
-               and ctr <= ker_np.shape[1]-1):
-            ctr += 1
-            if ctr > 0:
-                indices[:-1] = np.roll(indices[:-1], 1)
-            linrel_rand = ker_np[:,indices]
-            try:
-                linrel = fmpz_mat(linrel_rand.tolist()
-                                  ).nullspace()[0].transpose()
-            except:
-                continue
-            linrel_np = np.array([v for v in linrel.tolist() if any(v)],
-                                 dtype=int)
-            linrel_np = np.array([v//int(round(abs(gcd_list(v))))
-                                    for v in linrel_np], dtype=int)
-            # Check if the last column only has one entry. This should be the
-            # case, but if not we have to do row reduction so that the charge
-            # matrix without the origin is contained as a submatrix.
-            if (sum(c != 0 for c in linrel_np[:,-1]) != 1
-                    or linrel_np[-1,-1] != 0):
-                try:
-                    linrel = fmpz_mat(linrel_np[::-1,::-1].tolist()).rref()[0]
-                except:
-                    continue
-                linrel_np = np.array(linrel.tolist(), dtype=int)
-                linrel_np = np.array([v//int(round(gcd_list(v)))
-                                        for v in linrel_np],
-                                    dtype=int)[::-1,::-1]
-            linrel_dict = {ii:i for i,ii in enumerate(indices)}
-            linrel_np = np.array(linrel_np[:,[linrel_dict[i]
-                                          for i in range(linrel_np.shape[1])]])
-        if linrel_np is None or any(ker_np.dot(linrel_np.T).flatten()):
-            raise Exception("Error computing linear relations")
-        # Reflect the matrix to get the original order
-        linrel_np = linrel_np[::-1,::-1]
-        self._glsm_linrels[args_id] = linrel_np
+        
         if not include_origin:
             return np.array(self._glsm_linrels[args_id][1:,1:])
         return np.array(self._glsm_linrels[args_id])
