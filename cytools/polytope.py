@@ -1373,7 +1373,6 @@ class Polytope:
 
         pts_norms = [np.linalg.norm(p,1) for p in pts]
         pts_order = np.argsort(pts_norms) 
-        pts_order = np.flip(pts_order)
 
         # Find good lattice basis
         good_lattice_basis = pts_order[:1] # Don't pick the origin.
