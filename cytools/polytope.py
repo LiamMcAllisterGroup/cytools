@@ -1372,13 +1372,13 @@ class Polytope:
             pts = self.boundary_points_not_interior_to_facets()
 
         pts_norms = [np.linalg.norm(p,1) for p in pts]
-        pts_order = np.argsort(pts_norms) 
+        pts_order = np.argsort(pts_norms)
 
         # Find good lattice basis
         good_lattice_basis = pts_order[:1] # Don't pick the origin.
         current_rank = 1
         for p in pts_order[1:]:
-            tmp = pts[np.append(good_lattice_basis, p)] 
+            tmp = pts[np.append(good_lattice_basis, p)]
             rank = np.linalg.matrix_rank(np.dot(tmp.T,tmp))
             if rank>current_rank:
                 good_lattice_basis = np.append(good_lattice_basis, p)
@@ -1402,7 +1402,7 @@ class Polytope:
         for p,pp in enumerate(good_lattice_basis):
             glsm = np.insert(glsm, pp, extra_columns[p], axis=1)
 
-        origin_column = np.dot(glsm,np.ones(len(glsm[0])))
+        origin_column = -np.sum(glsm, axis=1)
         glsm = np.insert(glsm, 0, origin_column, axis=1)
 
         linear_relations = extra_rows
@@ -1449,7 +1449,7 @@ class Polytope:
 
         self.glsm_charge_matrix(include_origin=True,
             include_points_interior_to_facets=include_points_interior_to_facets)
-        
+
         if not include_origin:
             return np.array(self._glsm_linrels[args_id][1:,1:])
         return np.array(self._glsm_linrels[args_id])

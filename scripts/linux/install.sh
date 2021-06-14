@@ -1,9 +1,25 @@
 #!/bin/bash
 
+# Check if a CYTools image already exists
+images=$(docker images -a -q cytools)
+if [[ "$images" == "" ]]
+then
+  exists=false
+else
+  exists=true
+fi
+
 cp scripts/linux/cytools /usr/local/bin/cytools
 chmod +x /usr/local/bin/cytools
 cp scripts/linux/cytools.png /usr/share/pixmaps/cytools.png
 cp scripts/linux/cytools.desktop /usr/share/applications/cytools.desktop
+
+# If it was previously installed then it doesn't tell people to add the users
+# to the Docker group
+if $exists
+then
+  exit
+fi
 
 echo ""
 echo "To use the launcher script without sudo the users need to be part of the docker group."
@@ -17,6 +33,7 @@ then
   echo "You can do so with the following commands:"
   echo "sudo groupadd docker"
   echo "sudo usermod -aG docker \$USER"
+  echo ""
   exit
 fi
 
