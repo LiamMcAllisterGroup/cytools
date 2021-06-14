@@ -1616,12 +1616,11 @@ class CalabiYau:
         if self._ambient_eff_gens is not None:
             return np.array(self._ambient_eff_gens)
         rays = np.eye(self.h11(), dtype=float).tolist()
-        glsm_cm = self.glsm_charge_matrix()
-        linrels = self.glsm_linear_relations()
+        linrels = self.glsm_linear_relations(include_origin=True)
         basis = self.divisor_basis()
         if len(basis.shape) != 1:
             raise Exception("Generic bases are not yet supported.")
-        no_basis = [i for i in range(self.h11()+self.dim()+1)
+        no_basis = [i for i in range(self.h11()+self.dim()+2)
                     if i not in basis]
         linrels_reord = linrels[:,no_basis+basis.tolist()]
         linrels_rref = np.array(
