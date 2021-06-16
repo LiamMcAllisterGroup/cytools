@@ -1375,7 +1375,7 @@ class Polytope:
         pts_order = np.argsort(pts_norms)
 
         # Find good lattice basis
-        good_lattice_basis = pts_order[:1] # Don't pick the origin.
+        good_lattice_basis = pts_order[:1]
         current_rank = 1
         for p in pts_order[1:]:
             tmp = pts[np.append(good_lattice_basis, p)]
@@ -1412,7 +1412,14 @@ class Polytope:
 
         linear_relations = np.insert(linear_relations, 0, np.ones(len(pts)), axis=0)
         linear_relations = np.insert(linear_relations, 0, np.zeros(self._dim+1), axis=1)
-        linear_relations[0][0] = -1
+        linear_relations[0][0] = 1
+
+        # Check that everything was computed correctly
+        if (any(glsm.dot([[0]*self._dim+[1]]+[pt+[1] for pt in pts.tolist()]).flat)
+                or any(glsm.dot(linear_relations.T).flatten())
+                or np.linalg.matrix_rank(glsm[:,np.array(glsm_basis)+1])
+                    != len(glsm_basis)):
+            raise Exception("Error computing GLSM charge matrix.")
 
         self._glsm_charge_matrix[args_id] = glsm
         self._glsm_linrels[args_id] = linear_relations
