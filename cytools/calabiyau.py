@@ -1266,9 +1266,9 @@ class CalabiYau:
 
     def ambient_intersection_numbers(self, in_basis=False,
                                      zero_as_anticanonical=False, backend="all",
-                                     check=True, backend_error_tol=1e-3,
-                                     round_to_zero_treshold=1e-3,
-                                     round_to_integer_error_tol=1e-3,
+                                     check=True, backend_error_tol=5e-3,
+                                     round_to_zero_treshold=5e-3,
+                                     round_to_integer_error_tol=5e-3,
                                      verbose=0, exact_arithmetic=False):
         """
         **Description:**
@@ -1331,7 +1331,7 @@ class CalabiYau:
             # Construct the linear equations
             Mat, C, distintnum_array, variable_array = (
                                         self._construct_intnum_equations_4d()
-                                        if self.dim() == 30 else
+                                        if self.dim() == 4 else
                                         self._construct_intnum_equations())
             # The system to be solved is Mat*x + C = 0. This is an
             # overdetermined but consistent linear system.
@@ -1448,9 +1448,9 @@ class CalabiYau:
 
     def intersection_numbers(self, in_basis=False, zero_as_anticanonical=False,
                              backend="all", check=True,
-                             backend_error_tol=1e-3,
-                             round_to_zero_treshold=1e-3,
-                             round_to_integer_error_tol=1e-3, verbose=0,
+                             backend_error_tol=5e-3,
+                             round_to_zero_treshold=5e-3,
+                             round_to_integer_error_tol=5e-3, verbose=0,
                              exact_arithmetic=False):
         """
         **Description:**
