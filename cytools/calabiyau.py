@@ -1266,9 +1266,9 @@ class CalabiYau:
 
     def ambient_intersection_numbers(self, in_basis=False,
                                      zero_as_anticanonical=False, backend="all",
-                                     check=True, backend_error_tol=5e-3,
-                                     round_to_zero_treshold=5e-3,
-                                     round_to_integer_error_tol=5e-3,
+                                     check=True, backend_error_tol=5e-2,
+                                     round_to_zero_treshold=5e-2,
+                                     round_to_integer_error_tol=5e-2,
                                      verbose=0, exact_arithmetic=False):
         """
         **Description:**
@@ -1448,9 +1448,9 @@ class CalabiYau:
 
     def intersection_numbers(self, in_basis=False, zero_as_anticanonical=False,
                              backend="all", check=True,
-                             backend_error_tol=5e-3,
-                             round_to_zero_treshold=5e-3,
-                             round_to_integer_error_tol=5e-3, verbose=0,
+                             backend_error_tol=5e-2,
+                             round_to_zero_treshold=5e-2,
+                             round_to_integer_error_tol=5e-2, verbose=0,
                              exact_arithmetic=False):
         """
         **Description:**
