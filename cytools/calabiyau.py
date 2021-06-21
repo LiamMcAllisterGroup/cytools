@@ -1266,9 +1266,9 @@ class CalabiYau:
 
     def ambient_intersection_numbers(self, in_basis=False,
                                      zero_as_anticanonical=False, backend="all",
-                                     check=True, backend_error_tol=5e-2,
-                                     round_to_zero_treshold=5e-2,
-                                     round_to_integer_error_tol=5e-2,
+                                     check=True, backend_error_tol=1e-6,
+                                     round_to_zero_treshold=1e-3,
+                                     round_to_integer_error_tol=2e-5,
                                      verbose=0, exact_arithmetic=False):
         """
         **Description:**
@@ -1389,6 +1389,7 @@ class CalabiYau:
                     val = canon_intnum[ii]
                     round_val = int(round(val))
                     if abs(val-round_val) > round_to_integer_error_tol:
+                        print(ii, val)
                         raise Exception("Non-integer intersection numbers "
                                         "detected in a smooth CY.")
                     if round_val != 0:
@@ -1448,8 +1449,8 @@ class CalabiYau:
 
     def intersection_numbers(self, in_basis=False, zero_as_anticanonical=False,
                              backend="all", check=True,
-                             backend_error_tol=5e-2,
-                             round_to_zero_treshold=5e-2,
+                             backend_error_tol=1e-6,
+                             round_to_zero_treshold=1e-3,
                              round_to_integer_error_tol=5e-2, verbose=0,
                              exact_arithmetic=False):
         """
