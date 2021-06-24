@@ -1963,7 +1963,10 @@ class Polytope:
         else:
             triang_pts = self.points_not_interior_to_facets()
         if make_star is None:
-            make_star = self.is_reflexive()
+            if heights is None and simplices is None:
+                make_star = self.is_reflexive()
+            else:
+                make_star = False
         if (0,)*self._dim not in triang_pts:
             make_star = False
         return Triangulation(triang_pts, poly=self, heights=heights,

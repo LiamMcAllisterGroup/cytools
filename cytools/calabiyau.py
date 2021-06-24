@@ -660,7 +660,8 @@ class CalabiYau:
             # Check if it is a valid basis
             if min(b) < 0 or max(b) >= glsm_cm.shape[1]:
                 raise Exception("Indices are not in appropriate range.")
-            if glsm_rnk != np.linalg.matrix_rank(glsm_cm[:,b]):
+            if (glsm_rnk != np.linalg.matrix_rank(glsm_cm[:,b])
+                    or glsm_rnk != len(b)):
                 raise Exception("Input divisors do not form a basis.")
             self._divisor_basis = b
         # Else if input is a matrix
