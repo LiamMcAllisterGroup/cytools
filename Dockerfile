@@ -19,6 +19,9 @@ RUN sed -i -e 's/Eigen\/Core/eigen3\/Eigen\/Core/g' /usr/include/CGAL/Dimension.
 RUN sed -i -e 's/Eigen\/Dense/eigen3\/Eigen\/Dense/g' /usr/include/CGAL/NewKernel_d/LA_eigen/LA.h
 RUN sed -i -e 's/Eigen\/Dense/eigen3\/Eigen\/Dense/g' /usr/include/CGAL/NewKernel_d/LA_eigen/constructors.h
 
+# Fix flint headers
+RUN cp -r /usr/include/flint/** /usr/include/
+
 # Install pip packages
 RUN python3 -m pip install --no-warn-script-location --upgrade pip
 RUN python3 -m pip install --no-warn-script-location numpy scipy jupyterlab cvxopt gekko pymongo ortools tqdm
