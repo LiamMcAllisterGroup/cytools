@@ -7,7 +7,7 @@ RUN apt-get -yqq install build-essential nano cmake libgmp-dev libcgal-dev\
                          libmpc-dev libsuitesparse-dev libppl-dev libeigen3-dev\
                          libc6 libcdd0d libgmp10 libgmpxx4ldbl libstdc++6 palp\
                          libflint-dev libflint-arb-dev python3 python3-pip\
-                         cython3 wget sudo
+                         cython3 wget
 
 # Make a soft link for python for convenience
 RUN ln -s /usr/bin/python3 /usr/bin/python
@@ -22,17 +22,22 @@ RUN sed -i -e 's/Eigen\/Dense/eigen3\/Eigen\/Dense/g' /usr/include/CGAL/NewKerne
 # Fix flint headers
 RUN cp -r /usr/include/flint/** /usr/include/
 
+# Set up non-root user
+RUN groupadd -r -g 1000 cytools && useradd -r -s /bin/bash -u 1000 -g cytools -m cytools
+USER cytools
+
 # Install pip packages
-RUN python3 -m pip install --no-warn-script-location --upgrade pip
-RUN python3 -m pip install --no-warn-script-location numpy scipy jupyterlab cvxopt gekko pymongo ortools tqdm
-RUN python3 -m pip install --no-warn-script-location python-flint
-RUN python3 -m pip install --no-warn-script-location --user scikit-sparse cysignals gmpy2==2.1.0a4
-RUN python3 -m pip install --no-warn-script-location pplpy
-RUN python3 -m pip install --no-warn-script-location -f https://download.mosek.com/stable/wheel/index.html Mosek
+RUN pip3 install --upgrade pip
+RUN pip3 install --no-warn-script-location numpy scipy jupyterlab cvxopt gekko pymongo ortools tqdm
+RUN pip3 install --no-warn-script-location python-flint matplotlib
+RUN pip3 install --no-warn-script-location --user scikit-sparse cysignals gmpy2==2.1.0a4
+RUN pip3 install --no-warn-script-location pplpy
+RUN pip3 install --no-warn-script-location -f https://download.mosek.com/stable/wheel/index.html Mosek
 ENV MOSEKLM_LICENSE_FILE=/opt/cytools/external/mosek/mosek.lic
 
 # Fix cvxopt bug
-RUN sed -i -e 's/mosek.solsta.near_optimal/ /g' /usr/local/lib/python3.7/dist-packages/cvxopt/coneprog.py
+USER root
+RUN sed -i -e 's/mosek.solsta.near_optimal/ /g' /home/cytools/.local/lib/python3.7/site-packages/cvxopt/coneprog.py
 
 # Install TOPCOM
 WORKDIR /opt/cytools/external/topcom-mod
@@ -64,4 +69,6 @@ ENV OPENBLAS_NUM_THREADS=1
 WORKDIR /home/cytools/mounted_volume
 
 # Start jupyter lab by default
-CMD jupyter lab --ip 0.0.0.0 --port 2875 --no-browser --allow-root
+USER cytools
+ENV PATH="/home/cytools/.local/bin:$PATH"
+CMD jupyter lab --ip 0.0.0.0 --port 2875 --no-browser

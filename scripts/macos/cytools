@@ -92,16 +92,22 @@ cat << EOF
  ░░█████████     █████       █████   ░░██████ ░░██████  █████ ██████
   ░░░░░░░░░     ░░░░░       ░░░░░     ░░░░░░   ░░░░░░  ░░░░░ ░░░░░░
 
-        Developed by Liam McAllister's Group | Version 0.0.1
+        Developed by Liam McAllister's Group | Version 0.1.0
              https://cytools.liammcallistergroup.com
 
 EOF
 
 # Initialize docker container
 echo "Initializing CYTools container..."
+userid=$(id -u)
+if [[ "$userid" == "0" ]]
+then
+  echo "Please run the script as a non-root user."
+  exit
+fi
 if $runbash
 then
-  contid=$(docker run --rm -d -it --name cytools -p 2875:2875 -v $mountdir:/home/cytools/mounted_volume cytools bash || echo "failed")
+  contid=$(docker run --rm -d -it --user $userid --name cytools -p 2875:2875 -v $mountdir:/home/cytools/mounted_volume cytools bash || echo "failed")
   if [[ "$contid" == "failed" ]]
   then
     echo "The Docker container failed to start."
@@ -113,7 +119,7 @@ then
   echo "To exit CYTools press Ctrl+D or use the command 'exit'"
   echo
 else
-  contid=$(docker run --rm -d -it --name cytools -p 2875:2875 -v $mountdir:/home/cytools/mounted_volume cytools || echo "failed")
+  contid=$(docker run --rm -d -it --user $userid --name cytools -p 2875:2875 -v $mountdir:/home/cytools/mounted_volume cytools || echo "failed")
   if [[ "$contid" == "failed" ]]
   then
     echo "The Docker container failed to start."
@@ -131,7 +137,7 @@ else
     # Check if logs contain hyperlink
     for l in $logs
     do
-      if [[ "$l" == *"127"* ]]
+      if [[ "$l" == *"127.0.0.1"* ]]
       then
         initialized=true
         link=$l
