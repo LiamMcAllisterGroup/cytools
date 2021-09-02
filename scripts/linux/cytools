@@ -20,6 +20,14 @@ For more detailed instructions please visit https://cytools.liammcallistergroup.
 EOF
 }
 
+# Make sure that the script is not being run as root
+userid=$(id -u)
+if [[ "$userid" == "0" ]]
+then
+  echo "Please run the script as a non-root user."
+  exit
+fi
+
 # We first parse the input parameters and set the way the container will run
 options=$(getopt -l "help,bash,dir" -o "hbd:" -a -- "$@")
 eval set -- "$options"
@@ -53,8 +61,8 @@ do
   shift
 done
 
-# Check if there is already a cytools container
-containers=$(sudo docker ps -a -q --filter="name=cytools")
+# Check if there is already a cytools container for the corresponding user
+containers=$(sudo docker ps -a -q --filter="name=cytools-uid-${userid}")
 if [[ "$containers" == "" ]]
 then
   exists=false
@@ -72,9 +80,9 @@ then
     exit
   fi
   echo "Stopping and removing old CYTools container..."
-  tmp=$(sudo docker stop cytools)
+  tmp=$(sudo docker stop cytools-uid-${userid})
   # Check if we have to remove the stopped container
-  containers=$(sudo docker ps -a -q --filter="name=cytools")
+  containers=$(sudo docker ps -a -q --filter="name=cytools-uid-${userid}")
   if [[ "$containers" == "" ]]
   then
     exists=false
@@ -83,7 +91,7 @@ then
   fi
   if $exists
   then
-    tmp=$(sudo docker rm cytools)
+    tmp=$(sudo docker rm cytools-uid-${userid})
   fi
 fi
 
@@ -105,19 +113,13 @@ EOF
 
 # Initialize docker container
 echo "Initializing CYTools container..."
-userid=$(id -u)
-if [[ "$userid" == "0" ]]
-then
-  echo "Please run the script as a non-root user."
-  exit
-fi
 if $runbash
 then
-  contid=$(sudo docker run --rm -d -it --user $userid --name cytools -p 2875:2875 -v $mountdir:/home/cytools/mounted_volume cytools bash || echo "failed")
+  contid=$(sudo docker run --rm -d -it --name cytools-uid-${userid} -p 2875:2875 -v $mountdir:/home/cytools/mounted_volume cytools:uid-${userid} bash || echo "failed")
   if [[ "$contid" == "failed" ]]
   then
     echo "The Docker container failed to start."
-    echo "Please make sure the CYTools Docker image has been built and that the Docker daemon is running."
+    echo "Please make sure the CYTools Docker image has been built for the current user and that the Docker daemon is running."
     echo "If a custom mount directory was specified please make sure you give its absolute path."
     sleep 10
     exit
@@ -125,11 +127,11 @@ then
   echo "To exit CYTools press Ctrl+D or use the command 'exit'"
   echo
 else
-  contid=$(sudo docker run --rm -d -it --user $userid --name cytools -p 2875:2875 -v $mountdir:/home/cytools/mounted_volume cytools || echo "failed")
+  contid=$(sudo docker run --rm -d -it --name cytools-uid-${userid} -p 2875:2875 -v $mountdir:/home/cytools/mounted_volume cytools:uid-${userid} || echo "failed")
   if [[ "$contid" == "failed" ]]
   then
     echo "The Docker container failed to start."
-    echo "Please make sure the CYTools Docker image has been built and that the Docker daemon is running."
+    echo "Please make sure the CYTools Docker image has been built for the current user and that the Docker daemon is running."
     echo "If a custom mount directory was specified please make sure you give its absolute path."
     sleep 10
     exit
@@ -139,7 +141,7 @@ else
   for n in {1..20}
   do
     sleep .5
-    logs=$(sudo docker logs cytools)
+    logs=$(sudo docker logs cytools-uid-${userid})
     # Check if logs contain hyperlink
     for l in $logs
     do
@@ -154,7 +156,7 @@ else
 
   if ! $initialized
   then
-    echo "Something went wrong. Please make sure the CYTools Docker image has been built."
+    echo "Something went wrong. Please make sure the CYTools Docker image has been built for the current user."
     sleep 10
     exit
   fi
@@ -162,6 +164,7 @@ else
   # We open the link in a new browser tab
   xdg-open $link
   echo "CYTools is now running. If a new tab in your browser was not opened, please copy and paste the following link into your web browser of choice."
+  echo "In some terminals you can either click or ctrl+click on the link."
   echo "$link"
 
   echo "To exit CYTools press Ctrl+C twice or close your terminal."
@@ -169,4 +172,4 @@ else
 fi
 
 # We attach the cytools contaier so that we can see the output and close it when we want to
-sudo docker attach cytools
+sudo docker attach cytools-uid-${userid}

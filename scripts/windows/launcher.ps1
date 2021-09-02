@@ -82,7 +82,7 @@ foreach ($w in $logs.split(" ")) {
 
 # We open the link in a new browser tab
 Start-Process "$link"
-Write-Host "CYTools is now running. If a new tab in your browser was bot opened, please copy and paste the following link into your web browser of choice."
+Write-Host "CYTools is now running. If a new tab in your browser was not opened, please copy and paste the following link into your web browser of choice."
 Write-Host "$link"
 Write-Host "******************************************************************"
 Write-Host "*** To exit CYTools press Ctrl+C twice while on this terminal. ***"

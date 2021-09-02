@@ -23,7 +23,8 @@ RUN sed -i -e 's/Eigen\/Dense/eigen3\/Eigen\/Dense/g' /usr/include/CGAL/NewKerne
 RUN cp -r /usr/include/flint/** /usr/include/
 
 # Set up non-root user
-RUN groupadd -r -g 1000 cytools && useradd -r -s /bin/bash -u 1000 -g cytools -m cytools
+ARG USERID
+RUN groupadd -r -g $USERID cytools && useradd -r -s /bin/bash -u $USERID -g cytools -m cytools
 USER cytools
 
 # Install pip packages
