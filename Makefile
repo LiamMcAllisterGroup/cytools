@@ -10,6 +10,7 @@ else
 endif
 
 USERID=$(shell id -u)
+USERIDN=$(shell id -u -n)
 
 .PHONY: all build rebuild install uninstall run pull update test
 
@@ -21,16 +22,16 @@ build:
 		echo "Please run make as a non-root user and without sudo!"; \
 		false; \
 	fi
-	@ echo "Building CYTools image for user $(USERID)..."
+	@ echo "Building CYTools image for user $(USERIDN)..."
 	sudo docker build -t cytools:uid-$(USERID) --build-arg USERID=$(USERID) .
-	@ echo "Successfully build CYTools image for user $(USERID)"
+	@ echo "Successfully built CYTools image for user $(USERIDN)"
 
 rebuild:
 	@if [ "$(USERID)" = "0" ]; then \
 		echo "Please run make as a non-root user and without sudo!"; \
 		false; \
 	fi
-	docker build --no-cache -t cytools:uid-$(USERID) --build-arg USERID=$(USERID) .
+	sudo docker build --no-cache -t cytools:uid-$(USERID) --build-arg USERID=$(USERID) .
 
 install: build
 	@if [ "$(USERID)" = "0" ]; then \

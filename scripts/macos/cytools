@@ -20,6 +20,14 @@ For more detailed instructions please visit https://cytools.liammcallistergroup.
 EOF
 }
 
+# Make sure that the script is not being run as root
+userid=$(id -u)
+if [[ "$userid" == "0" ]]
+then
+  echo "Please run the script as a non-root user."
+  exit
+fi
+
 # We first parse the input parameters and set the way the container will run
 runbash=false
 mountdir=~
@@ -48,7 +56,7 @@ do
 done
 
 # Check if there is already a cytools container
-containers=$(docker ps -a -q --filter="name=cytools")
+containers=$(docker ps -a -q --filter="name=cytools-uid-${userid}")
 if [[ "$containers" == "" ]]
 then
   exists=false
@@ -66,9 +74,9 @@ then
     exit
   fi
   echo "Stopping and removing old CYTools container..."
-  tmp=$(docker stop cytools)
+  tmp=$(docker stop cytools-uid-${userid})
   # Check if we have to remove the stopped container
-  containers=$(docker ps -a -q --filter="name=cytools")
+  containers=$(docker ps -a -q --filter="name=cytools-uid-${userid}")
   if [[ "$containers" == "" ]]
   then
     exists=false
@@ -77,7 +85,7 @@ then
   fi
   if $exists
   then
-    tmp=$(docker rm cytools)
+    tmp=$(docker rm cytools-uid-${userid})
   fi
 fi
 
@@ -99,15 +107,9 @@ EOF
 
 # Initialize docker container
 echo "Initializing CYTools container..."
-userid=$(id -u)
-if [[ "$userid" == "0" ]]
-then
-  echo "Please run the script as a non-root user."
-  exit
-fi
 if $runbash
 then
-  contid=$(docker run --rm -d -it --user $userid --name cytools -p 2875:2875 -v $mountdir:/home/cytools/mounted_volume cytools bash || echo "failed")
+  contid=$(sudo docker run --rm -d -it --name cytools-uid-${userid} -p 2875:2875 -v $mountdir:/home/cytools/mounted_volume cytools:uid-${userid} bash || echo "failed")
   if [[ "$contid" == "failed" ]]
   then
     echo "The Docker container failed to start."
@@ -119,7 +121,7 @@ then
   echo "To exit CYTools press Ctrl+D or use the command 'exit'"
   echo
 else
-  contid=$(docker run --rm -d -it --user $userid --name cytools -p 2875:2875 -v $mountdir:/home/cytools/mounted_volume cytools || echo "failed")
+  contid=$(sudo docker run --rm -d -it --name cytools-uid-${userid} -p 2875:2875 -v $mountdir:/home/cytools/mounted_volume cytools:uid-${userid} || echo "failed")
   if [[ "$contid" == "failed" ]]
   then
     echo "The Docker container failed to start."
@@ -133,7 +135,7 @@ else
   for n in {1..20}
   do
     sleep .5
-    logs=$(docker logs cytools)
+    logs=$(docker logs cytools-uid-${userid})
     # Check if logs contain hyperlink
     for l in $logs
     do
@@ -163,4 +165,4 @@ else
 fi
 
 # We attach the cytools contaier so that we can see the output and close it when we want to
-docker attach cytools
+docker attach cytools-uid-${userid}
