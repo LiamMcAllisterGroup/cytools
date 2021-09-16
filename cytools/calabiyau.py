@@ -1330,9 +1330,11 @@ class CalabiYau:
                                 "feature and must be enabled in the "
                                 "configuration.")
             # Construct the linear equations
+            # Note that self.dim gives the dimension of the CY not the of the
+            # ambient variety
             Mat, C, distintnum_array, variable_array = (
                                         self._construct_intnum_equations_4d()
-                                        if self.dim() == 4 else
+                                        if self.dim() == 3 else
                                         self._construct_intnum_equations())
             # The system to be solved is Mat*x + C = 0. This is an
             # overdetermined but consistent linear system.
