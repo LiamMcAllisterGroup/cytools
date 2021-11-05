@@ -50,6 +50,9 @@ COPY . /opt/cytools/
 WORKDIR /opt/cytools/
 RUN python3 setup.py install
 
+# Change permissions of Mosek license in case there is a mismatch
+RUN chmod 666 /opt/cytools/external/mosek/mosek.lic || echo "Missing Mosek license"
+
 # Create CGAL code for different dimensions and compile
 WORKDIR /opt/cytools/external/cgal
 RUN for i in $(seq 1 6); do sed "26s/.*/const int D = ${i};/" triangulate.cpp > "triangulate-${i}d.cpp"; done; rm triangulate.cpp
