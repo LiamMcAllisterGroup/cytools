@@ -1,5 +1,9 @@
 @echo off
 
+set PWS=powershell.exe -ExecutionPolicy Bypass -NoLogo -NoProfile
+
+%PWS% -File "%~p0%fixdockerfile.ps1"
+
 docker info || echo. && echo "Please make sure that Docker is installed and running" && timeout /t 10 && exit
 
 docker build -t cytools --build-arg USERID=1000 ../../ || echo. && echo "There was an error while building the image. Please let the developers know, and try using a stable version of the package." && timeout /t 10 && exit
