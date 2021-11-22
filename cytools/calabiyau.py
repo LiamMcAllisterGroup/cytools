@@ -21,6 +21,7 @@ This module contains tools designed for Calabi-Yau hypersurface computations.
 from collections import Counter, defaultdict
 from itertools import combinations
 from math import factorial
+import copy
 # Third party imports
 from flint import fmpz_mat, fmpq_mat, fmpz, fmpq
 from scipy.sparse import csr_matrix
@@ -39,8 +40,8 @@ from cytools import config
 class CalabiYau:
     """
     This class handles various computations relating to the Calabi-Yau manifold
-    itself. It can be used to compute intersection numbers, the Kähler cone of
-    the ambient variety, among other things.
+    itself. It can be used to compute intersection numbers, the toric Mori
+    and Kähler cones from the ambient variety, among other things.
 
     :::important
     Generally, objects of this class should not be constructed directly by the
@@ -50,9 +51,10 @@ class CalabiYau:
     :::
 
     :::tip experimental feature
-    This package is focused on computations on Calabi-Yau 3-folds, but there is
-    experimental support for Calabi-Yaus of other dimensions. See
-    [Experimental Features](./experimental) for more details.
+    This package is focused on computations on Calabi-Yau 3-fold hypersurfaces,
+    but there is experimental support for Calabi-Yaus of other dimensions and
+    complete intersection. See [Experimental Features](./experimental) for more
+    details.
     :::
 
     ## Constructor
@@ -64,8 +66,11 @@ class CalabiYau:
     [```__init__```](#__init__) function.
 
     **Arguments:**
-    - ```frst``` (Triangulation): A fine, regular, star triangularion of a
-    reflexive polytope.
+    - ```toric_var``` (ToricVariety): The ambient toric variety of the
+      Calabi-Yau.
+    - ```nef_partition``` (list, optional): A list of tuples of indices
+      specifying a nef-partition of the polytope, and defines a complete
+      intersection Calabi-Yau.
 
     **Example:**
     We construct a Calabi-Yau from an fine, regular, star triangulation of a
@@ -83,39 +88,72 @@ class CalabiYau:
     ```
     """
 
-    def __init__(self, frst):
+    def __init__(self, toric_var, nef_partition=None):
         """
         **Description:**
         Initializes a ```CalabiYau``` object.
 
         **Arguments:**
-        - ```frst``` (Triangulation): A fine, regular, star triangularion of a
-        reflexive polytope.
+        - ```toric_var``` (ToricVariety): A toric variety.
+        - ```nef_partition``` (list, optional): A list of tuples of indices
+          specifying a nef-partition of the polytope, and defines a complete
+          intersection Calabi-Yau.
 
         **Returns:**
         Nothing.
         """
         # We first make sure that the input triangulation is appropriate.
         # Regularity is not checked since it is generally slow.
-        if not frst._allow_cy or not frst.is_star() or not frst.is_fine():
-            raise Exception("The input triangulation is not suitable for "
-                            "constructing a Calabi-Yau.")
-        if not frst._poly.is_favorable(lattice="N"):
-            raise Exception("Only favorable CYs are currently supported.")
-        if frst._all_poly_pts and not config.enable_experimental_features:
-            raise Exception("Triangulations that include points interior to "
-                            "facets are currently experimental.")
-        self._frst = frst
+        if nef_partition is not None:
+            if not config._exp_features_enabled:
+                raise Exception("CICYs are an experimental feature and must be enabled.")
+            # Verify that the input defines a nef-partition
+            from cytools import Polytope
+            pts = toric_var.polytope().points()
+            convpoly = Polytope(pts[list(set.union(*[set(ii) for ii in nef_partition]))])
+            if convpoly != toric_var.polytope():
+                raise Exception("Input data does not define a nef partition")
+            polys = [Polytope(pts[[0]+list(ii)]) for ii in nef_partition]
+            sumpoly = polys[0]
+            for i in range(1,len(polys)):
+                sumpoly = sumpoly.minkowski_sum(polys[i])
+            if not sumpoly.is_reflexive():
+                raise Exception("Input data does not define a nef partition")
+            triang = toric_var.triangulation()
+            triangpts = [tuple(pt) for pt in triang.points()]
+            parts = [tuple(triang.points_to_indices(pt) for pt in pp.points() if any(pt) and tuple(pt) in triangpts)
+                        for pp in polys]
+            self._nef_part = parts
+        else:
+            if not toric_var.triangulation().is_fine():
+                raise Exception("Triangulation is non-fine.")
+            if ((toric_var.dim() != 4 or not toric_var.triangulation().polytope().is_favorable(lattice="N"))
+                    and not config._exp_features_enabled):
+                raise Exception("Constructing Calabi-Yaus of dimensions other "
+                                "than 3 or that are non-favorable are "
+                                "experimental features and must be enabled.")
+            if not ((toric_var.triangulation().points().shape == toric_var.triangulation().polytope().points_not_interior_to_facets().shape
+                     and all((toric_var.triangulation().points() == toric_var.triangulation().polytope().points_not_interior_to_facets()).flat))
+                    or (toric_var.triangulation().points().shape == toric_var.triangulation().polytope().points().shape
+                        and all((toric_var.triangulation().points() == toric_var.triangulation().polytope().points()).flat))):
+                raise Exception("Calabi-Yau hypersurfaces must be constructed either points not interior to facets or all points.")
+        self._ambient_var = toric_var
+        self._optimal_ambient_var = None
+        self._nef_part = nef_partition
+        self._is_hypersurface = nef_partition is None
         # Initialize remaining hidden attributes
+        self._dim = None
         self._hash = None
+        self._glsm_charge_matrix = None
+        self._glsm_linrels = None
         self._divisor_basis = None
         self._mori_cone = [None]*3
-        self._ambient_intersection_numbers = [None]*7
         self._intersection_numbers = [None]*7
+        self._prime_divs = None
         self._second_chern_class = None
         self._is_smooth = None
-        self._ambient_eff_gens = None
-        self._ambient_eff_cone = None
+        self._eff_gens = None
+        self._eff_cone = None
 
     def clear_cache(self, recursive=False, only_in_basis=False):
         """
@@ -133,50 +171,56 @@ class CalabiYau:
         Nothing.
         """
         self._mori_cone[2] = None
-        self._ambient_intersection_numbers[2] = None
-        self._ambient_intersection_numbers[6] = None
         self._intersection_numbers[2] = None
         self._intersection_numbers[6] = None
-        self._ambient_eff_gens = None
-        self._ambient_eff_cone = None
+        self._eff_gens = None
+        self._eff_cone = None
         if not only_in_basis:
+            self._dim = None
             self._hash = None
+            self._glsm_charge_matrix = None
+            self._glsm_linrels = None
             self._divisor_basis = None
             self._mori_cone = [None]*3
-            self._ambient_intersection_numbers = [None]*7
             self._intersection_numbers = [None]*7
+            self._prime_divs = None
             self._second_chern_class = None
             self._is_smooth = None
             if recursive:
-                self._frst.clear_cache(recursive=True)
+                self.ambient_variety().clear_cache(recursive=True)
 
     def __repr__(self):
         """
         **Description:**
-        Returns a string describing the Calabi-Yau hypersurface.
+        Returns a string describing the Calabi-Yau manifold.
 
         **Arguments:**
         None.
 
         **Returns:**
-        (string) A string describing the Calabi-Yau hypersurface.
+        (string) A string describing the Calabi-Yau manifold.
         """
         d = self.dim()
-        if d == 2:
-            out_str = (f"A K3 hypersurface with h11={self.h11()} in a "
-                       + "3-dimensional toric variety.")
-        elif d == 3:
-            out_str = ("A Calabi-Yau 3-fold hypersurface with "
-                       + f"h11={self.h11()} and h21={self.h21()} in a "
-                       + "4-dimensional toric variety.")
-        elif d == 4:
-            out_str = ("A Calabi-Yau 4-fold hypersurface with "
-                       + f"h11={self.h11()}, h12={self.h12()}, "
-                       + f"h13={self.h13()}, and h22={self.h22()} in a "
-                       + "5-dimensional toric variety.")
+        if self._is_hypersurface:
+            if d == 2:
+                out_str = (f"A K3 hypersurface with h11={self.h11()} in a "
+                           + "3-dimensional toric variety")
+            elif d == 3:
+                out_str = ("A Calabi-Yau 3-fold hypersurface with "
+                           + f"h11={self.h11()} and h21={self.h21()} in a "
+                           + "4-dimensional toric variety")
+            elif d == 4:
+                out_str = ("A Calabi-Yau 4-fold hypersurface with "
+                           + f"h11={self.h11()}, h12={self.h12()}, "
+                           + f"h13={self.h13()}, and h22={self.h22()} in a "
+                           + "5-dimensional toric variety")
+            else:
+                out_str = (f"A Calabi-Yau {d}-fold hypersurface in a "
+                           + f"{d+1}-dimensional toric variety")
         else:
-            out_str = (f"A Calabi-Yau {d}-fold hypersurface in a "
-                       + f"{d+1}-dimensional toric variety.")
+            dd = self.ambient_variety().dim()
+            out_str = (f"A complete intersection Calabi-Yau {d}-fold in a "
+                       + f"{dd}-dimensional toric variety")
         return out_str
 
     def __eq__(self, other):
@@ -247,19 +291,22 @@ class CalabiYau:
         """
         if self._hash is not None:
             return self._hash
-        dim = self.frst().dim()
-        codim2_faces = [self.frst().points_to_indices(f.points())
-                            for f in self.polytope().faces(dim-2)]
-        restr_triang = set()
-        for f in codim2_faces:
-            face_pts = set(f)
-            for s in self.frst().simplices():
-                inters = face_pts & set(s)
-                if len(inters) == dim-1:
-                    ss = tuple(sorted(inters))
-                    restr_triang.add(ss)
-        self._hash = hash((hash(self.frst().polytope()),) +
-                          tuple(sorted(restr_triang)))
+        if self._is_hypersurface:
+            dim = self.ambient_variety().dim()
+            codim2_faces = [self.ambient_variety().triangulation().points_to_indices(f.points())
+                                for f in self.ambient_variety().triangulation().polytope().faces(dim-2)]
+            restr_triang = set()
+            for f in codim2_faces:
+                face_pts = set(f)
+                for s in self.ambient_variety().triangulation().simplices():
+                    inters = face_pts & set(s)
+                    if len(inters) == dim-1:
+                        ss = tuple(sorted(inters))
+                        restr_triang.add(ss)
+            self._hash = hash((hash(self.ambient_variety().triangulation().polytope()),) +
+                              tuple(sorted(restr_triang)))
+        else:
+            self._hash = hash((hash(self.ambient_variety()),hash(self._nef_part)))
         return self._hash
 
     def is_trivially_equivalent(self, other):
@@ -282,39 +329,41 @@ class CalabiYau:
         **Returns:**
         (boolean) The truth value of the CYs being equal.
         """
-        if self.frst().polytope() != other.frst().polytope():
+        if not self._is_hypersurface:
             return False
-        dim = self.frst().dim()
-        codim2_faces = [self.frst().points_to_indices(f.points())
+        if self.polytope() != other.polytope():
+            return False
+        dim = self.ambient_variety().triangulation().dim()
+        codim2_faces = [self.ambient_variety().triangulation().points_to_indices(f.points())
                              for f in self.polytope().faces(dim-2)]
         restr_triang_self = set()
         restr_triang_other = set()
         for f in codim2_faces:
             face_pts = set(f)
-            for s in self.frst().simplices():
+            for s in self.ambient_variety().triangulation().simplices():
                 inters = face_pts & set(s)
                 if len(inters) == dim-1:
                     ss = tuple(sorted(inters))
                     restr_triang_self.add(ss)
-            for s in other.frst().simplices():
+            for s in other.ambient_variety().triangulation().simplices():
                 inters = face_pts & set(s)
                 if len(inters) == dim-1:
                     ss = tuple(sorted(inters))
                     restr_triang_other.add(ss)
         return restr_triang_self == restr_triang_other
 
-    def frst(self):
+    def ambient_variety(self):
         """
         **Description:**
-        Returns the FRST giving rise to the ambient toric variety.
+        Returns the ambient toric variety.
 
         **Arguments:**
         None.
 
         **Returns:**
-        (Triangulation) The FRST giving rise to the ambient toric variety.
+        (ToricVariety) The ambient toric variety.
         """
-        return self._frst
+        return self._ambient_var
 
     def polytope(self):
         """
@@ -329,7 +378,7 @@ class CalabiYau:
         (Polytope) The polytope whose triangulation gives rise to the ambient
         toric variety.
         """
-        return self._frst.polytope()
+        return self.ambient_variety().triangulation().polytope()
 
     def ambient_dim(self):
         """
@@ -342,7 +391,7 @@ class CalabiYau:
         **Returns:**
         (integer) The complex dimension of the ambient toric variety.
         """
-        return self.frst().dim()
+        return self.ambient_variety().dim()
 
     def dim(self):
         """
@@ -355,7 +404,13 @@ class CalabiYau:
         **Returns:**
         (integer) The complex dimension of the Calabi-Yau hypersurface.
         """
-        return self.frst().dim() - 1
+        if self._dim is not None:
+            return self._dim
+        if self._is_hypersurface:
+            self._dim = self.ambient_variety().dim() - 1
+        else:
+            self._dim = self.ambient_variety().triangulation().dim() - len(self._nef_part)
+        return self._dim
 
     def hpq(self, p, q):
         """
@@ -379,7 +434,9 @@ class CalabiYau:
         **Returns:**
         (integer) The Hodge number h^{p,q} of the arising Calabi-Yau manifold.
         """
-        if self.dim() not in (2,3,4):
+        if not self._is_hypersurface:
+            raise Exception("Not yet implemented for CICYs.")
+        if self.dim() not in (2,3,4) and p!=1 and q!=1:
             raise Exception("Only Calabi-Yaus of dimension 2-4 are currently "
                             "supported.")
         return self.polytope().hpq(p,q,lattice="N")
@@ -399,6 +456,8 @@ class CalabiYau:
         **Returns:**
         (integer) The Hodge number h^{1,1} of Calabi-Yau manifold.
         """
+        if not self._is_hypersurface:
+            raise Exception("Not yet implemented for CICYs.")
         if self.dim() not in (2,3,4):
             raise Exception("Only Calabi-Yaus of dimension 2-4 are currently "
                             "supported.")
@@ -419,6 +478,8 @@ class CalabiYau:
         **Returns:**
         (integer) The Hodge number h^{1,2} of Calabi-Yau manifold.
         """
+        if not self._is_hypersurface:
+            raise Exception("Not yet implemented for CICYs.")
         if self.dim() not in (2,3,4):
             raise Exception("Only Calabi-Yaus of dimension 2-4 are currently "
                             "supported.")
@@ -439,6 +500,8 @@ class CalabiYau:
         **Returns:**
         (integer) The Hodge number h^{1,3} of Calabi-Yau manifold.
         """
+        if not self._is_hypersurface:
+            raise Exception("Not yet implemented for CICYs.")
         if self.dim() not in (2,3,4):
             raise Exception("Only Calabi-Yaus of dimension 2-4 are currently "
                             "supported.")
@@ -505,23 +568,12 @@ class CalabiYau:
         **Returns:**
         (integer) The Euler characteristic of the Calabi-Yau manifold.
         """
+        if not self._is_hypersurface:
+            raise Exception("Not yet implemented for CICYs.")
         if self.dim() not in (2,3,4):
             raise Exception("Only Calabi-Yaus of dimension 2-4 are currently "
                             "supported.")
         return self.polytope().chi(lattice="N")
-
-    def sr_ideal(self):
-        """
-        **Description:**
-        Returns the Stanley–Reisner ideal of the ambient toric variety.
-
-        **Arguments:**
-        None.
-
-        **Returns:**
-        (list) The Stanley–Reisner ideal of the ambient toric variety.
-        """
-        return self.frst().sr_ideal()
 
     def glsm_charge_matrix(self, include_origin=True):
         """
@@ -537,9 +589,14 @@ class CalabiYau:
         **Returns:**
         (list) The GLSM charge matrix.
         """
-        return self.polytope().glsm_charge_matrix(
-                include_origin=include_origin,
-                include_points_interior_to_facets=self.frst()._all_poly_pts)
+        if self._glsm_charge_matrix is not None:
+            return np.array(self._glsm_charge_matrix)[:,(0 if include_origin else 1):]
+        toric_divs = [0]+list(self.prime_toric_divisors())
+        pts = self.ambient_variety().polytope().points_to_indices(self.ambient_variety().triangulation().points()[toric_divs])
+        self._glsm_charge_matrix = self.polytope().glsm_charge_matrix(
+                                            include_origin=True,
+                                            points=pts)
+        return np.array(self._glsm_charge_matrix)[:,(0 if include_origin else 1):]
 
     def glsm_linear_relations(self, include_origin=True):
         """
@@ -555,9 +612,14 @@ class CalabiYau:
         (list) A matrix of linear relations of the columns of the GLSM charge
         matrix.
         """
-        return self.polytope().glsm_linear_relations(
-                include_origin=include_origin,
-                include_points_interior_to_facets=self.frst()._all_poly_pts)
+        if self._glsm_linrels is not None:
+            return np.array(self._glsm_linrels)[(0 if include_origin else 1):,(0 if include_origin else 1):]
+        toric_divs = [0]+list(self.prime_toric_divisors())
+        pts = self.ambient_variety().polytope().points_to_indices(self.ambient_variety().triangulation().points()[toric_divs])
+        self._glsm_linrels = self.polytope().glsm_linear_relations(
+                                include_origin=True,
+                                points=pts)
+        return np.array(self._glsm_linrels)[(0 if include_origin else 1):,(0 if include_origin else 1):]
 
     def divisor_basis(self, include_origin=True, integral=None):
         """
@@ -597,10 +659,13 @@ class CalabiYau:
         ```
         """
         if self._divisor_basis is None or integral:
-            self._divisor_basis = self.polytope().glsm_basis(
+            toric_divs = [0]+list(self.prime_toric_divisors())
+            pts = self.ambient_variety().polytope().points_to_indices(self.ambient_variety().triangulation().points()[toric_divs])
+            tmp_divs = self.polytope().glsm_basis(
                 integral=True,
                 include_origin=True,
-                include_points_interior_to_facets=self.frst()._all_poly_pts)
+                points=pts)
+            self._divisor_basis = np.array([toric_divs[i] for i in tmp_divs])
             self.clear_cache(only_in_basis=True)
         if len(self._divisor_basis.shape) == 1:
             if 0 in self._divisor_basis and not include_origin:
@@ -666,7 +731,7 @@ class CalabiYau:
             self._divisor_basis = b
         # Else if input is a matrix
         elif len(b.shape) == 2:
-            if not config.enable_experimental_features:
+            if not config._exp_features_enabled:
                 raise Exception("Using generic bases is currently an "
                                 "experimental feature and must be enabled in "
                                 "the configuration.")
@@ -761,13 +826,11 @@ class CalabiYau:
         if len(b.shape) != 2:
             raise Exception("Input must be either a vector or a matrix.")
         # Else input is a matrix
-        if not config.enable_experimental_features:
+        if not config._exp_features_enabled:
             raise Exception("Using generic bases is currently an "
                             "experimental feature and must be enabled in "
                             "the configuration.")
-        glsm_cm = self.polytope().glsm_charge_matrix(
-                include_origin=False,
-                include_points_interior_to_facets=self.frst()._all_poly_pts)
+        glsm_cm = self.glsm_charge_matrix(include_origin=False)
         glsm_rnk = np.linalg.matrix_rank(glsm_cm)
         t = type(b[0,0])
         if t in [np.int64, np.float64]:
@@ -822,634 +885,6 @@ class CalabiYau:
             b_inv = np.linalg.pinv(new_b).T
         self.set_divisor_basis(b_inv, exact_arithmetic=exact_arithmetic)
 
-    def ambient_mori_cone(self, in_basis=False, include_origin=True,
-                          from_intersection_numbers=False):
-        """
-        **Description:**
-        Returns the Mori cone of the ambient toric variety.
-
-        **Arguments:**
-        - ```in_basis``` (boolean, optional, default=False): Use the current
-          basis of curves, which is dual to what the basis returned by the
-          [```divisor_basis```](#divisor_basis) function.
-        - ```include_origin``` (boolean, optional, default=True): Includes the
-          origin of the polytope in the computation, which corresponds to the
-          canonical divisor.
-        - ```from_intersection_numbers``` (boolean, optional, default=False):
-          Compute the rays of the Mori cone using the intersection numbers of
-          the ambient variety. This can be faster if they are already computed.
-          The set of rays may be different, but they define the same cone.
-
-        **Returns:**
-        (Cone) The Mori cone of the ambient toric variety.
-        """
-        if self._mori_cone[0] is None:
-            if from_intersection_numbers:
-                rays = (self._compute_ambient_mori_rays_from_intersections_4d()
-                        if self.dim() == 3 else
-                        self._compute_ambient_mori_rays_from_intersections())
-                self._mori_cone[0] = Cone(rays)
-            else:
-                self._mori_cone[0] = self.frst().cpl_cone().dual()
-        # 0: All divs, 1: No origin, 2: In basis
-        args_id = ((not include_origin)*1 if not in_basis else 0) + in_basis*2
-        if self._mori_cone[args_id] is not None:
-            return self._mori_cone[args_id]
-        rays = self.frst().cpl_cone().hyperplanes()
-        basis = self.divisor_basis()
-        if include_origin and not in_basis:
-            new_rays = rays
-        elif not include_origin and not in_basis:
-            new_rays = rays[:,1:]
-        else:
-            if len(basis.shape) == 2: # If basis is matrix
-                new_rays = rays.dot(basis.T)
-            else:
-                new_rays = rays[:,basis]
-        c = Cone(new_rays, check=len(basis.shape)==2)
-        self._mori_cone[args_id] = c
-        return self._mori_cone[args_id]
-
-    def _compute_ambient_mori_rays_from_intersections(self):
-        """
-        **Description:**
-        Computes the Mori cone rays of the ambient variety using intersection
-        numbers.
-
-        :::note
-        This function should generally not be called by the user. Instead, it
-        is called by the [ambient_mori_cone](#ambient_mori_cone) function when
-        the user wants to save some time if the ambient intersection numbers
-        were already computed.
-        :::
-
-        **Arguments:**
-        None.
-
-        **Returns:**
-        (list) The list of generating rays of the Mori cone of the ambient
-        toric variety.
-        """
-        ambient_intnums = self.ambient_intersection_numbers(in_basis=False)
-        dim = self.dim()
-        num_divs = self.h11() + dim + 2
-        curve_dict = defaultdict(lambda: [[],[]])
-        for ii in ambient_intnums:
-            if 0 in ii[:-1]:
-                continue
-            ctr = Counter(ii[:-1])
-            if len(ctr) < dim:
-                continue
-            for comb in set(combinations(ctr.keys(),dim)):
-                crv = tuple(sorted(comb))
-                curve_dict[crv][0].append(int(sum([i*(ctr[i]-(i in crv))
-                                                for i in ctr])))
-                curve_dict[crv][1].append(ii[-1])
-        row_set = set()
-        for crv in curve_dict:
-            g = gcd_list(curve_dict[crv][1])
-            row = np.zeros(num_divs, dtype=int)
-            for j,jj in enumerate(curve_dict[crv][0]):
-                row[jj] = int(round(curve_dict[crv][1][j]/g))
-            row_set.add(tuple(row))
-        mori_rays = np.array(list(row_set), dtype=int)
-        # Compute column corresponding to the origin
-        mori_rays[:,0] = -np.sum(mori_rays, axis=1)
-        return mori_rays
-
-    def _compute_ambient_mori_rays_from_intersections_4d(self):
-        """
-        **Description:**
-        Computes the Mori cone rays of the ambient variety using intersection
-        numbers.
-
-        :::note notes
-        - This function should generally not be called by the user. Instead,
-        this is called by the [ambient_mori_cone](#ambient_mori_cone) function
-        when when the user wants to save some time if the ambient intersection
-        numbers were already computed.
-        - This function is a more optimized version for 4D toric varieties.
-        :::
-
-        **Arguments:**
-        None.
-
-        **Returns:**
-        (list) The list of generating rays of the Mori cone of the ambient
-        toric variety.
-        """
-        ambient_intnums = self.ambient_intersection_numbers(in_basis=False)
-        num_divs = int(max([ii[3] for ii in ambient_intnums])) + 1
-        curve_dict = {}
-        curve_ctr = 0
-        curve_sparse_list = []
-        for ii in ambient_intnums:
-            if ii[0] == 0:
-                continue
-            if ii[0] == ii[1] == ii[2] == ii[3]:
-                continue
-            if ii[0] == ii[1] == ii[2]:
-                continue
-            if ii[1] == ii[2] == ii[3]:
-                continue
-            if ii[0] == ii[1] and ii[2] == ii[3]:
-                continue
-            if ii[0] == ii[1]:
-                if (ii[0],ii[2],ii[3]) not in curve_dict.keys():
-                    curve_dict[(ii[0],ii[2],ii[3])] = curve_ctr
-                    curve_sparse_list.append([curve_ctr,ii[1],ii[-1]])
-                    curve_ctr += 1
-                else:
-                    curve_sparse_list.append([curve_dict[(ii[1],ii[2],ii[3])],
-                                              ii[0],ii[-1]])
-            elif ii[1] == ii[2]:
-                if (ii[0],ii[1],ii[3]) not in curve_dict.keys():
-                    curve_dict[(ii[0],ii[1],ii[3])] = curve_ctr
-                    curve_sparse_list.append([curve_ctr,ii[2],ii[-1]])
-                    curve_ctr += 1
-                else:
-                    curve_sparse_list.append([curve_dict[(ii[0],ii[1],ii[3])],
-                                              ii[2],ii[-1]])
-            elif ii[2] == ii[3]:
-                if (ii[0],ii[1],ii[2]) not in curve_dict.keys():
-                    curve_dict[(ii[0],ii[1],ii[2])] = curve_ctr
-                    curve_sparse_list.append([curve_ctr,ii[3],ii[-1]])
-                    curve_ctr += 1
-                else:
-                    curve_sparse_list.append([curve_dict[(ii[0],ii[1],ii[2])],
-                                              ii[3],ii[-1]])
-            else:
-                if (ii[0],ii[1],ii[2]) not in curve_dict.keys():
-                    curve_dict[(ii[0],ii[1],ii[2])] = curve_ctr
-                    curve_sparse_list.append([curve_ctr,ii[3],ii[-1]])
-                    curve_ctr += 1
-                else:
-                    curve_sparse_list.append([curve_dict[(ii[0],ii[1],ii[2])],
-                                              ii[3],ii[-1]])
-                if (ii[0],ii[1],ii[3]) not in curve_dict.keys():
-                    curve_dict[(ii[0],ii[1],ii[3])] = curve_ctr
-                    curve_sparse_list.append([curve_ctr,ii[2],ii[-1]])
-                    curve_ctr += 1
-                else:
-                    curve_sparse_list.append([curve_dict[(ii[0],ii[1],ii[3])],
-                                              ii[2],ii[-1]])
-                if (ii[0],ii[2],ii[3]) not in curve_dict.keys():
-                    curve_dict[(ii[0],ii[2],ii[3])] = curve_ctr
-                    curve_sparse_list.append([curve_ctr,ii[1],ii[-1]])
-                    curve_ctr += 1
-                else:
-                    curve_sparse_list.append([curve_dict[(ii[0],ii[2],ii[3])],
-                                              ii[1],ii[-1]])
-                if (ii[1],ii[2],ii[3]) not in curve_dict.keys():
-                    curve_dict[(ii[1],ii[2],ii[3])] = curve_ctr
-                    curve_sparse_list.append([curve_ctr,ii[0],ii[-1]])
-                    curve_ctr += 1
-                else:
-                    curve_sparse_list.append([curve_dict[(ii[1],ii[2],ii[3])],
-                                              ii[0],ii[-1]])
-        row_list = [[] for i in range(curve_ctr)]
-        # Remove zeros
-        for ii in curve_sparse_list:
-            if ii[2]!=0:
-                row_list[ii[0]].append([ii[1],ii[2]])
-        # Normalize
-        for row in row_list:
-            g = abs(gcd_list([ii[1] for ii in row]))
-            for ii in row:
-                ii[1] = int(round(ii[1]/g))
-        row_list = set(tuple(tuple(tuple(ii) for ii in sorted(row))
-                            for row in row_list))
-        mori_rays = np.zeros((len(row_list),num_divs), dtype=int)
-        for i,row in enumerate(row_list):
-            for ii in row:
-                mori_rays[i,int(round(ii[0]))] = round(ii[1])
-        # Compute column corresponding to the origin
-        mori_rays[:,0] = -np.sum(mori_rays, axis=1)
-        return mori_rays
-
-    def ambient_kahler_cone(self):
-        """
-        **Description:**
-        Returns the Kähler cone of the ambient toric variety in the current
-        basis of divisors.
-
-        **Arguments:**
-        None.
-
-        **Returns:**
-        (Cone) The Kähler cone of the ambient toric variety.
-        """
-        return self.ambient_mori_cone(in_basis=True).dual()
-
-    def _construct_intnum_equations_4d(self):
-        """
-        **Description:**
-        Auxiliary function used to compute the intersection numbers of the
-        ambient toric variety. This function is optimized for 4D varieties.
-
-        **Arguments:**
-        None.
-
-        **Returns:**
-        (tuple) A tuple where the first compotent is a sparse matrix M, the
-        second is a vector C, which are used to solve the system M*X=C, the
-        third is the list of intersection numbers not including
-        self-intersections, and the fourth is the list of intersection numbers
-        that are used as variables in the equation.
-        """
-        # Origin is at index 0
-        pts_ext = np.empty((self.frst().points().shape[0],
-                            self.frst().points().shape[1]+1),
-                                dtype=int)
-        pts_ext[:,:-1] = self.frst().points()
-        pts_ext[:,-1] = 1
-        linear_relations = self.glsm_linear_relations(include_origin=False)
-        # First compute the distict intersection numbers
-        distintnum_array = sorted([
-            [c for c in simp if c!=0]
-            + [1/abs(np.linalg.det([pts_ext[p] for p in simp]))]
-                for simp in self.frst().simplices()])
-        frst = [[c for c in s if c != 0] for s in self.frst().simplices()]
-        simp_2 = set([j for i in [list(combinations(f,2)) for f in frst]
-                      for j in i])
-        simp_3 = set([j for i in [list(combinations(f,3)) for f in frst]
-                      for j in i])
-        # We construct and solve the linear system M*x + C = 0, where M is
-        # a rectangular mxn matrix and C is a vector.
-        ###################################################################
-        ### Define dictionaries, to be used to construct the linear system
-        ###################################################################
-        ## Dictionary of variables
-        # Most intersection numbers are trivially zero, find the possibly
-        # nonzero intersection numbers.
-        variable_array_1 = [tuple(j) for i in [[[s[0],s[0],s[1],s[2]],
-                                                [s[0],s[1],s[1],s[2]],
-                                                [s[0],s[1],s[2],s[2]]]
-                                                for s in simp_3]
-                                                    for j in i]
-        variable_array_2 = [tuple(j) for i in [[[s[0],s[0],s[1],s[1]],
-                                                [s[0],s[0],s[0],s[1]],
-                                                [s[0],s[1],s[1],s[1]]]
-                                                for s in simp_2]
-                                                    for j in i]
-        variable_array_3 = [(i,i,i,i) for i in range(1, len(pts_ext))]
-        variable_array = sorted(variable_array_1 + variable_array_2
-                                + variable_array_3)
-        variable_dict = {vv:v for v,vv in enumerate(variable_array)}
-        ## Dictionary to construct C
-        # C is constructed by adding/subtracting distinct intersection
-        # numbers.
-        c_dict = {s:[] for s in simp_3}
-        for d in distintnum_array:
-            c_dict[(d[0],d[1],d[2])] += [[d[3],d[4]]]
-            c_dict[(d[0],d[1],d[3])] += [[d[2],d[4]]]
-            c_dict[(d[0],d[2],d[3])] += [[d[1],d[4]]]
-            c_dict[(d[1],d[2],d[3])] += [[d[0],d[4]]]
-        ## Dictionary to construct M
-        eqn_array_1 = [tuple(s) for s in simp_3]
-        eqn_array_2 = [tuple(j) for i in [[[s[0],s[0],s[1]],
-                                           [s[0],s[1],s[1]]]
-                                           for s in simp_2] for j in i]
-        eqn_array_3 = [(i,i,i) for i in range(1, len(pts_ext))]
-        eqn_array = sorted(eqn_array_1 + eqn_array_2 + eqn_array_3)
-        eqn_dict = {eq:[] for eq in eqn_array}
-        for v in variable_array:
-            if v[0]==v[3]:
-                eqn_dict[(v[0],v[1],v[2])] += [[v[3],variable_dict[v]]]
-            elif v[0]==v[2]:
-                eqn_dict[(v[0],v[1],v[2])] += [[v[3],variable_dict[v]]]
-                eqn_dict[(v[0],v[1],v[3])] += [[v[2],variable_dict[v]]]
-            elif v[0]==v[1] and v[2]==v[3]:
-                eqn_dict[(v[0],v[1],v[2])] += [[v[3],variable_dict[v]]]
-                eqn_dict[(v[0],v[2],v[3])] += [[v[1],variable_dict[v]]]
-            elif v[0]==v[1]:
-                eqn_dict[(v[0],v[1],v[2])] += [[v[3],variable_dict[v]]]
-                eqn_dict[(v[0],v[1],v[3])] += [[v[2],variable_dict[v]]]
-                eqn_dict[(v[0],v[2],v[3])] += [[v[1],variable_dict[v]]]
-            elif v[1]==v[3]:
-                eqn_dict[(v[0],v[1],v[2])] += [[v[3],variable_dict[v]]]
-                eqn_dict[(v[1],v[2],v[3])] += [[v[0],variable_dict[v]]]
-            elif v[1]==v[2]:
-                eqn_dict[(v[0],v[1],v[2])] += [[v[3],variable_dict[v]]]
-                eqn_dict[(v[0],v[1],v[3])] += [[v[2],variable_dict[v]]]
-                eqn_dict[(v[1],v[2],v[3])] += [[v[0],variable_dict[v]]]
-            elif v[2]==v[3]:
-                eqn_dict[(v[0],v[1],v[2])] += [[v[3],variable_dict[v]]]
-                eqn_dict[(v[0],v[2],v[3])] += [[v[1],variable_dict[v]]]
-                eqn_dict[(v[1],v[2],v[3])] += [[v[0],variable_dict[v]]]
-            else:
-                raise Exception("Failed to construct linear system.")
-        # Construct Linear System
-        num_rows = len(linear_relations)*len(eqn_array)
-        C = np.array([0.0]*num_rows)
-        M_row = []
-        M_col = []
-        M_val = []
-        row_ctr = 0
-        for eqn in eqn_array:
-            for lin in linear_relations:
-                if eqn[0]!=eqn[1] and eqn[1]!=eqn[2]:
-                    c_temp = c_dict[eqn]
-                    C[row_ctr] = sum([lin[cc[0]-1]*cc[1] for cc in c_temp])
-                eqn_temp = eqn_dict[eqn]
-                for e in eqn_temp:
-                    M_row.append(row_ctr)
-                    M_col.append(e[1])
-                    M_val.append(lin[e[0]-1])
-                row_ctr+=1
-        Mat = csr_matrix((M_val,(M_row,M_col)), dtype=np.float64)
-        return Mat, C, distintnum_array, variable_array
-
-    def _construct_intnum_equations(self):
-        """
-        **Description:**
-        Auxiliary function used to compute the intersection numbers of the
-        ambient toric variety.
-
-        **Arguments:**
-        None.
-
-        **Returns:**
-        (tuple) A tuple where the first compotent is a sparse matrix M, the
-        second is a vector C, which are used to solve the system M*X=C, the
-        third is the list of intersection numbers not including
-        self-intersections, and the fourth is the list of intersection numbers
-        that are used as variables in the equation.
-        """
-        dim = self.dim()
-        pts_ext = np.empty((self.frst().points().shape[0],dim+2), dtype=int)
-        pts_ext[:,:-1] = self.frst().points()
-        pts_ext[:,-1] = 1
-        linear_relations = self.glsm_linear_relations(include_origin=False)
-        # First compute the distict intersection numbers
-        distintnum_array = sorted([
-            [c for c in simp if c!=0]
-            + [1/abs(np.linalg.det([pts_ext[p] for p in simp]))]
-                for simp in self.frst().simplices()])
-        frst = [[c for c in s if c != 0] for s in self.frst().simplices()]
-        simp_n = [set([j for i in [list(combinations(f,n)) for f in frst]
-                      for j in i]) for n in range(2,dim+1)]
-        simp_n = [[np.array(c) for c in simp_n[n]] for n in range(len(simp_n))]
-        # We construct and solve the linear system M*x + C = 0, where M is
-        # a rectangular mxn matrix and C is a vector.
-        ###################################################################
-        ### Define dictionaries, to be used to construct the linear system
-        ###################################################################
-        ## Dictionary of variables
-        # Most intersection numbers are trivially zero, find the possibly
-        # nonzero intersection numbers.
-        choices_n = []
-        for n in range(2,dim+1):
-            comb = list(combinations(range(dim),dim+1-n))
-            choices = np.empty((len(comb),dim+1), dtype=int)
-            choices[:,0] = 0
-            for k,c in enumerate(comb):
-                for i in range(1,dim+1):
-                    choices[k,i] = choices[k,i-1] + (0 if i-1 in c else 1)
-            choices_n.append(choices)
-        variable_array_1 = [(i,)*(dim+1) for i in range(1,len(pts_ext))]
-        variable_array_n = [tuple(s[ch]) for n in range(len(simp_n))
-                            for s in simp_n[n] for ch in choices_n[n]]
-        variable_array = variable_array_1 + variable_array_n
-        variable_dict = {vv:v for v,vv in enumerate(variable_array)}
-        ## Dictionary to construct C
-        # C is constructed by adding/subtracting distinct intersection
-        # numbers.
-        c_dict = defaultdict(lambda: [])
-        for d in distintnum_array:
-            for i in range(len(d)-1):
-                c_dict[tuple(c for j,c in enumerate(d[:-1]) if j!= i)
-                        ] += [(d[i],d[-1])]
-        ## Dictionary to construct M
-        eqn_array_1 = [tuple(s) for s in simp_n[-1]]
-        eqn_array_2 = [(i,)*dim for i in range(1, len(pts_ext))]
-        choices_n = []
-        for n in range(2,dim):
-            comb = list(combinations(range(dim-1),dim-n))
-            choices = np.empty((len(comb),dim), dtype=int)
-            choices[:,0] = 0
-            for k,c in enumerate(comb):
-                for i in range(1,dim):
-                    choices[k,i] = choices[k,i-1] + (0 if i-1 in c else 1)
-            choices_n.append(choices)
-        eqn_array_n = [tuple(s[ch]) for n in range(len(choices_n))
-                            for s in simp_n[n] for ch in choices_n[n]]
-        eqn_array = eqn_array_1 + eqn_array_2 + eqn_array_n
-        eqn_dict = defaultdict(lambda: [])
-        for v in variable_array:
-            for c in set(combinations(v,dim)):
-                k = None
-                for i in range(dim+1):
-                    if i == dim or v[i] != c[i]:
-                        k = i
-                        break
-                eqn_dict[c] += [(v[k],variable_dict[v])]
-        # Construct Linear System
-        num_rows = len(linear_relations)*len(eqn_array)
-        C = np.zeros(num_rows, dtype=float)
-        M_row = []
-        M_col = []
-        M_val = []
-        row_ctr = 0
-        for eqn in eqn_array:
-            for lin in linear_relations:
-                if len(set(eqn)) == dim:
-                    c_temp = c_dict[eqn]
-                    C[row_ctr] = sum([lin[cc[0]-1]*cc[1] for cc in c_temp])
-                eqn_temp = eqn_dict[eqn]
-                for e in eqn_temp:
-                    M_row.append(row_ctr)
-                    M_col.append(e[1])
-                    M_val.append(lin[e[0]-1])
-                row_ctr+=1
-        Mat = csr_matrix((M_val,(M_row,M_col)), dtype=np.float64)
-        return Mat, C, distintnum_array, variable_array
-
-    def ambient_intersection_numbers(self, in_basis=False,
-                                     zero_as_anticanonical=False, backend="all",
-                                     check=True, backend_error_tol=1e-6,
-                                     round_to_zero_treshold=1e-3,
-                                     round_to_integer_error_tol=2e-5,
-                                     verbose=0, exact_arithmetic=False):
-        """
-        **Description:**
-        Returns the intersection numbers of the ambient toric variety.
-
-        :::tip experimental feature
-        The intersection numbers are computed as floating-point numbers by
-        default, but there is the option to turn them into rationals. The
-        process is fairly quick, but verifying that they are correct becomes
-        very slow at large $h^{1,1}$.
-        :::
-
-        **Arguments:**
-        - ```in_basis``` (boolean, optional, default=False): Return the
-          intersection numbers in the current basis of divisors.
-        - ```zero_as_anticanonical``` (boolean, optional, default=False): Treat
-          the zeroth index as corresponding to the anticanonical divisor
-          instead of the canonical divisor.
-        - ```backend``` (string, optional, default="all"): The sparse linear
-          solver to use. Options are "all", "sksparse" and "scipy". When set
-          to "all" every solver is tried in order until one succeeds.
-        - ```check``` (boolean, optional, default=True): Whether to explicitly
-          check the solution to the linear system.
-        - ```backend_error_tol``` (float, optional, default=1e-3): Error
-          tolerance for the solution of the linear system.
-        - ```round_to_zero_treshold``` (float, optional, default=1e-3):
-          Intersection numbers with magnitude smaller than this treshold are
-          rounded to zero.
-        - ```round_to_integer_error_tol``` (float, optional, default=1e-3): All
-          intersection numbers of the Calabi-Yau hypersurface must be integers
-          up to errors less than this value, when the CY is smooth.
-        - ```verbose``` (integer, optional, default=0): The verbosity level.
-          - verbose = 0: Do not print anything.
-          - verbose = 1: Print linear backend warnings.
-        - ```exact_arithmetic``` (boolean, optional, default=False): Converts
-          the intersection numbers into exact rational fractions.
-
-        Returns:
-        (list) A matrix containing nonzero intersection numbers, in the format:
-        [[A,B,C,...,D,Kappa_ABC...D], ...], where A,B,C,...,D are indices of
-        divisors and Kappa_ABC...D is the intersection number.
-        """
-        # 0: (canon,float), 1: (anticanon, float), 2: (basis, float)
-        # 4: (canon,fmpq), 5: (anticanon, fmpq), 6: (basis, fmpq)
-        args_id = ((1*zero_as_anticanonical if not in_basis else 0)
-                    + 2*in_basis + 4*exact_arithmetic)
-        if self._ambient_intersection_numbers[args_id] is not None:
-            return np.array(self._ambient_intersection_numbers[args_id])
-        if (self._ambient_intersection_numbers[0] is None
-                or (self._ambient_intersection_numbers[4] is None
-                    and exact_arithmetic)):
-            backends = ["all", "sksparse", "scipy"]
-            if backend not in backends:
-                raise Exception("Invalid linear system backend. "
-                                f"The options are: {backends}.")
-            if exact_arithmetic and not config.enable_experimental_features:
-                raise Exception("Using exact arithmetic is an experimental "
-                                "feature and must be enabled in the "
-                                "configuration.")
-            # Construct the linear equations
-            # Note that self.dim gives the dimension of the CY not the of the
-            # ambient variety
-            Mat, C, distintnum_array, variable_array = (
-                                        self._construct_intnum_equations_4d()
-                                        if self.dim() == 3 else
-                                        self._construct_intnum_equations())
-            # The system to be solved is Mat*x + C = 0. This is an
-            # overdetermined but consistent linear system.
-            # There is a unique solution to this system. We solve it by
-            # defining MM = Mat.transpose()*Mat and CC = - Mat.transpose()*C,
-            # and solve
-            # MM*x = CC
-            # Since MM is a positive definite full rank matrix, this system can
-            # be solved using via a Cholesky decomposition.
-            solution = solve_linear_system(Mat, C, backend=backend, check=check,
-                                           backend_error_tol=backend_error_tol,
-                                           verbose=verbose)
-            if solution is None:
-                raise Exception("Linear system solution failed.")
-            if exact_arithmetic:
-                solution_fmpq = fmpq_mat([array_float_to_fmpq(solution)
-                                            .tolist()]).transpose()
-                if check:
-                    Mat_fmpq = fmpq_mat(Mat.shape[0],Mat.shape[1])
-                    Mat_dok = Mat.todok()
-                    for k in Mat_dok.keys():
-                        Mat_fmpq[k] = float_to_fmpq(Mat_dok[k])
-                    C_fmpq = fmpq_mat([array_float_to_fmpq(C)
-                                        .tolist()]).transpose()
-                    res = Mat_fmpq*solution_fmpq + C_fmpq
-                    if any(np.array(res.tolist()).flat):
-                        raise Exception("Conversion to rationals failed.")
-            if exact_arithmetic:
-                ambient_intnum = ([ii[:-1]+[float_to_fmpq(ii[-1])]
-                                        for ii in distintnum_array]
-                                    + [list(ii) + [solution_fmpq[i,0]]
-                                        for i,ii in enumerate(variable_array)])
-            else:
-                ambient_intnum = (distintnum_array
-                                  +[list(ii) + [solution[i]]
-                                   for i,ii in enumerate(variable_array)
-                                   if abs(solution[i])>round_to_zero_treshold])
-            # Add intersections with canonical divisor
-            # First we only compute intersection numbers with a single index 0
-            # This is because precision errors add up significantly for
-            # intersection numbers with self-intersections of the canonical
-            # divisor
-            dim = self.dim()
-            canon_intnum = defaultdict(lambda: 0)
-            for ii in ambient_intnum:
-                choices = set(tuple(c for i,c in enumerate(ii[:-1]) if i!=j)
-                                for j in range(dim+1))
-                for c in choices:
-                    canon_intnum[(0,)+c] -= ii[-1]
-            # Now we round all intersection numbers of the form K_0i...j to
-            # integers if the CY is smooth. Otherwise, we only remove the zero
-            # elements
-            if self.is_smooth() and not exact_arithmetic:
-                for ii in list(canon_intnum.keys()):
-                    val = canon_intnum[ii]
-                    round_val = int(round(val))
-                    if abs(val-round_val) > round_to_integer_error_tol:
-                        print(ii, val)
-                        raise Exception("Non-integer intersection numbers "
-                                        "detected in a smooth CY.")
-                    if round_val != 0:
-                        canon_intnum[ii] = round_val
-                    else:
-                        canon_intnum.pop(ii)
-            elif not exact_arithmetic:
-                for ii in list(canon_intnum.keys()):
-                    if abs(canon_intnum[ii]) < round_to_zero_treshold:
-                        canon_intnum.pop(ii)
-            # Now we compute remaining intersection numbers
-            canon_intnum_n = [canon_intnum]
-            for n in range(2,dim+2):
-                tmp_intnum = defaultdict(lambda: 0)
-                for ii,ii_val in canon_intnum_n[-1].items():
-                    choices = set(tuple(c for i,c in enumerate(ii[n-1:])
-                                        if i!=j) for j in range(dim+2-n))
-                    for c in choices:
-                        tmp_intnum[(0,)*n+c] -= ii_val
-                if not exact_arithmetic:
-                    for ii in list(tmp_intnum.keys()):
-                        if abs(tmp_intnum[ii]) < round_to_zero_treshold:
-                            tmp_intnum.pop(ii)
-                canon_intnum_n.append(tmp_intnum)
-            for i in range(len(canon_intnum_n)):
-                ambient_intnum.extend([list(ii)+[canon_intnum_n[i][ii]]
-                                            for ii in canon_intnum_n[i]])
-            ambient_intnum = sorted(ambient_intnum)
-            if exact_arithmetic:
-                self._ambient_intersection_numbers[4]= np.array(ambient_intnum)
-                self._ambient_intersection_numbers[0]= [
-                                            ii[:-1] + [fmpq_to_float(ii[-1])]
-                                                    for ii in ambient_intnum]
-            else:
-                self._ambient_intersection_numbers[0]= np.array(ambient_intnum)
-        # Now ambient intersection numbers have been computed
-        if zero_as_anticanonical and not in_basis:
-            self._ambient_intersection_numbers[args_id] = np.array([
-                ii[:-1].tolist()
-                + [ii[-1]*(-1 if sum(ii[:-1] == 0)%2 == 1 else 1)] for ii in
-                self._ambient_intersection_numbers[4*exact_arithmetic]])
-        elif in_basis:
-            basis = self.divisor_basis()
-            if len(basis.shape) == 2: # If basis is matrix
-                if basis.dtype == float and exact_arithmetic:
-                    basis = array_float_to_fmpq(basis)
-                self._ambient_intersection_numbers[2+4*exact_arithmetic] = (
-                    symmetric_sparse_to_dense_in_basis(
-                        self._ambient_intersection_numbers[4*exact_arithmetic],
-                        basis))
-            else:
-                self._ambient_intersection_numbers[2+4*exact_arithmetic] = (
-                    filter_tensor_indices(
-                        self._ambient_intersection_numbers[4*exact_arithmetic],
-                        basis))
-        return np.array(self._ambient_intersection_numbers[args_id])
-
     def intersection_numbers(self, in_basis=False, zero_as_anticanonical=False,
                              backend="all", check=True,
                              backend_error_tol=1e-6,
@@ -1494,11 +929,10 @@ class CalabiYau:
           the intersection numbers into exact rational fractions.
 
         Returns:
-        (list) A matrix containing nonzero intersection numbers, in the format:
-        [[A,B,C,...,D,Kappa_ABC...D], ...], where A,B,C,...,D are indices of
-        divisors and Kappa_ABC...D is the intersection number.
+        (dict) A dictionary containing nonzero intersection numbers. The keys
+        are divisor indices in ascending order.
         """
-        if exact_arithmetic and not config.enable_experimental_features:
+        if exact_arithmetic and not config._exp_features_enabled:
             raise Exception("Using exact arithmetic is an experimental "
                             "feature and must be enabled in the "
                             "configuration.")
@@ -1507,26 +941,42 @@ class CalabiYau:
         args_id = ((1*zero_as_anticanonical if not in_basis else 0)
                     + 2*in_basis + 4*exact_arithmetic)
         if self._intersection_numbers[args_id] is not None:
-            return np.array(self._intersection_numbers[args_id])
+            return copy.copy(self._intersection_numbers[args_id])
         if ((self._intersection_numbers[0] is None and not exact_arithmetic)
             or (self._intersection_numbers[4] is None and exact_arithmetic)):
-            ambient_intnums = self.ambient_intersection_numbers(in_basis=False,
-                        backend=backend, check=check,
+            ambient_intnums = self.ambient_variety().intersection_numbers(
+                        in_basis=False, backend=backend, check=check,
                         backend_error_tol=backend_error_tol,
                         round_to_zero_treshold=round_to_zero_treshold,
                         round_to_integer_error_tol=round_to_integer_error_tol,
                         verbose=verbose, exact_arithmetic=exact_arithmetic)
-            intnum = np.array([[int(c) for c in ii[1:-1]]+[-ii[-1]]
-                                   for ii in ambient_intnums if ii[0]==0],
-                              dtype=(None if exact_arithmetic
-                                        or not self.is_smooth() else int))
-            self._intersection_numbers[4*exact_arithmetic] = intnum
+            if self._is_hypersurface:
+                intnums_cy = {ii[1:]:-ambient_intnums[ii] for ii in ambient_intnums if 0 in ii}
+            else:
+                triang_pts = [tuple(pt) for pt in self.ambient_variety().triangulation().points()]
+                parts = self._nef_part
+                ambient_dim = self.ambient_dim()
+                intnums_dict = ambient_intnums
+                for dd in range(len(parts)):
+                    intnums_dict_tmp = defaultdict(lambda: 0)
+                    for ii in intnums_dict:
+                        choices = set(tuple(sorted(c for i,c in enumerate(ii) if i!=j)) for j in range(ambient_dim-dd) if ii[j] in parts[dd])
+                        for c in choices:
+                            intnums_dict_tmp[c] += intnums_dict[ii]
+                    intnums_dict = {ii:intnums_dict_tmp[ii] for ii in intnums_dict_tmp if abs(intnums_dict_tmp[ii]) > round_to_zero_treshold}
+                intnums_cy = intnums_dict
+                if all(abs(round(intnums_cy[ii])-intnums_cy[ii]) < round_to_integer_error_tol for ii in intnums_cy):
+                    self._is_smooth = True
+                    for ii in intnums_cy:
+                        intnums_cy[ii] = int(round(intnums_cy[ii]))
+            self._intersection_numbers[4*exact_arithmetic] = intnums_cy
         # Now intersection numbers have been computed
         if zero_as_anticanonical and not in_basis:
-            self._intersection_numbers[args_id] = np.array([
-                    ii[:-1].tolist()
-                    + [ii[-1]*(-1 if sum(ii[:-1] == 0)%2 == 1 else 1)]
-                    for ii in self._intersection_numbers[4*exact_arithmetic]])
+            self._intersection_numbers[args_id] = self._intersection_numbers[4*exact_arithmetic]
+            for ii in self._intersection_numbers[4*exact_arithmetic]:
+                if 0 not in ii:
+                    continue
+                self._intersection_numbers[args_id] *= (-1 if sum(ii == 0)%2 == 1 else 1)
         elif in_basis:
             basis = self.divisor_basis()
             if len(basis.shape) == 2: # If basis is matrix
@@ -1539,7 +989,33 @@ class CalabiYau:
             else:
                 self._intersection_numbers[args_id] = filter_tensor_indices(
                         self._intersection_numbers[4*exact_arithmetic], basis)
-        return np.array(self._intersection_numbers[args_id])
+        return copy.copy(self._intersection_numbers[args_id])
+
+    def prime_toric_divisors(self):
+        """
+        **Description:**
+        Returns the list of inherited prime toric divisors.
+
+        **Arguments:**
+        None
+
+        **Returns:**
+        (list) A list of indices indicating the prime toric divisors of the
+        ambient variety that intersect the CY.
+        """
+        if self._prime_divs is not None:
+            return self._prime_divs
+        intnum_ind = set.union(*[set(ii) for ii in self.intersection_numbers()])
+        self._prime_divs = tuple(i for i in intnum_ind if i)
+        # If there are some non-intersecting divisors we construct a better
+        # toric variety in the background
+        if len(self._prime_divs) == self.ambient_variety().triangulation().points().shape[0]-1:
+            self._optimal_ambient_var = self._ambient_var
+        else:
+            heights = self._ambient_var.mori_cone().dual().tip_of_stretched_cone(1)[[0]+list(self._prime_divs)]
+            self._optimal_ambient_var = self.polytope().triangulate(heights=heights, points=self.polytope().points_to_indices(
+                                    self.ambient_variety().triangulation().points()[[0]+list(self._prime_divs)])).get_toric_variety()
+        return self._prime_divs
 
     def second_chern_class(self, in_basis=True):
         """
@@ -1561,23 +1037,23 @@ class CalabiYau:
         if self.dim() != 3:
             raise Exception("This function currently only supports 3-folds.")
         if self._second_chern_class is None:
-            int_nums = [[c-1 for c in ii[:-1]] +[ii[-1]] for ii in
-                        self.intersection_numbers(in_basis=False)
-                        if min(ii[:-1]) != 0]
             c2 = np.zeros(self.h11()+self.dim()+1, dtype=int)
-            for ii in int_nums:
+            intnums = self.intersection_numbers(in_basis=False)
+            for ii in intnums:
+                if ii[0] == 0:
+                    continue
                 if ii[0] == ii[1] == ii[2]:
                     continue
                 elif ii[0] == ii[1]:
-                    c2[ii[0]] += ii[3]
+                    c2[ii[0]-1] += intnums[ii]
                 elif ii[0] == ii[2]:
-                    c2[ii[0]] += ii[3]
+                    c2[ii[0]-1] += intnums[ii]
                 elif ii[1] == ii[2]:
-                    c2[ii[1]] += ii[3]
+                    c2[ii[1]-1] += intnums[ii]
                 else:
-                    c2[ii[0]] += ii[3]
-                    c2[ii[1]] += ii[3]
-                    c2[ii[2]] += ii[3]
+                    c2[ii[0]-1] += intnums[ii]
+                    c2[ii[1]-1] += intnums[ii]
+                    c2[ii[2]-1] += intnums[ii]
         if in_basis:
             basis = self.divisor_basis(include_origin=False)
             if len(basis.shape) == 2: # If basis is matrix
@@ -1598,74 +1074,106 @@ class CalabiYau:
         """
         if self._is_smooth is not None:
             return self._is_smooth
-        sm = (True if self.dim() <= 3 else
-                all(c.is_smooth() for c in self.frst().fan_cones(
-                                                     self.dim(),self.dim()-1)))
-        self._is_smooth = sm
+        if self._is_hypersurface:
+            sm = (True if self.dim() <= 3 else
+                    all(c.is_smooth() for c in self.ambient_variety().triangulation().fan_cones(self.dim(),self.dim()-1)))
+            self._is_smooth = sm
+        else:
+            print("Warning: smoothness check is not implemented for CICYs.")
+            self._is_smooth = False
         return self._is_smooth
 
-    def ambient_effective_generators(self):
+    def toric_mori_cone(self, in_basis=False, include_origin=True,
+                          from_intersection_numbers=False):
         """
         **Description:**
-        Returns the rays that generate the effective cone of the ambient
-        variety.
+        Returns the Mori cone inferred from toric geometry.
 
         **Arguments:**
-        None.
+        - ```in_basis``` (boolean, optional, default=False): Use the current
+          basis of curves, which is dual to what the basis returned by the
+          [```divisor_basis```](#divisor_basis) function.
+        - ```include_origin``` (boolean, optional, default=True): Includes the
+          origin of the polytope in the computation, which corresponds to the
+          canonical divisor.
+        - ```from_intersection_numbers``` (boolean, optional, default=False):
+          Compute the rays of the Mori cone using the intersection numbers of
+          the variety. This can be faster if they are already computed.
+          The set of rays may be different, but they define the same cone.
 
         **Returns:**
-        (list) The rays that generate the effective cone of the ambient
-        variety.
+        (Cone) The Mori cone inferred from toric geometry.
         """
-        if self._ambient_eff_gens is not None:
-            return np.array(self._ambient_eff_gens)
-        rays = np.eye(self.h11(), dtype=float).tolist()
-        linrels = self.glsm_linear_relations(include_origin=True)
+        if self._mori_cone[0] is None:
+            prime_toric_divs = self.prime_toric_divisors()
+            self._mori_cone[0] = self._optimal_ambient_var.mori_cone()
+        # 0: All divs, 1: No origin, 2: In basis
+        args_id = ((not include_origin)*1 if not in_basis else 0) + in_basis*2
+        if self._mori_cone[args_id] is not None:
+            return self._mori_cone[args_id]
+        rays = self._mori_cone[0].rays()
         basis = self.divisor_basis()
-        if len(basis.shape) != 1:
-            raise Exception("Generic bases are not yet supported.")
-        no_basis = [i for i in range(self.h11()+self.dim()+2)
-                    if i not in basis]
-        linrels_reord = linrels[:,no_basis+basis.tolist()]
-        linrels_rref = np.array(
-                        fmpz_mat(linrels_reord.tolist()).rref()[0].tolist(),
-                        dtype=int)
-        for i in range(linrels_rref.shape[0]):
-            linrels_rref[i,:] //= int(round(gcd_list(linrels_rref[i,:])))
-        for i,ii in enumerate(no_basis):
-            linrels_reord[:,ii] = linrels_rref[:,i]
-        for i,ii in enumerate(basis,len(no_basis)):
-            linrels_reord[:,ii] = linrels_rref[:,i]
-        for l in linrels_reord:
-            if l[0] != 0:
-                continue
-            for i in no_basis:
-                if l[i] != 0:
-                    r = [0]*self.h11()
-                    for j,jj in enumerate(basis):
-                        r[j] = l[jj]/(-l[i])
-                    for j in no_basis:
-                        if l[j] != 0 and j != i:
-                            raise Exception("An unexpected error occured.")
-                    rays.append(r)
-        self._ambient_eff_gens = np.array(rays, dtype=float)
-        return np.array(self._ambient_eff_gens)
+        if include_origin and not in_basis:
+            new_rays = rays
+        elif not include_origin and not in_basis:
+            new_rays = rays[:,1:]
+        else:
+            if len(basis.shape) == 2: # If basis is matrix
+                new_rays = rays.dot(basis.T)
+            else:
+                new_rays = rays[:,basis]
+        c = Cone(new_rays, check=len(basis.shape)==2)
+        self._mori_cone[args_id] = c
+        return self._mori_cone[args_id]
 
-    def ambient_effective_cone(self):
+    def toric_kahler_cone(self):
         """
         **Description:**
-        Returns the effective cone of the ambient variety.
+        Returns the Kähler cone inferred from toric geometry in the current
+        basis of divisors.
 
         **Arguments:**
         None.
 
         **Returns:**
-        (Cone) The effective cone of the ambient variety.
+        (Cone) The Kähler cone inferred from toric geometry.
         """
-        if self._ambient_eff_cone is not None:
-            return self._ambient_eff_cone
-        self._ambient_eff_cone = Cone(self.ambient_effective_generators())
-        return self._ambient_eff_cone
+        return self.toric_mori_cone(in_basis=True).dual()
+
+    def toric_effective_generators(self):
+        """
+        **Description:**
+        Returns the rays that generate the effective cone inferred from toric
+        geometry.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        (list) The rays that generate the toric effective cone.
+        """
+        if self._eff_gens is None:
+            self.prime_toric_divisors()
+            self._optimal_ambient_var.set_divisor_basis(self.divisor_basis())
+            self._eff_gens = self._optimal_ambient_var.effective_generators()
+        return np.array(self._eff_gens)
+
+    def effective_cone(self):
+        """
+        **Description:**
+        Returns the effective cone inferred from toric geometry.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        (Cone) The toric effective cone.
+        """
+        if self._eff_cone is None:
+            self.prime_toric_divisors()
+            self._optimal_ambient_var.set_divisor_basis(self.divisor_basis())
+            self._eff_cone = self._optimal_ambient_var.effective_cone()
+        return self._eff_cone
 
     def compute_cy_volume(self, tloc):
         """
@@ -1694,9 +1202,8 @@ class CalabiYau:
         else:
             for ii in intnums:
                 mult = np.prod([factorial(c)
-                                   for c in Counter(ii[:self.dim()]).values()])
-                xvol += (ii[-1]*np.prod([tloc[int(j)] for j in ii[:-1]])
-                         /mult)
+                                   for c in Counter(ii).values()])
+                xvol += intnums[ii]*np.prod([tloc[int(j)] for j in ii])/mult
         return xvol
 
     def compute_divisor_volumes(self, tloc):
@@ -1727,9 +1234,9 @@ class CalabiYau:
         else:
             tau = np.zeros(len(basis), dtype=float)
             for ii in intnums:
-                c = Counter(ii[:-1])
+                c = Counter(ii)
                 for j in c.keys():
-                    tau[j] += ii[-1] * np.prod(
+                    tau[j] += intnums[ii] * np.prod(
                                 [tloc[k]**(c[k]-(j==k))/factorial(c[k]-(j==k))
                                     for k in c.keys()])
         return np.array(tau)
@@ -1762,20 +1269,20 @@ class CalabiYau:
             return AA
         AA = np.zeros((len(basis),)*2, dtype=float)
         for ii in intnums:
-            ii_list = Counter(ii[:-1]).most_common(3)
+            ii_list = Counter(ii).most_common(3)
             if len(ii_list)==1:
-                AA[ii_list[0][0],ii_list[0][0]] += ii[-1]*tloc[ii_list[0][0]]
+                AA[ii_list[0][0],ii_list[0][0]] += intnums[ii]*tloc[ii_list[0][0]]
             elif len(ii_list)==2:
-                AA[ii_list[0][0],ii_list[0][0]] += ii[-1]*tloc[ii_list[1][0]]
-                AA[ii_list[0][0],ii_list[1][0]] += ii[-1]*tloc[ii_list[0][0]]
-                AA[ii_list[1][0],ii_list[0][0]] += ii[-1]*tloc[ii_list[0][0]]
+                AA[ii_list[0][0],ii_list[0][0]] += intnums[ii]*tloc[ii_list[1][0]]
+                AA[ii_list[0][0],ii_list[1][0]] += intnums[ii]*tloc[ii_list[0][0]]
+                AA[ii_list[1][0],ii_list[0][0]] += intnums[ii]*tloc[ii_list[0][0]]
             elif len(ii_list)==3:
-                AA[ii_list[0][0],ii_list[1][0]] += ii[-1]*tloc[ii_list[2][0]]
-                AA[ii_list[1][0],ii_list[0][0]] += ii[-1]*tloc[ii_list[2][0]]
-                AA[ii_list[0][0],ii_list[2][0]] += ii[-1]*tloc[ii_list[1][0]]
-                AA[ii_list[2][0],ii_list[0][0]] += ii[-1]*tloc[ii_list[1][0]]
-                AA[ii_list[1][0],ii_list[2][0]] += ii[-1]*tloc[ii_list[0][0]]
-                AA[ii_list[2][0],ii_list[1][0]] += ii[-1]*tloc[ii_list[0][0]]
+                AA[ii_list[0][0],ii_list[1][0]] += intnums[ii]*tloc[ii_list[2][0]]
+                AA[ii_list[1][0],ii_list[0][0]] += intnums[ii]*tloc[ii_list[2][0]]
+                AA[ii_list[0][0],ii_list[2][0]] += intnums[ii]*tloc[ii_list[1][0]]
+                AA[ii_list[2][0],ii_list[0][0]] += intnums[ii]*tloc[ii_list[1][0]]
+                AA[ii_list[1][0],ii_list[2][0]] += intnums[ii]*tloc[ii_list[0][0]]
+                AA[ii_list[2][0],ii_list[1][0]] += intnums[ii]*tloc[ii_list[0][0]]
             else:
                 raise Exception("Error: Inconsistent intersection numbers.")
         return AA

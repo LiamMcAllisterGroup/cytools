@@ -36,15 +36,29 @@ def check_mosek_license():
         mosek.Env().Task(0,0).optimize()
         mosek_is_activated = True
     except mosek.Error as e:
-        print(e)
-        print("Info: Mosek is not activated. "
-              "An alternative optimizer will be used.")
+        print("\nInfo: Mosek is not activated. "
+              "An alternative optimizer will be used.\n"
+              f"Error encountered: {e}\n")
         mosek_is_activated = False
     except:
-        print("Info: There was a problem with Mosek. "
-              "An alternative optimizer will be used.")
+        print("\nInfo: There was a problem with Mosek. "
+              "An alternative optimizer will be used.\n")
         mosek_is_activated = False
 check_mosek_license()
 
+def set_mosek_path(path):
+    global mosek_license
+    mosek_license = path
+    check_mosek_license()
+
 # Lock experimental features by default.
-enable_experimental_features = False
+_exp_features_enabled = False
+
+def enable_experimental_features():
+    global _exp_features_enabled
+    _exp_features_enabled = True
+    print("\n**************************************************************\n"
+          "Warning: You have enabled experimental features of CYTools.\n"
+          "Some of these features may be broken or not fully tested,\n"
+          "and they may undergo significant changes in future versions.\n"
+          "**************************************************************\n")

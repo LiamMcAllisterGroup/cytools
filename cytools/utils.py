@@ -162,21 +162,18 @@ def filter_tensor_indices(tensor, indices):
     convert the tensor of intersection numbers to a given basis.
 
     **Arguments:**
-    - ```tensor``` (list): The input symmetric sparse tensor of the form
-      [[a,b,...,c,M_ab...c]].
+    - ```tensor``` (dict): The input symmetric sparse tensor of the form
+      of a dictionary {(a,b,...,c):M_ab...c, ...].
     - ```indices``` (list): The list of indices that will be preserved.
 
     **Returns:**
-    (list) A matrix describing a tensor in the same format as the input, but
+    (dict) A dictionary describing a tensor in the same format as the input, but
     only with the desired indices.
     """
-    dim = len(tensor[0]) - 1
-    tensor_filtered = [c for c in tensor
-                        if all(c[i] in indices for i in range(dim))]
+    tensor_filtered = {k:tensor[k] for k in tensor if all(c in indices for c in k)}
     indices_dict = {vv:v for v,vv in enumerate(indices)}
-    tensor_reindexed = sorted([sorted([indices_dict[jj] for jj in ii[:-1]])
-                              + [ii[-1]] for ii in tensor_filtered])
-    return np.array(tensor_reindexed)
+    tensor_reindexed = {tuple(sorted(indices_dict[c] for c in k)):tensor_filtered[k] for k in tensor_filtered}
+    return tensor_reindexed
 
 
 def symmetric_sparse_to_dense_in_basis(tensor, basis):
