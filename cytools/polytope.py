@@ -1353,23 +1353,21 @@ class Polytope:
         glsm = np.diag(column_scalings)
         for p,pp in enumerate(good_lattice_basis):
             glsm = np.insert(glsm, pp, extra_columns[p], axis=1)
-        if include_origin:
-            origin_column = -np.sum(glsm, axis=1)
-            glsm = np.insert(glsm, 0, origin_column, axis=1)
+        origin_column = -np.sum(glsm, axis=1)
+        glsm = np.insert(glsm, 0, origin_column, axis=1)
         linear_relations = extra_rows
         extra_linear_relation_columns = -1*np.diag(row_scalings)
         for p,pp in enumerate(good_lattice_basis):
             linear_relations = np.insert(linear_relations, pp, extra_linear_relation_columns[p], axis=1)
-        if include_origin:
-            linear_relations = np.insert(linear_relations, 0, np.ones(len(pts)), axis=0)
-            linear_relations = np.insert(linear_relations, 0, np.zeros(self._dim+1), axis=1)
-            linear_relations[0][0] = 1
+        linear_relations = np.insert(linear_relations, 0, np.ones(len(pts)), axis=0)
+        linear_relations = np.insert(linear_relations, 0, np.zeros(self._dim+1), axis=1)
+        linear_relations[0][0] = 1
         # Check that everything was computed correctly
-        if (any(glsm.dot(([[0]*self._dim+[1]] if include_origin else [])+[pt+[1*include_origin] for pt in pts.tolist()]).flat)
+        if (any(glsm.dot(([[0]*self._dim+[1]])+[pt+[1] for pt in pts.tolist()]).flat)
                 or any(glsm.dot(linear_relations.T).flatten())
-                or np.linalg.matrix_rank(glsm[:,np.array(glsm_basis)+1*include_origin])
+                or np.linalg.matrix_rank(glsm[:,np.array(glsm_basis)+1])
                     != len(glsm_basis)):
-            print(glsm.dot(([[0]*self._dim+[1]] if include_origin else [])+[pt+[1] for pt in pts.tolist()]))
+            print(glsm.dot(([[0]*self._dim+[1]])+[pt+[1] for pt in pts.tolist()]))
             raise Exception("Error computing GLSM charge matrix.")
         # We now cache the results
         self._glsm_charge_matrix[pts_ind] = glsm

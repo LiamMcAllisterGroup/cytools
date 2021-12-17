@@ -1014,7 +1014,7 @@ class ToricVariety:
 
     def intersection_numbers(self, in_basis=False,
                              zero_as_anticanonical=False, backend="all",
-                             check=True, backend_error_tol=1e-6,
+                             check=True, backend_error_tol=1e-3,
                              round_to_zero_treshold=1e-3,
                              round_to_integer_error_tol=2e-5,
                              verbose=0, exact_arithmetic=False):

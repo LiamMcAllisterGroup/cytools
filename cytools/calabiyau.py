@@ -887,7 +887,7 @@ class CalabiYau:
 
     def intersection_numbers(self, in_basis=False, zero_as_anticanonical=False,
                              backend="all", check=True,
-                             backend_error_tol=1e-6,
+                             backend_error_tol=1e-3,
                              round_to_zero_treshold=1e-3,
                              round_to_integer_error_tol=5e-2, verbose=0,
                              exact_arithmetic=False):
@@ -976,7 +976,7 @@ class CalabiYau:
             for ii in self._intersection_numbers[4*exact_arithmetic]:
                 if 0 not in ii:
                     continue
-                self._intersection_numbers[args_id] *= (-1 if sum(ii == 0)%2 == 1 else 1)
+                self._intersection_numbers[args_id][ii] *= (-1 if sum(jj == 0 for jj in ii)%2 == 1 else 1)
         elif in_basis:
             basis = self.divisor_basis()
             if len(basis.shape) == 2: # If basis is matrix
