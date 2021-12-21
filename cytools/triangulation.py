@@ -509,7 +509,7 @@ class Triangulation:
         # heights inside the CPL cone yield the same triangulation.
         if self.is_regular():
             cpl = self.cpl_cone()
-            heights = cpl.tip_of_stretched_cone(0.1)[1]
+            heights = cpl.tip_of_stretched_cone(0.1)
             tmp_triang = Triangulation(self.points(), self.polytope(),
                                         heights=heights, make_star=False)
             self._is_valid = (sorted(sorted(s) for s in self.simplices().tolist()) ==
