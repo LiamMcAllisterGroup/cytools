@@ -4,7 +4,7 @@
     <b>A software package for analyzing Calabi-Yau hypersurfaces in toric varieties.</b><br>
     <img alt="Latest release" src="https://img.shields.io/github/v/release/liammcallistergroup/cytools">
     <img alt="License" src="https://img.shields.io/github/license/liammcallistergroup/cytools">
-    <img alt="Number of downloads" src="https://img.shields.io/github/downloads/liammcallistergroup/cytools/total"/>
+    <img alt="Number of downloads" src="https://img.shields.io/github/downloads/liammcallistergroup/topcom/total"/>
 </p>
 
 -------------------------------------------------------------------------------
