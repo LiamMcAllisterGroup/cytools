@@ -37,9 +37,9 @@ from cytools import config
 
 class Triangulation:
     """
-    This class handles triangulations of lattice polytopes. It can analyze
-    various aspects of the triangulation, as well as construct a CalabiYau
-    object if the triangulation is suitable.
+    This class handles triangulations of lattice polytopes. It can compute
+    various properties of the triangulation, as well as construct a
+    ToricVariety or CalabiYau object if the triangulation is suitable.
 
     :::important
     Generally, objects of this class should not be constructed directly by the
@@ -67,29 +67,29 @@ class Triangulation:
     :::
 
     **Arguments:**
-    - ```triang_pts``` (list): The list of points to be triangulated.
-    - ```poly``` (Polytope, optional): The ambient polytope of the points to be
-      triangulated. If not specified, it is constructed as the convex hull of
-      the given points.
-    - ```heights``` (list, optional): A list of heights specifying the regular
-      triangulation. When not secified, it will return the Delaunay
+    - ```triang_pts``` *(array_like)*: The list of points to be triangulated.
+    - ```poly``` *(Polytope, optional)*: The ambient polytope of the points to
+      be triangulated. If not specified, it is constructed as the convex hull
+      of the given points.
+    - ```heights``` *(array_like, optional)*: A list of heights specifying the
+      regular triangulation. When not secified, it will return the Delaunay
       triangulation when using CGAL, a triangulation obtained from random
       heights near the Delaunay when using QHull, or the placing triangulation
       when using TOPCOM. Heights can only be specified when using CGAL or QHull
       as the backend.
-    - ```make_star``` (boolean, optional, default=False): Indicates whether to
+    - ```make_star``` *(bool, optional, default=False)*: Indicates whether to
       turn the triangulation into a star triangulation by deleting internal
       lines and connecting all points to the origin, or equivalently, by
       decreasing the height of the origin until it is much lower than all other
       heights.
-    - ```simplices``` (list, optional): A list of simplices specifying the
-      triangulation. Each simplex is a list of point indices. This is useful
-      when a triangulation was previously computed and it needs to be used
-      again. Note that the ordering of the points needs to be consistent.
-    - ```check_input_simplices``` (boolean, optional, default=True): Flag
+    - ```simplices``` *(array_like, optional)*: A list of simplices specifying
+      the triangulation. Each simplex is a list of point indices. This is
+      useful when a triangulation was previously computed and it needs to be
+      used again. Note that the ordering of the points needs to be consistent.
+    - ```check_input_simplices``` *(bool, optional, default=True)*: Flag
       that specifies whether to check if the input simplices define a valid
       triangulation.
-    - ```backend``` (string, optional, default="cgal"): Specifies the backend
+    - ```backend``` *(str, optional, default="cgal")*: Specifies the backend
       used to compute the triangulation.  The available options are "qhull",
       "cgal", and "topcom". CGAL is the default one as it is very
       fast and robust.
@@ -99,13 +99,15 @@ class Triangulation:
     intended to by initialized by the end user, we create it via the
     [```triangulate```](./polytope#triangulate) function of the
     [Polytope](./polytope) class. In this example the polytope is reflexive, so
-    by default the triangulation is fine, regular, and star.
+    by default the triangulation is fine, regular, and star. Also, since the
+    polytope is reflexive then by default only the lattice points not interior
+    to facets are included in the triangulation.
     ```python {3}
     from cytools import Polytope
-    p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+    p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
     t = p.triangulate()
-    t
-    # Prints: A fine, regular, star triangulation of a 4-dimensional polytope in ZZ^4
+    print(t)
+    # A fine, regular, star triangulation of a 4-dimensional point configuration with 7 points in ZZ^4
     ```
     """
 
@@ -116,36 +118,51 @@ class Triangulation:
         Initializes a ```Triangulation``` object.
 
         **Arguments:**
-        - ```triang_pts``` (list): The list of points to be triangulated.
-        - ```poly``` (Polytope, optional): The ambient polytope of the points
+        - ```triang_pts``` *(array_like)*: The list of points to be
+          triangulated.
+        - ```poly``` *(Polytope, optional)*: The ambient polytope of the points
           to be triangulated. If not specified, it is constructed as the convex
           hull of the given points.
-        - ```heights``` (list, optional): A list of heights specifying the
-          regular triangulation. When not secified, it will return the Delaunay
-          triangulation when using CGAL, a triangulation obtained from random
-          heights near the Delaunay when using QHull, or the placing
+        - ```heights``` *(array_like, optional)*: A list of heights specifying
+          the regular triangulation. When not secified, it will return the
+          Delaunay triangulation when using CGAL, a triangulation obtained from
+          random heights near the Delaunay when using QHull, or the placing
           triangulation when using TOPCOM. Heights can only be specified when
           using CGAL or QHull as the backend.
-        - ```make_star``` (boolean, optional, default=False): Indicates whether
+        - ```make_star``` *(bool, optional, default=False)*: Indicates whether
           to turn the triangulation into a star triangulation by deleting
           internal lines and connecting all points to the origin, or
           equivalently, by decreasing the height of the origin until it is much
           lower than all other heights.
-        - ```simplices``` (list, optional): A list of simplices specifying the
-          triangulation. Each simplex is a list of point indices. This is
-          useful when a triangulation was previously computed and it needs to
-          be used again. Note that the ordering of the points needs to be
-          consistent.
-        - ```check_input_simplices``` (boolean, optional, default=True): Flag
+        - ```simplices``` *(array_like, optional)*: A list of simplices
+          specifying the triangulation. Each simplex is a list of point
+          indices. This is useful when a triangulation was previously computed
+          and it needs to be used again. Note that the ordering of the points
+          needs to be consistent.
+        - ```check_input_simplices``` *(bool, optional, default=True)*: Flag
           that specifies whether to check if the input simplices define a valid
           triangulation.
-        - ```backend``` (string, optional, default="cgal"): Specifies the
+        - ```backend``` *(str, optional, default="cgal")*: Specifies the
           backend used to compute the triangulation.  The available options are
           "qhull", "cgal", and "topcom". CGAL is the default one as it is very
           fast and robust.
 
         **Returns:**
         Nothing.
+
+        **Example:**
+        This is the function that is called when creating a new
+        ```Triangulation``` object. In this example the polytope is reflexive,
+        so by default the triangulation is fine, regular, and star. Also, since
+        the polytope is reflexive then by default only the lattice points not
+        interior to facets are included in the triangulation.
+        ```python {3}
+        from cytools import Polytope
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        t = p.triangulate()
+        print(t)
+        # A fine, regular, star triangulation of a 4-dimensional point configuration with 7 points in ZZ^4
+        ```
         """
         tmp_triang_pts = [tuple(pt) for pt in np.array(triang_pts, dtype=int)]
         heights = copy.deepcopy(heights)
@@ -154,7 +171,8 @@ class Triangulation:
             self._poly = Polytope(tmp_triang_pts)
         else:
             self._poly = poly
-        if not self._poly.is_solid():
+        if (not self._poly.is_solid()
+                or np.linalg.matrix_rank([pt+(1,) for pt in tmp_triang_pts]) != len(tmp_triang_pts[0])+1):
             raise Exception("Only triangulations of full-dimensional point "
                             "configurations are supported.")
         # Now we reorder the points to make sure they match the ordering of
@@ -187,6 +205,10 @@ class Triangulation:
             if self._simplices.shape[1] != self._triang_pts.shape[1]+1:
                 raise Exception("Input simplices have wrong dimension.")
             self._heights = None
+            if make_star:
+                facets_ind = [[self._pts_dict[tuple(pt)] for pt in f.boundary_points()]
+                              for f in self._poly.facets()]
+                self._simplices = convert_to_star(self._simplices, facets_ind, self._origin_index)
             if check_input_simplices and not self.is_valid():
                 raise Exception("Input simplices do not form a valid "
                                 "triangulation.")
@@ -247,11 +269,22 @@ class Triangulation:
         Clears the cached results of any previous computation.
 
         **Arguments:**
-        - ```recursive``` (boolean, optional, default=False): Whether to also
+        - ```recursive``` *(bool, optional, default=False)*: Whether to also
           clear the cache of the ambient polytope.
 
         **Returns:**
         Nothing.
+
+        **Example:**
+        We construct a triangulation, compute its GKZ vector, clear the cache
+        and then compute it again.
+        ```python {4}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        t = p.triangulate()
+        gkz_phi = t.gkz_phi() # Computes the GKZ vector
+        t.clear_cache()
+        gkz_phi = t.gkz_phi() # The GKZ vector is recomputed
+        ```
         """
         self._hash = None
         self._is_fine = None
@@ -274,7 +307,18 @@ class Triangulation:
         None.
 
         **Returns:**
-        (string) A string describing the triangulation.
+        *(str)* A string describing the triangulation.
+
+        **Example:**
+        This function can be used to convert the triangulation to a string or
+        to print information about the triangulation.
+        ```python {3,4}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        t = p.triangulate()
+        poly_info = str(t) # Converts to string
+        print(t) # Prints triangulation info
+        # A fine, regular, star triangulation of a 4-dimensional point configuration with 7 points in ZZ^4
+        ```
         """
         return (f"A {('fine' if self.is_fine() else 'non-fine')}, "
                 + (("regular, " if self._is_regular else "irregular, ")
@@ -290,11 +334,21 @@ class Triangulation:
         Implements comparison of triangulations with ==.
 
         **Arguments:**
-        - ```other``` (Triangulation): The other triangulation that is being
+        - ```other``` *(Triangulation)*: The other triangulation that is being
           compared.
 
         **Returns:**
-        (boolean) The truth value of the triangulations being equal.
+        *(bool)* The truth value of the triangulations being equal.
+
+        **Example:**
+        We construct two triangulations and compare them.
+        ```python {4}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        t1 = p.triangulate(backend="qhull")
+        t2 = p.triangulate(backend="topcom")
+        t1 == t2
+        # True
+        ```
         """
         if not isinstance(other, Triangulation):
             return NotImplemented
@@ -307,11 +361,21 @@ class Triangulation:
         Implements comparison of triangulations with !=.
 
         **Arguments:**
-        - ```other``` (Triangulation): The other triangulation that is being
+        - ```other``` *(Triangulation)*: The other triangulation that is being
           compared.
 
         **Returns:**
-        (boolean) The truth value of the triangulations being different.
+        *(bool)* The truth value of the triangulations being different.
+
+        **Example:**
+        We construct two triangulations and compare them.
+        ```python {4}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        t1 = p.triangulate(backend="qhull")
+        t2 = p.triangulate(backend="topcom")
+        t1 != t2
+        # False
+        ```
         """
         if not isinstance(other, Triangulation):
             return NotImplemented
@@ -327,7 +391,19 @@ class Triangulation:
         None.
 
         **Returns:**
-        (integer) The hash value of the triangulation.
+        *(int)* The hash value of the triangulation.
+
+        **Example:**
+        We compute the hash value of a triangulation. Also, we construct a set
+        and a dictionary with a triangulation, which make use of the hash
+        function.
+        ```python {3,4,5}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        t = p.triangulate()
+        h = hash(t) # Obtain hash value
+        d = {t: 1} # Create dictionary with triangulation keys
+        s = {t} # Create a set of triangulations
+        ```
         """
         if self._hash is None:
             self._hash = hash((hash(tuple(sorted(tuple(v) for v in self.points()))),) +
@@ -343,20 +419,48 @@ class Triangulation:
         None.
 
         **Returns:**
-        (Polytope) The ambient polytope.
+        *(Polytope)* The ambient polytope.
+
+        **Example:**
+        We construct a triangulation and check that the polytope that this
+        function returns is the same as the one we used to construct it.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        t = p.triangulate()
+        t.polytope() is p
+        # True
+        ```
         """
         return self._poly
 
     def points(self):
         """
         **Description:**
-        Returns the points of the triangulation.
+        Returns the points of the triangulation. Note that these are not
+        necessarily equal to the lattice points of the polytope they define.
 
         **Arguments:**
         None.
 
         **Returns:**
-        (list) The points of the triangulation.
+        *(numpy.ndarray)* The points of the triangulation.
+
+        **Example:**
+        We construct a triangulation and print the points in the point
+        configuration. Note that since the polytope is reflexive, then by
+        default only the lattice points not interior to facets were used.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        t = p.triangulate()
+        t.points()
+        # array([[ 0,  0,  0,  0],
+        #        [-1, -1, -6, -9],
+        #        [ 0,  0,  0,  1],
+        #        [ 0,  0,  1,  0],
+        #        [ 0,  1,  0,  0],
+        #        [ 1,  0,  0,  0],
+        #        [ 0,  0, -2, -3]])
+        ```
         """
         return np.array(self._triang_pts)
 
@@ -365,14 +469,27 @@ class Triangulation:
         **Description:**
         Returns the list of indices corresponding to the given points. It also
         accepts a single point, in which case it returns the corresponding
-        index.
+        index. Note that these indices are not necessarily equal to the
+        corresponding indices in the polytope.
 
         **Arguments:**
-        - ```points``` (list): A list of points.
+        - ```points``` *(array_like)*: A point or a list of points.
 
         **Returns:**
-        (list or integer) The list of indices corresponding to the given
-        points. Or the index of the point if only one is given.
+        *(numpy.ndarray or int)* The list of indices corresponding to the given
+        points, or the index of the point if only one is given.
+
+        **Example:**
+        We construct a triangulation and find the indices of some of its
+        points.
+        ```python {3,5}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        t = p.triangulate()
+        t.points_to_indices([-1,-1,-6,-9]) # We input a single point, so a single index is returned
+        # 1
+        t.points_to_indices([[-1,-1,-6,-9],[0,0,0,0],[0,0,1,0]]) # We input a list of points, so a list of indices is returned
+        # array([1, 0, 3])
+        ```
         """
         if len(np.array(points).shape) == 1:
             if np.array(points).shape[0] == 0:
@@ -388,15 +505,31 @@ class Triangulation:
         entry, in which case it returns the corresponding index.
 
         **Arguments:**
-        - ```points``` (list): A list of indices of points.
+        - ```points``` *(array_like)*: A list of indices of points.
 
         **Returns:**
-        (list or integer) The list of indices corresponding to the given
+        *(numpy.ndarray or int)* The list of indices corresponding to the given
         points. Or the index of the point if only one is given.
+
+        **Example:**
+        We construct a triangulation and convert from indices of the
+        triangulation to indices of the polytope. Since the indices of the two
+        classes usually match, we will construct a triangulation that does not
+        include the origin, so that indices will be shifted by one.
+        ```python {7,9}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        t = p.triangulate(points=[1,2,3,4,5,6,7,8,9]) # We exclude point 0, which is the origin
+        t.points_to_indices([-1,-1,-6,-9]) # We get the index of a point in the triangulation
+        # 0
+        p.points_to_indices([-1,-1,-6,-9]) # The same point corresponds to a different index in the polytope
+        # 1
+        t.triangulation_to_polytope_indices(0) # We can convert an index with this function
+        # 1
+        t.triangulation_to_polytope_indices([0,1,2,3,4,5,6,7,8]) # And we can convert multiple indices in the same way
+        # array([1, 2, 3, 4, 5, 6, 7, 8, 9])
+        ```
         """
-        if len(np.array(points).shape) == 1:
-            if np.array(points).shape[0] == 0:
-                return np.zeros(0, dtype=int)
+        if len(np.array(points).shape) == 0:
             return self._pts_triang_to_poly[points]
         return np.array([self._pts_triang_to_poly[pt] for pt in points])
 
@@ -409,7 +542,20 @@ class Triangulation:
         None.
 
         **Returns:**
-        (list) The simplices of the triangulation.
+        *(numpy.ndarray)* The simplices of the triangulation.
+
+        **Example:**
+        We construct a triangulation and find its simplices.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        t = p.triangulate()
+        t.simplices()
+        # array([[0, 1, 2, 3, 4],
+        #        [0, 1, 2, 3, 5],
+        #        [0, 1, 2, 4, 5],
+        #        [0, 1, 3, 4, 5],
+        #        [0, 2, 3, 4, 5]])
+        ```
         """
         return np.array(self._simplices)
 
@@ -422,7 +568,16 @@ class Triangulation:
         None.
 
         **Returns:**
-        (integer) The dimension of the triangulation.
+        *(int)* The dimension of the triangulation.
+
+        **Example:**
+        We construct a triangulation and find its dimension.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        t = p.triangulate()
+        t.dim()
+        # 4
+        ```
         """
         return self._poly.dim()
 
@@ -436,7 +591,16 @@ class Triangulation:
         None.
 
         **Returns:**
-        (boolean) The truth value of the triangulation being fine.
+        *(bool)* The truth value of the triangulation being fine.
+
+        **Example:**
+        We construct a triangulation and check if it is fine.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        t = p.triangulate()
+        t.is_fine()
+        # True
+        ```
         """
         if self._is_fine is not None:
             return self._is_fine
@@ -449,14 +613,23 @@ class Triangulation:
         Returns True if the triangulation is regular and False otherwise.
 
         **Arguments:**
-        - ```backend``` (string, optional): The optimizer used for the
+        - ```backend``` *(str, optional)*: The optimizer used for the
           computation. The available options are the backends of the
           [```is_solid```](./cone#is_solid) function of the
           [```Cone```](./cone) class. If not specified, it will be picked
           automatically.
 
         **Returns:**
-        (boolean) The truth value of the triangulation being regular.
+        *(bool)* The truth value of the triangulation being regular.
+
+        **Example:**
+        We construct a triangulation and check if it is regular.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        t = p.triangulate()
+        t.is_regular()
+        # True
+        ```
         """
         if self._is_regular is not None:
             return self._is_regular
@@ -470,18 +643,27 @@ class Triangulation:
         Returns True if the triangulation is star and False otherwise.
 
         **Arguments:**
-        - ```star_origin``` (integer, optional, default=0): The index of the
+        - ```star_origin``` *(int, optional, default=0)*: The index of the
           origin of the star triangulation
 
         **Returns:**
-        (boolean) The truth value of the triangulation being star.
+        *(bool)* The truth value of the triangulation being star.
+
+        **Example:**
+        We construct a triangulation and check if it is star.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        t = p.triangulate()
+        t.is_star()
+        # True
+        ```
         """
         if self._is_star is not None:
             return self._is_star
         self._is_star = all(star_origin in s for s in self._simplices)
         return self._is_star
 
-    def is_valid(self):
+    def is_valid(self, backend=None):
         """
         **Description:**
         Returns True if the presumed triangulation meets all requirements to be
@@ -489,10 +671,24 @@ class Triangulation:
         convex hull, and they cannot intersect at full-dimensional regions.
 
         **Arguments:**
-        None.
+        - ```backend``` *(str, optional)*: The optimizer used for the
+          computation. The available options are the backends of the
+          [```is_solid```](./cone#is_solid) function of the
+          [```Cone```](./cone) class. If not specified, it will be picked
+          automatically.
 
         **Returns:**
-        (boolean) The truth value of the triangulation being valid.
+        *(bool)* The truth value of the triangulation being valid.
+
+        **Example:**
+        This function is useful when constructing a triangulation from a given
+        set of simplices. We show this in this example.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        t = p.triangulate(simplices=[[0,1,2,3,4],[0,1,2,3,5],[0,1,2,4,5],[0,1,3,4,5],[0,2,3,4,5]]) # It is already used here unless using check_input_simplices=False
+        t.is_valid()
+        # True
+        ```
         """
         if self._is_valid is not None:
             return self._is_valid
@@ -507,7 +703,7 @@ class Triangulation:
             return self._is_valid
         # If the triangulation is presumably regular, then we can check if
         # heights inside the CPL cone yield the same triangulation.
-        if self.is_regular():
+        if self.is_regular(backend=backend):
             cpl = self.cpl_cone()
             heights = cpl.tip_of_stretched_cone(0.1)
             tmp_triang = Triangulation(self.points(), self.polytope(),
@@ -542,13 +738,25 @@ class Triangulation:
     def gkz_phi(self):
         """
         **Description:**
-        Returns the GKZ phi vector of the triangulation.
+        Returns the GKZ phi vector of the triangulation. The $i$-th component
+        is defined to be the sum of the volumes of the simplices that have the
+        $i$-th point as a vertex.
+        $\varphi^i=\sum_{\sigma\in\mathcal{T}|p_i\in\text{vert}(\sigma)}\text{vol}(\sigma)$
 
         **Arguments:**
         None.
 
         **Returns:**
-        (list) The GKZ phi vector of the triangulation.
+        *(numpy.ndarray)* The GKZ phi vector of the triangulation.
+
+        **Example:**
+        We construct a triangulation and find its GKZ vector.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        t = p.triangulate()
+        t.gkz_phi()
+        # array([18, 12,  9, 12, 12, 12, 15])
+        ```
         """
         if self._gkz_phi is not None:
             return np.array(self._gkz_phi)
@@ -572,24 +780,35 @@ class Triangulation:
         checking this with TOPCOM is very slow for large polytopes.
 
         **Arguments:**
-        - ```N``` (integer): The number of bistellar flips to perform.
-        - ```only_fine``` (boolean, optional): Restricts to flips to fine
+        - ```N``` *(int)*: The number of bistellar flips to perform.
+        - ```only_fine``` *(bool, optional)*: Restricts to flips to fine
           triangulations. If not specified, it is set to True if the
           triangulation is fine, and False otherwise.
-        - ```only_regular``` (boolean, optional): Restricts the flips to
+        - ```only_regular``` *(bool, optional)*: Restricts the flips to
           regular triangulations. If not specified, it is set to True if the
           triangulation is regular, and False otherwise.
-        - ```only_star``` (boolean, optional): Restricts the flips to star
+        - ```only_star``` *(bool, optional)*: Restricts the flips to star
           triangulations. If not specified, it is set to True if the
           triangulation is star, and False otherwise.
-        - ```backend``` (string, optional, default=None): The backend used to
+        - ```backend``` *(str, optional, default=None)*: The backend used to
           check regularity. The options are any backend available for the
           [```is_solid```](./cone#is_solid) function of the
-          [```Cone```](./cone) class.
+          [```Cone```](./cone) class. If not specified, it will be picked
+          automatically.
 
         **Returns:**
-        (Triangulation) A new triangulation obtained by performing N random
+        *(Triangulation)* A new triangulation obtained by performing N random
         flips.
+
+        **Example:**
+        We construct a triangulation and perform 5 random flips to find a new
+        triangulation.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]]).dual()
+        t = p.triangulate()
+        t.random_flips(5) # Takes a few seconds
+        # A fine, star triangulation of a 4-dimensional point configuration with 106 points in ZZ^4
+        ```
         """
         current_triang = self
         for n in range(N):
@@ -622,20 +841,31 @@ class Triangulation:
         large polytopes.
 
         **Arguments:**
-        - ```only_fine``` (boolean, optional, default=False): Restricts to fine
+        - ```only_fine``` *(bool, optional, default=False)*: Restricts to fine
           triangulations.
-        - ```only_regular``` (boolean, optional, default=False): Restricts the
+        - ```only_regular``` *(bool, optional, default=False)*: Restricts the
           to regular triangulations.
-        - ```only_star``` (boolean, optional, default=False): Restricts to star
+        - ```only_star``` *(bool, optional, default=False)*: Restricts to star
           triangulations.
-        - ```backend``` (string, optional, default=None): The backend used to
+        - ```backend``` *(str, optional, default=None)*: The backend used to
           check regularity. The options are any backend available for the
           [```is_solid```](./cone#is_solid) function of the
-          [```Cone```](./cone) class.
+          [```Cone```](./cone) class. If not specified, it will be picked
+          automatically.
 
         **Returns:**
-        (list) The list of triangulations that differ by one bistellar flip
+        *(list)* The list of triangulations that differ by one bistellar flip
         from the current triangulation.
+
+        **Example:**
+        We construct a triangulation and find its neighbor triangulations.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]]).dual()
+        t = p.triangulate()
+        triangs = t.neighbor_triangulations()
+        len(triangs) # Pring how many triangulations it found
+        # 263
+        ```
         """
         pts_str = str([list(pt)+[1] for pt in self._triang_pts])
         triang_str = str([list(s) for s in self._simplices]
@@ -673,10 +903,20 @@ class Triangulation:
         None.
 
         **Returns:**
-        (list) The Stanley-Reisner ideal of the triangulation.
+        *(numpy.ndarray)* The Stanley-Reisner ideal of the triangulation.
+
+        **Example:**
+        We construct a triangulation and find its SR ideal.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        t = p.triangulate()
+        t.sr_ideal()
+        # array([[1, 4, 5],
+        #        [2, 3, 6]])
+        ```
         """
         if self._sr_ideal is not None:
-            return copy.deepcopy(self._sr_ideal)
+            return np.array(self._sr_ideal)
         if not self.is_star():
             raise Exception("Triangulation is not star.")
         points = (frozenset(range(len(self._triang_pts))) - frozenset([self._origin_index]))
@@ -698,8 +938,8 @@ class Triangulation:
                                 in_SR = True
                     if k not in simplex_tuples[i+1] and not in_SR:
                         SR_ideal.add(k)
-        self._sr_ideal = sorted([sorted(s)for s in SR_ideal], key=lambda x: (len(x),x))
-        return copy.deepcopy(self._sr_ideal)
+        self._sr_ideal = np.array(sorted([sorted(s)for s in SR_ideal], key=lambda x: (len(x),x)))
+        return np.array(self._sr_ideal)
 
     def cpl_cone(self, backend=None,
                  include_points_not_in_triangulation=True):
@@ -708,29 +948,39 @@ class Triangulation:
         Computes the cone of strictly convex piecewise linear functions
         defining the triangulation. It is computed by finding the defining
         hyperplane equations. The triangulation is regular if and only if this
-        cone is solid (i.e. full-dimensional).
+        cone is solid (i.e. full-dimensional), in which case the points in the
+        interior correspond to heights that give rise to the triangulation.
 
         **Arguments:**
-        - ```backend``` (string, optional): Specifies how the cone is computed.
+        - ```backend``` *(str, optional)*: Specifies how the cone is computed.
           Options are "native", which uses a native implementation of an
           algorithm by Berglund, Katz and Klemm, or "topcom" which uses
           differences of GKZ vectors for the computation.
-        - ```include_points_not_in_triangulation``` (boolean, optional,
+        - ```include_points_not_in_triangulation``` *(bool, optional,
           default=True): This flag allows the exclusion of points that are
           not part of the triangulation. This can be done to check regularity
           faster, but this cannot be used if the actual cone in the secondary
           fan is needed.
 
         **Returns:**
-        (Cone) The CPL cone.
+        *(Cone)* The CPL cone.
+
+        **Example:**
+        We construct a triangulation and find its CPL cone.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        t = p.triangulate()
+        t.cpl_cone()
+        # A rational polyhedral cone in RR^7 defined by 3 hyperplanes normals
+        ```
         """
         backends = (None, "native", "topcom")
         if backend not in backends:
             raise Exception(f"Options for backend are: {backends}")
         if backend is None:
             backend = ("native" if self.is_fine() or not include_points_not_in_triangulation else "topcom")
-        if (backend == "native" and not self.is_fine() and not include_points_not_in_triangulation):
-            print("Warning: Native backend is not supported when not excluding"
+        if (backend == "native" and not self.is_fine() and include_points_not_in_triangulation):
+            print("Warning: Native backend is not supported when including "
                   "points that are not in the triangulation. Using TOPCOM...")
             backend = "topcom"
         args_id = 1*include_points_not_in_triangulation
@@ -788,7 +1038,16 @@ class Triangulation:
         None.
 
         **Returns:**
-        (ToricVariety) The toric variety arising from the triangulation.
+        *(ToricVariety)* The toric variety arising from the triangulation.
+
+        **Example:**
+        We construct a triangulation and obtain the resulting toric variety.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        t = p.triangulate()
+        t.get_toric_variety()
+        # A simplicial compact 4-dimensional toric variety with 9 affine patches
+        ```
         """
         if self._toricvariety is not None:
             return self._toricvariety
@@ -804,17 +1063,30 @@ class Triangulation:
         hypersurface on the toric variety defined by the fine, star, regular
         triangulation. If a nef-partition is specified then it returns the
         complete intersection Calabi-Yau that it specifies.
+
         :::note
         Only Calabi-Yau 3-fold hypersurfaces are fully supported. Other
-        dimensions require enabling the experimetal features of CYTools in the
-        [configuration](./configuration).
+        dimensions and CICYs require enabling the experimetal features of
+        CYTools. See [experimetal features](./experimental) for more details.
         :::
+
         **Arguments:**
-        - ```nef_partition``` (list, optional): A list of tuples of indices
-          specifying a nef-partition of the polytope, and defines a complete
-          intersection Calabi-Yau.
+        - ```nef_partition``` *(list, optional)*: A list of tuples of indices
+          specifying a nef-partition of the polytope, which correspondingly
+          defines a complete intersection Calabi-Yau.
+
         **Returns:**
-        (CalabiYau) The Calabi-Yau arising from the triangulation.
+        *(CalabiYau)* The Calabi-Yau arising from the triangulation.
+
+        **Example:**
+        We construct a triangulation and obtain the Calabi-Yau hypersurface in
+        the resulting toric variety.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        t = p.triangulate()
+        t.get_cy()
+        # A Calabi-Yau 3-fold hypersurface with h11=2 and h21=272 in a 4-dimensional toric variety
+        ```
         """
         return self.get_toric_variety().get_cy(nef_partition)
 
@@ -836,16 +1108,28 @@ def convert_to_star(simplices, facets, star_origin):
     :::
 
     **Arguments:**
-    - ```simplices``` (list): The list of simplices of the triangulation. Each
-      simplex consists of the list of indices of the points forming its
-      vertices.
-    - ```facets``` (list): The list of facets of the polytope. Each facet
+    - ```simplices``` *(array_like)*: The list of simplices of the
+      triangulation. Each simplex consists of the list of indices of the points
+      forming its vertices.
+    - ```facets``` *(list)*: The list of facets of the polytope. Each facet
       consists of the indices of the points in the facet.
-    - ```star_origin``` (integer): The index of the point that is used as the
+    - ```star_origin``` *(int)*: The index of the point that is used as the
       star origin.
 
     **Returns:**
-    (list) A list of simplices forming a star triangulation.
+    *(numpy.ndarray)* A list of simplices forming a star triangulation.
+
+    **Example:**
+    This function is not intended to be directly used, but it is used in the
+    following example. We input a triangulation that is not star and ask it to
+    turn it into a star triangulation.
+    ```python {4}
+    p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+    p.triangulate(simplices=[[1,2,3,4,6],[1,2,3,5,6],[2,3,4,5,6]]) # The input triangulation is not star
+    # A non-fine, regular, non-star triangulation of a 4-dimensional point configuration with 7 points in ZZ^4
+    p.triangulate(simplices=[[1,2,3,4,6],[1,2,3,5,6],[2,3,4,5,6]], make_star=True) # We can turn it into a star triangulation
+    # A fine, regular, star triangulation of a 4-dimensional point configuration with 7 points in ZZ^4
+    ```
     """
     star_triang = []
     triang = np.array(simplices)
@@ -870,12 +1154,21 @@ def qhull_triangulate(points, heights):
     :::
 
     **Arguments:**
-    - ```points``` (list): A list of points.
-    - ```heights``` (list): A list of heights defining the regular
+    - ```points``` *(array_like)*: A list of points.
+    - ```heights``` *(array_like)*: A list of heights defining the regular
       triangulation.
 
     **Returns:**
-    (list) A list of simplices defining a regular triangulation.
+    *(numpy.ndarray)* A list of simplices defining a regular triangulation.
+
+    **Example:**
+    This function is not intended to be directly used, but it is used in the
+    following example. We construct a triangulation using QHull.
+    ```python {2}
+    p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+    p.triangulate(backend="qhull")
+    # A fine, star triangulation of a 4-dimensional point configuration with 7 points in ZZ^4
+    ```
     """
     lifted_points = [tuple(points[i]) + (heights[i],)
                         for i in range(len(points))]
@@ -901,12 +1194,21 @@ def cgal_triangulate(points, heights):
     :::
 
     **Arguments:**
-    - ```points``` (list): A list of points.
-    - ```heights``` (list): A list of heights defining the regular
+    - ```points``` *(array_like)*: A list of points.
+    - ```heights``` *(array_like)*: A list of heights defining the regular
       triangulation.
 
     **Returns:**
-    (list) A list of simplices defining a regular triangulation.
+    *(numpy.ndarray)* A list of simplices defining a regular triangulation.
+
+    **Example:**
+    This function is not intended to be directly used, but it is used in the
+    following example. We construct a triangulation using CGAL.
+    ```python {2}
+    p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+    p.triangulate(backend="cgal")
+    # A fine, star triangulation of a 4-dimensional point configuration with 7 points in ZZ^4
+    ```
     """
     dim = points.shape[1]
     if dim > 6:
@@ -939,10 +1241,19 @@ def topcom_triangulate(points):
     :::
 
     **Arguments:**
-    - ```points``` (list): A list of points.
+    - ```points``` *(array_like)*: A list of points.
 
     **Returns:**
-    (list) A list of simplices defining a triangulation.
+    *(numpy.ndarray)* A list of simplices defining a triangulation.
+
+    **Example:**
+    This function is not intended to be directly used, but it is used in the
+    following example. We construct a triangulation using TOMCOM.
+    ```python {2}
+    p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+    p.triangulate(backend="topcom")
+    # A fine, star triangulation of a 4-dimensional point configuration with 7 points in ZZ^4
+    ```
     """
     topcom_bin = config.topcom_path + "/topcom-points2finetriang"
     topcom = subprocess.Popen((topcom_bin, "--regular"), stdin=subprocess.PIPE,
@@ -973,27 +1284,46 @@ def all_triangulations(points, only_fine=False, only_regular=False,
     :::
 
     **Arguments:**
-    - ```points``` (list): The list of points to be triangulated.
-    - ```only_fine``` (boolean, optional, default=False): Restricts to fine
-      triangulations.
-    - ```only_regular``` (boolean, optional, default=False): Restricts to
-      regular triangulations.
-    - ```only_star``` (boolean, optional, default=False): Restricts to star
-      triangulations.
-    - ```star_origin``` (int, optional): The index of the point used as the
-      star origin. It needs to be specified if only_star=True.
-    - ```backend``` (string, optional): The optimizer used to check
+    - ```points``` *(array_like)*: The list of points to be triangulated.
+    - ```only_fine``` *(bool, optional, default=True)*: Restricts to only
+      fine triangulations.
+    - ```only_regular``` *(bool, optional, default=True)*: Restricts to
+      only regular triangulations.
+    - ```only_star``` *(bool, optional, default=True)*: Restricts to only
+        star triangulations.
+    - ```star_origin``` *(int, optional)*: The index of the point that
+      will be used as the star origin. If the polytope is reflexive this
+      is set to 0, but otherwise it must be specified.
+    - ```backend``` *(str, optional)*: The optimizer used to check
       regularity computation. The available options are the backends of the
       [```is_solid```](./cone#is_solid) function of the
       [```Cone```](./cone) class. If not specified, it will be picked
       automatically. Note that TOPCOM is not used to check regularity since
-      it is slower.
-    - ```poly``` (Polytope, optional): The ambient polytope. It is constructed
-      if not specified.
+      it is much slower.
+    - ```poly``` *(Polytope, optional)*: The ambient polytope. It is
+      constructed if not specified.
 
     **Returns:**
-    (generator) a generator of [Triangulation](./triangulation) objects with
+    *(generator)* A generator of [Triangulation](./triangulation) objects with
     the specified properties.
+
+    **Example:**
+    This function is not intended to be directly used, but it is used in the
+    following example. We construct a polytope and find all of its
+    triangulations. We try picking different restrictions and see how the
+    number of triangulations changes.
+    ```python {2,7,9}
+    p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-2,-1,-1],[-2,-1,-1,-1]])
+    g = p.all_triangulations()
+    next(g) # Takes some time while TOPCOM finds all the triangulations
+    # A fine, regular, star triangulation of a 4-dimensional point configuration with 7 points in ZZ^4
+    next(g) # Produces the next triangulation immediately
+    # A fine, regular, star triangulation of a 4-dimensional point configuration with 7 points in ZZ^4
+    len(p.all_triangulations(as_list=True)) # Number of fine, regular, star triangulations
+    # 2
+    len(p.all_triangulations(only_regular=False, only_star=False, only_fine=False, as_list=True) )# Number of triangularions, no matter if fine, regular, or star
+    # 6
+    ```
     """
     if only_star and star_origin is None:
         raise Exception("The star_origin parameter must be specified when "
@@ -1047,29 +1377,48 @@ def random_triangulations_fast_generator(triang_pts, N=None, c=0.2,
     :::
 
     **Arguments:**
-    - ```triang_pts``` (list): The list of points to be triangulated.
-    - ```N``` (integer, optional): Number of desired unique triangulations. If
+    - ```triang_pts``` *(array_like)*: The list of points to be triangulated.
+    - ```N``` *(int, optional)*: Number of desired unique triangulations. If
       not specified, it will generate as many triangulations as it can find
       until it has to retry more than max_retries times to obtain a new
       triangulation.
-    - ```c``` (float, optional, default=0.2): A contant used as the standard
+    - ```c``` *(float, optional, default=0.2)*: A contant used as the standard
       deviation of the Gaussian distribution used to pick the heights. A
       larger c results in a wider range of possible triangulations, but with a
       larger fraction of them being non-fine, which slows down the process when
       using only_fine=True.
-    - ```max_retries``` (integer, optional, default=50): Maximum number of
+    - ```max_retries``` *(int, optional, default=50)*: Maximum number of
       attempts to obtain a new triangulation before the process is terminated.
-    - ```make_star``` (boolean, optional, default=False): Converts the obtained
+    - ```make_star``` *(bool, optional, default=False)*: Converts the obtained
       triangulations into star triangulations.
-    - ```only_fine``` (boolean, optional, default=True): Restricts to fine
+    - ```only_fine``` *(bool, optional, default=True)*: Restricts to fine
       triangulations.
-    - ```backend``` (string, optional, default="cgal"): Specifies the
+    - ```backend``` *(str, optional, default="cgal")*: Specifies the
       backend used to compute the triangulation. The available options are
       "cgal" and "qhull".
+    - ```poly``` *(Polytope, optional)*: The ambient polytope. It is
+      constructed if not specified.
 
     **Returns:**
-    (generator) A generator of [```Triangulation```](./triangulation) objects
+    *(generator)* A generator of [```Triangulation```](./triangulation) objects
     with the specified properties.
+
+    **Example:**
+    This function is not intended to be directly used, but it is used in the
+    following example. We construct a polytope and find some random
+    triangulations. The triangulations are obtained very quicly, but they are
+    not a fair sample of the space of triangulations. For a fair sample, the
+    [```random_triangulations_fair```](./polytope#random_triangulations_fair)
+    function should be used.
+    ```python {2,7}
+    p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]]).dual()
+    g = p.random_triangulations_fast()
+    next(g) # Runs very quickly
+    # A fine, regular, star triangulation of a 4-dimensional point configuration with 106 points in ZZ^4
+    next(g) # Keeps producing triangulations until it has trouble finding more
+    # A fine, regular, star triangulation of a 4-dimensional point configuration with 106 points in ZZ^4
+    rand_triangs = p.random_triangulations_fast(N=10, as_list=True) # Produces the list of 10 triangulations very quickly
+    ```
     """
     triang_pts = np.array(triang_pts)
     triang_hashes = set()
@@ -1099,8 +1448,9 @@ def random_triangulations_fair_generator(triang_pts, N=None, n_walk=10, n_flip=1
                     make_star=False, backend="cgal", poly=None):
     """
     **Description:**
-    Returns a pseudorandom list of regular triangulations of a given point set.
-    Implements Algorithm \#3 from the paper
+    Constructs pseudorandom regular (optionally fine and star)
+    triangulations of a given point set. Implements Algorithm \#3 from the
+    paper
     *Bounding the Kreuzer-Skarke Landscape*
     by Mehmet Demirtas, Liam McAllister, and Andres Rios-Tascon.
     [arXiv:2008.01730](https://arxiv.org/abs/2008.01730)
@@ -1113,7 +1463,7 @@ def random_triangulations_fair_generator(triang_pts, N=None, n_walk=10, n_flip=1
     :::note notes
     - This function is not intended to be called by the end user. Instead, it
       is used by the
-      [random_triangulations_fast](./polytope#random_triangulations_fast)
+      [random_triangulations_fair](./polytope#random_triangulations_fair)
       function of the [Polytope](./polytope) class.
     - This function is designed mainly for large polytopes where sampling
       triangulations is challenging. When small polytopes are used it is likely
@@ -1121,41 +1471,66 @@ def random_triangulations_fair_generator(triang_pts, N=None, n_walk=10, n_flip=1
     :::
 
     **Arguments:**
-    - ```triang_pts``` (list): The list of points to be triangulated.
-    - ```N``` (integer, optional): Number of desired unique triangulations. If
+    - ```triang_pts``` *(array_like)*: The list of points to be triangulated.
+    - ```N``` *(int, optional)*: Number of desired unique triangulations. If
       not specified, it will generate as many triangulations as it can find
       until it has to retry more than max_retries times to obtain a new
       triangulation.
-    - ```n_walk``` (integer, optional, default=10): Number of hit-and-run steps
+    - ```n_walk``` *(int, optional, default=10)*: Number of hit-and-run steps
       per triangulation.
-    - ```n_flip``` (integer, optional, default=10): Number of random flips
+    - ```n_flip``` *(int, optional, default=10)*: Number of random flips
       performed per triangulation.
-    - ```initial_walk_steps``` (integer, optional, default=20): Number of
+    - ```initial_walk_steps``` *(int, optional, default=20)*: Number of
       hit-and-run steps to take before starting to record triangulations. Small
       values may result in a bias towards Delaunay-like triangulations.
-    - ```walk_step_size``` (float, optional, default=1e-2): Determines size of
-      random steps taken in the secondary fan. Algorithm may stall if too
+    - ```walk_step_size``` *(float, optional, default=1e-2)*: Determines size
+      of random steps taken in the secondary fan. Algorithm may stall if too
       small.
-    - ```max_steps_to_wall``` (integer, optional, default=10): Maximum number
+    - ```max_steps_to_wall``` *(int, optional, default=10)*: Maximum number
       of steps to take towards a wall of the subset of the secondary fan that
       correspond to fine triangulations. If a wall is not found, a new random
       direction is selected. Setting this to be very large (>100) reduces
       performance. If this, or walk_step_size, is set to be too low, the
       algorithm may stall.
-    - ```fine_tune_steps``` (integer, optional, default=8): Number of steps to
+    - ```fine_tune_steps``` *(int, optional, default=8)*: Number of steps to
       determine the location of a wall. Decreasing improves performance, but
       might result in biased samples.
-    - ```max_retries``` (integer, optional, default=50): Maximum number of
+    - ```max_retries``` *(int, optional, default=50)*: Maximum number of
       attempts to obtain a new triangulation before the process is terminated.
-    - ```make_star``` (boolean, optional, default=False): Converts the obtained
+    - ```make_star``` *(bool, optional, default=False)*: Converts the obtained
       triangulations into star triangulations.
-    - ```backend``` (string, optional, default="cgal"): Specifies the
+    - ```backend``` *(str, optional, default="cgal")*: Specifies the
       backend used to compute the triangulation. The available options are
       "cgal" and "qhull".
+    - ```poly``` *(Polytope, optional)*: The ambient polytope. It is
+      constructed if not specified.
 
     **Returns:**
-    (generator) A generator of [```Triangulation```](./triangulation) objects
+    *(generator)* A generator of [```Triangulation```](./triangulation) objects
     with the specified properties.
+
+    **Example:**
+    This function is not intended to be directly used, but it is used in the
+    following example. We construct a polytope and find some random
+    triangulations. The computation takes considerable time, but they should be
+    a fair sample from the full set of triangulations (if the parameters are
+    chosen correctly). For (some) machine learning purposes or when the
+    fairness of the sample is not crucial, the
+    [```random_triangulations_fast```](./polytope#random_triangulations_fast)
+    function should be used instead.
+    ```python {2,7}
+    p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]]).dual()
+    g = p.random_triangulations_fast()
+    next(g) # Takes a long time (around a minute)
+    # A fine, regular, star triangulation of a 4-dimensional point configuration with 106 points in ZZ^4
+    next(g) # Takes slightly shorter (still around a minute)
+    # A fine, regular, star triangulation of a 4-dimensional point configuration with 106 points in ZZ^4
+    rand_triangs = p.random_triangulations_fair(N=10, as_list=True) # Produces the list of 10 triangulations, but takes a long time (around 10 minutes)
+    ```
+    It is worth noting that the time it takes to obtain each triangulation
+    varies very significantly on the parameters used. The function tries to
+    guess reasonable parameters, but it is better to adjust them to your
+    desired balance between speed and fairness of the sampling.
     """
     triang_hashes = set()
     triang_pts = np.array(triang_pts)

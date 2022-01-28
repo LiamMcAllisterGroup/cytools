@@ -39,10 +39,13 @@ class Cone:
     such cone duality and extremal ray computations. It is mainly used for the
     study of Kähler and Mori cones.
 
-    :::note
+    :::important warning
     This class is primarily taylored to pointed (i.e. strongly convex) cones.
     There are a few computations, such as finding extremal rays, that may
     produce some unexpected results when working with non-pointed cones.
+    Additionally, cones that are not pointed, and whose dual is also not
+    pointed, are not supported since they are uncommon and difficult to deal
+    with.
     :::
 
     ## Constructor
@@ -54,13 +57,14 @@ class Cone:
     [```__init__```](#__init__) function.
 
     **Arguments:**
-    - ```rays``` (list, optional): A list of rays that generates the cone. If
-      it is not specified then the hyperplane normals must be specified.
-    - ```hyperplanes``` (list, optional): A list of inward-pointing hyperplane
-      normals that define the cone. If it is not specified then the generating
-      rays must be specified.
-    - ```check``` (boolean, optional): Whether to check the input. Recommended
-      if constructing a cone directly.
+    - ```rays``` *(array_like, optional)*: A list of rays that generates
+      the cone. If it is not specified then the hyperplane normals must be
+      specified.
+    - ```hyperplanes``` *(array_like, optional)*: A list of inward-pointing
+      hyperplane normals that define the cone. If it is not specified then the
+      generating rays must be specified.
+    - ```check``` *(bool, optional, default=True)*: Whether to check the input.
+      Recommended if constructing a cone directly.
 
     :::note
     Exactly one of ```rays``` or ```hyperplanes``` must be specified. Otherwise
@@ -73,10 +77,10 @@ class Cone:
     the same cone.
     ```python {2,3}
     from cytools import Cone
-    c1 = Cone([[0,1],[1,1]])              # Create a cone using rays. It can also be done with Cone(rays=[[0,1],[1,1]])
+    c1 = Cone([[0,1],[1,1]]) # Create a cone using rays. It can also be done with Cone(rays=[[0,1],[1,1]])
     c2 = Cone(hyperplanes=[[1,0],[-1,1]]) # Ceate a cone using hyperplane normals.
-    c1 == c2                              # We verify that the two cones are the same.
-    # Prints: True
+    c1 == c2 # We verify that the two cones are the same.
+    # True
     ```
     """
 
@@ -86,13 +90,14 @@ class Cone:
         Initializes a ```Cone``` object.
 
         **Arguments:**
-        - ```rays``` (list, optional): A list of rays that generates the cone.
-          If it is not specified then the hyperplane normals must be specified.
-        - ```hyperplanes``` (list, optional): A list of inward-pointing
+        - ```rays``` *(array_like, optional)*: A list of rays that generates
+          the cone. If it is not specified then the hyperplane normals must be
+          specified.
+        - ```hyperplanes``` *(array_like, optional)*: A list of inward-pointing
           hyperplane normals that define the cone. If it is not specified then
           the generating rays must be specified.
-        - ```check``` (boolean, optional): Whether to check the input.
-          Recommended if constructing a cone directly.
+        - ```check``` *(bool, optional, default=True)*: Whether to check the
+          input. Recommended if constructing a cone directly.
 
         :::note
         Exactly one of ```rays``` or ```hyperplanes``` must be specified.
@@ -101,6 +106,19 @@ class Cone:
 
         **Returns:**
         Nothing.
+
+        **Example:**
+        This is the function that is called when creating a new
+        ```Cone``` object. We construct a cone in two different ways. First
+        from a list of rays then from a list of hyperplane normals. We verify
+        that the two inputs result in the same cone.
+        ```python {2,3}
+        from cytools import Cone
+        c1 = Cone([[0,1],[1,1]]) # Create a cone using rays. It can also be done with Cone(rays=[[0,1],[1,1]])
+        c2 = Cone(hyperplanes=[[1,0],[-1,1]]) # Ceate a cone using hyperplane normals.
+        c1 == c2 # We verify that the two cones are the same.
+        # True
+        ```
         """
         if not ((rays is None) ^ (hyperplanes is None)):
             raise Exception("Exactly one of \"rays\" and \"hyperplanes\" "
@@ -198,6 +216,20 @@ class Cone:
 
         **Returns:**
         Nothing.
+
+        **Example:**
+        We construct a cone, compute its extremal rays, clear the cache
+        and then compute them again.
+        ```python {5}
+        c = Cone([[1,0],[1,1],[0,1]])
+        c.extremal_rays()
+        # array([[0, 1],
+        #        [1, 0]])
+        c.clear_cache() # Clears the cached result
+        c.extremal_rays() # The extremal rays recomputed
+        # array([[0, 1],
+        #        [1, 0]])
+        ```
         """
         self._hash = None
         self._dual = None
@@ -220,7 +252,17 @@ class Cone:
         None.
 
         **Returns:**
-        (string) A string describing the polytope.
+        *(str)* A string describing the polytope.
+
+        **Example:**
+        This function can be used to convert the Cone to a string or to print
+        information about the cone.
+        ```python {2,3}
+        c = Cone([[1,0],[1,1],[0,1]])
+        cone_info = str(c) # Converts to string
+        print(c) # Prints cone info
+        # A 2-dimensional rational polyhedral cone in RR^2 generated by 3 rays
+        ```
         """
         if self._rays is not None:
             return (f"A {self._dim}-dimensional rational polyhedral cone in "
@@ -240,10 +282,19 @@ class Cone:
         :::
 
         **Arguments:**
-        - ```other``` (Cone): The other cone that is being compared.
+        - ```other``` *(Cone)*: The other cone that is being compared.
 
         **Returns:**
-        (boolean) The truth value of the cones being equal.
+        *(bool)* The truth value of the cones being equal.
+
+        **Example:**
+        We construct two cones and compare them.
+        ```python {3}
+        c1 = Cone([[0,1],[1,1]])
+        c2 = Cone(hyperplanes=[[1,0],[-1,1]])
+        c1 == c2
+        # True
+        ```
         """
         if not isinstance(other, Cone):
             return NotImplemented
@@ -280,10 +331,19 @@ class Cone:
         :::
 
         **Arguments:**
-        - ```other``` (Cone): The other cone that is being compared.
+        - ```other``` *(Cone)*: The other cone that is being compared.
 
         **Returns:**
-        (boolean) The truth value of the cones being different.
+        *(bool)* The truth value of the cones being different.
+
+        **Example:**
+        We construct two cones and compare them.
+        ```python {3}
+        c1 = Cone([[0,1],[1,1]])
+        c2 = Cone(hyperplanes=[[1,0],[-1,1]])
+        c1 != c2
+        # False
+        ```
         """
         if not isinstance(other, Cone):
             return NotImplemented
@@ -303,7 +363,17 @@ class Cone:
         None.
 
         **Returns:**
-        (integer) The hash value of the cone.
+        *(int)* The hash value of the cone.
+
+        **Example:**
+        We compute the hash value of a cone. Also, we construct a set and a
+        dictionary with a cone, which make use of the hash function.
+        ```python {2,3,4}
+        c = Cone([[0,1],[1,1]])
+        h = hash(c) # Obtain hash value
+        d = {c: 1} # Create dictionary with cone keys
+        s = {c} # Create a set of cones
+        ```
         """
         if self._hash is not None:
             return self._hash
@@ -330,7 +400,15 @@ class Cone:
         None.
 
         **Returns:**
-        (integer) The dimension of the ambient lattice.
+        *(int)* The dimension of the ambient lattice.
+
+        **Example:**
+        We construct a cone and find the dimension of the ambient lattice.
+        ```python {2}
+        c = Cone([[0,1,0],[1,1,0]])
+        c.ambient_dim()
+        # 3
+        ```
         """
         return self._ambient_dim
 
@@ -343,7 +421,15 @@ class Cone:
         None.
 
         **Returns:**
-        (integer) The dimension of the cone.
+        *(int)* The dimension of the cone.
+
+        **Example:**
+        We construct a cone and find its dimension.
+        ```python {2}
+        c = Cone([[0,1,0],[1,1,0]])
+        c.dim()
+        # 2
+        ```
         """
         if self._dim is not None:
             return self._dim
@@ -362,7 +448,20 @@ class Cone:
         None.
 
         **Returns:**
-        (list) The list of rays that generate the cone.
+        *(numpy.ndarray)* The list of rays that generate the cone.
+
+        **Example:**
+        We construct two cones and find their generating rays.
+        ```python {3,6}
+        c1 = Cone([[0,1],[1,1]])
+        c2 = Cone(hyperplanes=[[0,1],[1,1]])
+        c1.rays()
+        # array([[0, 1],
+        #        [1, 1]])
+        c2.rays()
+        # array([[ 1,  0],
+        #        [-1,  1]])
+        ```
         """
         if self._ext_rays is not None:
             return np.array(self._ext_rays)
@@ -399,8 +498,21 @@ class Cone:
         None.
 
         **Returns:**
-        (list) The list of inward-pointing normals to the hyperplanes that
-        define the cone.
+        *(numpy.ndarray)* The list of inward-pointing normals to the
+        hyperplanes that define the cone.
+
+        **Example:**
+        We construct two cones and find their hyperplane normals.
+        ```python {3,6}
+        c1 = Cone([[0,1],[1,1]])
+        c2 = Cone(hyperplanes=[[0,1],[1,1]])
+        c1.hyperplanes()
+        # array([[ 1,  0],
+        #        [-1,  1]])
+        c2.hyperplanes()
+        # array([[0, 1],
+        #        [1, 1]])
+        ```
         """
         if self._hyperplanes is not None:
             return np.array(self._hyperplanes)
@@ -431,7 +543,18 @@ class Cone:
         None.
 
         **Returns:**
-        (Cone) The dual cone.
+        *(Cone)* The dual cone.
+
+        **Example:**
+        We construct a cone and find its dual cone.
+        ```python {2,4}
+        c = Cone([[0,1],[1,1]])
+        c.dual()
+        # A rational polyhedral cone in RR^2 defined by 2 hyperplanes normals
+        c.dual().rays()
+        # array([[ 1,  0],
+        #        [-1,  1]])
+        ```
         """
         if self._dual is None:
             if self._rays is not None:
@@ -447,17 +570,26 @@ class Cone:
         Returns the extremal rays of the cone.
 
         **Arguments:**
-        - ```tol``` (float, optional, default=1e-4): Specifies the tolerance
+        - ```tol``` *(float, optional, default=1e-4)*: Specifies the tolerance
           for deciding whether a ray is extremal or not.
-        - ```n_threads``` (integer, optional): Specifies the number of CPU
+        - ```n_threads``` *(int, optional)*: Specifies the number of CPU
           threads to be used in the computation. Using multiple threads can
           greatly speed up the computation. If not specified, it is set to the
           number of available CPU threads.
-        - verbose (boolean, optional, default=False): When set to True it show
-          the progress in finding the extremal rays.
+        - verbose *(bool, optional, default=False)*: When set to True it show
+          the progress while finding the extremal rays.
 
         **Returns:**
-        (list) The list of extremal rays of the cone.
+        *(numpy.ndarray)* The list of extremal rays of the cone.
+
+        **Example:**
+        We construct a cone and find its extremal_rays.
+        ```python {2}
+        c = Cone([[0,1],[1,1],[1,0]])
+        c.extremal_rays()
+        # array([[0, 1],
+        #        [1, 0]])
+        ```
         """
         if self._ext_rays is not None:
             return np.array(self._ext_rays)
@@ -534,30 +666,54 @@ class Cone:
         hyperplanes.
 
         **Arguments:**
-        - ```c``` (float): A real positive number specifying the stretching of
-          the cone (i.e. the minimum distance to the defining hyperplanes).
-        - ```backend``` (string, optional, default="all"): String that
-          specifies the optimizer to use. Options are "all", "mosek" and
+        - ```c``` *(float)*: A real positive number specifying the stretching
+          of the cone (i.e. the minimum distance to the defining hyperplanes).
+        - ```backend``` *(str, optional, default="all")*: String that
+          specifies the optimizer to use. Options are "all", "mosek", and
           "cvxopt".
-        - ```checks``` (boolean, optional, default=True): Flag that specifies
+        - ```checks``` *(bool, optional, default=True)*: Flag that specifies
           whether to check if the output of the optimizer is consistent and
           satisfies constraint_error_tol.
-        - ```constraint_error_tol``` (float, optional, default=1e-4): Error
+        - ```constraint_error_tol``` *(float, optional, default=1e-4)*: Error
           tolerence for the linear constraints.
-        - ```verbose``` (integer, optional, default=0): The verbosity level.
+        - ```verbose``` *(int, optional, default=0)*: The verbosity level.
           - verbose = 0: Do not print anything.
           - verbose = 1: Print warnings when optimizers fail.
 
         **Returns:**
-        (tuple) A tuple with two components. The first one is a float that
-        specifies the distance to the tip of the stretched cone, and the second
-        one is a vector specifying the location.
+        *(numpy.ndarray)* The vector specifying the location of the tip.
+
+        **Example:**
+        We construct two cones and find the locations of the tips of the
+        stretched cones.
+        ```python {3,5}
+        c1 = Cone([[1,0],[0,1]])
+        c2 = Cone([[3,2],[5,3]])
+        c1.tip_of_stretched_cone(1)
+        # array([1., 1.])
+        c2.tip_of_stretched_cone(1)
+        # array([7.99999991, 4.99999994])
+        ```
         """
-        backends = ['all', 'mosek', 'cvxopt']
+        backends = ["all", "mosek", "cvxopt"]
         if backend not in backends:
             raise Exception("Invalid backend. "
                         f"The options are: {backends}.")
+        if backend == "all":
+            for b in backends[1:]:
+                if b == "mosek" and not config.mosek_is_activated:
+                    continue
+                solution = self.tip_of_stretched_cone(c,backend=b, check=check,
+                    constraint_error_tol=constraint_error_tol, verbose=verbose)
+                if solution is not None:
+                    return solution
+            raise Exception("All available quadratic programming backends "
+                            "have failed.")
+        if backend == "mosek" and not config.mosek_is_activated:
+            raise Exception("Mosek is not activated. See the website for how "
+                            "to activate it.")
         hp = self.hyperplanes()
+        optimization_done = False
         ## The problem is defined as:
         ## Minimize (1/2) x.Q.x + p.x
         ## Subject to G.x <= h
@@ -569,62 +725,39 @@ class Cone:
         p_cvxopt = cvxopt.matrix(p)
         h_cvxopt = cvxopt.matrix(h)
         G_cvxopt = cvxopt.matrix(G)
-        optimization_done = False
-        if backend == "all":
-            for b in backends[1:]:
-                if b == "mosek" and not config.mosek_is_activated:
-                    continue
-                solution = self.tip_of_stretched_cone(c,backend=b, check=check,
-                    constraint_error_tol=constraint_error_tol, verbose=verbose)
-                if solution is not None:
-                    return solution
-            raise Exception("All available quadratic programming backends "
-                            "have failed.")
         if backend == "mosek":
             cvxopt.solvers.options["mosek"] = {mosek.iparam.num_threads: 1,
                                                mosek.iparam.log: 0}
-            try:
-                solution = cvxopt.solvers.qp(Q_cvxopt, p_cvxopt, G_cvxopt,
-                                             h_cvxopt, solver="mosek")
-                assert solution["status"] == "optimal"
-            except:
-                if verbose >= 1:
-                    print("Quadratic programming error: mosek failed. "
-                          f"Returned status: {solution['status']}")
-            else:
-                optimization_done = True
-                solution_x = [x[0] for x in np.array(solution["x"]).tolist()]
-                solution_val = solution["primal objective"]
-        elif backend == "cvxopt":
+        else:
             cvxopt.solvers.options["abstol"] = 1e-4
             cvxopt.solvers.options["reltol"] = 1e-4
             cvxopt.solvers.options["feastol"] = 1e-2
             cvxopt.solvers.options["maxiters"] = 1000
             cvxopt.solvers.options["show_progress"] = False
-            try:
-                solution = cvxopt.solvers.qp(Q_cvxopt, p_cvxopt, G_cvxopt,
-                                             h_cvxopt)
-                assert solution["status"] == "optimal"
-            except:
-                if verbose >= 1:
-                    print("Quadratic programming error: cvxopt failed. "
-                          f"Returned status: {solution['status']}")
-            else:
-                optimization_done = True
-                solution_x = [x[0] for x in np.array(solution["x"]).tolist()]
-                solution_val = solution["primal objective"]
+        try:
+            solution = cvxopt.solvers.qp(Q_cvxopt, p_cvxopt, G_cvxopt,
+                                         h_cvxopt, solver=("mosek" if backend=="mosek" else None))
+            assert solution["status"] == "optimal"
+        except:
+            if verbose >= 1:
+                print(f"Quadratic programming error: {backend} failed. "
+                      f"Returned status: {solution['status']}")
+        else:
+            optimization_done = True
+            solution_x = [x[0] for x in np.array(solution["x"]).tolist()]
+            solution_val = solution["primal objective"]
         if optimization_done and check:
             res = max(np.dot(G, solution_x)) + c
             if res > constraint_error_tol or solution_val < 0:
                 optimization_done = False
-                raise Exception("Quadratic programming error: "
-                                "Large numerical error. Try raising "
-                                "constraint_error_tol, or using a different "
-                                "backend")
+                if verbose >= 1:
+                    print("Quadratic programming error: Large numerical "
+                          "error. Try raising constraint_error_tol, or "
+                          "using a different backend")
         if optimization_done:
             return np.array(solution_x)
 
-    def is_solid(self, backend=None, c=0.01):
+    def is_solid(self, backend=None, c=0.01, verbose=0):
         """
         **Description:**
         Returns True if the cone is solid, i.e. if it is full-dimensional.
@@ -643,24 +776,37 @@ class Cone:
         :::
 
         **Arguments:**
-        - ```backend``` (string, optional): Specifies which backend to use.
+        - ```backend``` *(str, optional)*: Specifies which backend to use.
           Available options are "ppl", "ortools", and any backends available
           for the [```tip_of_stretched_cone```](#tip_of_stretched_cone)
-          function. If not specified, it uses Mosek if it is activated, or
-          ORTools otherwise.
-        - ```c``` (float, optional, default=0.01): A number used to create the
-          stretched cone and try to find the tip. This is ignored when using
-          PPL as the backend.
+          function. If not specified, it tries all available backends.
+        - ```c``` *(float, optional, default=0.01)*: A number used to create
+          the stretched cone and try to find the tip. This is ignored when
+          using PPL as the backend.
+        - ```verbose``` *(int, optional, default=0)*: The verbosity level.
+          - verbose = 0: Do not print anything.
+          - verbose = 1: Print warnings when optimizers fail.
 
         **Returns:**
-        (boolean) The truth value of the cone being solid.
+        *(bool)* The truth value of the cone being solid.
+
+        **Example:**
+        We construct two cones and check if they are solid.
+        ```python {3,5}
+        c1 = Cone([[1,0],[0,1]])
+        c2 = Cone([[1,0,0],[0,1,0]])
+        c1.is_solid()
+        # True
+        c2.is_solid()
+        # False
+        ```
         """
         if self._is_solid is not None:
             return self._is_solid
         if self._rays is not None:
             return np.linalg.matrix_rank(self._rays) == self._ambient_dim
         if backend is None:
-            backend = ("all" if config.mosek_is_activated else "ortools")
+            backend = ("mosek" if config.mosek_is_activated else "ortools")
         if backend == "ppl":
             cs = ppl.Constraint_System()
             vrs = [ppl.Variable(i) for i in range(self._ambient_dim)]
@@ -698,16 +844,18 @@ class Cone:
                     self._is_solid = False
                     return self._is_solid
                 else:
-                    print(f"Solver returned status: {status}. Trying again.")
+                    if verbose >= 1:
+                        print(f"Solver returned status: {status}. Trying again.")
                     solve_ctr += 1
-            print("Linear solver failed too many times. "
-                  "Assuming problem infeasible.")
+            if verbose >= 1:
+                print("Linear solver failed too many times. "
+                      "Assuming problem infeasible.")
             self._is_solid = False
             return self._is_solid
         if backend in ("all", "mosek", "cvxopt"):
             opt_res = None
             try:
-                opt_res = self.tip_of_stretched_cone(c, backend=backend)
+                opt_res = self.tip_of_stretched_cone(c, backend=backend, verbose=verbose)
             except:
                 pass
             self._is_solid = opt_res is not None
@@ -729,16 +877,27 @@ class Cone:
         :::
 
         **Arguments:**
-        - ```backend``` (string, optional): Specifies which backend to use.
+        - ```backend``` *(str, optional)*: Specifies which backend to use.
           Available options are "nnls", and any backends available for the
           [```is_solid```](#is_solid) function. If not specified, it uses
           the default backend for the [```is_solid```](#is_solid) function.
-        - ```tol``` (float, optional, default=1e-7): The tolerance for
+        - ```tol``` *(float, optional, default=1e-7)*: The tolerance for
           determining when a linear subspace is found. This is only used for
           the NNLS backend.
 
         **Returns:**
-        (boolean) The truth value of the cone being pointed.
+        *(bool)* The truth value of the cone being pointed.
+
+        **Example:**
+        We construct two cones and check if they are pointed.
+        ```python {3,5}
+        c1 = Cone([[1,0],[0,1]])
+        c2 = Cone([[1,0],[0,1],[-1,0]])
+        c1.is_pointed()
+        # True
+        c2.is_pointed()
+        # False
+        ```
         """
         if self._is_pointed is not None:
             return self._is_pointed
@@ -763,7 +922,18 @@ class Cone:
         None.
 
         **Returns:**
-        (boolean) The truth value of the cone being simplicial.
+        *(bool)* The truth value of the cone being simplicial.
+
+        **Example:**
+        We construct two cones and check if they are simplicial.
+        ```python {3,5}
+        c1 = Cone([[1,0,0],[0,1,0],[0,0,1]])
+        c2 = Cone([[1,0,0],[0,1,0],[0,0,1],[1,1,-1]])
+        c1.is_simplicial()
+        # True
+        c2.is_simplicial()
+        # False
+        ```
         """
         if self._is_simplicial is not None:
             return self._is_simplicial
@@ -780,7 +950,18 @@ class Cone:
         None.
 
         **Returns:**
-        (boolean) The truth value of the cone being smooth.
+        *(bool)* The truth value of the cone being smooth.
+
+        **Example:**
+        We construct two cones and check if they are smooth.
+        ```python {3,5}
+        c1 = Cone([[1,0,0],[0,1,0],[0,0,1]])
+        c2 = Cone([[2,0,1],[0,1,0],[1,0,2]])
+        c1.is_smooth()
+        # True
+        c2.is_smooth()
+        # False
+        ```
         """
         if self._is_smooth is not None:
             return self._is_smooth
@@ -800,14 +981,25 @@ class Cone:
     def intersection(self, other):
         """
         **Description:**
-        Computes the intersection with another cone.
+        Computes the intersection with another cone, or with a list of cones.
 
         **Arguments:**
-        - ```other``` (Cone or list): The other cone that is being intersected,
-          or a list of cones to intersect with.
+        - ```other``` *(Cone or array_like)*: The other cone that is being
+          intersected, or a list of cones to intersect with.
 
         **Returns:**
-        (Cone) The cone that results from the intersection.
+        *(Cone)* The cone that results from the intersection.
+
+        **Example:**
+        We construct two cones and find their intersection.
+        ```python {3}
+        c1 = Cone([[1,0],[1,2]])
+        c2 = Cone([[0,1],[2,1]])
+        c3 = c1.intersection(c2)
+        c3.rays()
+        # array([[2, 1],
+        #        [1, 2]])
+        ```
         """
         if isinstance(other, Cone):
             return Cone(self.dual().rays().tolist()
@@ -832,17 +1024,18 @@ def is_extremal(A, b, i=None, q=None, tol=1e-4):
     parameters that are used when parallelizing.
 
     **Arguments:**
-    - ```A``` (list): A matrix where the columns are rays (excluding b).
-    - ```b``` (list): The vector that will be checked if it can be expressed as
-      a positive linear combination of the columns of A.
-    - ```i``` (integer, optional): An id number that is used when
+    - ```A``` *(array_like)*: A matrix where the columns are rays (excluding
+      b).
+    - ```b``` *(array_like)*: The vector that will be checked if it can be
+      expressed as a positive linear combination of the columns of A.
+    - ```i``` *(int, optional)*: An id number that is used when parallelizing.
+    - ```q``` *(multiprocessing.Queue, optional)*: A queue that is used when
       parallelizing.
-    - ```q``` (Queue, optional): A queue that is used when parallelizing.
-    - ```tol``` (float, optional, default=1e-4): The tolerance for determining
-      whether a ray is extremal.
+    - ```tol``` *(float, optional, default=1e-4)*: The tolerance for
+      determining whether a ray is extremal.
 
     **Returns:**
-    (boolean or None) The truth value of the ray baing extremal. If the process
+    *(bool or None)* The truth value of the ray baing extremal. If the process
     fails then it returns nothing.
     """
     try:

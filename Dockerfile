@@ -1,26 +1,27 @@
-# Start from Debian Buster
-FROM debian:buster
+# Start from Debian Bullseye
+FROM debian:bullseye
+
+ARG USERID
+ARG ARCH
+ARG AARCH
 
 # Install dependencies
 RUN apt-get -yqq update
-RUN apt-get -yqq install build-essential nano cmake libgmp-dev libcgal-dev\
+RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get -y install tzdata
+RUN apt-get -yqq install autoconf build-essential nano cmake libgmp-dev libcgal-dev\
                          libmpc-dev libsuitesparse-dev libppl-dev libeigen3-dev\
                          libc6 libcdd0d libgmp10 libgmpxx4ldbl libstdc++6 palp\
                          libflint-dev libflint-arb-dev python3 python3-pip\
-                         cython3 wget
+                         cython3 wget libmath-libm-perl
 
 # Make a soft link for python for convenience
 RUN ln -s /usr/bin/python3 /usr/bin/python
 # Make a soft link to the arb library so that python-flint can install
-RUN ln -s /usr/lib/x86_64-linux-gnu/libflint-arb.so /usr/lib/x86_64-linux-gnu/libarb.so
-
-# Fix CGAL headers so that Eigen3 is imported correctly
-RUN sed -i -e 's/Eigen\/Core/eigen3\/Eigen\/Core/g' /usr/include/CGAL/Dimension.h
-RUN sed -i -e 's/Eigen\/Dense/eigen3\/Eigen\/Dense/g' /usr/include/CGAL/NewKernel_d/LA_eigen/LA.h
-RUN sed -i -e 's/Eigen\/Dense/eigen3\/Eigen\/Dense/g' /usr/include/CGAL/NewKernel_d/LA_eigen/constructors.h
+RUN echo testt ${AARCH}
+RUN ln -s /usr/lib/${AARCH}-linux-gnu/libflint-arb.so /usr/lib/${AARCH}-linux-gnu/libarb.so
 
 # Fix flint headers
-RUN cp -r /usr/include/flint/** /usr/include/
+RUN cp -r /usr/include/flint/* /usr/include/
 
 # Set up non-root user
 ARG USERID
@@ -28,6 +29,7 @@ RUN groupadd -r -g $USERID cytools && useradd -r -s /bin/bash -u $USERID -g cyto
 USER cytools
 
 # Install pip packages
+ENV CVXOPT_SUITESPARSE_INC_DIR=/usr/include/suitesparse
 RUN pip3 install --upgrade pip
 RUN pip3 install --no-warn-script-location numpy scipy jupyterlab cvxopt gekko pymongo ortools tqdm
 RUN pip3 install --no-warn-script-location python-flint matplotlib
@@ -38,12 +40,12 @@ ENV MOSEKLM_LICENSE_FILE=/opt/cytools/external/mosek/mosek.lic
 
 # Fix cvxopt bug
 USER root
-RUN sed -i -e 's/mosek.solsta.near_optimal/ /g' /home/cytools/.local/lib/python3.7/site-packages/cvxopt/coneprog.py
+RUN sed -i -e 's/mosek.solsta.near_optimal/ /g' /home/cytools/.local/lib/python3.9/site-packages/cvxopt/coneprog.py
 
 # Install TOPCOM
 WORKDIR /opt/cytools/external/topcom-mod
-RUN wget https://github.com/LiamMcAllisterGroup/topcom/releases/download/v0.17.8%2Bds-2%2Bcytools-1/topcom_0.17.8+ds-2+cytools-1_amd64.deb
-RUN dpkg -i topcom_0.17.8+ds-2+cytools-1_amd64.deb
+RUN wget https://github.com/LiamMcAllisterGroup/topcom/releases/download/v0.17.8%2Bds-2%2Bcytools-1/topcom_0.17.8+ds-2+cytools-1_${ARCH}.deb
+RUN dpkg -i topcom_0.17.8+ds-2+cytools-1_${ARCH}.deb
 
 # Copy code and installer
 COPY . /opt/cytools/
@@ -57,7 +59,13 @@ RUN chmod 666 /opt/cytools/external/mosek/mosek.lic || echo "Missing Mosek licen
 WORKDIR /opt/cytools/external/cgal
 RUN for i in $(seq 1 6); do sed "26s/.*/const int D = ${i};/" triangulate.cpp > "triangulate-${i}d.cpp"; done; rm triangulate.cpp
 
-RUN cgal_create_CMakeLists -c Eigen3
+# Fix CGAL headers so that Eigen3 is imported correctly
+RUN sed -i -e 's/Eigen\/Core/eigen3\/Eigen\/Core/g' /usr/include/CGAL/Dimension.h
+RUN sed -i -e 's/Eigen\/Dense/eigen3\/Eigen\/Dense/g' /usr/include/CGAL/NewKernel_d/LA_eigen/LA.h
+RUN sed -i -e 's/Eigen\/Dense/eigen3\/Eigen\/Dense/g' /usr/include/CGAL/NewKernel_d/LA_eigen/constructors.h
+
+RUN cgal_create_CMakeLists
+RUN sed -i -e 's/find_package/find_package( Eigen3 3.3 REQUIRED )\nfind_package/g' /opt/cytools/external/cgal/CMakeLists.txt
 RUN cmake . -DCMAKE_BUILD_TYPE=Release
 # Must be single-threaded or it crashes on macOS
 RUN make -j 1

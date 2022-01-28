@@ -24,6 +24,25 @@ versions_with_serious_bugs = []
 
 # Check for more recent versions of CYTools
 def check_for_updates():
+    """
+    **Description:**
+    Checks for updates of CYTools. It prints a message if a new version is,
+    avaiable, and displays a warning if the current version has a serious bug.
+
+    **Arguments:**
+    None.
+
+    **Returns:**
+    Nothing.
+
+    **Example:**
+    We check for updates of CYTools. This is done automatically, so there is
+    usually no need to do this.
+    ```python {2}
+    import cytools
+    cytools.check_for_updates()
+    ```
+    """
     from ast import literal_eval
     import requests
     try:

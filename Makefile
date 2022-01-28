@@ -9,6 +9,15 @@ else
 	machine=UNKNOWN
 endif
 
+UNAMEM=$(shell uname -m)
+ifneq (,$(findstring arm64,$(UNAMEM)))
+	arch=arm64
+	aarch=aarch64
+else
+	arch=amd64
+	aarch=x86_64
+endif
+
 USERID=$(shell id -u)
 USERIDN=$(shell id -u -n)
 
@@ -23,7 +32,7 @@ build:
 		false; \
 	fi
 	@ echo "Building CYTools image for user $(USERIDN)..."
-	sudo docker build -t cytools:uid-$(USERID) --build-arg USERID=$(USERID) .
+	sudo docker build -t cytools:uid-$(USERID) --build-arg USERID=$(USERID) --build-arg ARCH=$(arch) --build-arg AARCH=$(aarch) .
 	@ echo "Successfully built CYTools image for user $(USERIDN)"
 
 rebuild:
@@ -31,7 +40,7 @@ rebuild:
 		echo "Please run make as a non-root user and without sudo!"; \
 		false; \
 	fi
-	sudo docker build --no-cache -t cytools:uid-$(USERID) --build-arg USERID=$(USERID) .
+	sudo docker build --no-cache -t cytools:uid-$(USERID) --build-arg USERID=$(USERID) --build-arg ARCH=$(arch) --build-arg AARCH=$(aarch) .
 
 install: build
 	@if [ "$(USERID)" = "0" ]; then \

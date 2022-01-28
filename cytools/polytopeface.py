@@ -36,7 +36,7 @@ class PolytopeFace:
 
     ## Constructor
 
-    ### ```cytools.polytope.PolytopeFace```
+    ### ```cytools.polytopeface.PolytopeFace```
 
     **Description:**
     Constructs a ```PolytopeFace``` object describing a face of a lattice
@@ -44,12 +44,25 @@ class PolytopeFace:
     function.
 
     **Arguments:**
-    - ```ambient_poly``` (Polytope): The ambient polytope.
-    - ```vertices``` (list): The list of vertices.
-    - ```saturated_ineqs``` (frozenset): A frozenset containing the indices of
-      the inequalities that this face saturates.
-    - ```dim``` (integer, optional): The dimension of the face. If it is not
+    - ```ambient_poly``` *(Polytope)*: The ambient polytope.
+    - ```vertices``` *(array_like)*: The list of vertices.
+    - ```saturated_ineqs``` *(frozenset)*: A frozenset containing the indices
+      of the inequalities that this face saturates.
+    - ```dim``` *(int, optional)*: The dimension of the face. If it is not
       given then it is computed.
+
+    **Example:**
+    Since objects of this class should not be directly created by the end user,
+    we demostrate how to construct these objects using the
+    [```faces```](./polytope#faces) function of the
+    [```Polytope```](./polytope) class.
+    ```python {3}
+    from cytools import Polytope
+    p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+    faces_3 = p.faces(3) # Find the 3-dimensional faces
+    print(faces_3[0]) # Print the first 3-face
+    # A 3-dimensional face of a 4-dimensional polytope in ZZ^4
+    ```
     """
 
     def __init__(self, ambient_poly, vertices, saturated_ineqs, dim=None):
@@ -58,15 +71,26 @@ class PolytopeFace:
         Initializes a ```PolytopeFace``` object.
 
         **Arguments:**
-        - ```ambient_poly``` (Polytope): The ambient polytope.
-        - ```vertices``` (list): The list of vertices.
-        - ```saturated_ineqs``` (frozenset): A frozenset containing the indices
-          of the inequalities that this face saturates.
-        - ```dim``` (integer, optional): The dimension of the face. If it is
+        - ```ambient_poly``` *(Polytope)*: The ambient polytope.
+        - ```vertices``` *(array_like)*: The list of vertices.
+        - ```saturated_ineqs``` *(frozenset)*: A frozenset containing the
+          indices of the inequalities that this face saturates.
+        - ```dim``` *(int, optional)*: The dimension of the face. If it is
           not given then it is computed.
 
         **Returns:**
         Nothing.
+
+        **Example:**
+        This is the function that is called when creating a new
+        ```PolytopeFace``` object. Thus, it is used in the following example.
+        ```python {3}
+        from cytools import Polytope
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        faces_3 = p.faces(3) # Find the 3-dimensional faces
+        print(faces_3[0]) # Print the first 3-face
+        # A 3-dimensional face of a 4-dimensional polytope in ZZ^4
+        ```
         """
         self._ambient_poly = ambient_poly
         self._vertices = np.array(vertices)
@@ -99,6 +123,17 @@ class PolytopeFace:
 
         **Returns:**
         Nothing.
+
+        **Example:**
+        We construct a face object and find its lattice points, then we
+        clear the cache and compute the points again.
+        ```python {4}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        f = p.faces(3)[0] # Pick one of the 3-faces
+        pts = f.points() # Find the lattice points
+        f.clear_cache() # Clears the results of any previos computation
+        pts = f.points() # Find the lattice points again
+        ```
         """
         self._points_sat = None
         self._points = None
@@ -117,7 +152,17 @@ class PolytopeFace:
         None.
 
         **Returns:**
-        (string) A string describing the face.
+        *(str)* A string describing the face.
+
+        **Example:**
+        This function can be used to convert the face to a string or to
+        print information about the face.
+        ```python {3,4}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        f = p.faces(3)[0]
+        face_info = str(f) # Converts to string
+        print(f) # Prints face info
+        ```
         """
         return (f"A {self._dim}-dimensional face of a "
                 f"{self._ambient_poly._dim}-dimensional polytope in "
@@ -141,9 +186,26 @@ class PolytopeFace:
         None.
 
         **Returns:**
-        (list) A list of tuples. The first component of each tuple is the list
+        *(list)* A list of tuples. The first component of each tuple is the list
         of coordinates of the point and the second component is a
         ```frozenset``` of the hyperplane inequalities that it saturates.
+
+        **Example:**
+        We construct a face and compute the lattice points along with the
+        inequalities that they saturate. We print the second point and the
+        inequalities that it saturates.
+        ```python {2}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        f = p.faces(3)[0]
+        pts_sat = f._points_saturated()
+        print(pts_sat[1])
+        # ((0, 0, 0, 1), frozenset({0, 1, 2, 4}))
+        p.inequalities()[list(pts_sat[1][1])]
+        # array([[ 4, -1, -1, -1,  1],
+        #        [-1,  4, -1, -1,  1],
+        #        [-1, -1,  4, -1,  1],
+        #        [-1, -1, -1,  4,  1]])
+        ```
         """
         if self._points_sat is None:
             self._points_sat = [
@@ -157,11 +219,23 @@ class PolytopeFace:
         Returns the lattice points of the face.
 
         **Arguments:**
-        - ```as_indices``` (boolean): Return the points as indices of the full
+        - ```as_indices``` *(bool)*: Return the points as indices of the full
           list of points of the polytope.
 
         **Returns:**
-        (list) The list of lattice points of the face.
+        *(numpy.ndarray)* The list of lattice points of the face.
+
+        **Example:**
+        We construct a face object and find its lattice points.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        f = p.faces(3)[0] # Pick one of the 3-faces
+        f.points()
+        # array([[-1, -1, -1, -1],
+        #        [ 0,  0,  0,  1],
+        #        [ 0,  0,  1,  0],
+        #        [ 0,  1,  0,  0]])
+        ```
         """
         if self._points is None:
             self._points = np.array([pt[0] for pt in self._points_saturated()])
@@ -175,11 +249,21 @@ class PolytopeFace:
         Returns the interior lattice points of the face.
 
         **Arguments:**
-        - ```as_indices``` (boolean): Return the points as indices of the full
+        - ```as_indices``` *(bool)*: Return the points as indices of the full
           list of points of the polytope.
 
         **Returns:**
-        (list) The list of interior lattice points of the face.
+        *(numpy.ndarray)* The list of interior lattice points of the face.
+
+        **Example:**
+        We construct a face object and find its interior lattice points.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        f = p.faces(3)[2] # Pick one of the 3-faces
+        f.interior_points()
+        # array([[ 0,  0, -1, -2],
+        #        [ 0,  0,  0, -1]])
+        ```
         """
         if self._interior_points is None:
             self._interior_points = np.array(
@@ -195,12 +279,24 @@ class PolytopeFace:
         Returns the boundary lattice points of the face.
 
         **Arguments:**
-        - ```as_indices``` (boolean): Return the points as indices of the full
+        - ```as_indices``` *(bool)*: Return the points as indices of the full
           list of points of the polytope.
 
         **Returns:**
-        (list) The list of boundary lattice points of the face.
-         """
+        *(numpy.ndarray)* The list of boundary lattice points of the face.
+
+        **Example:**
+        We construct a face object and find its boundary lattice points.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        f = p.faces(3)[0] # Pick one of the 3-faces
+        f.boundary_points()
+        # array([[-1, -1, -1, -1],
+        #        [ 0,  0,  0,  1],
+        #        [ 0,  0,  1,  0],
+        #        [ 0,  1,  0,  0]])
+        ```
+        """
         if self._boundary_points is None:
             self._boundary_points = np.array(
                                     [pt[0] for pt in self._points_saturated()
@@ -218,7 +314,19 @@ class PolytopeFace:
         None.
 
         **Returns:**
-        (Polytope) The [Polytope](./polytope) corresponding to the face.
+        *(Polytope)* The [```Polytope```](./polytope) corresponding to the
+        face.
+
+        **Example:**
+        We construct a face object and then convert it into a
+        [```Polytope```](./polytope) object.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        f = p.faces(3)[0] # Pick one of the 3-faces
+        f_poly = f.as_polytope()
+        print(f_poly)
+        # A 3-dimensional lattice polytope in ZZ^4
+        ```
         """
         if self._polytope is None:
             from cytools.polytope import Polytope
@@ -235,14 +343,25 @@ class PolytopeFace:
         None.
 
         **Returns:**
-        (Polytope) The ambient polytope.
+        *(Polytope)* The ambient polytope.
+
+        **Example:**
+        We construct a face object from a polytope, then find the ambient
+        polytope and verify that it is the starting polytope.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        f = p.faces(3)[0] # Pick one of the 3-faces
+        ambient_poly = f.ambient_polytope()
+        ambient_poly is p
+        # True
+        ```
         """
         return self._ambient_poly
 
     def dual(self):
         """
         **Description:**
-        Returns the dual face in the ambient polytope.
+        Returns the dual face of the dual polytope.
 
         :::note
         This duality is only implemented for reflexive polytopes. An exception
@@ -253,7 +372,18 @@ class PolytopeFace:
         None.
 
         **Returns:**
-        (PolytopeFace) The dual face.
+        *(PolytopeFace)* The dual face.
+
+        **Example:**
+        We construct a face object from a polytope, then find the dual face
+        in the dual polytope.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        f = p.faces(2)[0] # Pick one of the 2-faces
+        f_dual = f.dual()
+        print(f_dual)
+        # A 1-dimensional face of a 4-dimensional polytope in ZZ^4
+        ```
         """
         if self._dual_face is not None:
             return self._dual_face
@@ -280,7 +410,18 @@ class PolytopeFace:
         None.
 
         **Returns:**
-        (list) The list of vertices of the face.
+        *(numpy.ndarray)* The list of vertices of the face.
+
+        **Example:**
+        We construct a face from a polytope and find its vertices.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        f = p.faces(2)[0] # Pick one of the 2-faces
+        f.vertices()
+        # array([[-1, -1, -1, -1],
+        #        [ 0,  0,  0,  1],
+        #        [ 0,  0,  1,  0]])
+        ```
         """
         return np.array(self._vertices)
 
@@ -290,27 +431,34 @@ class PolytopeFace:
         Computes the faces of the face.
 
         **Arguments:**
-        - ```d``` (integer, optional): Optional parameter that specifies the
+        - ```d``` *(int, optional)*: Optional parameter that specifies the
           dimension of the desired faces.
 
         **Returns:**
-        (list) A list of [```PolytopeFace```](./polytopeface) objects of
-        dimension d, if specified. Otherwise, a list of lists of
+        *(tuple)* A tuple of [```PolytopeFace```](./polytopeface) objects of
+        dimension d, if specified. Otherwise, a tuple of tuples of
         [```PolytopeFace```](./polytopeface) objects organized in ascending
         dimension.
+
+        **Example:**
+        We construct a face from a polytope and find its vertices.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        f = p.faces(3)[0] # Pick one of the 3-faces
+        print(f.faces(2)[0]) # Print one of its 2-faces
+        # A 2-dimensional face of a 4-dimensional polytope in ZZ^4
+        ```
         """
         if d is not None and d not in range(self._dim + 1):
             raise Exception(f"There are no faces of dimension {d}")
         if self._faces is not None:
-            return copy.copy(self._faces[d] if d is not None else
-                                [copy.copy(ff) for ff in self._faces])
+            return (self._faces[d] if d is not None else self._faces)
         faces = []
         for dd in range(self._dim + 1):
-            faces.append([f for f in self._ambient_poly.faces(dd)
-                        if self._saturated_ineqs.issubset(f._saturated_ineqs)])
-        self._faces = faces
-        return copy.copy(self._faces[d] if d is not None else
-                            [copy.copy(ff) for ff in self._faces])
+            faces.append(tuple(f for f in self._ambient_poly.faces(dd)
+                        if self._saturated_ineqs.issubset(f._saturated_ineqs)))
+        self._faces = tuple(faces)
+        return (self._faces[d] if d is not None else self._faces)
 
     def dim(self):
         """
@@ -321,7 +469,16 @@ class PolytopeFace:
         None.
 
         **Returns:**
-        (integer) The dimension of the face.
+        *(int)* The dimension of the face.
+
+        **Example:**
+        We construct a face from a polytope and print its dimension.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        f = p.faces(3)[0] # Pick one of the 3-faces
+        f.dim()
+        # 3
+        ```
         """
         return self._dim
 
@@ -334,6 +491,15 @@ class PolytopeFace:
         None.
 
         **Returns:**
-        (integer) The dimension of the ambient lattice.
+        *(int)* The dimension of the ambient lattice.
+
+        **Example:**
+        We construct a face from a polytope and print its ambient dimension.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        f = p.faces(3)[0] # Pick one of the 3-faces
+        f.ambient_dim()
+        # 4
+        ```
         """
         return self._ambient_dim
