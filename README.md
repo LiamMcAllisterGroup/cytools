@@ -1,10 +1,11 @@
 
 <p align="center">
-    <img src="https://cytools.liammcallistergroup.com/img/titleimage-circle.svg?sanitize=true" height="250"/><br>
-    <b>A software package for analyzing Calabi-Yau hypersurfaces in toric varieties.</b><br>
-    <img alt="Latest release" src="https://img.shields.io/github/v/release/liammcallistergroup/cytools">
-    <img alt="License" src="https://img.shields.io/github/license/liammcallistergroup/cytools">
-    <img alt="Number of downloads" src="https://img.shields.io/github/downloads/liammcallistergroup/topcom/total"/>
+    <img src="https://cytools.liammcallistergroup.com/img/titleimage-circle.svg?sanitize=true" height="250"></img><br></br>
+    <b>A software package for analyzing Calabi-Yau hypersurfaces in toric varieties.</b><br></br>
+    <img alt="Latest release" src="https://img.shields.io/github/v/release/liammcallistergroup/cytools"></img>
+    <img alt="Number of downloads" src="https://img.shields.io/github/downloads/liammcallistergroup/topcom/total"></img>
+    <img alt="Lines of code" src="https://img.shields.io/tokei/lines/github/liammcallistergroup/cytools"></img>
+    <img alt="License" src="https://img.shields.io/github/license/liammcallistergroup/cytools"></img>
 </p>
 
 -------------------------------------------------------------------------------
