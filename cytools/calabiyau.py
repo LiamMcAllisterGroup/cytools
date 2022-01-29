@@ -1415,7 +1415,7 @@ class CalabiYau:
             return self._is_smooth
         if self._is_hypersurface:
             sm = (True if self.dim() <= 3 else
-                    all(c.is_smooth() for c in self.ambient_variety().triangulation().fan_cones(self.dim(),self.dim()-1)))
+                    all(c.is_smooth() for c in self.ambient_variety().fan_cones(self.dim(),self.dim()-1)))
             self._is_smooth = sm
         else:
             self.intersection_numbers() # The variable is set while computing intersection numbers

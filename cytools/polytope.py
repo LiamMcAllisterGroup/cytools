@@ -2610,7 +2610,8 @@ class Polytope:
             for nn in range(codim-1):
                 tmp_part = []
                 start = palp_out[nef_part_start+n].find(f"V{nn if codim>2 else ''}:")
-                for s in palp_out[nef_part_start+n][start+(2 if codim==2 else 3):].split():
+                end = palp_out[nef_part_start+n].find("  ")
+                for s in palp_out[nef_part_start+n][start+(2 if codim==2 else 3):end].split():
                     if "V" in s or "D" in s or "P" in s or "sec" in s:
                         break
                     tmp_part.append(int(s))

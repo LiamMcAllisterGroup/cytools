@@ -1491,7 +1491,7 @@ class ToricVariety:
         pts_triang = [tuple(pt) for pt in self._triang.points()[ind_triang]]
         sm = (all(pt in pts_triang for pt in pts_mpcp) and
                 (True if self.dim() <= 3 else
-                all(c.is_smooth() for c in self.fan_cones(self.dim(),self.dim()-2))))
+                all(c.is_smooth() for c in self.fan_cones(self.dim()-1,self.dim()-2))))
         self._canon_div_is_smooth = sm
         return self._canon_div_is_smooth
 
