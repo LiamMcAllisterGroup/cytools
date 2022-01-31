@@ -917,7 +917,7 @@ class CalabiYau:
         if self._glsm_charge_matrix is not None:
             return np.array(self._glsm_charge_matrix)[:,(0 if include_origin else 1):]
         toric_divs = [0]+list(self.prime_toric_divisors())
-        pts = self.ambient_variety().polytope().points_to_indices(self.ambient_variety().triangulation().points()[toric_divs])
+        pts = self.polytope().points_to_indices(self.polytope().points()[toric_divs])
         self._glsm_charge_matrix = self.polytope().glsm_charge_matrix(
                                             include_origin=True,
                                             points=pts)
@@ -955,7 +955,7 @@ class CalabiYau:
         if self._glsm_linrels is not None:
             return np.array(self._glsm_linrels)[(0 if include_origin else 1):,(0 if include_origin else 1):]
         toric_divs = [0]+list(self.prime_toric_divisors())
-        pts = self.ambient_variety().polytope().points_to_indices(self.ambient_variety().triangulation().points()[toric_divs])
+        pts = self.polytope().points_to_indices(self.polytope().points()[toric_divs])
         self._glsm_linrels = self.polytope().glsm_linear_relations(
                                 include_origin=True,
                                 points=pts)
@@ -1003,9 +1003,10 @@ class CalabiYau:
         """
         if self._divisor_basis is None:
             self.set_divisor_basis(self.polytope().glsm_basis(
-                                    integral=True,
-                                    include_origin=True,
-                                    points=self.polytope().points_to_indices(self.triangulation().points()))
+                                   integral=True,
+                                   include_origin=True,
+                                   points=self.polytope().points_to_indices(
+                                        self.polytope().points()[[0]+list(self.prime_toric_divisors())]))
                                     )
         if len(self._divisor_basis.shape) == 1:
             if 0 in self._divisor_basis and not include_origin:
@@ -1275,6 +1276,24 @@ class CalabiYau:
                         intnums_cy[ii] = int(round(intnums_cy[ii]))
                 else:
                     self._is_smooth = False
+                # Now we find the prime toric divisors and reindex accordingly
+                intnum_ind = set.union(*[set(ii) for ii in intnums_cy])
+                triang_inds = sorted(intnum_ind)
+                self._prime_divs = tuple(self.triangulation().triangulation_to_polytope_indices([i for i in triang_inds if i]))
+                divs_dict = {ii:i for i,ii in enumerate(self._prime_divs,1)}
+                divs_dict[0] = 0
+                intnums_cy = {tuple(divs_dict[i] for i in ii):intnums_cy[ii] for ii in intnums_cy}
+                # If there are some non-intersecting divisors we construct a better
+                # toric variety in the background
+                if len(self._prime_divs) == self.ambient_variety().triangulation().points().shape[0]-1:
+                    self._optimal_ambient_var = self._ambient_var
+                else:
+                    heights = self.triangulation().cpl_cone().tip_of_stretched_cone(1)[triang_inds]
+                    try:
+                        self._optimal_ambient_var = self.polytope().triangulate(heights=heights, points=self.polytope().points_to_indices(
+                                            self.polytope().points()[[0]+list(self._prime_divs)])).get_toric_variety()
+                    except:
+                        raise Exception("This type of complete intersection is not supported.")
             self._intersection_numbers[4*exact_arithmetic] = intnums_cy
         # Now intersection numbers have been computed
         if zero_as_anticanonical and not in_basis:
@@ -1300,14 +1319,17 @@ class CalabiYau:
         **Description:**
         Returns the list of inherited prime toric divisors. Due to the sorting
         of points in the polytope class, this list is trivial for
-        hypersurfaces, but may be non-trivial for CICYs.
+        hypersurfaces, but may be non-trivial for CICYs. The indices in the
+        returned tuple correspond to indices of the corresponding points of the
+        polytope (i.e. if $n$ is in the tuple, then the $n$th point in
+        ```p.points()``` is a prime toric divisor that intersects the CY).
 
         **Arguments:**
         None
 
         **Returns:**
-        *(tuple)* A list of indices indicating the prime toric divisors of the
-        ambient variety that intersect the CY.
+        *(tuple)* A list of indices indicating the points in the polytope whose
+        corresponding prime toric divisor intersects the CY.
 
         **Example:**
         We construct a Calabi-Yau hypersurface and find the list of prime toric
@@ -1322,16 +1344,13 @@ class CalabiYau:
         """
         if self._prime_divs is not None:
             return self._prime_divs
-        intnum_ind = set.union(*[set(ii) for ii in self.intersection_numbers()])
-        self._prime_divs = tuple(i for i in intnum_ind if i)
-        # If there are some non-intersecting divisors we construct a better
-        # toric variety in the background
-        if len(self._prime_divs) == self.ambient_variety().triangulation().points().shape[0]-1:
+        if self._is_hypersurface:
+            self._prime_divs = tuple(range(1,self.polytope().points_not_interior_to_facets().shape[0]))
             self._optimal_ambient_var = self._ambient_var
         else:
-            heights = self._ambient_var.mori_cone().dual().tip_of_stretched_cone(1)[[0]+list(self._prime_divs)]
-            self._optimal_ambient_var = self.polytope().triangulate(heights=heights, points=self.polytope().points_to_indices(
-                                    self.ambient_variety().triangulation().points()[[0]+list(self._prime_divs)])).get_toric_variety()
+            # For CICYs we have to compute intersection numbers and the
+            # variables are set during the computation
+            self.intersection_numbers()
         return self._prime_divs
 
     def second_chern_class(self, in_basis=False):

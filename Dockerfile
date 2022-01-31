@@ -1,9 +1,14 @@
 # Start from Debian Bullseye
 FROM debian:bullseye
 
+# Define build arguments
+ARG USERNAME
 ARG USERID
 ARG ARCH
 ARG AARCH
+ARG VIRTUAL_ENV
+ARG ALLOW_ROOT_ARG
+ENV ALLOW_ROOT=$ALLOW_ROOT_ARG
 
 # Install dependencies
 RUN apt-get -yqq update
@@ -12,35 +17,34 @@ RUN apt-get -yqq install autoconf build-essential nano cmake libgmp-dev libcgal-
                          libmpc-dev libsuitesparse-dev libppl-dev libeigen3-dev\
                          libc6 libcdd0d libgmp10 libgmpxx4ldbl libstdc++6 palp\
                          libflint-dev libflint-arb-dev python3 python3-pip\
-                         cython3 wget libmath-libm-perl
+                         wget libmath-libm-perl python3-venv
 
-# Make a soft link for python for convenience
-RUN ln -s /usr/bin/python3 /usr/bin/python
-# Make a soft link to the arb library so that python-flint can install
-RUN echo testt ${AARCH}
+# Make a soft link to the arb library and flint headers so that python-flint can install
 RUN ln -s /usr/lib/${AARCH}-linux-gnu/libflint-arb.so /usr/lib/${AARCH}-linux-gnu/libarb.so
-
-# Fix flint headers
-RUN cp -r /usr/include/flint/* /usr/include/
+RUN ln -s /usr/include/flint/* /usr/include/
 
 # Set up non-root user
-ARG USERID
-RUN groupadd -r -g $USERID cytools && useradd -r -s /bin/bash -u $USERID -g cytools -m cytools
-USER cytools
+RUN groupadd -r -g $USERID $USERNAME && useradd -r -s /bin/bash -u $USERID -g $USERNAME -m $USERNAME\
+    || echo "Skipping user creation"
+USER $USERNAME
+
+# Create python virtual environment for non-root user
+RUN python3 -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 # Install pip packages
 ENV CVXOPT_SUITESPARSE_INC_DIR=/usr/include/suitesparse
 RUN pip3 install --upgrade pip
-RUN pip3 install --no-warn-script-location numpy scipy jupyterlab cvxopt gekko pymongo ortools tqdm
-RUN pip3 install --no-warn-script-location python-flint matplotlib
-RUN pip3 install --no-warn-script-location --user scikit-sparse cysignals gmpy2==2.1.0a4
-RUN pip3 install --no-warn-script-location pplpy
-RUN pip3 install --no-warn-script-location -f https://download.mosek.com/stable/wheel/index.html Mosek
+RUN pip3 install numpy scipy jupyterlab cvxopt gekko pymongo ortools tqdm cython
+RUN pip3 install python-flint matplotlib
+RUN pip3 install scikit-sparse cysignals gmpy2==2.1.0a4
+RUN pip3 install pplpy
+RUN pip3 install -f https://download.mosek.com/stable/wheel/index.html Mosek
 ENV MOSEKLM_LICENSE_FILE=/opt/cytools/external/mosek/mosek.lic
 
 # Fix cvxopt bug
 USER root
-RUN sed -i -e 's/mosek.solsta.near_optimal/ /g' /home/cytools/.local/lib/python3.9/site-packages/cvxopt/coneprog.py
+RUN sed -i -e 's/mosek.solsta.near_optimal/ /g' $VIRTUAL_ENV/lib/python3.9/site-packages/cvxopt/coneprog.py
 
 # Install TOPCOM
 WORKDIR /opt/cytools/external/topcom-mod
@@ -78,9 +82,8 @@ ENV OMP_NUM_THREADS=1
 ENV OPENBLAS_NUM_THREADS=1
 
 # Set entry path
-WORKDIR /home/cytools/mounted_volume
+WORKDIR /home/$USERNAME/mounted_volume
 
 # Start jupyter lab by default
-USER cytools
-ENV PATH="/home/cytools/.local/bin:$PATH"
-CMD jupyter lab --ip 0.0.0.0 --port 2875 --no-browser
+USER $USERNAME
+CMD jupyter lab --ip 0.0.0.0 --port 2875 --no-browser $ALLOW_ROOT

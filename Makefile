@@ -21,7 +21,7 @@ endif
 USERID=$(shell id -u)
 USERIDN=$(shell id -u -n)
 
-.PHONY: all build rebuild install uninstall run pull update test
+.PHONY: all build rebuild install uninstall run pull update test build-with-root-user
 
 all:
 	@echo "Please specify an instruction (e.g make build)"
@@ -32,7 +32,9 @@ build:
 		false; \
 	fi
 	@ echo "Building CYTools image for user $(USERIDN)..."
-	sudo docker build -t cytools:uid-$(USERID) --build-arg USERID=$(USERID) --build-arg ARCH=$(arch) --build-arg AARCH=$(aarch) .
+	sudo docker build -t cytools:uid-$(USERID) --build-arg USERNAME=cytools\
+	     --build-arg USERID=$(USERID) --build-arg ARCH=$(arch) --build-arg AARCH=$(aarch)\
+			 --build-arg VIRTUAL_ENV=/home/cytools/cytools-venv/ --build-arg ALLOW_ROOT_ARG=" " .
 	@ echo "Successfully built CYTools image for user $(USERIDN)"
 
 rebuild:
@@ -40,7 +42,9 @@ rebuild:
 		echo "Please run make as a non-root user and without sudo!"; \
 		false; \
 	fi
-	sudo docker build --no-cache -t cytools:uid-$(USERID) --build-arg USERID=$(USERID) --build-arg ARCH=$(arch) --build-arg AARCH=$(aarch) .
+	sudo docker build --no-cache -t cytools:uid-$(USERID) --build-arg USERNAME=cytools\
+	     --build-arg USERID=$(USERID) --build-arg ARCH=$(arch) --build-arg AARCH=$(aarch)\
+			 --build-arg VIRTUAL_ENV=/home/cytools/cytools-venv/ --build-arg ALLOW_ROOT_ARG=" " .
 
 install: build
 	@if [ "$(USERID)" = "0" ]; then \
@@ -113,3 +117,17 @@ test: unittests
 		false; \
 	fi
 	sudo docker run --rm -it -v ${PWD}/unittests:/home/cytools/mounted_volume/ cytools bash -c "bash run_tests.sh"
+
+build-with-root-user:
+	@ echo " "
+	@ echo "********************************************************************"
+	@ echo "Warning: You are building an image with a root user. Any user with "
+	@ echo "access to this image will be able to have root access to the host "
+	@ echo "computer as well. Please proceed with care.";
+	@ echo "********************************************************************"
+	@ echo " "
+	@ read -p "Press enter to continue or ctrl+c to cancel"
+	sudo docker build -t cytools:root --build-arg USERNAME=root\
+	     --build-arg USERID=0 --build-arg ARCH=$(arch) --build-arg AARCH=$(aarch)\
+			 --build-arg VIRTUAL_ENV=/opt/cytools/cytools-venv/ --build-arg ALLOW_ROOT_ARG="--allow-root" .
+	@ echo "Successfully built CYTools image with root user."
