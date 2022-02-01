@@ -1015,7 +1015,7 @@ class CalabiYau:
             if as_matrix:
                 return np.array(self._divisor_basis_mat[:,(0 if include_origin else 1):])
             return np.array(self._divisor_basis) - (0 if include_origin else 1)
-        return np.array(self._divisor_basis)
+        return np.array(self._divisor_basis[:,(0 if include_origin else 1):])
 
     def set_divisor_basis(self, basis, include_origin=True):
         """
@@ -1120,7 +1120,7 @@ class CalabiYau:
             if as_matrix:
                 return np.array(self._curve_basis_mat[:,(0 if include_origin else 1):])
             return np.array(self._curve_basis) - (0 if include_origin else 1)
-        return np.array(self._curve_basis)
+        return np.array(self._curve_basis[:,(0 if include_origin else 1):])
 
     def set_curve_basis(self, basis, include_origin=True):
         """
