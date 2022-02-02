@@ -2577,7 +2577,7 @@ class Polytope:
             flags += ("-D",)
         if keep_projections:
             flags += ("-P",)
-        palp = subprocess.Popen((config.palp_path + "nef.x",)+flags,
+        palp = subprocess.Popen((config.palp_path + "nef-11d.x",)+flags,
                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE, universal_newlines=True)
         vert_str = ""
