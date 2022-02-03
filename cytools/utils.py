@@ -793,6 +793,8 @@ def polytope_generator(input, input_type="file", format="ks", backend=None,
                         vert.append([int(c) for c in palp_res[i].split()])
                 i += 1
             vert = np.array(vert)
+            if len(vert.shape) == 0:
+                break
             if vert.shape[0] < vert.shape[1]:
                 vert = vert.T
             p = Polytope(vert, backend=backend)

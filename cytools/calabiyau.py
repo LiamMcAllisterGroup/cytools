@@ -40,9 +40,9 @@ from cytools import config
 class CalabiYau:
     """
     This class handles various computations relating to the Calabi-Yau manifold
-    itself. It can be used to compute intersection numbers, the toric part of
-    the Mori and Kähler cones that can be inferred from the ambient variety,
-    among other things.
+    itself. It can be used to compute intersection numbers, the toric Mori and
+    Kähler cones that can be inferred from the ambient variety, among other
+    things.
 
     :::important
     Generally, objects of this class should not be constructed directly by the
