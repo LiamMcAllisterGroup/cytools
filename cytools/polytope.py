@@ -2629,7 +2629,7 @@ class Polytope:
             if keep_projections:
                 flags += ("-P",)
             cy_dim = self._dim - codim
-            palp = subprocess.Popen((config.palp_path + "nef.x",)+flags,
+            palp = subprocess.Popen((config.palp_path + "nef-11d.x",)+flags,
                                     stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE, universal_newlines=True)
             palp_out = palp.communicate(input=f"{len(vert)} {self._dim}\n" + vert_str + "\n")[0]
