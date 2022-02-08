@@ -1324,20 +1324,30 @@ class ToricVariety:
                     if any(np.array(res.tolist()).flat):
                         raise Exception("Failed to convert to rational numbers.")
             intnums = dict()
-            for ii in distintnum_array:
-                intnums[tuple(int(round(j)) for j in ii[:-1])] = (float_to_fmpq(ii[-1]) if exact_arithmetic else ii[-1])
-            for i,ii in enumerate(variable_array):
-                if abs(solution[i]) < round_to_zero_treshold:
-                    continue
-                intnums[tuple(ii)] = (float_to_fmpq(solution[i]) if exact_arithmetic else solution[i])
+            if exact_arithmetic:
+                for ii in distintnum_array:
+                    intnums[tuple(int(round(j)) for j in ii[:-1])] = float_to_fmpq(ii[-1])
+                for i,ii in enumerate(variable_array):
+                    if abs(solution[i]) < round_to_zero_treshold:
+                        continue
+                    intnums[tuple(ii)] = float_to_fmpq(solution[i])
+            else:
+                for ii in distintnum_array:
+                    intnums[tuple(int(round(j)) for j in ii[:-1])] = ii[-1]
+                for i,ii in enumerate(variable_array):
+                    if abs(solution[i]) < round_to_zero_treshold:
+                        continue
+                    intnums[tuple(ii)] = solution[i]
             if self.is_smooth():
-                for ii in intnums:
-                    c = intnums[ii]
-                    if exact_arithmetic:
+                if exact_arithmetic:
+                    for ii in intnums:
+                        c = intnums[ii]
                         if c.q != 1:
                             raise Exception("Non-integer intersection numbers "
                                             "detected in a smooth toric variety.")
-                    else:
+                else:
+                    for ii in intnums:
+                        c = intnums[ii]
                         if abs(round(c)-c) > round_to_integer_error_tol:
                             raise Exception("Non-integer intersection numbers "
                                             "detected in a smooth toric variety.")
@@ -1486,11 +1496,11 @@ class ToricVariety:
         """
         if self._canon_div_is_smooth is not None:
             return self._canon_div_is_smooth
-        pts_mpcp = [tuple(pt) for pt in self.polytope().points_not_interior_to_facets()]
+        pts_mpcp = {tuple(pt) for pt in self.polytope().points_not_interior_to_facets()}
         ind_triang = list(set.union(*[set(s) for s in self._triang.simplices()]))
-        pts_triang = [tuple(pt) for pt in self._triang.points()[ind_triang]]
-        sm = (all(pt in pts_triang for pt in pts_mpcp) and
-                (True if self.dim() <= 3 else
+        pts_triang = {tuple(pt) for pt in self._triang.points()[ind_triang]}
+        sm = (pts_triang.issubset(pts_mpcp) and
+                (True if self.dim() <= 4 else
                 all(c.is_smooth() for c in self.fan_cones(self.dim()-1,self.dim()-2))))
         self._canon_div_is_smooth = sm
         return self._canon_div_is_smooth
