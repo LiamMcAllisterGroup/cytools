@@ -44,52 +44,52 @@ class Triangulation:
     :::important
     Generally, objects of this class should not be constructed directly by the
     end user. Instead, they should be created by various functions of the
-    [Polytope](./polytope) class.
+    [`Polytope`](./polytope) class.
     :::
 
     ## Constructor
 
-    ### ```cytools.triangulation.Triangulation```
+    ### `cytools.triangulation.Triangulation`
 
     **Description:**
-    Constructs a ```Triangulation``` object describing a triangulation of a
+    Constructs a `Triangulation` object describing a triangulation of a
     lattice polytope. This is handled by the hidden
-    [```__init__```](#__init__) function.
+    [`__init__`](#__init__) function.
 
     :::note
     If you construct a triangulation object directly by inputting a list of
     points they may be reordered to match the ordering of the points from the
-    [Polytope](./polytope) class. This is to ensure that computations of toric
+    [`Polytope`](./polytope) class. This is to ensure that computations of toric
     varieties and Calabi-Yau manifolds are correct. To avoid this subtlety we
     discourage users from constructing Triangulation objects directly, and
-    instead use the triangulation functions in the [Polytope](./polytope)
+    instead use the triangulation functions in the [`Polytope`](./polytope)
     class.
     :::
 
     **Arguments:**
-    - ```triang_pts``` *(array_like)*: The list of points to be triangulated.
-    - ```poly``` *(Polytope, optional)*: The ambient polytope of the points to
+    - `triang_pts` *(array_like)*: The list of points to be triangulated.
+    - `poly` *(Polytope, optional)*: The ambient polytope of the points to
       be triangulated. If not specified, it is constructed as the convex hull
       of the given points.
-    - ```heights``` *(array_like, optional)*: A list of heights specifying the
+    - `heights` *(array_like, optional)*: A list of heights specifying the
       regular triangulation. When not secified, it will return the Delaunay
       triangulation when using CGAL, a triangulation obtained from random
       heights near the Delaunay when using QHull, or the placing triangulation
       when using TOPCOM. Heights can only be specified when using CGAL or QHull
       as the backend.
-    - ```make_star``` *(bool, optional, default=False)*: Indicates whether to
+    - `make_star` *(bool, optional, default=False)*: Indicates whether to
       turn the triangulation into a star triangulation by deleting internal
       lines and connecting all points to the origin, or equivalently, by
       decreasing the height of the origin until it is much lower than all other
       heights.
-    - ```simplices``` *(array_like, optional)*: A list of simplices specifying
+    - `simplices` *(array_like, optional)*: A list of simplices specifying
       the triangulation. Each simplex is a list of point indices. This is
       useful when a triangulation was previously computed and it needs to be
       used again. Note that the ordering of the points needs to be consistent.
-    - ```check_input_simplices``` *(bool, optional, default=True)*: Flag
+    - `check_input_simplices` *(bool, optional, default=True)*: Flag
       that specifies whether to check if the input simplices define a valid
       triangulation.
-    - ```backend``` *(str, optional, default="cgal")*: Specifies the backend
+    - `backend` *(str, optional, default="cgal")*: Specifies the backend
       used to compute the triangulation.  The available options are "qhull",
       "cgal", and "topcom". CGAL is the default one as it is very
       fast and robust.
@@ -97,8 +97,8 @@ class Triangulation:
     **Example:**
     We construct a triangulation of a polytope. Since this class is not
     intended to by initialized by the end user, we create it via the
-    [```triangulate```](./polytope#triangulate) function of the
-    [Polytope](./polytope) class. In this example the polytope is reflexive, so
+    [`triangulate`](./polytope#triangulate) function of the
+    [`Polytope`](./polytope) class. In this example the polytope is reflexive, so
     by default the triangulation is fine, regular, and star. Also, since the
     polytope is reflexive then by default only the lattice points not interior
     to facets are included in the triangulation.
@@ -115,34 +115,34 @@ class Triangulation:
                  simplices=None, check_input_simplices=True, backend="cgal"):
         """
         **Description:**
-        Initializes a ```Triangulation``` object.
+        Initializes a `Triangulation` object.
 
         **Arguments:**
-        - ```triang_pts``` *(array_like)*: The list of points to be
+        - `triang_pts` *(array_like)*: The list of points to be
           triangulated.
-        - ```poly``` *(Polytope, optional)*: The ambient polytope of the points
+        - `poly` *(Polytope, optional)*: The ambient polytope of the points
           to be triangulated. If not specified, it is constructed as the convex
           hull of the given points.
-        - ```heights``` *(array_like, optional)*: A list of heights specifying
+        - `heights` *(array_like, optional)*: A list of heights specifying
           the regular triangulation. When not secified, it will return the
           Delaunay triangulation when using CGAL, a triangulation obtained from
           random heights near the Delaunay when using QHull, or the placing
           triangulation when using TOPCOM. Heights can only be specified when
           using CGAL or QHull as the backend.
-        - ```make_star``` *(bool, optional, default=False)*: Indicates whether
+        - `make_star` *(bool, optional, default=False)*: Indicates whether
           to turn the triangulation into a star triangulation by deleting
           internal lines and connecting all points to the origin, or
           equivalently, by decreasing the height of the origin until it is much
           lower than all other heights.
-        - ```simplices``` *(array_like, optional)*: A list of simplices
+        - `simplices` *(array_like, optional)*: A list of simplices
           specifying the triangulation. Each simplex is a list of point
           indices. This is useful when a triangulation was previously computed
           and it needs to be used again. Note that the ordering of the points
           needs to be consistent.
-        - ```check_input_simplices``` *(bool, optional, default=True)*: Flag
+        - `check_input_simplices` *(bool, optional, default=True)*: Flag
           that specifies whether to check if the input simplices define a valid
           triangulation.
-        - ```backend``` *(str, optional, default="cgal")*: Specifies the
+        - `backend` *(str, optional, default="cgal")*: Specifies the
           backend used to compute the triangulation.  The available options are
           "qhull", "cgal", and "topcom". CGAL is the default one as it is very
           fast and robust.
@@ -152,7 +152,7 @@ class Triangulation:
 
         **Example:**
         This is the function that is called when creating a new
-        ```Triangulation``` object. In this example the polytope is reflexive,
+        `Triangulation` object. In this example the polytope is reflexive,
         so by default the triangulation is fine, regular, and star. Also, since
         the polytope is reflexive then by default only the lattice points not
         interior to facets are included in the triangulation.
@@ -269,7 +269,7 @@ class Triangulation:
         Clears the cached results of any previous computation.
 
         **Arguments:**
-        - ```recursive``` *(bool, optional, default=False)*: Whether to also
+        - `recursive` *(bool, optional, default=False)*: Whether to also
           clear the cache of the ambient polytope.
 
         **Returns:**
@@ -334,7 +334,7 @@ class Triangulation:
         Implements comparison of triangulations with ==.
 
         **Arguments:**
-        - ```other``` *(Triangulation)*: The other triangulation that is being
+        - `other` *(Triangulation)*: The other triangulation that is being
           compared.
 
         **Returns:**
@@ -361,7 +361,7 @@ class Triangulation:
         Implements comparison of triangulations with !=.
 
         **Arguments:**
-        - ```other``` *(Triangulation)*: The other triangulation that is being
+        - `other` *(Triangulation)*: The other triangulation that is being
           compared.
 
         **Returns:**
@@ -473,7 +473,7 @@ class Triangulation:
         corresponding indices in the polytope.
 
         **Arguments:**
-        - ```points``` *(array_like)*: A point or a list of points.
+        - `points` *(array_like)*: A point or a list of points.
 
         **Returns:**
         *(numpy.ndarray or int)* The list of indices corresponding to the given
@@ -505,7 +505,7 @@ class Triangulation:
         entry, in which case it returns the corresponding index.
 
         **Arguments:**
-        - ```points``` *(array_like)*: A list of indices of points.
+        - `points` *(array_like)*: A list of indices of points.
 
         **Returns:**
         *(numpy.ndarray or int)* The list of indices corresponding to the given
@@ -613,10 +613,10 @@ class Triangulation:
         Returns True if the triangulation is regular and False otherwise.
 
         **Arguments:**
-        - ```backend``` *(str, optional)*: The optimizer used for the
+        - `backend` *(str, optional)*: The optimizer used for the
           computation. The available options are the backends of the
-          [```is_solid```](./cone#is_solid) function of the
-          [```Cone```](./cone) class. If not specified, it will be picked
+          [`is_solid`](./cone#is_solid) function of the
+          [`Cone`](./cone) class. If not specified, it will be picked
           automatically.
 
         **Returns:**
@@ -643,7 +643,7 @@ class Triangulation:
         Returns True if the triangulation is star and False otherwise.
 
         **Arguments:**
-        - ```star_origin``` *(int, optional, default=0)*: The index of the
+        - `star_origin` *(int, optional, default=0)*: The index of the
           origin of the star triangulation
 
         **Returns:**
@@ -671,10 +671,10 @@ class Triangulation:
         convex hull, and they cannot intersect at full-dimensional regions.
 
         **Arguments:**
-        - ```backend``` *(str, optional)*: The optimizer used for the
+        - `backend` *(str, optional)*: The optimizer used for the
           computation. The available options are the backends of the
-          [```is_solid```](./cone#is_solid) function of the
-          [```Cone```](./cone) class. If not specified, it will be picked
+          [`is_solid`](./cone#is_solid) function of the
+          [`Cone`](./cone) class. If not specified, it will be picked
           automatically.
 
         **Returns:**
@@ -780,20 +780,20 @@ class Triangulation:
         checking this with TOPCOM is very slow for large polytopes.
 
         **Arguments:**
-        - ```N``` *(int)*: The number of bistellar flips to perform.
-        - ```only_fine``` *(bool, optional)*: Restricts to flips to fine
+        - `N` *(int)*: The number of bistellar flips to perform.
+        - `only_fine` *(bool, optional)*: Restricts to flips to fine
           triangulations. If not specified, it is set to True if the
           triangulation is fine, and False otherwise.
-        - ```only_regular``` *(bool, optional)*: Restricts the flips to
+        - `only_regular` *(bool, optional)*: Restricts the flips to
           regular triangulations. If not specified, it is set to True if the
           triangulation is regular, and False otherwise.
-        - ```only_star``` *(bool, optional)*: Restricts the flips to star
+        - `only_star` *(bool, optional)*: Restricts the flips to star
           triangulations. If not specified, it is set to True if the
           triangulation is star, and False otherwise.
-        - ```backend``` *(str, optional, default=None)*: The backend used to
+        - `backend` *(str, optional, default=None)*: The backend used to
           check regularity. The options are any backend available for the
-          [```is_solid```](./cone#is_solid) function of the
-          [```Cone```](./cone) class. If not specified, it will be picked
+          [`is_solid`](./cone#is_solid) function of the
+          [`Cone`](./cone) class. If not specified, it will be picked
           automatically.
 
         **Returns:**
@@ -841,16 +841,16 @@ class Triangulation:
         large polytopes.
 
         **Arguments:**
-        - ```only_fine``` *(bool, optional, default=False)*: Restricts to fine
+        - `only_fine` *(bool, optional, default=False)*: Restricts to fine
           triangulations.
-        - ```only_regular``` *(bool, optional, default=False)*: Restricts the
+        - `only_regular` *(bool, optional, default=False)*: Restricts the
           to regular triangulations.
-        - ```only_star``` *(bool, optional, default=False)*: Restricts to star
+        - `only_star` *(bool, optional, default=False)*: Restricts to star
           triangulations.
-        - ```backend``` *(str, optional, default=None)*: The backend used to
+        - `backend` *(str, optional, default=None)*: The backend used to
           check regularity. The options are any backend available for the
-          [```is_solid```](./cone#is_solid) function of the
-          [```Cone```](./cone) class. If not specified, it will be picked
+          [`is_solid`](./cone#is_solid) function of the
+          [`Cone`](./cone) class. If not specified, it will be picked
           automatically.
 
         **Returns:**
@@ -952,11 +952,11 @@ class Triangulation:
         interior correspond to heights that give rise to the triangulation.
 
         **Arguments:**
-        - ```backend``` *(str, optional)*: Specifies how the cone is computed.
+        - `backend` *(str, optional)*: Specifies how the cone is computed.
           Options are "native", which uses a native implementation of an
           algorithm by Berglund, Katz and Klemm, or "topcom" which uses
           differences of GKZ vectors for the computation.
-        - ```include_points_not_in_triangulation``` *(bool, optional,
+        - `include_points_not_in_triangulation` *(bool, optional,
           default=True): This flag allows the exclusion of points that are
           not part of the triangulation. This can be done to check regularity
           faster, but this cannot be used if the actual cone in the secondary
@@ -1071,7 +1071,7 @@ class Triangulation:
         :::
 
         **Arguments:**
-        - ```nef_partition``` *(list, optional)*: A list of tuples of indices
+        - `nef_partition` *(list, optional)*: A list of tuples of indices
           specifying a nef-partition of the polytope, which correspondingly
           defines a complete intersection Calabi-Yau.
 
@@ -1099,7 +1099,7 @@ def convert_to_star(simplices, facets, star_origin):
 
     :::note
     This function is not intended to be called by the end user. Instead, it is
-    used by the [Triangulation](./triangulation) class when needed.
+    used by the [`Triangulation`](./triangulation) class when needed.
     :::
 
     :::important
@@ -1108,12 +1108,12 @@ def convert_to_star(simplices, facets, star_origin):
     :::
 
     **Arguments:**
-    - ```simplices``` *(array_like)*: The list of simplices of the
+    - `simplices` *(array_like)*: The list of simplices of the
       triangulation. Each simplex consists of the list of indices of the points
       forming its vertices.
-    - ```facets``` *(list)*: The list of facets of the polytope. Each facet
+    - `facets` *(list)*: The list of facets of the polytope. Each facet
       consists of the indices of the points in the facet.
-    - ```star_origin``` *(int)*: The index of the point that is used as the
+    - `star_origin` *(int)*: The index of the point that is used as the
       star origin.
 
     **Returns:**
@@ -1149,13 +1149,13 @@ def qhull_triangulate(points, heights):
 
     :::note
     This function is not intended to be called by the end user. Instead, it is
-    used by the [Triangulation](./triangulation) class when using QHull as the
+    used by the [`Triangulation`](./triangulation) class when using QHull as the
     backend.
     :::
 
     **Arguments:**
-    - ```points``` *(array_like)*: A list of points.
-    - ```heights``` *(array_like)*: A list of heights defining the regular
+    - `points` *(array_like)*: A list of points.
+    - `heights` *(array_like)*: A list of heights defining the regular
       triangulation.
 
     **Returns:**
@@ -1189,13 +1189,13 @@ def cgal_triangulate(points, heights):
 
     :::note
     This function is not intended to be called by the end user. Instead, it is
-    used by the [Triangulation](./triangulation) class when using CGAL as the
+    used by the [`Triangulation`](./triangulation) class when using CGAL as the
     backend.
     :::
 
     **Arguments:**
-    - ```points``` *(array_like)*: A list of points.
-    - ```heights``` *(array_like)*: A list of heights defining the regular
+    - `points` *(array_like)*: A list of points.
+    - `heights` *(array_like)*: A list of heights defining the regular
       triangulation.
 
     **Returns:**
@@ -1236,12 +1236,12 @@ def topcom_triangulate(points):
 
     :::note
     This function is not intended to be called by the end user. Instead, it is
-    used by the [Triangulation](./triangulation) class when using TOPCOM as the
+    used by the [`Triangulation`](./triangulation) class when using TOPCOM as the
     backend.
     :::
 
     **Arguments:**
-    - ```points``` *(array_like)*: A list of points.
+    - `points` *(array_like)*: A list of points.
 
     **Returns:**
     *(numpy.ndarray)* A list of simplices defining a triangulation.
@@ -1279,33 +1279,33 @@ def all_triangulations(points, only_fine=False, only_regular=False,
 
     :::note
     This function is not intended to be called by the end user. Instead, it is
-    used by the [all_triangulations](./polytope#all_triangulations) function of
-    the [Polytope](./polytope) class.
+    used by the [`all_triangulations`](./polytope#all_triangulations) function
+    of the [`Polytope`](./polytope) class.
     :::
 
     **Arguments:**
-    - ```points``` *(array_like)*: The list of points to be triangulated.
-    - ```only_fine``` *(bool, optional, default=True)*: Restricts to only
+    - `points` *(array_like)*: The list of points to be triangulated.
+    - `only_fine` *(bool, optional, default=True)*: Restricts to only
       fine triangulations.
-    - ```only_regular``` *(bool, optional, default=True)*: Restricts to
+    - `only_regular` *(bool, optional, default=True)*: Restricts to
       only regular triangulations.
-    - ```only_star``` *(bool, optional, default=True)*: Restricts to only
+    - `only_star` *(bool, optional, default=True)*: Restricts to only
         star triangulations.
-    - ```star_origin``` *(int, optional)*: The index of the point that
+    - `star_origin` *(int, optional)*: The index of the point that
       will be used as the star origin. If the polytope is reflexive this
       is set to 0, but otherwise it must be specified.
-    - ```backend``` *(str, optional)*: The optimizer used to check
+    - `backend` *(str, optional)*: The optimizer used to check
       regularity computation. The available options are the backends of the
-      [```is_solid```](./cone#is_solid) function of the
-      [```Cone```](./cone) class. If not specified, it will be picked
+      [`is_solid`](./cone#is_solid) function of the
+      [`Cone`](./cone) class. If not specified, it will be picked
       automatically. Note that TOPCOM is not used to check regularity since
       it is much slower.
-    - ```poly``` *(Polytope, optional)*: The ambient polytope. It is
+    - `poly` *(Polytope, optional)*: The ambient polytope. It is
       constructed if not specified.
 
     **Returns:**
-    *(generator)* A generator of [Triangulation](./triangulation) objects with
-    the specified properties.
+    *(generator)* A generator of [`Triangulation`](./triangulation) objects
+    with the specified properties.
 
     **Example:**
     This function is not intended to be directly used, but it is used in the
@@ -1365,42 +1365,42 @@ def random_triangulations_fast_generator(triang_pts, N=None, c=0.2,
     :::note
     This function is not intended to be called by the end user. Instead, it is
     used by the
-    [random_triangulations_fast](./polytope#random_triangulations_fast)
-    function of the [Polytope](./polytope) class.
+    [`random_triangulations_fast`](./polytope#random_triangulations_fast)
+    function of the [`Polytope`](./polytope) class.
     :::
 
     :::caution important
     This function produces random triangulations very quickly, but it does not
     produce a fair sample. When a fair sampling is required the
-    [random_triangulations_fair](./polytope#random_triangulations_fair)
+    [`random_triangulations_fair`](./polytope#random_triangulations_fair)
     function should be used.
     :::
 
     **Arguments:**
-    - ```triang_pts``` *(array_like)*: The list of points to be triangulated.
-    - ```N``` *(int, optional)*: Number of desired unique triangulations. If
+    - `triang_pts` *(array_like)*: The list of points to be triangulated.
+    - `N` *(int, optional)*: Number of desired unique triangulations. If
       not specified, it will generate as many triangulations as it can find
       until it has to retry more than max_retries times to obtain a new
       triangulation.
-    - ```c``` *(float, optional, default=0.2)*: A contant used as the standard
+    - `c` *(float, optional, default=0.2)*: A contant used as the standard
       deviation of the Gaussian distribution used to pick the heights. A
       larger c results in a wider range of possible triangulations, but with a
       larger fraction of them being non-fine, which slows down the process when
       using only_fine=True.
-    - ```max_retries``` *(int, optional, default=50)*: Maximum number of
+    - `max_retries` *(int, optional, default=50)*: Maximum number of
       attempts to obtain a new triangulation before the process is terminated.
-    - ```make_star``` *(bool, optional, default=False)*: Converts the obtained
+    - `make_star` *(bool, optional, default=False)*: Converts the obtained
       triangulations into star triangulations.
-    - ```only_fine``` *(bool, optional, default=True)*: Restricts to fine
+    - `only_fine` *(bool, optional, default=True)*: Restricts to fine
       triangulations.
-    - ```backend``` *(str, optional, default="cgal")*: Specifies the
+    - `backend` *(str, optional, default="cgal")*: Specifies the
       backend used to compute the triangulation. The available options are
       "cgal" and "qhull".
-    - ```poly``` *(Polytope, optional)*: The ambient polytope. It is
+    - `poly` *(Polytope, optional)*: The ambient polytope. It is
       constructed if not specified.
 
     **Returns:**
-    *(generator)* A generator of [```Triangulation```](./triangulation) objects
+    *(generator)* A generator of [`Triangulation`](./triangulation) objects
     with the specified properties.
 
     **Example:**
@@ -1408,7 +1408,7 @@ def random_triangulations_fast_generator(triang_pts, N=None, c=0.2,
     following example. We construct a polytope and find some random
     triangulations. The triangulations are obtained very quicly, but they are
     not a fair sample of the space of triangulations. For a fair sample, the
-    [```random_triangulations_fair```](./polytope#random_triangulations_fair)
+    [`random_triangulations_fair`](./polytope#random_triangulations_fair)
     function should be used.
     ```python {2,7}
     p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]]).dual()
@@ -1463,50 +1463,50 @@ def random_triangulations_fair_generator(triang_pts, N=None, n_walk=10, n_flip=1
     :::note notes
     - This function is not intended to be called by the end user. Instead, it
       is used by the
-      [random_triangulations_fair](./polytope#random_triangulations_fair)
-      function of the [Polytope](./polytope) class.
+      [`random_triangulations_fair`](./polytope#random_triangulations_fair)
+      function of the [`Polytope`](./polytope) class.
     - This function is designed mainly for large polytopes where sampling
       triangulations is challenging. When small polytopes are used it is likely
       to get stuck.
     :::
 
     **Arguments:**
-    - ```triang_pts``` *(array_like)*: The list of points to be triangulated.
-    - ```N``` *(int, optional)*: Number of desired unique triangulations. If
+    - `triang_pts` *(array_like)*: The list of points to be triangulated.
+    - `N` *(int, optional)*: Number of desired unique triangulations. If
       not specified, it will generate as many triangulations as it can find
       until it has to retry more than max_retries times to obtain a new
       triangulation.
-    - ```n_walk``` *(int, optional, default=10)*: Number of hit-and-run steps
+    - `n_walk` *(int, optional, default=10)*: Number of hit-and-run steps
       per triangulation.
-    - ```n_flip``` *(int, optional, default=10)*: Number of random flips
+    - `n_flip` *(int, optional, default=10)*: Number of random flips
       performed per triangulation.
-    - ```initial_walk_steps``` *(int, optional, default=20)*: Number of
+    - `initial_walk_steps` *(int, optional, default=20)*: Number of
       hit-and-run steps to take before starting to record triangulations. Small
       values may result in a bias towards Delaunay-like triangulations.
-    - ```walk_step_size``` *(float, optional, default=1e-2)*: Determines size
+    - `walk_step_size` *(float, optional, default=1e-2)*: Determines size
       of random steps taken in the secondary fan. Algorithm may stall if too
       small.
-    - ```max_steps_to_wall``` *(int, optional, default=10)*: Maximum number
+    - `max_steps_to_wall` *(int, optional, default=10)*: Maximum number
       of steps to take towards a wall of the subset of the secondary fan that
       correspond to fine triangulations. If a wall is not found, a new random
       direction is selected. Setting this to be very large (>100) reduces
       performance. If this, or walk_step_size, is set to be too low, the
       algorithm may stall.
-    - ```fine_tune_steps``` *(int, optional, default=8)*: Number of steps to
+    - `fine_tune_steps` *(int, optional, default=8)*: Number of steps to
       determine the location of a wall. Decreasing improves performance, but
       might result in biased samples.
-    - ```max_retries``` *(int, optional, default=50)*: Maximum number of
+    - `max_retries` *(int, optional, default=50)*: Maximum number of
       attempts to obtain a new triangulation before the process is terminated.
-    - ```make_star``` *(bool, optional, default=False)*: Converts the obtained
+    - `make_star` *(bool, optional, default=False)*: Converts the obtained
       triangulations into star triangulations.
-    - ```backend``` *(str, optional, default="cgal")*: Specifies the
+    - `backend` *(str, optional, default="cgal")*: Specifies the
       backend used to compute the triangulation. The available options are
       "cgal" and "qhull".
-    - ```poly``` *(Polytope, optional)*: The ambient polytope. It is
+    - `poly` *(Polytope, optional)*: The ambient polytope. It is
       constructed if not specified.
 
     **Returns:**
-    *(generator)* A generator of [```Triangulation```](./triangulation) objects
+    *(generator)* A generator of [`Triangulation`](./triangulation) objects
     with the specified properties.
 
     **Example:**
@@ -1516,7 +1516,7 @@ def random_triangulations_fair_generator(triang_pts, N=None, n_walk=10, n_flip=1
     a fair sample from the full set of triangulations (if the parameters are
     chosen correctly). For (some) machine learning purposes or when the
     fairness of the sample is not crucial, the
-    [```random_triangulations_fast```](./polytope#random_triangulations_fast)
+    [`random_triangulations_fast`](./polytope#random_triangulations_fast)
     function should be used instead.
     ```python {2,7}
     p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]]).dual()

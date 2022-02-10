@@ -30,32 +30,32 @@ class PolytopeFace:
 
     :::important
     Generally, objects of this class should not be constructed directly by the
-    user. Instead, they should be created by the [faces](./polytope#faces)
-    function of the [Polytope](./polytope) class.
+    user. Instead, they should be created by the [`faces`](./polytope#faces)
+    function of the [`Polytope`](./polytope) class.
     :::
 
     ## Constructor
 
-    ### ```cytools.polytopeface.PolytopeFace```
+    ### `cytools.polytopeface.PolytopeFace`
 
     **Description:**
-    Constructs a ```PolytopeFace``` object describing a face of a lattice
-    polytope. This is handled by the hidden [```__init__```](#__init__)
+    Constructs a `PolytopeFace` object describing a face of a lattice
+    polytope. This is handled by the hidden [`__init__`](#__init__)
     function.
 
     **Arguments:**
-    - ```ambient_poly``` *(Polytope)*: The ambient polytope.
-    - ```vertices``` *(array_like)*: The list of vertices.
-    - ```saturated_ineqs``` *(frozenset)*: A frozenset containing the indices
+    - `ambient_poly` *(Polytope)*: The ambient polytope.
+    - `vertices` *(array_like)*: The list of vertices.
+    - `saturated_ineqs` *(frozenset)*: A frozenset containing the indices
       of the inequalities that this face saturates.
-    - ```dim``` *(int, optional)*: The dimension of the face. If it is not
+    - `dim` *(int, optional)*: The dimension of the face. If it is not
       given then it is computed.
 
     **Example:**
     Since objects of this class should not be directly created by the end user,
     we demostrate how to construct these objects using the
-    [```faces```](./polytope#faces) function of the
-    [```Polytope```](./polytope) class.
+    [`faces`](./polytope#faces) function of the
+    [`Polytope`](./polytope) class.
     ```python {3}
     from cytools import Polytope
     p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
@@ -68,14 +68,14 @@ class PolytopeFace:
     def __init__(self, ambient_poly, vertices, saturated_ineqs, dim=None):
         """
         **Description:**
-        Initializes a ```PolytopeFace``` object.
+        Initializes a `PolytopeFace` object.
 
         **Arguments:**
-        - ```ambient_poly``` *(Polytope)*: The ambient polytope.
-        - ```vertices``` *(array_like)*: The list of vertices.
-        - ```saturated_ineqs``` *(frozenset)*: A frozenset containing the
+        - `ambient_poly` *(Polytope)*: The ambient polytope.
+        - `vertices` *(array_like)*: The list of vertices.
+        - `saturated_ineqs` *(frozenset)*: A frozenset containing the
           indices of the inequalities that this face saturates.
-        - ```dim``` *(int, optional)*: The dimension of the face. If it is
+        - `dim` *(int, optional)*: The dimension of the face. If it is
           not given then it is computed.
 
         **Returns:**
@@ -83,7 +83,7 @@ class PolytopeFace:
 
         **Example:**
         This is the function that is called when creating a new
-        ```PolytopeFace``` object. Thus, it is used in the following example.
+        `PolytopeFace` object. Thus, it is used in the following example.
         ```python {3}
         from cytools import Polytope
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
@@ -176,8 +176,8 @@ class PolytopeFace:
 
         :::note notes
         - Points are sorted in the same way as for the
-          [_points_saturated](./polytope#_points_saturated) function of the
-          [Polytope](./polytope) class.
+          [`_points_saturated`](./polytope#_points_saturated) function of the
+          [`Polytope`](./polytope) class.
         - Typically this function should not be called by the user. Instead, it
           is called by various other functions in the PolytopeFace class.
         :::
@@ -188,7 +188,7 @@ class PolytopeFace:
         **Returns:**
         *(list)* A list of tuples. The first component of each tuple is the list
         of coordinates of the point and the second component is a
-        ```frozenset``` of the hyperplane inequalities that it saturates.
+        `frozenset` of the hyperplane inequalities that it saturates.
 
         **Example:**
         We construct a face and compute the lattice points along with the
@@ -219,7 +219,7 @@ class PolytopeFace:
         Returns the lattice points of the face.
 
         **Arguments:**
-        - ```as_indices``` *(bool)*: Return the points as indices of the full
+        - `as_indices` *(bool)*: Return the points as indices of the full
           list of points of the polytope.
 
         **Returns:**
@@ -249,7 +249,7 @@ class PolytopeFace:
         Returns the interior lattice points of the face.
 
         **Arguments:**
-        - ```as_indices``` *(bool)*: Return the points as indices of the full
+        - `as_indices` *(bool)*: Return the points as indices of the full
           list of points of the polytope.
 
         **Returns:**
@@ -279,7 +279,7 @@ class PolytopeFace:
         Returns the boundary lattice points of the face.
 
         **Arguments:**
-        - ```as_indices``` *(bool)*: Return the points as indices of the full
+        - `as_indices` *(bool)*: Return the points as indices of the full
           list of points of the polytope.
 
         **Returns:**
@@ -314,12 +314,12 @@ class PolytopeFace:
         None.
 
         **Returns:**
-        *(Polytope)* The [```Polytope```](./polytope) corresponding to the
+        *(Polytope)* The [`Polytope`](./polytope) corresponding to the
         face.
 
         **Example:**
         We construct a face object and then convert it into a
-        [```Polytope```](./polytope) object.
+        [`Polytope`](./polytope) object.
         ```python {3}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
         f = p.faces(3)[0] # Pick one of the 3-faces
@@ -431,13 +431,13 @@ class PolytopeFace:
         Computes the faces of the face.
 
         **Arguments:**
-        - ```d``` *(int, optional)*: Optional parameter that specifies the
+        - `d` *(int, optional)*: Optional parameter that specifies the
           dimension of the desired faces.
 
         **Returns:**
-        *(tuple)* A tuple of [```PolytopeFace```](./polytopeface) objects of
+        *(tuple)* A tuple of [`PolytopeFace`](./polytopeface) objects of
         dimension d, if specified. Otherwise, a tuple of tuples of
-        [```PolytopeFace```](./polytopeface) objects organized in ascending
+        [`PolytopeFace`](./polytopeface) objects organized in ascending
         dimension.
 
         **Example:**

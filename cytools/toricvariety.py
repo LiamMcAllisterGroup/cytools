@@ -29,8 +29,9 @@ import numpy as np
 from cytools.utils import (gcd_list, solve_linear_system, array_fmpz_to_int,
                            array_int_to_fmpz, array_float_to_fmpq,
                            array_fmpq_to_float, filter_tensor_indices,
-                           symmetric_sparse_to_dense_in_basis, float_to_fmpq,
-                           fmpq_to_float, set_divisor_basis, set_curve_basis)
+                           symmetric_sparse_to_dense, float_to_fmpq,
+                           symmetric_dense_to_sparse, fmpq_to_float,
+                           set_divisor_basis, set_curve_basis)
 from cytools.calabiyau import CalabiYau
 from cytools.cone import Cone
 from cytools import config
@@ -46,8 +47,8 @@ class ToricVariety:
     :::important
     Generally, objects of this class should not be constructed directly by the
     end user. Instead, they should be created by the
-    [get_toric_variety](./triangulation#get_toric_variety) function of the
-    [Triangulation](./triangulation) class.
+    [`get_toric_variety`](./triangulation#get_toric_variety) function of the
+    [`Triangulation`](./triangulation) class.
     :::
 
     :::tip experimetal features
@@ -58,21 +59,21 @@ class ToricVariety:
 
     ## Constructor
 
-    ### ```cytools.toricvariety.ToricVariety```
+    ### `cytools.toricvariety.ToricVariety`
 
     **Description:**
-    Constructs a ```ToricVariety``` object. This is handled by the hidden
-    [```__init__```](#__init__) function.
+    Constructs a `ToricVariety` object. This is handled by the hidden
+    [`__init__`](#__init__) function.
 
     **Arguments:**
-    - ```triang``` *(Triangulation)*: A star triangulation.
+    - `triang` *(Triangulation)*: A star triangulation.
 
     **Example:**
     We construct a ToricVariety from a regular, star triangulation of a
     reflexive polytope. Since this class is not intended to by initialized by
     the end user, we create it via the
-    [```get_toric_variety```](./triangulation#get_toric_variety) function of
-    the [Triangulation](./triangulation) class. In this example we obtain
+    [`get_toric_variety`](./triangulation#get_toric_variety) function of
+    the [`Triangulation`](./triangulation) class. In this example we obtain
     $\mathbb{P}^4$.
     ```python {4}
     from cytools import Polytope
@@ -86,21 +87,21 @@ class ToricVariety:
     def __init__(self, triang):
         """
         **Description:**
-        Initializes a ```ToricVariety``` object.
+        Initializes a `ToricVariety` object.
 
         **Arguments:**
-        - ```triang``` *(Triangulation)*: A star triangulation.
+        - `triang` *(Triangulation)*: A star triangulation.
 
         **Returns:**
         Nothing.
 
         **Example:**
         This is the function that is called when creating a new
-        ```ToricVariety``` object. We construct a ToricVariety from a regular,
+        `ToricVariety` object. We construct a ToricVariety from a regular,
         star triangulation of a reflexive polytope. Since this class is not
         intended to by initialized by the end user, we create it via the
-        [```get_toric_variety```](./triangulation#get_toric_variety) function
-        of the [Triangulation](./triangulation) class. In this example we
+        [`get_toric_variety`](./triangulation#get_toric_variety) function
+        of the [`Triangulation`](./triangulation) class. In this example we
         obtain $\mathbb{P}^4$.
         ```python {4}
         from cytools import Polytope
@@ -128,7 +129,7 @@ class ToricVariety:
         self._curve_basis = None
         self._curve_basis_mat = None
         self._mori_cone = [None]*3
-        self._intersection_numbers = [None]*7
+        self._intersection_numbers = dict()
         self._is_compact = None
         self._is_smooth = None
         self._canon_div_is_smooth = None
@@ -146,10 +147,10 @@ class ToricVariety:
         Clears the cached results of any previous computation.
 
         **Arguments:**
-        - ```recursive``` *(bool, optional, default=False)*: Whether to also
+        - `recursive` *(bool, optional, default=False)*: Whether to also
           clear the cache of the defining triangulation and polytope. This is
           ignored when only_in_basis=True.
-        - ```only_in_basis``` *(bool, optional, default=False)*: Only clears
+        - `only_in_basis` *(bool, optional, default=False)*: Only clears
           the cache of computations that depend on a choice of basis.
 
         **Returns:**
@@ -170,9 +171,10 @@ class ToricVariety:
         ```
         """
         self._mori_cone[2] = None
-        self._intersection_numbers[2] = None
-        self._intersection_numbers[6] = None
         self._eff_cone = None
+        for k in list(self._intersection_numbers.keys()):
+            if k[1]:
+                self._intersection_numbers.pop(k)
         if not only_in_basis:
             self._hash = None
             self._glsm_charge_matrix = None
@@ -182,7 +184,7 @@ class ToricVariety:
             self._curve_basis = None
             self._curve_basis_mat = None
             self._mori_cone = [None]*3
-            self._intersection_numbers = [None]*7
+            self._intersection_numbers = dict()
             self._is_compact = None
             self._is_smooth = None
             self._canon_div_is_smooth = None
@@ -227,7 +229,7 @@ class ToricVariety:
         Implements comparison of toric varieties with ==.
 
         **Arguments:**
-        - ```other``` *(ToricVariety)*: The other toric variety that is being
+        - `other` *(ToricVariety)*: The other toric variety that is being
           compared.
 
         **Returns:**
@@ -255,7 +257,7 @@ class ToricVariety:
         Implements comparison of toric varieties with !=.
 
         **Arguments:**
-        - ```other``` *(ToricVariety)*: The other toric variety that is being
+        - `other` *(ToricVariety)*: The other toric variety that is being
           compared.
 
         **Returns:**
@@ -436,7 +438,7 @@ class ToricVariety:
         toric variety.
 
         **Arguments:**
-        - ```include_origin``` *(bool, optional, default=True)*: Indicates
+        - `include_origin` *(bool, optional, default=True)*: Indicates
           whether to use the origin in the calculation. This corresponds to the
           inclusion of the canonical divisor.
 
@@ -467,7 +469,7 @@ class ToricVariety:
         Computes the linear relations of the GLSM charge matrix.
 
         **Arguments:**
-        - ```include_origin``` *(bool, optional, default=True)*: Indicates
+        - `include_origin` *(bool, optional, default=True)*: Indicates
           whether to use the origin in the calculation. This corresponds to the
           inclusion of the canonical divisor.
 
@@ -509,10 +511,10 @@ class ToricVariety:
         Returns the current basis of divisors of the toric variety.
 
         **Arguments:**
-        - ```include_origin``` *(bool, optional, default=True)*: Whether to
+        - `include_origin` *(bool, optional, default=True)*: Whether to
           include the origin in the indexing of the vector, or in the basis
           matrix.
-        - ```as_matrix``` *(bool, optional, default=False)*: Indicates whether
+        - `as_matrix` *(bool, optional, default=False)*: Indicates whether
           to return the basis as a matrix intead of a list of indices of prime
           toric divisors. Note that if a matrix basis was specified, then it
           will always be returned as a matrix.
@@ -520,8 +522,8 @@ class ToricVariety:
         **Returns:**
         *(numpy.ndarray)* A list of column indices that form a basis. If a more
         generic basis has been specified with the
-        [```set_divisor_basis```](#set_divisor_basis) or
-        [```set_curve_basis```](#set_curve_basis) functions then it returns a
+        [`set_divisor_basis`](#set_divisor_basis) or
+        [`set_curve_basis`](#set_curve_basis) functions then it returns a
         matrix where the rows are the basis elements specified as a linear
         combination of the canonical divisor and the prime toric divisors.
 
@@ -572,12 +574,12 @@ class ToricVariety:
         :::
 
         **Arguments:**
-        - ```basis``` *(array_like)*: Vector or matrix specifying a basis. When
+        - `basis` *(array_like)*: Vector or matrix specifying a basis. When
           a vector is used, the entries will be taken as the indices of points
           of the polytope or prime divisors of the toric variety. When a
           matrix is used, the rows are taken as linear combinations of the
           aforementioned divisors.
-        - ```include_origin``` *(bool, optional, default=True)*: Whether to
+        - `include_origin` *(bool, optional, default=True)*: Whether to
           interpret the indexing specified by the input vector as including the
           origin.
 
@@ -614,10 +616,10 @@ class ToricVariety:
         Returns the current basis of curves of the toric variety.
 
         **Arguments:**
-        - ```include_origin``` *(bool, optional, default=True)*: Whether to
+        - `include_origin` *(bool, optional, default=True)*: Whether to
           include the origin in the indexing of the vector, or in the basis
           matrix.
-        - ```as_matrix``` *(bool, optional, default=False)*: Indicates whether
+        - `as_matrix` *(bool, optional, default=False)*: Indicates whether
           to return the basis as a matrix intead of a list of indices of prime
           toric divisors. Note that if a matrix basis was specified, then it
           will always be returned as a matrix.
@@ -625,8 +627,8 @@ class ToricVariety:
         **Returns:**
         *(numpy.ndarray)* A list of column indices that form a basis. If a more
         generic basis has been specified with the
-        [```set_divisor_basis```](#set_divisor_basis) or
-        [```set_curve_basis```](#set_curve_basis) functions then it returns a
+        [`set_divisor_basis`](#set_divisor_basis) or
+        [`set_curve_basis`](#set_curve_basis) functions then it returns a
         matrix where the rows are the basis elements specified as a linear
         combination of the canonical divisor and the prime toric divisors.
 
@@ -670,7 +672,7 @@ class ToricVariety:
         induces a basis of divisors. This can be done with a vector specifying
         the indices of the standard basis of the lattice dual to the lattice of
         prime toric divisors. Note that this case is equivalent to using the
-        same vector in the [```set_divisor_basis```](#set_divisor_basis)
+        same vector in the [`set_divisor_basis`](#set_divisor_basis)
         function.
 
         :::note
@@ -680,12 +682,12 @@ class ToricVariety:
         :::
 
         **Arguments:**
-        - ```basis``` *(array_like)*: Vector or matrix specifying a basis. When
+        - `basis` *(array_like)*: Vector or matrix specifying a basis. When
           a vector is used, the entries will be taken as indices of the
           standard basis of the dual to the lattice of prime toric divisors.
           When a matrix is used, the rows are taken as linear combinations of
           the aforementioned elements.
-        - ```include_origin``` *(bool, optional, default=True)*: Whether to
+        - `include_origin` *(bool, optional, default=True)*: Whether to
           interpret the indexing specified by the input vector as including the
           origin.
 
@@ -710,7 +712,7 @@ class ToricVariety:
         #        [ -6,   0,   3,   2,   0,   0,   1]])
         ```
         Note that when setting a curve basis in this way, the function behaves
-        exactly the same as [```set_divisor_basis```](#set_divisor_basis). For
+        exactly the same as [`set_divisor_basis`](#set_divisor_basis). For
         a more advanced example involving generic bases these two functions
         differ. An example can be found in the
         [experimental features](./experimental) section.
@@ -726,13 +728,13 @@ class ToricVariety:
         Returns the Mori cone of the toric variety.
 
         **Arguments:**
-        - ```in_basis``` *(bool, optional, default=False)*: Use the current
+        - `in_basis` *(bool, optional, default=False)*: Use the current
           basis of curves, which is dual to the basis returned by the
-          [```divisor_basis```](#divisor_basis) function.
-        - ```include_origin``` *(bool, optional, default=True)*: Includes the
+          [`divisor_basis`](#divisor_basis) function.
+        - `include_origin` *(bool, optional, default=True)*: Includes the
           origin of the polytope in the computation, which corresponds to the
           canonical divisor.
-        - ```from_intersection_numbers``` *(bool, optional, default=False)*:
+        - `from_intersection_numbers` *(bool, optional, default=False)*:
           Compute the rays of the Mori cone using the intersection numbers of
           the variety. This can be faster if they are already computed.
           The set of rays may be different, but they define the same cone.
@@ -789,7 +791,7 @@ class ToricVariety:
 
         :::note
         This function should generally not be called by the user. Instead, it
-        is called by the [mori_cone](#mori_cone) function when
+        is called by the [`mori_cone`](#mori_cone) function when
         the user wants to save some time if the intersection numbers
         were already computed.
         :::
@@ -846,7 +848,7 @@ class ToricVariety:
 
         :::note notes
         - This function should generally not be called by the user. Instead,
-        this is called by the [mori_cone](#mori_cone) function
+        this is called by the [`mori_cone`](#mori_cone) function
         when when the user wants to save some time if the intersection
         numbers were already computed.
         - This function is a more optimized version for 4D toric varieties.
@@ -1218,11 +1220,11 @@ class ToricVariety:
         Mat = csr_matrix((M_val,(M_row,M_col)), dtype=np.float64)
         return Mat, C, distintnum_array, variable_array
 
-    def intersection_numbers(self, in_basis=False,
+    def intersection_numbers(self, in_basis=False, format="dok",
                              zero_as_anticanonical=False, backend="all",
                              check=True, backend_error_tol=1e-3,
                              round_to_zero_treshold=1e-3,
-                             round_to_integer_error_tol=2e-5,
+                             round_to_integer_error_tol=5e-2,
                              verbose=0, exact_arithmetic=False):
         """
         **Description:**
@@ -1237,54 +1239,108 @@ class ToricVariety:
         :::
 
         **Arguments:**
-        - ```in_basis``` *(bool, optional, default=False)*: Return the
+        - `in_basis` *(bool, optional, default=False)*: Return the
           intersection numbers in the current basis of divisors.
-        - ```zero_as_anticanonical``` *(bool, optional, default=False)*: Treat
+        - `format` *(str, optional, default="dok")*: The output format of the
+          intersection numbers. The options are "dok", "coo", and "dense". When
+          set to "dok" (Dictionary Of Keys), it returns a dictionary where the
+          keys are divisor indices in ascending order and the corresponding
+          value is their intersection number. When set to "coo" (COOrdinate
+          format), it returns a numpy array in the format
+          [[a,b,...,c,K_ab...c],...], i.e. all but the last entry of each row
+          correspond to divisor indices in ascending order, with the last entry
+          of the row being their intersection number. Lastly, when set to
+          "dense", it returns the full dense array of intersection numbers.
+        - `zero_as_anticanonical` *(bool, optional, default=False)*: Treat
           the zeroth index as corresponding to the anticanonical divisor
           instead of the canonical divisor.
-        - ```backend``` *(str, optional, default="all")*: The sparse linear
+        - `backend` *(str, optional, default="all")*: The sparse linear
           solver to use. Options are "all", "sksparse" and "scipy". When set
           to "all" every solver is tried in order until one succeeds.
-        - ```check``` *(bool, optional, default=True)*: Whether to explicitly
+        - `check` *(bool, optional, default=True)*: Whether to explicitly
           check the solution to the linear system.
-        - ```backend_error_tol``` *(float, optional, default=1e-3)*: Error
+        - `backend_error_tol` *(float, optional, default=1e-3)*: Error
           tolerance for the solution of the linear system.
-        - ```round_to_zero_treshold``` *(float, optional, default=1e-3)*:
+        - `round_to_zero_treshold` *(float, optional, default=1e-3)*:
           Intersection numbers with magnitude smaller than this treshold are
           rounded to zero.
-        - ```round_to_integer_error_tol``` *(float, optional, default=2e-5)*:
+        - `round_to_integer_error_tol` *(float, optional, default=5e-2)*:
           All intersection numbers of the Calabi-Yau hypersurface must be
           integers up to errors less than this value, when the CY is smooth.
-        - ```verbose``` *(int, optional, default=0)*: The verbosity level.
+        - `verbose` *(int, optional, default=0)*: The verbosity level.
           - verbose = 0: Do not print anything.
           - verbose = 1: Print linear backend warnings.
-        - ```exact_arithmetic``` *(bool, optional, default=False)*: Converts
+        - `exact_arithmetic` *(bool, optional, default=False)*: Converts
           the intersection numbers into exact rational fractions.
 
         Returns:
-        *(dict)* A dictionary containing nonzero intersection numbers. The keys
-        are divisor indices in ascending order.
+        *(dict or numpy.array)* When `format` is set to "dok" (Dictionary Of
+        Keys), it returns a dictionary where the keys are divisor indices in
+        ascending order and the corresponding value is their intersection
+        number. When `format` is set to "coo" (COOrdinate format), it returns
+        a numpy array in the format [[a,b,...,c,K_ab...c],...], i.e. all but
+        the last entry of each row correspond to divisor indices in ascending
+        order, with the last entry of the row being their intersection number.
+        Lastly, when set to "dense", it returns the full dense array of
+        intersection numbers.
 
         **Example:**
-        We construct a toric variety and compute its intersection numbers
-        without picking a basis (i.e. using all prime toric divisors) and after
-        picking a basis.
-        ```python {4,5}
+        We construct a toric variety and compute its intersection numbers We
+        demonstrate the usage of the `in_basis` flag and the different
+        available output formats.
+        ```python {5,15,23,29}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
         t = p.triangulate()
         v = t.get_toric_variety()
-        intnums_nobasis = v.intersection_numbers()
-        intnums_basis = v.intersection_numbers(in_basis=True)
+        # By default this function computes the intersection numbers of the canonical and prime toric divisors
+        intnum_nobasis = v.intersection_numbers()
+        # Let's print the output and see how to interpret it
+        print(intnum_nobasis)
+        # {(1, 2, 3, 4): 1.0, (1, 2, 3, 5): 1.0, (1, 2, 4, 6): 0.5, (1, 2, 5, 6): 0.5, [the output is too long so we truncate it]
+        # The above output means that the intersection number of divisors 1, 2, 3, 4  is 1, and so on
+        # Let us now compute the intersection numbers in a given basis of divisors
+        # First, let's check the current basis of divisors
+        v.divisor_basis()
+        # array([1, 6])
+        # Now, setting in_basis=True we only compute the intersection numbers of divisors 1 and 6
+        intnum_basis = v.intersection_numbers(in_basis=True)
+        # Let's print the output and see how to interpret it
+        print(intnum_basis)
+        # {(0, 0, 1, 1): 0.16666666666667923, (0, 1, 1, 1): -1.0000000000000335, (1, 1, 1, 1): 4.500000000000089}
+        # Here, the indices correspond to indices of the basis divisors
+        # So the intersection of 1, 1, 6, 6 is 0.1666, and so on
+        # Now, let's look at the different output formats. The default one is the "dok" (Dictionary Of Keys) format shown above
+        # There is also the "coo" (COOrdinate format)
+        print(v.intersection_numbers(in_basis=True, format="coo"))
+        # [[ 0.          0.          1.          1.          0.16666667]
+        #  [ 0.          1.          1.          1.         -1.        ]
+        #  [ 1.          1.          1.          1.          4.5       ]]
+        # In this format, all but the last entry of each row are the indices and the last entry of the row is the intersection number
+        # Lastrly, there is the "dense" format where it outputs the full dense array
+        print(v.intersection_numbers(in_basis=True, format="dense"))
+        # [[[[ 0.          0.        ]
+        #    [ 0.          0.16666667]]
+        #
+        #   [[ 0.          0.16666667]
+        #    [ 0.16666667 -1.        ]]]
+        #
+        #
+        #  [[[ 0.          0.16666667]
+        #    [ 0.16666667 -1.        ]]
+        #
+        #   [[ 0.16666667 -1.        ]
+        #    [-1.          4.5       ]]]]
         ```
         """
-        # 0: (canon,float), 1: (anticanon, float), 2: (basis, float)
-        # 4: (canon,fmpq), 5: (anticanon, fmpq), 6: (basis, fmpq)
-        args_id = ((1*zero_as_anticanonical if not in_basis else 0)
-                    + 2*in_basis + 4*exact_arithmetic)
-        if self._intersection_numbers[args_id] is not None:
+        if format not in ("dok", "coo", "dense"):
+            raise Exception("Options for format are \"dok\", \"coo\", \"dense\".")
+        if in_basis:
+            zero_as_anticanonical = False
+        args_id = (zero_as_anticanonical, in_basis, exact_arithmetic, format)
+        if args_id in self._intersection_numbers:
             return copy.copy(self._intersection_numbers[args_id])
-        if (self._intersection_numbers[0] is None
-                or (self._intersection_numbers[4] is None
+        if ((False,False,False,"dok") not in self._intersection_numbers
+                or ((False,False,True,"dok") not in self._intersection_numbers
                     and exact_arithmetic)):
             backends = ["all", "sksparse", "scipy"]
             if backend not in backends:
@@ -1416,13 +1472,15 @@ class ToricVariety:
                 for ii in canon_intnum_n[i]:
                     intnums[ii] = canon_intnum_n[i][ii]
             if exact_arithmetic:
-                self._intersection_numbers[4] = intnums
-                self._intersection_numbers[0] = {ii:fmpq_to_float(intnums[ii]) for ii in intnums}
+                self._intersection_numbers[(False,False,True,"dok")] = intnums
+                self._intersection_numbers[(False,False,False,"dok")] = {ii:(int(intnums[ii].p) if intnums[ii].q==1
+                                                                            else fmpq_to_float(intnums[ii])) for ii in intnums}
             else:
-                self._intersection_numbers[0]= intnums
+                self._intersection_numbers[(False,False,False,"dok")]= intnums
         # Now intersection numbers have been computed
+        # We now compute the intersection numbers of the basis if necessary
         if zero_as_anticanonical and not in_basis:
-            self._intersection_numbers[args_id] = self._intersection_numbers[4*exact_arithmetic]
+            self._intersection_numbers[args_id] = self._intersection_numbers[(False,False,exact_arithmetic,"dok")]
             for ii in self._intersection_numbers[args_id]:
                 if 0 not in ii:
                     continue
@@ -1430,13 +1488,21 @@ class ToricVariety:
         elif in_basis:
             basis = self.divisor_basis()
             if len(basis.shape) == 2: # If basis is matrix
-                self._intersection_numbers[args_id] = (
-                    symmetric_sparse_to_dense_in_basis(
-                        self._intersection_numbers[4*exact_arithmetic],
-                        basis))
+                self._intersection_numbers[(False,True,exact_arithmetic,"dense")] = (
+                    symmetric_sparse_to_dense(self._intersection_numbers[(False,False,exact_arithmetic,"dok")], basis))
+                self._intersection_numbers[(False,True,exact_arithmetic,"dok")] = (
+                    symmetric_dense_to_sparse(self._intersection_numbers[(False,True,exact_arithmetic,"dense")]))
             else:
-                self._intersection_numbers[args_id] = filter_tensor_indices(
-                        self._intersection_numbers[4*exact_arithmetic], basis)
+                self._intersection_numbers[(False,True,exact_arithmetic,"dok")] = filter_tensor_indices(
+                    self._intersection_numbers[(False,False,exact_arithmetic,"dok")], basis)
+        # Intersection numbers of the basis are now done
+        # Finally, we convert into the desired format
+        if format == "coo":
+            tmpintnums = self._intersection_numbers[(zero_as_anticanonical,in_basis,exact_arithmetic,"dok")]
+            self._intersection_numbers[args_id] = np.array([list(ii)+[tmpintnums[ii]] for ii in tmpintnums])
+        elif format == "dense":
+            self._intersection_numbers[args_id] = (
+                symmetric_sparse_to_dense(self._intersection_numbers[(zero_as_anticanonical,in_basis,exact_arithmetic,"dok")]))
         return copy.copy(self._intersection_numbers[args_id])
 
     def is_smooth(self):
@@ -1540,9 +1606,9 @@ class ToricVariety:
         particular dimension.
 
         **Arguments:**
-        - ```d``` *(int, optional)*: The dimension of the desired cones. If
+        - `d` *(int, optional)*: The dimension of the desired cones. If
           not specified, it returns the full-dimensional cones.
-        - ```face_dim``` *(int, optional)*: Restricts to cones that lie on
+        - `face_dim` *(int, optional)*: Restricts to cones that lie on
           faces of the polytope of a particular dimension. If not specified,
           then no restriction is imposed.
 
@@ -1595,7 +1661,7 @@ class ToricVariety:
         :::
 
         **Arguments:**
-        - ```nef_partition``` *(list, optional)*: A list of tuples of indices
+        - `nef_partition` *(list, optional)*: A list of tuples of indices
           specifying a nef-partition of the polytope, which correspondingly
           defines a complete intersection Calabi-Yau.
 

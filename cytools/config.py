@@ -73,8 +73,8 @@ def set_mosek_path(path):
     The license will be checked after the new path is set.
 
     **Arguments:**
-    - ```path``` *(str)*: The path to the Mosek license. Note that the mounted
-      directory on the Docker container is ```/home/cytools/mounted_volume/```.
+    - `path` *(str)*: The path to the Mosek license. Note that the mounted
+      directory on the Docker container is `/home/cytools/mounted_volume/`.
 
     **Returns:**
     Nothing.

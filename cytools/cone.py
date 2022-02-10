@@ -50,24 +50,24 @@ class Cone:
 
     ## Constructor
 
-    ### ```cytools.cone.Cone```
+    ### `cytools.cone.Cone`
 
     **Description:**
-    Constructs a ```Cone``` object. This is handled by the hidden
-    [```__init__```](#__init__) function.
+    Constructs a `Cone` object. This is handled by the hidden
+    [`__init__`](#__init__) function.
 
     **Arguments:**
-    - ```rays``` *(array_like, optional)*: A list of rays that generates
+    - `rays` *(array_like, optional)*: A list of rays that generates
       the cone. If it is not specified then the hyperplane normals must be
       specified.
-    - ```hyperplanes``` *(array_like, optional)*: A list of inward-pointing
+    - `hyperplanes` *(array_like, optional)*: A list of inward-pointing
       hyperplane normals that define the cone. If it is not specified then the
       generating rays must be specified.
-    - ```check``` *(bool, optional, default=True)*: Whether to check the input.
+    - `check` *(bool, optional, default=True)*: Whether to check the input.
       Recommended if constructing a cone directly.
 
     :::note
-    Exactly one of ```rays``` or ```hyperplanes``` must be specified. Otherwise
+    Exactly one of `rays` or `hyperplanes` must be specified. Otherwise
     an exception is raised.
     :::
 
@@ -87,20 +87,20 @@ class Cone:
     def __init__(self, rays=None, hyperplanes=None, check=True):
         """
         **Description:**
-        Initializes a ```Cone``` object.
+        Initializes a `Cone` object.
 
         **Arguments:**
-        - ```rays``` *(array_like, optional)*: A list of rays that generates
+        - `rays` *(array_like, optional)*: A list of rays that generates
           the cone. If it is not specified then the hyperplane normals must be
           specified.
-        - ```hyperplanes``` *(array_like, optional)*: A list of inward-pointing
+        - `hyperplanes` *(array_like, optional)*: A list of inward-pointing
           hyperplane normals that define the cone. If it is not specified then
           the generating rays must be specified.
-        - ```check``` *(bool, optional, default=True)*: Whether to check the
+        - `check` *(bool, optional, default=True)*: Whether to check the
           input. Recommended if constructing a cone directly.
 
         :::note
-        Exactly one of ```rays``` or ```hyperplanes``` must be specified.
+        Exactly one of `rays` or `hyperplanes` must be specified.
         Otherwise an exception is raised.
         :::
 
@@ -109,7 +109,7 @@ class Cone:
 
         **Example:**
         This is the function that is called when creating a new
-        ```Cone``` object. We construct a cone in two different ways. First
+        `Cone` object. We construct a cone in two different ways. First
         from a list of rays then from a list of hyperplane normals. We verify
         that the two inputs result in the same cone.
         ```python {2,3}
@@ -282,7 +282,7 @@ class Cone:
         :::
 
         **Arguments:**
-        - ```other``` *(Cone)*: The other cone that is being compared.
+        - `other` *(Cone)*: The other cone that is being compared.
 
         **Returns:**
         *(bool)* The truth value of the cones being equal.
@@ -331,7 +331,7 @@ class Cone:
         :::
 
         **Arguments:**
-        - ```other``` *(Cone)*: The other cone that is being compared.
+        - `other` *(Cone)*: The other cone that is being compared.
 
         **Returns:**
         *(bool)* The truth value of the cones being different.
@@ -570,9 +570,9 @@ class Cone:
         Returns the extremal rays of the cone.
 
         **Arguments:**
-        - ```tol``` *(float, optional, default=1e-4)*: Specifies the tolerance
+        - `tol` *(float, optional, default=1e-4)*: Specifies the tolerance
           for deciding whether a ray is extremal or not.
-        - ```n_threads``` *(int, optional)*: Specifies the number of CPU
+        - `n_threads` *(int, optional)*: Specifies the number of CPU
           threads to be used in the computation. Using multiple threads can
           greatly speed up the computation. If not specified, it is set to the
           number of available CPU threads.
@@ -662,21 +662,21 @@ class Cone:
         **Description:**
         Finds the tip of the stretched cone via quadratic programming. The
         stretched cone is defined as the convex polyhedral region inside the
-        cone that is at least a distance ```c``` from any of its defining
+        cone that is at least a distance `c` from any of its defining
         hyperplanes.
 
         **Arguments:**
-        - ```c``` *(float)*: A real positive number specifying the stretching
+        - `c` *(float)*: A real positive number specifying the stretching
           of the cone (i.e. the minimum distance to the defining hyperplanes).
-        - ```backend``` *(str, optional, default="all")*: String that
+        - `backend` *(str, optional, default="all")*: String that
           specifies the optimizer to use. Options are "all", "mosek", and
           "cvxopt".
-        - ```checks``` *(bool, optional, default=True)*: Flag that specifies
+        - `checks` *(bool, optional, default=True)*: Flag that specifies
           whether to check if the output of the optimizer is consistent and
           satisfies constraint_error_tol.
-        - ```constraint_error_tol``` *(float, optional, default=1e-4)*: Error
+        - `constraint_error_tol` *(float, optional, default=1e-4)*: Error
           tolerence for the linear constraints.
-        - ```verbose``` *(int, optional, default=0)*: The verbosity level.
+        - `verbose` *(int, optional, default=0)*: The verbosity level.
           - verbose = 0: Do not print anything.
           - verbose = 1: Print warnings when optimizers fail.
 
@@ -776,14 +776,14 @@ class Cone:
         :::
 
         **Arguments:**
-        - ```backend``` *(str, optional)*: Specifies which backend to use.
+        - `backend` *(str, optional)*: Specifies which backend to use.
           Available options are "ppl", "ortools", and any backends available
-          for the [```tip_of_stretched_cone```](#tip_of_stretched_cone)
+          for the [`tip_of_stretched_cone`](#tip_of_stretched_cone)
           function. If not specified, it tries all available backends.
-        - ```c``` *(float, optional, default=0.01)*: A number used to create
+        - `c` *(float, optional, default=0.01)*: A number used to create
           the stretched cone and try to find the tip. This is ignored when
           using PPL as the backend.
-        - ```verbose``` *(int, optional, default=0)*: The verbosity level.
+        - `verbose` *(int, optional, default=0)*: The verbosity level.
           - verbose = 0: Do not print anything.
           - verbose = 1: Print warnings when optimizers fail.
 
@@ -877,11 +877,11 @@ class Cone:
         :::
 
         **Arguments:**
-        - ```backend``` *(str, optional)*: Specifies which backend to use.
+        - `backend` *(str, optional)*: Specifies which backend to use.
           Available options are "nnls", and any backends available for the
-          [```is_solid```](#is_solid) function. If not specified, it uses
-          the default backend for the [```is_solid```](#is_solid) function.
-        - ```tol``` *(float, optional, default=1e-7)*: The tolerance for
+          [`is_solid`](#is_solid) function. If not specified, it uses
+          the default backend for the [`is_solid`](#is_solid) function.
+        - `tol` *(float, optional, default=1e-7)*: The tolerance for
           determining when a linear subspace is found. This is only used for
           the NNLS backend.
 
@@ -984,7 +984,7 @@ class Cone:
         Computes the intersection with another cone, or with a list of cones.
 
         **Arguments:**
-        - ```other``` *(Cone or array_like)*: The other cone that is being
+        - `other` *(Cone or array_like)*: The other cone that is being
           intersected, or a list of cones to intersect with.
 
         **Returns:**
@@ -1024,19 +1024,30 @@ def is_extremal(A, b, i=None, q=None, tol=1e-4):
     parameters that are used when parallelizing.
 
     **Arguments:**
-    - ```A``` *(array_like)*: A matrix where the columns are rays (excluding
+    - `A` *(array_like)*: A matrix where the columns are rays (excluding
       b).
-    - ```b``` *(array_like)*: The vector that will be checked if it can be
+    - `b` *(array_like)*: The vector that will be checked if it can be
       expressed as a positive linear combination of the columns of A.
-    - ```i``` *(int, optional)*: An id number that is used when parallelizing.
-    - ```q``` *(multiprocessing.Queue, optional)*: A queue that is used when
+    - `i` *(int, optional)*: An id number that is used when parallelizing.
+    - `q` *(multiprocessing.Queue, optional)*: A queue that is used when
       parallelizing.
-    - ```tol``` *(float, optional, default=1e-4)*: The tolerance for
+    - `tol` *(float, optional, default=1e-4)*: The tolerance for
       determining whether a ray is extremal.
 
     **Returns:**
     *(bool or None)* The truth value of the ray baing extremal. If the process
     fails then it returns nothing.
+
+    **Example:**
+    This function is not meant to be directly used by the end user. Instead it
+    is used by the [`extremal_rays`](#extremal_rays) function. We construct a
+    cone and find its extremal_rays.
+    ```python {2}
+    c = Cone([[0,1],[1,1],[1,0]])
+    c.extremal_rays()
+    # array([[0, 1],
+    #        [1, 0]])
+    ```
     """
     try:
         v = nnls(A,b)
