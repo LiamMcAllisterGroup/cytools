@@ -1258,7 +1258,7 @@ class CalabiYau:
         # Let's print the output and see how to interpret it
         print(intnum_nobasis)
         # {(1, 2, 3): 18, (2, 3, 4): 18, (1, 3, 4): 2, (1, 2, 4): 3, (1, 2, 5): 3, (2, 3, 5): 18, [the output is too long so we truncate it]
-        # The above output means that the intersection number of divisors 1, 2, 3  is 13, and so on
+        # The above output means that the intersection number of divisors 1, 2, 3  is 18, and so on
         # Let us now compute the intersection numbers in a given basis of divisors
         # First, let's check the current basis of divisors
         cy.divisor_basis()
@@ -1489,9 +1489,7 @@ class CalabiYau:
         if self._is_smooth is not None:
             return self._is_smooth
         if self._is_hypersurface:
-            sm = (True if self.dim() <= 3 else
-                    all(c.is_smooth() for c in self.ambient_variety().fan_cones(self.dim(),self.dim()-1)))
-            self._is_smooth = sm
+            self._is_smooth = self.ambient_variety().canonical_divisor_is_smooth()
         else:
             self.intersection_numbers() # The variable is set while computing intersection numbers
         return self._is_smooth

@@ -1565,7 +1565,7 @@ class ToricVariety:
         pts_mpcp = {tuple(pt) for pt in self.polytope().points_not_interior_to_facets()}
         ind_triang = list(set.union(*[set(s) for s in self._triang.simplices()]))
         pts_triang = {tuple(pt) for pt in self._triang.points()[ind_triang]}
-        sm = (pts_triang.issubset(pts_mpcp) and
+        sm = (pts_mpcp.issubset(pts_triang) and
                 (True if self.dim() <= 4 else
                 all(c.is_smooth() for c in self.fan_cones(self.dim()-1,self.dim()-2))))
         self._canon_div_is_smooth = sm

@@ -604,8 +604,8 @@ class Polytope:
         - Points are sorted so that interior points are first, and then the
           rest are arranged by decreasing number of saturated inequalities and
           lexicographically. For reflexive polytopes this is useful since the
-          origin will be at index 0 and boundary points not interior to facets
-          will be last.
+          origin will be at index 0 and boundary points interior to facets will
+          be last.
         - Typically this function should not be called by the user. Instead, it
           is called by various other functions in the Polytope class.
         :::
@@ -761,10 +761,11 @@ class Polytope:
         Returns the lattice points of the polytope.
 
         :::note
-        Points are sorted so that interior points are first, and then the rest
-        are arranged by decreasing number of saturated inequalities.
-        For reflexive polytopes this is useful since the origin will be at
-        index 0 and boundary points not interior to facets will be last.
+        Points are sorted so that interior points are first, and then the
+        rest are arranged by decreasing number of saturated inequalities and
+        lexicographically. For reflexive polytopes this is useful since the
+        origin will be at index 0 and boundary points interior to facets will
+        be last.
         :::
 
         **Arguments:**
@@ -1811,6 +1812,8 @@ class Polytope:
             glsm = np.insert(glsm, pp, extra_columns[p], axis=1)
         origin_column = -np.sum(glsm, axis=1)
         glsm = np.insert(glsm, 0, origin_column, axis=1)
+        glsm_rref = fmpz_mat(glsm.tolist()).rref()
+        glsm = np.array(glsm_rref[0].tolist(),dtype=int) // int(glsm_rref[1])
         linear_relations = extra_rows
         extra_linear_relation_columns = -1*np.diag(row_scalings)
         for p,pp in enumerate(good_lattice_basis):

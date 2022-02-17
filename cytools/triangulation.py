@@ -164,15 +164,15 @@ class Triangulation:
         # A fine, regular, star triangulation of a 4-dimensional point configuration with 7 points in ZZ^4
         ```
         """
-        tmp_triang_pts = [tuple(pt) for pt in np.array(triang_pts, dtype=int)]
+        tmp_triang_pts = {tuple(pt) for pt in np.array(triang_pts, dtype=int)}
         heights = copy.deepcopy(heights)
         if poly is None:
             from cytools.polytope import Polytope
-            self._poly = Polytope(tmp_triang_pts)
+            self._poly = Polytope(list(tmp_triang_pts))
         else:
             self._poly = poly
         if (not self._poly.is_solid()
-                or np.linalg.matrix_rank([pt+(1,) for pt in tmp_triang_pts]) != len(tmp_triang_pts[0])+1):
+                or np.linalg.matrix_rank([pt+(1,) for pt in tmp_triang_pts]) != len(next(iter(tmp_triang_pts)))+1):
             raise Exception("Only triangulations of full-dimensional point "
                             "configurations are supported.")
         # Now we reorder the points to make sure they match the ordering of
