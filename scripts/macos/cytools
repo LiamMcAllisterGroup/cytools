@@ -100,7 +100,7 @@ cat << EOF
  ░░█████████     █████       █████   ░░██████ ░░██████  █████ ██████
   ░░░░░░░░░     ░░░░░       ░░░░░     ░░░░░░   ░░░░░░  ░░░░░ ░░░░░░
 
-        Developed by Liam McAllister's Group | Version 0.3.2
+        Developed by Liam McAllister's Group | Version 0.3.3
              https://cytools.liammcallistergroup.com
 
 EOF

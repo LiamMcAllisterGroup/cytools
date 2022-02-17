@@ -274,7 +274,7 @@ def symmetric_sparse_to_dense(tensor, basis=None):
     ```
     """
     l = (np.array(basis).shape[1] if basis is not None else
-            max(set.union(*[set(ii) for ii in tensor.keys()]))+1) 
+            max(set.union(*[set(ii) for ii in tensor.keys()]))+1)
     dense_tensor = np.zeros((l,)*(len(list(tensor.items())[0][0])),
                             dtype=type(list(tensor.items())[0][1]))
     for ii in tensor:
@@ -591,9 +591,8 @@ def set_divisor_basis(tv_or_cy, basis, include_origin=True):
         linrels_tmp = np.empty(linrels.shape, dtype=int)
         linrels_tmp[:,:len(nobasis)] = linrels[:,nobasis]
         linrels_tmp[:,len(nobasis):] = linrels[:,b]
-        linrels_tmp = fmpz_mat(linrels_tmp.tolist()).rref()[0]
+        linrels_tmp = fmpz_mat(linrels_tmp.tolist()).hnf()
         linrels_tmp = np.array(linrels_tmp.tolist(), dtype=int)
-        linrels_tmp = np.array([v//int(round(abs(gcd_list(v)))) for v in linrels_tmp], dtype=int)
         linrels_new = np.empty(linrels.shape, dtype=int)
         linrels_new[:,nobasis] = linrels_tmp[:,:len(nobasis)]
         linrels_new[:,b] = linrels_tmp[:,len(nobasis):]

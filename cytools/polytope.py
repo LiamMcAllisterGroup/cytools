@@ -1718,7 +1718,7 @@ class Polytope:
 
     def glsm_charge_matrix(self, include_origin=True,
                            include_points_interior_to_facets=False,
-                           points=None):
+                           points=None, integral=True):
         """
         **Description:**
         Computes the GLSM charge matrix of the theory resulting from this
@@ -1736,6 +1736,10 @@ class Polytope:
           points that will be used. Note that if this option is used then the
           parameters `include_origin` and
           `include_points_interior_to_facets` are ignored.
+        - `integral` *(bool, optional, default=True)*: Indicates whether
+          to find an integral basis for the columns of the GLSM charge matrix.
+          (i.e. so that remaining columns can be written as an integer linear
+          combination of the basis elements.)
 
         **Returns:**
         *(numpy.ndarray)* The GLSM charge matrix.
@@ -1767,79 +1771,111 @@ class Polytope:
                             "reflexive polytopes.")
         # Set up the list of points that will be used.
         if points is not None:
-            pts_ind = tuple(set(points))
+            # We always add the origin, but remove it later if necessary
+            pts_ind = tuple(set(list(points)+[0]))
             if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
                 raise Exception("An index is out of the allowed range.")
-            include_origin = 0 in pts_ind
+            include_origin = 0 in points
         elif include_points_interior_to_facets:
             pts_ind = tuple(range(self.points().shape[0]))
         else:
             pts_ind = tuple(range(self.points_not_interior_to_facets().shape[0]))
-        if pts_ind in self._glsm_charge_matrix:
+        if (pts_ind,integral) in self._glsm_charge_matrix:
             if not include_origin and points is None:
-                return np.array(self._glsm_charge_matrix[pts_ind][:,1:])
-            return np.array(self._glsm_charge_matrix[pts_ind])
+                return np.array(self._glsm_charge_matrix[(pts_ind,integral)][:,1:])
+            return np.array(self._glsm_charge_matrix[(pts_ind,integral)])
         # If the result is not cached we do the computation
-        pts = self.points()[[i for i in pts_ind if i]] # Exclude origin
-        pts_norms = [np.linalg.norm(p,1) for p in pts]
-        pts_order = np.argsort(pts_norms)
-        # Find good lattice basis
-        good_lattice_basis = []
-        current_rank = 0
-        for p in pts_order:
-            tmp = pts[good_lattice_basis + [p]]
-            rank = np.linalg.matrix_rank(np.dot(tmp.T,tmp))
-            if rank>current_rank:
-                good_lattice_basis.append(p)
-                current_rank = rank
-                if rank==self._dim:
+        # We start by finding a basis of columns
+        linrel = self.points()[list(pts_ind)].T
+        if int(round(np.linalg.det(np.array(fmpz_mat(linrel.tolist()).snf().tolist(), dtype=int)[:,:4]))) != 1:
+            raise Exception("The points do not generate the lattice.")
+        norms = [np.linalg.norm(p,1) for p in linrel.T]
+        linrel = np.insert(linrel, 0, np.ones(linrel.shape[1], dtype=int), axis=0)
+        good_exclusions = 0
+        basis_exc = []
+        indices = np.argsort(norms)
+        for n_try in range(4):
+            if n_try == 1:
+                indices[:] = np.array(range(linrel.shape[1]))
+            elif n_try > 1:
+                np.shuffle(indices[1:])
+            for ctr in range(np.prod(linrel.shape)+1):
+                found_good_basis=True
+                ctr += 1
+                if ctr > 0:
+                    st = max([good_exclusions,1])
+                    indices[st:] = np.roll(indices[st:], -1)
+                linrel_rand = np.array(linrel[:,indices])
+                try:
+                    linrel_hnf = fmpz_mat(linrel_rand.tolist()).hnf()
+                except:
+                    continue
+                linrel_rand = np.array(linrel_hnf.tolist(), dtype=int)
+                good_exclusions = 0
+                basis_exc = []
+                for v in linrel_rand:
+                    for i,ii in enumerate(v):
+                        if ii != 0:
+                            if integral:
+                                if abs(ii) == 1:
+                                    v *= ii
+                                    good_exclusions += 1
+                                else:
+                                    found_good_basis = False
+                            basis_exc.append(i)
+                            break
+                    if not found_good_basis:
+                        break
+                if found_good_basis:
                     break
-        good_lattice_basis = np.sort(good_lattice_basis)
-        if len(good_lattice_basis) != self._dim:
-            raise Exception("Failed to find basis.")
-        glsm_basis = [i for i in range(len(pts)) if i not in good_lattice_basis]
-        M = fmpq_mat(pts[good_lattice_basis].T.tolist())
-        M_inv = np.array(M.inv().tolist())
-        extra_pts = -1*np.dot(M_inv,pts[glsm_basis].T)
-        row_scalings = np.array([np.lcm.reduce([int(ii.q) for ii in i]) for i in extra_pts])
-        column_scalings = np.array([np.lcm.reduce([int(ii.q) for ii in i]) for i in extra_pts.T])
-        extra_rows = np.multiply(extra_pts, row_scalings[:, None])
-        extra_rows = np.array([[int(ii.p) for ii in i] for i in extra_rows])
-        extra_columns = np.multiply(extra_pts.T, column_scalings[:, None]).T
-        extra_columns = np.array([[int(ii.p) for ii in i] for i in extra_columns])
-        glsm = np.diag(column_scalings)
-        for p,pp in enumerate(good_lattice_basis):
-            glsm = np.insert(glsm, pp, extra_columns[p], axis=1)
-        origin_column = -np.sum(glsm, axis=1)
-        glsm = np.insert(glsm, 0, origin_column, axis=1)
-        glsm_rref = fmpz_mat(glsm.tolist()).rref()
-        glsm = np.array(glsm_rref[0].tolist(),dtype=int) // int(glsm_rref[1])
-        linear_relations = extra_rows
-        extra_linear_relation_columns = -1*np.diag(row_scalings)
-        for p,pp in enumerate(good_lattice_basis):
-            linear_relations = np.insert(linear_relations, pp, extra_linear_relation_columns[p], axis=1)
-        linear_relations = np.insert(linear_relations, 0, np.ones(len(pts)), axis=0)
-        linear_relations = np.insert(linear_relations, 0, np.zeros(self._dim+1), axis=1)
-        linear_relations[0][0] = 1
+            if found_good_basis:
+                    break
+        if not found_good_basis:
+            raise Exception("failed")
+            if ctr == np.prod(linrel.shape):
+                print("Warning: An integral basis could not be found. "
+                      "A non-integral one will be computed. However, this "
+                      "will not be usable as a basis of divisors for the "
+                      "ToricVariety or CalabiYau classes. Please let the "
+                      "developers know about the polytope that caused this "
+                      "issue. Here are the vertices of the polytope: "
+                      f"{self.vertices().tolist()}")
+                return self.glsm_charge_matrix(include_origin=include_origin,
+                                               include_points_interior_to_facets=include_points_interior_to_facets,
+                                               points=points, integral=False)
+        linrel_dict = {ii:i for i,ii in enumerate(indices)}
+        linrel = np.array(linrel_rand[:,[linrel_dict[i] for i in range(linrel_rand.shape[1])]])
+        basis_ind = np.array(sorted([i for i in range(linrel.shape[1]) if linrel_dict[i] not in basis_exc]), dtype=int)
+        basis_exc = [i for i in range(linrel.shape[1]) if i not in basis_ind]
+        glsm = np.zeros((linrel.shape[1]-linrel.shape[0],linrel.shape[1]), dtype=int)
+        glsm[:,basis_ind] = np.eye(len(basis_ind),dtype=int)
+        for nb in basis_exc:
+            tup = [(k,kk) for k,kk in enumerate(linrel[:,nb]) if kk]
+            if len(tup) != 1 or abs(tup[0][1]) != 1:
+                raise Exception("Problem with linear relations")
+            i,ii = tup[0]
+            glsm[:,nb] = -ii*glsm.dot(linrel[i])
         # Check that everything was computed correctly
-        if (any(glsm.dot(([[0]*self._dim+[1]])+[pt+[1] for pt in pts.tolist()]).flat)
-                or any(glsm.dot(linear_relations.T).flatten())
-                or np.linalg.matrix_rank(glsm[:,np.array(glsm_basis)+1])
-                    != len(glsm_basis)):
-            print(glsm.dot(([[0]*self._dim+[1]])+[pt+[1] for pt in pts.tolist()]))
-            raise Exception("Error computing GLSM charge matrix.")
+        if (np.linalg.matrix_rank(glsm[:,basis_ind]) != len(basis_ind)
+                or any(glsm.dot(linrel.T).flat)
+                or any(glsm.dot(self.points()[list(pts_ind)]).flat)):
+            raise Exception("Error finding basis")
         # We now cache the results
-        self._glsm_charge_matrix[pts_ind] = glsm
-        self._glsm_linrels[pts_ind] = linear_relations
-        self._glsm_basis[pts_ind] = np.array(glsm_basis) + 1
+        if integral:
+            self._glsm_charge_matrix[(pts_ind,integral)] = glsm
+            self._glsm_linrels[(pts_ind,integral)] = linrel
+            self._glsm_basis[(pts_ind,integral)] = basis_ind
+        self._glsm_charge_matrix[(pts_ind,False)] = glsm
+        self._glsm_linrels[(pts_ind,False)] = linrel
+        self._glsm_basis[(pts_ind,False)] = basis_ind
         # Finally return a copy of the result
         if not include_origin and points is None:
-            return np.array(self._glsm_charge_matrix[pts_ind][:,1:])
-        return np.array(self._glsm_charge_matrix[pts_ind])
+            return np.array(self._glsm_charge_matrix[(pts_ind,integral)][:,1:])
+        return np.array(self._glsm_charge_matrix[(pts_ind,integral)])
 
     def glsm_linear_relations(self, include_origin=True,
                               include_points_interior_to_facets=False,
-                              points=None):
+                              points=None, integral=True):
         """
         **Description:**
         Computes the linear relations of the GLSM charge matrix.
@@ -1856,6 +1892,10 @@ class Polytope:
           points that will be used. Note that if this option is used then the
           parameters `include_origin` and
           `include_points_interior_to_facets` are ignored.
+        - `integral` *(bool, optional, default=True)*: Indicates whether
+          to find an integral basis for the columns of the GLSM charge matrix.
+          (i.e. so that remaining columns can be written as an integer linear
+          combination of the basis elements.)
 
         **Returns:**
         *(numpy.ndarray)* A matrix of linear relations of the columns of the
@@ -1900,18 +1940,18 @@ class Polytope:
             pts_ind = tuple(range(self.points().shape[0]))
         else:
             pts_ind = tuple(range(self.points_not_interior_to_facets().shape[0]))
-        if pts_ind in self._glsm_linrels:
+        if (pts_ind,integral) in self._glsm_linrels:
             if not include_origin and points is None:
-                return np.array(self._glsm_linrels[pts_ind][1:,1:])
-            return np.array(self._glsm_linrels[pts_ind])
+                return np.array(self._glsm_linrels[(pts_ind,integral)][1:,1:])
+            return np.array(self._glsm_linrels[(pts_ind,integral)])
         # If linear relations are not cached we just call the GLSM charge
         # matrix function since they are computed there
         self.glsm_charge_matrix(include_origin=True,
                                 include_points_interior_to_facets=include_points_interior_to_facets,
-                                points=points)
+                                points=points, integral=integral)
         if not include_origin and points is None:
-            return np.array(self._glsm_linrels[pts_ind][1:,1:])
-        return np.array(self._glsm_linrels[pts_ind])
+            return np.array(self._glsm_linrels[(pts_ind,integral)][1:,1:])
+        return np.array(self._glsm_linrels[(pts_ind,integral)])
 
     def glsm_basis(self, include_origin=True,
                    include_points_interior_to_facets=False, points=None,
@@ -1968,64 +2008,11 @@ class Polytope:
             if not include_origin and points is None:
                 return np.array(self._glsm_basis[(pts_ind,integral)]) - 1
             return np.array(self._glsm_basis[(pts_ind,integral)])
-        linrel_np = self.glsm_linear_relations(include_origin=True,
-                                               include_points_interior_to_facets=include_points_interior_to_facets,
-                                               points=points)
-        good_exclusions = 0
-        basis_exc = []
-        indices = np.arange(linrel_np.shape[1])
-        for ctr in range(np.prod(linrel_np.shape)):
-            found_good_basis=True
-            ctr += 1
-            if ctr > 0:
-                st = max([good_exclusions,1])
-                indices[st:] = np.roll(indices[st:], -1)
-            linrel_rand = np.array(linrel_np[:,indices])
-            try:
-                linrel = fmpz_mat(linrel_rand.tolist()).rref()[0]
-            except:
-                continue
-            linrel_rand = np.array(linrel.tolist(), dtype=int)
-            linrel_rand = np.array([v//int(round(abs(gcd_list(v)))) for v in linrel_rand], dtype=int)
-            good_exclusions = 0
-            basis_exc = []
-            for v in linrel_rand:
-                for i,ii in enumerate(v):
-                    if ii != 0:
-                        if integral:
-                            if abs(ii) == 1:
-                                v *= ii
-                                good_exclusions += 1
-                            else:
-                                found_good_basis = False
-                        basis_exc.append(i)
-                        break
-                if not found_good_basis:
-                    break
-            if found_good_basis:
-                break
-            if ctr == np.prod(linrel_np.shape) - 1:
-                print("Warning: An integral basis could not be found. "
-                      "A non-integral one will be computed. Please let the "
-                      "developers know about the polytope that caused this "
-                      "issue.")
-                return self.glsm_basis(include_origin=include_origin,
-                                       include_points_interior_to_facets=include_points_interior_to_facets,
-                                       integral=False)
-        linrel_dict = {ii:i for i,ii in enumerate(indices)}
-        linrel_np = np.array(linrel_rand[:,[linrel_dict[i]
-                                    for i in range(linrel_rand.shape[1])]])
-        basis_ind = np.array(sorted([i for i in range(len(linrel_np[0])) if linrel_dict[i] not in basis_exc]), dtype=int)
-        ker_np = self.glsm_charge_matrix(include_origin=True,
-                                         include_points_interior_to_facets=include_points_interior_to_facets,
-                                         points=points)
-        if (np.linalg.matrix_rank(ker_np[:,basis_ind]) != len(basis_ind)
-                or any(ker_np.dot(linrel_np.T).flatten())):
-            raise Exception("Error finding basis")
-        if integral:
-            self._glsm_linrels[pts_ind] = linrel_np
-            self._glsm_basis[(pts_ind,integral)] = basis_ind
-        self._glsm_basis[(pts_ind,False)] = basis_ind
+        # If basis is not cached we just call the GLSM charge matrix function
+        # since it is computed there
+        self.glsm_charge_matrix(include_origin=True,
+                                include_points_interior_to_facets=include_points_interior_to_facets,
+                                points=points, integral=integral)
         if not include_origin and points is None:
             return np.array(self._glsm_basis[(pts_ind,integral)]) - 1
         return np.array(self._glsm_basis[(pts_ind,integral)])
@@ -2452,7 +2439,7 @@ class Polytope:
         for f in self.facets():
             if f_min is None or len(f.vertices()) < len(f_min.vertices()):
                 f_min = f
-        f_min_vert_rref = np.array(fmpz_mat(f_min.vertices().T.tolist()).rref()[0].tolist(), dtype=int)
+        f_min_vert_rref = np.array(fmpz_mat(f_min.vertices().T.tolist()).hnf().tolist(), dtype=int)
         pivots = []
         for v in f_min_vert_rref:
             if any(v):
