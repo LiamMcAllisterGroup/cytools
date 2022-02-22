@@ -918,8 +918,7 @@ class CalabiYau:
         """
         if self._glsm_charge_matrix is not None:
             return np.array(self._glsm_charge_matrix)[:,(0 if include_origin else 1):]
-        toric_divs = [0]+list(self.prime_toric_divisors())
-        pts = self.polytope().points_to_indices(self.polytope().points()[toric_divs])
+        pts = [0]+list(self.prime_toric_divisors())
         self._glsm_charge_matrix = self.polytope().glsm_charge_matrix(
                                             include_origin=True,
                                             points=pts)
@@ -956,8 +955,7 @@ class CalabiYau:
         """
         if self._glsm_linrels is not None:
             return np.array(self._glsm_linrels)[(0 if include_origin else 1):,(0 if include_origin else 1):]
-        toric_divs = [0]+list(self.prime_toric_divisors())
-        pts = self.polytope().points_to_indices(self.polytope().points()[toric_divs])
+        pts = [0]+list(self.prime_toric_divisors())
         self._glsm_linrels = self.polytope().glsm_linear_relations(
                                 include_origin=True,
                                 points=pts)
@@ -1004,12 +1002,11 @@ class CalabiYau:
         ```
         """
         if self._divisor_basis is None:
+            pts = [0]+list(self.prime_toric_divisors())
             self.set_divisor_basis(self.polytope().glsm_basis(
                                    integral=True,
                                    include_origin=True,
-                                   points=self.polytope().points_to_indices(
-                                        self.polytope().points()[[0]+list(self.prime_toric_divisors())]))
-                                    )
+                                   points=pts))
         if len(self._divisor_basis.shape) == 1:
             if 0 in self._divisor_basis and not include_origin:
                 raise Exception("The basis was requested not including the "

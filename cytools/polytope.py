@@ -1517,13 +1517,14 @@ class Polytope:
         """
         return self.faces(self._dim-1)
 
-    def vertices(self):
+    def vertices(self, as_indices=False):
         """
         **Description:**
         Returns the vertices of the polytope.
 
         **Arguments:**
-        None.
+        - `as_indices` *(bool)*: Return the points as indices of the full
+          list of points of the polytope.
 
         **Returns:**
         *(numpy.ndarray)* The list of vertices of the polytope.
@@ -1542,6 +1543,8 @@ class Polytope:
         ```
         """
         if self._vertices is not None:
+            if as_indices:
+                return self.points_to_indices(self._vertices)
             return np.array(self._vertices)
         if self._dim == 0:
             self._vertices = np.array([self._input_pts[0]])
@@ -1607,6 +1610,8 @@ class Polytope:
                 if pt_tup not in input_pts:
                     input_pts.append(pt_tup)
             self._vertices = np.array([list(pt) for pt in input_pts if pt in tmp_vert])
+        if as_indices:
+            return self.points_to_indices(self._vertices)
         return np.array(self._vertices)
 
     def dual(self):
@@ -1787,24 +1792,26 @@ class Polytope:
         # If the result is not cached we do the computation
         # We start by finding a basis of columns
         linrel = self.points()[list(pts_ind)].T
-        if int(round(np.linalg.det(np.array(fmpz_mat(linrel.tolist()).snf().tolist(), dtype=int)[:,:4]))) != 1:
-            raise Exception("The points do not generate the lattice.")
+        sublat_ind =  int(round(np.linalg.det(np.array(fmpz_mat(linrel.tolist()).snf().tolist(), dtype=int)[:,:linrel.shape[0]])))
         norms = [np.linalg.norm(p,1) for p in linrel.T]
         linrel = np.insert(linrel, 0, np.ones(linrel.shape[1], dtype=int), axis=0)
         good_exclusions = 0
         basis_exc = []
         indices = np.argsort(norms)
+        indices[:linrel.shape[0]] = np.sort(indices[:linrel.shape[0]])
         for n_try in range(4):
             if n_try == 1:
                 indices[:] = np.array(range(linrel.shape[1]))
             elif n_try > 1:
-                np.shuffle(indices[1:])
+                np.random.shuffle(indices[1:])
+                indices[:linrel.shape[0]] = np.sort(indices[:linrel.shape[0]])
             for ctr in range(np.prod(linrel.shape)+1):
                 found_good_basis=True
                 ctr += 1
                 if ctr > 0:
                     st = max([good_exclusions,1])
                     indices[st:] = np.roll(indices[st:], -1)
+                    indices[:linrel.shape[0]] = np.sort(indices[:linrel.shape[0]])
                 linrel_rand = np.array(linrel[:,indices])
                 try:
                     linrel_hnf = fmpz_mat(linrel_rand.tolist()).hnf()
@@ -1813,12 +1820,14 @@ class Polytope:
                 linrel_rand = np.array(linrel_hnf.tolist(), dtype=int)
                 good_exclusions = 0
                 basis_exc = []
+                tmp_sublat_ind = 1
                 for v in linrel_rand:
                     for i,ii in enumerate(v):
                         if ii != 0:
                             if integral:
-                                if abs(ii) == 1:
-                                    v *= ii
+                                tmp_sublat_ind *= abs(ii)
+                                if sublat_ind % tmp_sublat_ind == 0:
+                                    v *= ii//abs(ii)
                                     good_exclusions += 1
                                 else:
                                     found_good_basis = False
@@ -1829,7 +1838,7 @@ class Polytope:
                 if found_good_basis:
                     break
             if found_good_basis:
-                    break
+                break
         if not found_good_basis:
             raise Exception("failed")
             if ctr == np.prod(linrel.shape):
@@ -1845,16 +1854,16 @@ class Polytope:
                                                points=points, integral=False)
         linrel_dict = {ii:i for i,ii in enumerate(indices)}
         linrel = np.array(linrel_rand[:,[linrel_dict[i] for i in range(linrel_rand.shape[1])]])
-        basis_ind = np.array(sorted([i for i in range(linrel.shape[1]) if linrel_dict[i] not in basis_exc]), dtype=int)
-        basis_exc = [i for i in range(linrel.shape[1]) if i not in basis_ind]
+        basis_ind = np.array([i for i in range(linrel.shape[1]) if linrel_dict[i] not in basis_exc], dtype=int)
+        basis_exc = np.array([indices[i] for i in basis_exc])
         glsm = np.zeros((linrel.shape[1]-linrel.shape[0],linrel.shape[1]), dtype=int)
-        glsm[:,basis_ind] = np.eye(len(basis_ind),dtype=int)
-        for nb in basis_exc:
+        glsm[:,basis_ind] = np.eye(len(basis_ind), dtype=int)
+        for nb in basis_exc[::-1]:
             tup = [(k,kk) for k,kk in enumerate(linrel[:,nb]) if kk]
-            if len(tup) != 1 or abs(tup[0][1]) != 1:
+            if sublat_ind % tup[-1][1] != 0:
                 raise Exception("Problem with linear relations")
-            i,ii = tup[0]
-            glsm[:,nb] = -ii*glsm.dot(linrel[i])
+            i,ii = tup[-1]
+            glsm[:,nb] = -glsm.dot(linrel[i])//ii
         # Check that everything was computed correctly
         if (np.linalg.matrix_rank(glsm[:,basis_ind]) != len(basis_ind)
                 or any(glsm.dot(linrel.T).flat)

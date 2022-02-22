@@ -598,12 +598,13 @@ def set_divisor_basis(tv_or_cy, basis, include_origin=True):
         linrels_new[:,b] = linrels_tmp[:,len(nobasis):]
         self._curve_basis_mat = np.zeros(glsm_cm.shape, dtype=int)
         self._curve_basis_mat[:,b] = np.eye(len(b),dtype=int)
-        for nb in nobasis:
+        sublat_ind =  int(round(np.linalg.det(np.array(fmpz_mat(linrels.tolist()).snf().tolist(), dtype=int)[:,:linrels.shape[0]])))
+        for nb in nobasis[::-1]:
             tup = [(k,kk) for k,kk in enumerate(linrels_new[:,nb]) if kk]
-            if len(tup) != 1 or abs(tup[0][1]) != 1:
+            if sublat_ind % tup[-1][1] != 0:
                 raise Exception("Problem with linear relations")
-            i,ii = tup[0]
-            self._curve_basis_mat[:,nb] = -ii*self._curve_basis_mat.dot(linrels_new[i])
+            i,ii = tup[-1]
+            self._curve_basis_mat[:,nb] = -self._curve_basis_mat.dot(linrels_new[i])//ii
     # Else if input is a matrix
     elif len(b.shape) == 2:
         if not config._exp_features_enabled:
@@ -638,11 +639,12 @@ def set_divisor_basis(tv_or_cy, basis, include_origin=True):
                                 points=self.polytope().points_to_indices(self.triangulation().points()))
         self._divisor_basis_mat = np.array(new_b)
         nobasis = np.array([i for i in range(glsm_cm.shape[1]) if i not in standard_basis])
-        for nb in nobasis:
+        sublat_ind =  int(round(np.linalg.det(np.array(fmpz_mat(linrels.tolist()).snf().tolist(), dtype=int)[:,:linrels.shape[0]])))
+        for nb in nobasis[::-1]:
             tup = [(k,kk) for k,kk in enumerate(linrels[:,nb]) if kk]
-            if len(tup) != 1 or abs(tup[0][1]) != 1:
+            if sublat_ind % tup[-1][1] != 0:
                 raise Exception("Problem with linear relations")
-            i,ii = tup[0]
+            i,ii = tup[-1]
             for j in range(self._divisor_basis_mat.shape[0]):
                 self._divisor_basis_mat[j] -= self._divisor_basis_mat[j,nb]*linrels[i]
         # Finally, we invert the matrix and construct the dual curve basis
@@ -655,12 +657,12 @@ def set_divisor_basis(tv_or_cy, basis, include_origin=True):
             inv_mat *= -1;
         self._curve_basis_mat = np.zeros(glsm_cm.shape, dtype=int)
         self._curve_basis_mat[:,standard_basis] = np.array(inv_mat).T
-        for nb in nobasis:
+        for nb in nobasis[::-1]:
             tup = [(k,kk) for k,kk in enumerate(linrels[:,nb]) if kk]
-            if len(tup) != 1 or abs(tup[0][1]) != 1:
+            if sublat_ind % tup[-1][1] != 0:
                 raise Exception("Problem with linear relations")
-            i,ii = tup[0]
-            self._curve_basis_mat[:,nb] = -ii*self._curve_basis_mat.dot(linrels[i])
+            i,ii = tup[-1]
+            self._curve_basis_mat[:,nb] = -self._curve_basis_mat.dot(linrels[i])//ii
         self._curve_basis = np.array(self._curve_basis_mat)
     else:
         raise Exception("Input must be either a vector or a matrix.")
