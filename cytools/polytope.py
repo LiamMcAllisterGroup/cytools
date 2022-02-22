@@ -1799,10 +1799,18 @@ class Polytope:
         basis_exc = []
         indices = np.argsort(norms)
         indices[:linrel.shape[0]] = np.sort(indices[:linrel.shape[0]])
-        for n_try in range(4):
+        for n_try in range(14):
             if n_try == 1:
                 indices[:] = np.array(range(linrel.shape[1]))
-            elif n_try > 1:
+            elif n_try == 2:
+                pts_lll = np.array(fmpz_mat(linrel[1:,:].tolist()).lll().tolist(), dtype=int)
+                norms = [np.linalg.norm(p,1) for p in pts_lll.T]
+                indices = np.argsort(norms)
+                indices[:linrel.shape[0]] = np.sort(indices[:linrel.shape[0]])
+            elif n_try == 3:
+                indices[:] = np.array([0] + list(range(1,linrel.shape[1]))[::-1])
+                indices[:linrel.shape[0]] = np.sort(indices[:linrel.shape[0]])
+            elif n_try > 3:
                 np.random.shuffle(indices[1:])
                 indices[:linrel.shape[0]] = np.sort(indices[:linrel.shape[0]])
             for ctr in range(np.prod(linrel.shape)+1):
@@ -1840,18 +1848,16 @@ class Polytope:
             if found_good_basis:
                 break
         if not found_good_basis:
-            raise Exception("failed")
-            if ctr == np.prod(linrel.shape):
-                print("Warning: An integral basis could not be found. "
-                      "A non-integral one will be computed. However, this "
-                      "will not be usable as a basis of divisors for the "
-                      "ToricVariety or CalabiYau classes. Please let the "
-                      "developers know about the polytope that caused this "
-                      "issue. Here are the vertices of the polytope: "
-                      f"{self.vertices().tolist()}")
-                return self.glsm_charge_matrix(include_origin=include_origin,
-                                               include_points_interior_to_facets=include_points_interior_to_facets,
-                                               points=points, integral=False)
+            print("Warning: An integral basis could not be found. "
+                  "A non-integral one will be computed. However, this "
+                  "will not be usable as a basis of divisors for the "
+                  "ToricVariety or CalabiYau classes. Please let the "
+                  "developers know about the polytope that caused this "
+                  "issue. Here are the vertices of the polytope: "
+                  f"{self.vertices().tolist()}")
+            return self.glsm_charge_matrix(include_origin=include_origin,
+                                           include_points_interior_to_facets=include_points_interior_to_facets,
+                                           points=points, integral=False)
         linrel_dict = {ii:i for i,ii in enumerate(indices)}
         linrel = np.array(linrel_rand[:,[linrel_dict[i] for i in range(linrel_rand.shape[1])]])
         basis_ind = np.array([i for i in range(linrel.shape[1]) if linrel_dict[i] not in basis_exc], dtype=int)

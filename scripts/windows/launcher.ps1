@@ -38,7 +38,7 @@ $banner=@"
  ░░█████████     █████       █████   ░░██████ ░░██████  █████ ██████
   ░░░░░░░░░     ░░░░░       ░░░░░     ░░░░░░   ░░░░░░  ░░░░░ ░░░░░░
 
-        Developed by Liam McAllister's Group | Version 0.3.4
+        Developed by Liam McAllister's Group | Version 0.3.5
              https://cytools.liammcallistergroup.com
 
 "@
