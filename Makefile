@@ -31,6 +31,8 @@ build:
 		echo "Please run make as a non-root user and without sudo!"; \
 		false; \
 	fi
+	@ echo "Building a Docker image requires sudo privileges. Please enter your password:"
+	@ sudo echo ""
 	@ echo "Deleting old CYTools image..."
 	sudo docker rmi cytools:uid-$(USERID) | echo "Old CYTools image does not exist or cannot be deleted"
 	@ echo "Building CYTools image for user $(USERIDN)..."
