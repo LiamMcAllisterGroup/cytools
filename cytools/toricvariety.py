@@ -130,6 +130,7 @@ class ToricVariety:
         self._curve_basis_mat = None
         self._mori_cone = [None]*3
         self._intersection_numbers = dict()
+        self._prime_divs = None
         self._is_compact = None
         self._is_smooth = None
         self._canon_div_is_smooth = None
@@ -185,6 +186,7 @@ class ToricVariety:
             self._curve_basis_mat = None
             self._mori_cone = [None]*3
             self._intersection_numbers = dict()
+            self._prime_divs = None
             self._is_compact = None
             self._is_smooth = None
             self._canon_div_is_smooth = None
@@ -968,7 +970,7 @@ class ToricVariety:
 
         **Example:**
         We construct a toric variety and find its Kahler cone.
-        ```python {6}
+        ```python {4}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
         t = p.triangulate()
         v = t.get_toric_variety()
@@ -1504,6 +1506,36 @@ class ToricVariety:
             self._intersection_numbers[args_id] = (
                 symmetric_sparse_to_dense(self._intersection_numbers[(zero_as_anticanonical,in_basis,exact_arithmetic,"dok")]))
         return copy.copy(self._intersection_numbers[args_id])
+
+    def prime_toric_divisors(self):
+        """
+        **Description:**
+        Returns the list of point indices corresponding to prime toric
+        divisors. This list simply corresponds to the indices of the boundary
+        points that are used in the triangulation.
+
+        **Arguments:**
+        None
+
+        **Returns:**
+        *(tuple)* The point indices corresponding to prime toric divisors.
+
+        **Example:**
+        We construct a toric variety and find the list of prime toric
+        divisors.
+        ```python {4}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        t = p.triangulate()
+        v = t.get_toric_variety()
+        v.prime_toric_divisors()
+        # (1, 2, 3, 4, 5, 6)
+        ```
+        """
+        if self._prime_divs is None:
+            tri_ind = list(set.union(*[set(s) for s in self.triangulation().simplices()]))
+            divs = self.triangulation().triangulation_to_polytope_indices(tri_ind)
+            self._prime_divs = tuple(i for i in divs if i)
+        return self._prime_divs
 
     def is_smooth(self):
         """

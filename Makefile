@@ -21,30 +21,23 @@ endif
 USERID=$(shell id -u)
 USERIDN=$(shell id -u -n)
 
-.PHONY: all build rebuild install uninstall run pull update test build-with-root-user
+.PHONY: all build install uninstall run test build-with-root-user
 
 all:
-	@echo "Please specify an instruction (e.g make build)"
+	@ echo "Please specify an instruction (e.g make install)"
 
 build:
-	@if [ "$(USERID)" = "0" ]; then \
+	@ if [ "$(USERID)" = "0" ]; then \
 		echo "Please run make as a non-root user and without sudo!"; \
 		false; \
 	fi
+	@ echo "Deleting old CYTools image..."
+	sudo docker rmi cytools:uid-$(USERID) | echo "Old CYTools image does not exist or cannot be deleted"
 	@ echo "Building CYTools image for user $(USERIDN)..."
-	sudo docker build -t cytools:uid-$(USERID) --build-arg USERNAME=cytools\
+	sudo docker build --force-rm -t cytools:uid-$(USERID) --build-arg USERNAME=cytools\
 	     --build-arg USERID=$(USERID) --build-arg ARCH=$(arch) --build-arg AARCH=$(aarch)\
 			 --build-arg VIRTUAL_ENV=/home/cytools/cytools-venv/ --build-arg ALLOW_ROOT_ARG=" " .
 	@ echo "Successfully built CYTools image for user $(USERIDN)"
-
-rebuild:
-	@if [ "$(USERID)" = "0" ]; then \
-		echo "Please run make as a non-root user and without sudo!"; \
-		false; \
-	fi
-	sudo docker build --no-cache -t cytools:uid-$(USERID) --build-arg USERNAME=cytools\
-	     --build-arg USERID=$(USERID) --build-arg ARCH=$(arch) --build-arg AARCH=$(aarch)\
-			 --build-arg VIRTUAL_ENV=/home/cytools/cytools-venv/ --build-arg ALLOW_ROOT_ARG=" " .
 
 install: build
 	@if [ "$(USERID)" = "0" ]; then \
@@ -97,11 +90,6 @@ run:
 		bash scripts/linux/cytools; \
 	fi
 
-pull:
-	git pull
-
-update: pull install
-
 unittests:
 	@if [ "$(USERID)" = "0" ]; then \
 		echo "Please run make as a non-root user and without sudo!"; \
@@ -127,6 +115,9 @@ build-with-root-user:
 	@ echo "********************************************************************"
 	@ echo " "
 	@ read -p "Press enter to continue or ctrl+c to cancel"
+	@ echo "Deleting old CYTools image..."
+	sudo docker rmi cytools:root | echo "Old CYTools image does not exist or cannot be deleted"
+	@ echo "Building CYTools image for root user..."
 	sudo docker build -t cytools:root --build-arg USERNAME=root\
 	     --build-arg USERID=0 --build-arg ARCH=$(arch) --build-arg AARCH=$(aarch)\
 			 --build-arg VIRTUAL_ENV=/opt/cytools/cytools-venv/ --build-arg ALLOW_ROOT_ARG="--allow-root" .

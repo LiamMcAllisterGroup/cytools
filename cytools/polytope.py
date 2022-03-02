@@ -1811,6 +1811,8 @@ class Polytope:
                 indices[:] = np.array([0] + list(range(1,linrel.shape[1]))[::-1])
                 indices[:linrel.shape[0]] = np.sort(indices[:linrel.shape[0]])
             elif n_try > 3:
+                if n_try == 4:
+                    np.random.seed(1337)
                 np.random.shuffle(indices[1:])
                 indices[:linrel.shape[0]] = np.sort(indices[:linrel.shape[0]])
             for ctr in range(np.prod(linrel.shape)+1):
@@ -1947,10 +1949,10 @@ class Polytope:
         ```
         """
         if points is not None:
-            pts_ind = tuple(set(points))
+            pts_ind = tuple(set(list(points)+[0]))
             if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
                 raise Exception("An index is out of the allowed range.")
-            include_origin = 0 in pts_ind
+            include_origin = 0 in points
         elif include_points_interior_to_facets:
             pts_ind = tuple(range(self.points().shape[0]))
         else:
@@ -2011,10 +2013,10 @@ class Polytope:
         ```
         """
         if points is not None:
-            pts_ind = tuple(set(points))
+            pts_ind = tuple(set(list(points)+[0]))
             if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
                 raise Exception("An index is out of the allowed range.")
-            include_origin = 0 in pts_ind
+            include_origin = 0 in points
         elif include_points_interior_to_facets:
             pts_ind = tuple(range(self.points().shape[0]))
         else:
@@ -2485,6 +2487,65 @@ class Polytope:
                 autos2.append(m)
             self._autos = [np.array(autos), np.array(autos2)]
         return np.array(self._autos[args_id])
+
+    def find_2d_reflexive_subpolytopes(self):
+        """
+        **Description:**
+        Use the algorithm by Huang and Taylor described in
+        [1907.09482](https://arxiv.org/abs/1907.09482) to find 2D reflexive
+        subpolytopes in 4D polytopes.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        *(list)* The list of 2D reflexive subpolytopes.
+
+        **Example:**
+        We construct a polytope and find its 2D reflexive subpolytopes.
+        ```python {2}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        p.find_2d_reflexive_subpolytopes()
+        # [A 2-dimensional lattice polytope in ZZ^4]
+        ```
+        """
+        if not self.is_reflexive() or self.dim() != 4:
+            raise Exception("Only 4D reflexive polytopes are supported.")
+        pts = self.points()
+        dual_vert = self.dual().vertices()
+        # Construct the sets S_i by finding the maximum dot product with dual vertices
+        S_i = [[]]*3
+        for p in pts:
+            m = max(p.dot(v) for v in dual_vert)
+            if m in (1,2,3):
+                S_i[m-1].append(tuple(p))
+        # Check each of the three conditions
+        gen_pts = []
+        for i in range(len(S_i[0])):
+            if tuple(-np.array(S_i[0][i])) in S_i[0]:
+                for j in range(i+1,len(S_i[0])):
+                    if (tuple(-np.array(S_i[0][j])) in S_i[0]
+                            and tuple(-np.array(S_i[0][i]))!=S_i[0][j]):
+                        gen_pts.append((S_i[0][i],S_i[0][j]))
+        for i in range(len(S_i[1])):
+            for j in range(i+1,len(S_i[1])):
+                p = tuple(-np.array(S_i[1][i])-np.array(S_i[1][j]))
+                if p in S_i[0] or p in S_i[1]:
+                    gen_pts.append((S_i[1][i],S_i[1][j]))
+        for i in range(len(S_i[2])):
+            for j in range(i+1,len(S_i[2])):
+                p = -np.array(S_i[2][i])-np.array(S_i[2][j])
+                if all(c%2 == 0 for c in p) and tuple(p//2) in S_i[0]:
+                    gen_pts.append((S_i[2][i],S_i[2][j]))
+        polys_2d = set()
+        for p1,p2 in gen_pts:
+            pts_2d = set()
+            for p in pts:
+                if np.linalg.matrix_rank((p1,p2,p)) == 2:
+                    pts_2d.add(tuple(p))
+            if np.linalg.matrix_rank(list(pts_2d)) == 2:
+                polys_2d.add(tuple(sorted(pts_2d)))
+        return [Polytope(pp) for pp in polys_2d]
 
     def minkowski_sum(self, other):
         """

@@ -201,7 +201,7 @@ class Triangulation:
         self._toricvariety = None
         # Now save input triangulation or construct it
         if simplices is not None:
-            self._simplices = np.array(sorted([sorted(s) for s in simplices]))
+            self._simplices = np.array(sorted([sorted(s) for s in simplices]),dtype=int)
             if self._simplices.shape[1] != self._triang_pts.shape[1]+1:
                 raise Exception("Input simplices have wrong dimension.")
             self._heights = None
@@ -704,7 +704,7 @@ class Triangulation:
         # If the triangulation is presumably regular, then we can check if
         # heights inside the CPL cone yield the same triangulation.
         if self.is_regular(backend=backend):
-            cpl = self.cpl_cone()
+            cpl = self.cpl_cone(include_points_not_in_triangulation=True)
             heights = cpl.tip_of_stretched_cone(0.1)
             tmp_triang = Triangulation(self.points(), self.polytope(),
                                         heights=heights, make_star=False)
@@ -883,6 +883,8 @@ class Triangulation:
         triangs_list = [literal_eval(r) for r in topcom_res.strip().split("\n")]
         triangs = []
         for t in triangs_list:
+            if not all (len(s)==self.dim()+1 for s in t):
+                continue
             tri = Triangulation(self._triang_pts, self._poly, simplices=t,
                                 check_input_simplices=False)
             if only_fine and not tri.is_fine():
@@ -940,6 +942,7 @@ class Triangulation:
                         SR_ideal.add(k)
         self._sr_ideal = np.array(sorted([sorted(s)for s in SR_ideal], key=lambda x: (len(x),x)))
         return np.array(self._sr_ideal)
+
 
     def cpl_cone(self, backend=None,
                  include_points_not_in_triangulation=True):

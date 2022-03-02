@@ -1406,7 +1406,7 @@ class CalabiYau:
             self.intersection_numbers()
         return self._prime_divs
 
-    def second_chern_class(self, in_basis=False):
+    def second_chern_class(self, in_basis=False, include_origin=True):
         """
         **Description:**
         Computes the second Chern class of the CY hypersurface. Returns the
@@ -1419,6 +1419,8 @@ class CalabiYau:
         **Arguments:**
         - `in_basis` *(bool, optional, default=False)*: Only return the
           integrals over a basis of divisors.
+        - `include_origin` *(bool, optional, default=True)*: Include the origin
+          in the vector, which corresponds to the canonical divisor.
 
         **Returns:**
         *(numpy.ndarray)* A vector containing the integrals.
@@ -1431,13 +1433,13 @@ class CalabiYau:
         t = p.triangulate()
         cy = t.get_cy()
         cy.second_chern_class()
-        # array([ 36, 306, 204,  36,  36,  -6])
+        # array([-612,   36,  306,  204,   36,   36,   -6])
         ```
         """
         if self.dim() != 3:
             raise Exception("This function currently only supports 3-folds.")
         if self._second_chern_class is None:
-            c2 = np.zeros(self.h11()+self.dim()+1, dtype=int)
+            c2 = np.zeros(len(self.prime_toric_divisors())+1, dtype=int)
             intnums = self.intersection_numbers(in_basis=False)
             for ii in intnums:
                 if ii[0] == 0:
@@ -1445,22 +1447,23 @@ class CalabiYau:
                 if ii[0] == ii[1] == ii[2]:
                     continue
                 elif ii[0] == ii[1]:
-                    c2[ii[0]-1] += intnums[ii]
+                    c2[ii[0]] += intnums[ii]
                 elif ii[0] == ii[2]:
-                    c2[ii[0]-1] += intnums[ii]
+                    c2[ii[0]] += intnums[ii]
                 elif ii[1] == ii[2]:
-                    c2[ii[1]-1] += intnums[ii]
+                    c2[ii[1]] += intnums[ii]
                 else:
-                    c2[ii[0]-1] += intnums[ii]
-                    c2[ii[1]-1] += intnums[ii]
-                    c2[ii[2]-1] += intnums[ii]
+                    c2[ii[0]] += intnums[ii]
+                    c2[ii[1]] += intnums[ii]
+                    c2[ii[2]] += intnums[ii]
+            c2[0] = -np.sum(c2)
             self._second_chern_class = c2
         if in_basis:
-            basis = self.divisor_basis(include_origin=False)
+            basis = self.divisor_basis()
             if len(basis.shape) == 2: # If basis is matrix
                 return self._second_chern_class.dot(basis.T)
             return np.array(self._second_chern_class[basis])
-        return np.array(self._second_chern_class)
+        return np.array(self._second_chern_class)[(0 if include_origin else 1):]
 
     def is_smooth(self):
         """
@@ -1564,7 +1567,7 @@ class CalabiYau:
 
         **Example:**
         We construct a Calabi-Yau hypersurface and find its Kähler cone.
-        ```python {6}
+        ```python {4}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
         t = p.triangulate()
         cy = t.get_cy()
@@ -1616,7 +1619,7 @@ class CalabiYau:
         **Example:**
         We construct a Calabi-Yau hypersurface and find its volume at the tip
         of the stretched Kähler cone.
-        ```python {6}
+        ```python {5}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
         t = p.triangulate()
         cy = t.get_cy()
@@ -1641,7 +1644,7 @@ class CalabiYau:
                 xvol += intnums[ii]*np.prod([tloc[int(j)] for j in ii])/mult
         return xvol
 
-    def compute_divisor_volumes(self, tloc):
+    def compute_divisor_volumes(self, tloc, in_basis=False):
         """
         **Description:**
         Computes the volume of the basis divisors at a location in the Kähler
@@ -1650,25 +1653,41 @@ class CalabiYau:
         **Arguments:**
         - `tloc` *(array_like)*: A vector specifying a location in the
           Kähler cone.
+        - `in_basis` *(bool, optional, default=False)*: When set to True, the
+          volumes of the current basis of divisors are computed. Otherwise, the
+          volumes of all prime toric divisors are computed.
 
         **Returns:**
-        *(numpy.ndarray)* The list of volumes of the basis divisors at the
-        specified location.
+        *(numpy.ndarray)* The list of volumes of the prime toric divisors or of
+        the basis divisors at the specified location.
 
         **Example:**
         We construct a Calabi-Yau hypersurface and find the volumes of the
-        basis divisors at the tip of the stretched Kähler cone.
-        ```python {6}
+        prime toric divisors at the tip of the stretched Kähler cone.
+        ```python {5}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
         t = p.triangulate()
         cy = t.get_cy()
         tip = cy.toric_kahler_cone().tip_of_stretched_cone(1)
         cy.compute_divisor_volumes(tip)
-        # array([2.5, 0.5])
+        # array([ 2.5       , 23.99999999, 16.        ,  2.5       ,  2.5       ,
+        #         0.5       ])
         ```
         """
-        intnums = self.intersection_numbers(in_basis=True,
-                                            exact_arithmetic=False)
+        if not in_basis:
+            tloc_new = np.array(tloc).dot(self.divisor_basis(as_matrix=True, include_origin=False))
+            intnums = self.intersection_numbers(in_basis=False, exact_arithmetic=False)
+            tau = np.zeros(len(self.prime_toric_divisors()), dtype=float)
+            for ii in intnums:
+                if 0 in ii:
+                    continue
+                c = Counter(ii)
+                for j in c.keys():
+                    tau[j-1] += intnums[ii] * np.prod(
+                                [tloc_new[k-1]**(c[k]-(j==k))/factorial(c[k]-(j==k))
+                                    for k in c.keys()])
+            return np.array(tau)
+        intnums = self.intersection_numbers(in_basis=True, exact_arithmetic=False)
         basis = self.divisor_basis()
         if len(basis.shape) == 2: # If basis is matrix
             tmp = np.array(intnums)
@@ -1684,6 +1703,43 @@ class CalabiYau:
                                 [tloc[k]**(c[k]-(j==k))/factorial(c[k]-(j==k))
                                     for k in c.keys()])
         return np.array(tau)
+
+    def compute_curve_volumes(self, tloc, only_extremal=False):
+        """
+        **Description:**
+        Computes the volume of the curves corresponding to (not necessarily
+        minimal) generators of the Mori cone inferred from toric geometry (i.e.
+        the cone obtained with the [`toric_mori_cone`](#toric_mori_cone)
+        function).
+
+        **Arguments:**
+        - `tloc` *(array_like)*: A vector specifying a location in the
+          Kähler cone.
+        - `only_extremal` *(bool, optional, default=False)*: Use only the
+          extremal rays of the Mori cone.
+
+        **Returns:**
+        *(numpy.ndarray)* The list of volumes of the curves.
+
+        **Example:**
+        We construct a Calabi-Yau hypersurface and find the volumes of the
+        generators of the Mori cone at the tip of the stretched Kähler cone.
+        ```python {5}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        t = p.triangulate()
+        cy = t.get_cy()
+        tip = cy.toric_kahler_cone().tip_of_stretched_cone(1)
+        cy.compute_curve_volumes(tip)
+        # array([0.99997511, 3.99992091, 0.99998193])
+        ```
+        As expected, all generators of the Mori cone have volumes greater than
+        or equal to 1 (up to rounding errors) at the tip of the stretched
+        Kähler cone.
+        """
+        c = self.toric_mori_cone(in_basis=True)
+        if only_extremal:
+            return c.extremal_rays().dot(tloc)
+        return c.rays().dot(tloc)
 
     def compute_AA(self, tloc):
         """
@@ -1705,7 +1761,7 @@ class CalabiYau:
         **Example:**
         We construct a Calabi-Yau hypersurface and compute this matrix at the
         tip of the stretched Kähler cone.
-        ```python {6}
+        ```python {5}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
         t = p.triangulate()
         cy = t.get_cy()
@@ -1761,7 +1817,7 @@ class CalabiYau:
         **Example:**
         We construct a Calabi-Yau hypersurface and compute the inverse Kähler
         metric at the tip of the stretched Kähler cone.
-        ```python {6}
+        ```python {5}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
         t = p.triangulate()
         cy = t.get_cy()

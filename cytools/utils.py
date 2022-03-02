@@ -633,10 +633,10 @@ def set_divisor_basis(tv_or_cy, basis, include_origin=True):
         standard_basis = self.polytope().glsm_basis(
                                 integral=True,
                                 include_origin=True,
-                                points=self.polytope().points_to_indices(self.triangulation().points()))
+                                points=self.prime_toric_divisors())
         linrels = self.polytope().glsm_linear_relations(
                                 include_origin=True,
-                                points=self.polytope().points_to_indices(self.triangulation().points()))
+                                points=self.prime_toric_divisors())
         self._divisor_basis_mat = np.array(new_b)
         nobasis = np.array([i for i in range(glsm_cm.shape[1]) if i not in standard_basis])
         sublat_ind =  int(round(np.linalg.det(np.array(fmpz_mat(linrels.tolist()).snf().tolist(), dtype=int)[:,:linrels.shape[0]])))
@@ -758,7 +758,7 @@ def set_curve_basis(tv_or_cy, basis, include_origin=True):
         new_b[:,0] = -np.sum(b, axis=1)
     else:
         raise Exception("Input matrix has incorrect shape.")
-    pts = [tuple(pt)+(1,) for pt in self.triangulation().points()]
+    pts = [tuple(pt)+(1,) for pt in self.polytope().points()[[0]+list(self.prime_toric_divisors())]]
     if any(new_b.dot(pts).flat):
         raise Exception("Input curves do not form a valid basis.")
     if abs(int(round(np.linalg.det(np.array(fmpz_mat(new_b.tolist()).snf().tolist(),dtype=int)[:glsm_rnk,:glsm_rnk])))) != 1:
@@ -766,7 +766,7 @@ def set_curve_basis(tv_or_cy, basis, include_origin=True):
     standard_basis = self.polytope().glsm_basis(
                             integral=True,
                             include_origin=True,
-                            points=self.polytope().points_to_indices(self.triangulation().points()))
+                            points=self.prime_toric_divisors())
     if abs(int(round(np.linalg.det(new_b[:,standard_basis])))) != 1:
         raise Exception("Input divisors do not form an integral basis.")
     inv_mat = fmpz_mat(new_b[:,standard_basis].tolist()).inv(integer=True)
