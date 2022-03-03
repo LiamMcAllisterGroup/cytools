@@ -1830,7 +1830,7 @@ class CalabiYau:
         if self.dim() != 3:
             raise Exception("This function only supports Calabi-Yau 3-folds.")
         xvol = self.compute_cy_volume(tloc)
-        Tau = self.compute_divisor_volumes(tloc)
+        Tau = self.compute_divisor_volumes(tloc, in_basis=True)
         AA = self.compute_AA(tloc)
         Kinv = 4*(np.outer(Tau,Tau) - AA*xvol)
         return Kinv
