@@ -182,6 +182,8 @@ class Cone:
                     raise Exception("At least one hyperplane is required.")
                 for r in hyperplanes:
                     g = gcd_list(r)
+                    if g == 0:
+                        continue
                     if g < 1e-5:
                         print("Warning: Extremely small gcd found. "
                               "Computations may be incorrect.")
@@ -593,6 +595,7 @@ class Cone:
         """
         if self._ext_rays is not None:
             return np.array(self._ext_rays)
+        # It is important to delete duplicates
         rays = np.array(list({tuple(r) for r in self.rays()}))
         if n_threads is None:
             if rays.shape[0] < 32 or not self.is_pointed():

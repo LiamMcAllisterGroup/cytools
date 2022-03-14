@@ -34,12 +34,22 @@ build:
 	@ echo "Building a Docker image requires sudo privileges. Please enter your password:"
 	@ sudo echo ""
 	@ echo "Deleting old CYTools image..."
-	sudo docker rmi cytools:uid-$(USERID) | echo "Old CYTools image does not exist or cannot be deleted"
+	sudo docker rmi cytools:uid-$(USERID) || echo "Old CYTools image does not exist or cannot be deleted"
 	@ echo "Building CYTools image for user $(USERIDN)..."
+	@ if [ "$(machine)" = "Mac" ]; then \
+		osascript -e "display notification \"The CYTools image has started building. We'll notify you once it's done :)\" with title \"CYTools\"" || echo ""; \
+	else \
+		notify-send "CYTools" "The CYTools image has started building. We'll notify you once it's done :)" || echo ""; \
+	fi
 	sudo docker build --force-rm -t cytools:uid-$(USERID) --build-arg USERNAME=cytools\
 	     --build-arg USERID=$(USERID) --build-arg ARCH=$(arch) --build-arg AARCH=$(aarch)\
 			 --build-arg VIRTUAL_ENV=/home/cytools/cytools-venv/ --build-arg ALLOW_ROOT_ARG=" " .
 	@ echo "Successfully built CYTools image for user $(USERIDN)"
+	@ if [ "$(machine)" = "Mac" ]; then \
+		osascript -e "display notification \"The CYTools image was successfully built!\" with title \"CYTools\"" || echo ""; \
+	else \
+		notify-send "CYTools" "The CYTools image was successfully built!" || echo ""; \
+	fi
 
 install: build
 	@if [ "$(USERID)" = "0" ]; then \
