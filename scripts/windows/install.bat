@@ -4,7 +4,8 @@ set PWS=powershell.exe -ExecutionPolicy Bypass -NoLogo -NoProfile
 
 docker info || echo. && echo "Please make sure that Docker is installed and running" && timeout /t 10 && exit
 
-docker build -t cytools --build-arg USERNAME=root --build-arg USERID=0 --build-arg ARCH=amd64 --build-arg AARCH=x86_64 --build-arg VIRTUAL_ENV=/opt/cytools/cytools-venv/ --build-arg ALLOW_ROOT_ARG="--allow-root" ../../ || echo. && echo "There was an error while building the image. Please let the developers know, and try using a stable version of the package." && timeout /t 10 && exit
+sudo docker rmi cytools || echo "Old CYTools image does not exist or cannot be deleted"
+docker build --force-rm -t cytools --build-arg USERNAME=root --build-arg USERID=0 --build-arg ARCH=amd64 --build-arg AARCH=x86_64 --build-arg VIRTUAL_ENV=/opt/cytools/cytools-venv/ --build-arg ALLOW_ROOT_ARG="--allow-root" ../../ || echo. && echo "There was an error while building the image. Please let the developers know, and try using a stable version of the package." && timeout /t 10 && exit
 
 set TARGET="%appdata%\CYTools\cytools.bat"
 set TARGETU="%appdata%\CYTools\uninstall.bat"
