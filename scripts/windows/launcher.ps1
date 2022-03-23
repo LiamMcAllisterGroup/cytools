@@ -38,7 +38,7 @@ $banner=@"
  ░░█████████     █████       █████   ░░██████ ░░██████  █████ ██████
   ░░░░░░░░░     ░░░░░       ░░░░░     ░░░░░░   ░░░░░░  ░░░░░ ░░░░░░
 
-        Developed by Liam McAllister's Group | Version 0.4.0
+        Developed by Liam McAllister's Group | Version 0.4.1
              https://cytools.liammcallistergroup.com
 
 "@
@@ -47,7 +47,7 @@ Write-Host $banner
 
 # Initialize Docker container
 Write-Host "Initializing CYTools container..."
-$tmp = docker run --rm -d -it --name cytools -p 2875:2875 -v ${home}:/home/cytools/mounted_volume cytools
+$tmp = docker run --rm -d -it --name cytools -p 2875:2875 -v ${home}:/home/root/mounted_volume cytools
 $contid = docker ps -a -q -f "name=cytools"
 if ( "$contid" -eq "" ) {
   Write-Host "The Docker container failed to start. Please make sure that the CYTools Docker image has been built."

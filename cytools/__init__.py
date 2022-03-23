@@ -19,7 +19,7 @@ from cytools.cone import Cone
 from cytools.utils import read_polytopes, fetch_polytopes
 
 # Latest version
-version = "0.4.0"
+version = "0.4.1"
 versions_with_serious_bugs = []
 
 # Check for more recent versions of CYTools
@@ -60,7 +60,8 @@ def check_for_updates():
                 if latest_ver <= ver:
                     continue
                 print("\nInfo: A more recent version of CYTools is available: "
-                      f"{ver} -> {latest_ver}.\n"
+                      f"v{ver[0]}.{ver[1]}.{ver[2]} -> "
+                      f"v{latest_ver[0]}.{latest_ver[1]}.{latest_ver[2]}.\n"
                       "We recommend upgrading before continuing.\n")
             elif not checked_bugs and "versions_with_serious_bugs =" in l:
                 checked_bugs = True
