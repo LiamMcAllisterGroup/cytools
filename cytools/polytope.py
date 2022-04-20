@@ -1791,87 +1791,133 @@ class Polytope:
             return np.array(self._glsm_charge_matrix[(pts_ind,integral)])
         # If the result is not cached we do the computation
         # We start by finding a basis of columns
-        linrel = self.points()[list(pts_ind)].T
-        sublat_ind =  int(round(np.linalg.det(np.array(fmpz_mat(linrel.tolist()).snf().tolist(), dtype=int)[:,:linrel.shape[0]])))
-        norms = [np.linalg.norm(p,1) for p in linrel.T]
-        linrel = np.insert(linrel, 0, np.ones(linrel.shape[1], dtype=int), axis=0)
-        good_exclusions = 0
-        basis_exc = []
-        indices = np.argsort(norms)
-        indices[:linrel.shape[0]] = np.sort(indices[:linrel.shape[0]])
-        for n_try in range(14):
-            if n_try == 1:
-                indices[:] = np.array(range(linrel.shape[1]))
-            elif n_try == 2:
-                pts_lll = np.array(fmpz_mat(linrel[1:,:].tolist()).lll().tolist(), dtype=int)
-                norms = [np.linalg.norm(p,1) for p in pts_lll.T]
-                indices = np.argsort(norms)
-                indices[:linrel.shape[0]] = np.sort(indices[:linrel.shape[0]])
-            elif n_try == 3:
-                indices[:] = np.array([0] + list(range(1,linrel.shape[1]))[::-1])
-                indices[:linrel.shape[0]] = np.sort(indices[:linrel.shape[0]])
-            elif n_try > 3:
-                if n_try == 4:
-                    np.random.seed(1337)
-                np.random.shuffle(indices[1:])
-                indices[:linrel.shape[0]] = np.sort(indices[:linrel.shape[0]])
-            for ctr in range(np.prod(linrel.shape)+1):
-                found_good_basis=True
-                ctr += 1
-                if ctr > 0:
-                    st = max([good_exclusions,1])
-                    indices[st:] = np.roll(indices[st:], -1)
+        if integral:
+            linrel = self.points()[list(pts_ind)].T
+            sublat_ind =  int(round(np.linalg.det(np.array(fmpz_mat(linrel.tolist()).snf().tolist(), dtype=int)[:,:linrel.shape[0]])))
+            norms = [np.linalg.norm(p,1) for p in linrel.T]
+            linrel = np.insert(linrel, 0, np.ones(linrel.shape[1], dtype=int), axis=0)
+            good_exclusions = 0
+            basis_exc = []
+            indices = np.argsort(norms)
+            indices[:linrel.shape[0]] = np.sort(indices[:linrel.shape[0]])
+            for n_try in range(14):
+                if n_try == 1:
+                    indices[:] = np.array(range(linrel.shape[1]))
+                elif n_try == 2:
+                    pts_lll = np.array(fmpz_mat(linrel[1:,:].tolist()).lll().tolist(), dtype=int)
+                    norms = [np.linalg.norm(p,1) for p in pts_lll.T]
+                    indices = np.argsort(norms)
                     indices[:linrel.shape[0]] = np.sort(indices[:linrel.shape[0]])
-                linrel_rand = np.array(linrel[:,indices])
-                try:
-                    linrel_hnf = fmpz_mat(linrel_rand.tolist()).hnf()
-                except:
-                    continue
-                linrel_rand = np.array(linrel_hnf.tolist(), dtype=int)
-                good_exclusions = 0
-                basis_exc = []
-                tmp_sublat_ind = 1
-                for v in linrel_rand:
-                    for i,ii in enumerate(v):
-                        if ii != 0:
-                            if integral:
+                elif n_try == 3:
+                    indices[:] = np.array([0] + list(range(1,linrel.shape[1]))[::-1])
+                    indices[:linrel.shape[0]] = np.sort(indices[:linrel.shape[0]])
+                elif n_try > 3:
+                    if n_try == 4:
+                        np.random.seed(1337)
+                    np.random.shuffle(indices[1:])
+                    indices[:linrel.shape[0]] = np.sort(indices[:linrel.shape[0]])
+                for ctr in range(np.prod(linrel.shape)+1):
+                    found_good_basis=True
+                    ctr += 1
+                    if ctr > 0:
+                        st = max([good_exclusions,1])
+                        indices[st:] = np.roll(indices[st:], -1)
+                        indices[:linrel.shape[0]] = np.sort(indices[:linrel.shape[0]])
+                    linrel_rand = np.array(linrel[:,indices])
+                    try:
+                        linrel_hnf = fmpz_mat(linrel_rand.tolist()).hnf()
+                    except:
+                        continue
+                    linrel_rand = np.array(linrel_hnf.tolist(), dtype=int)
+                    good_exclusions = 0
+                    basis_exc = []
+                    tmp_sublat_ind = 1
+                    for v in linrel_rand:
+                        for i,ii in enumerate(v):
+                            if ii != 0:
                                 tmp_sublat_ind *= abs(ii)
                                 if sublat_ind % tmp_sublat_ind == 0:
                                     v *= ii//abs(ii)
                                     good_exclusions += 1
                                 else:
                                     found_good_basis = False
-                            basis_exc.append(i)
+                                basis_exc.append(i)
+                                break
+                        if not found_good_basis:
                             break
-                    if not found_good_basis:
+                    if found_good_basis:
                         break
                 if found_good_basis:
                     break
-            if found_good_basis:
-                break
-        if not found_good_basis:
-            print("Warning: An integral basis could not be found. "
-                  "A non-integral one will be computed. However, this "
-                  "will not be usable as a basis of divisors for the "
-                  "ToricVariety or CalabiYau classes. Please let the "
-                  "developers know about the polytope that caused this "
-                  "issue. Here are the vertices of the polytope: "
-                  f"{self.vertices().tolist()}")
-            return self.glsm_charge_matrix(include_origin=include_origin,
-                                           include_points_interior_to_facets=include_points_interior_to_facets,
-                                           points=points, integral=False)
-        linrel_dict = {ii:i for i,ii in enumerate(indices)}
-        linrel = np.array(linrel_rand[:,[linrel_dict[i] for i in range(linrel_rand.shape[1])]])
-        basis_ind = np.array([i for i in range(linrel.shape[1]) if linrel_dict[i] not in basis_exc], dtype=int)
-        basis_exc = np.array([indices[i] for i in basis_exc])
-        glsm = np.zeros((linrel.shape[1]-linrel.shape[0],linrel.shape[1]), dtype=int)
-        glsm[:,basis_ind] = np.eye(len(basis_ind), dtype=int)
-        for nb in basis_exc[::-1]:
-            tup = [(k,kk) for k,kk in enumerate(linrel[:,nb]) if kk]
-            if sublat_ind % tup[-1][1] != 0:
-                raise Exception("Problem with linear relations")
-            i,ii = tup[-1]
-            glsm[:,nb] = -glsm.dot(linrel[i])//ii
+            if not found_good_basis:
+                print("Warning: An integral basis could not be found. "
+                      "A non-integral one will be computed. However, this "
+                      "will not be usable as a basis of divisors for the "
+                      "ToricVariety or CalabiYau classes.")
+                if pts_ind == tuple(self.points_not_interior_to_facets(as_indices=True)):
+                    print("Please let the developers know about the "
+                          "polytope that caused this issue. "
+                          "Here are the vertices of the polytope: "
+                          f"{self.vertices().tolist()}")
+                return self.glsm_charge_matrix(include_origin=include_origin,
+                                               include_points_interior_to_facets=include_points_interior_to_facets,
+                                               points=points, integral=False)
+            linrel_dict = {ii:i for i,ii in enumerate(indices)}
+            linrel = np.array(linrel_rand[:,[linrel_dict[i] for i in range(linrel_rand.shape[1])]])
+            basis_ind = np.array([i for i in range(linrel.shape[1]) if linrel_dict[i] not in basis_exc], dtype=int)
+            basis_exc = np.array([indices[i] for i in basis_exc])
+            glsm = np.zeros((linrel.shape[1]-linrel.shape[0],linrel.shape[1]), dtype=int)
+            glsm[:,basis_ind] = np.eye(len(basis_ind), dtype=int)
+            for nb in basis_exc[::-1]:
+                tup = [(k,kk) for k,kk in enumerate(linrel[:,nb]) if kk]
+                if sublat_ind % tup[-1][1] != 0:
+                    raise Exception("Problem with linear relations")
+                i,ii = tup[-1]
+                if integral:
+                    glsm[:,nb] = -glsm.dot(linrel[i])//ii
+                else:
+                    glsm[i,:] *= ii
+                    glsm[:,nb] = -glsm.dot(linrel[i])
+        else: # Non-integral basis
+            pts = self.points()[list(pts_ind)[1:]] # Exclude the origin
+            pts_norms = [np.linalg.norm(p,1) for p in pts]
+            pts_order = np.argsort(pts_norms)
+            # Find good lattice basis
+            good_lattice_basis = pts_order[:1]
+            current_rank = 1
+            for p in pts_order:
+                tmp = pts[np.append(good_lattice_basis, p)]
+                rank = np.linalg.matrix_rank(np.dot(tmp.T,tmp))
+                if rank>current_rank:
+                    good_lattice_basis = np.append(good_lattice_basis, p)
+                    current_rank = rank
+                    if rank==self._dim:
+                        break
+            good_lattice_basis = np.sort(good_lattice_basis)
+            glsm_basis = [i for i in range(len(pts)) if i not in good_lattice_basis]
+            M = fmpq_mat(pts[good_lattice_basis].T.tolist())
+            M_inv = np.array(M.inv().tolist())
+            extra_pts = -1*np.dot(M_inv,pts[glsm_basis].T)
+            row_scalings = np.array([np.lcm.reduce([int(ii.q) for ii in i]) for i in extra_pts])
+            column_scalings = np.array([np.lcm.reduce([int(ii.q) for ii in i]) for i in extra_pts.T])
+            extra_rows = np.multiply(extra_pts, row_scalings[:, None])
+            extra_rows = np.array([[int(ii.p) for ii in i] for i in extra_rows])
+            extra_columns = np.multiply(extra_pts.T, column_scalings[:, None]).T
+            extra_columns = np.array([[int(ii.p) for ii in i] for i in extra_columns])
+            glsm = np.diag(column_scalings)
+            for p,pp in enumerate(good_lattice_basis):
+                glsm = np.insert(glsm, pp, extra_columns[p], axis=1)
+            origin_column = -np.dot(glsm,np.ones(len(glsm[0])))
+            glsm = np.insert(glsm, 0, origin_column, axis=1)
+            linear_relations = extra_rows
+            extra_linear_relation_columns = -1*np.diag(row_scalings)
+            for p,pp in enumerate(good_lattice_basis):
+                linear_relations = np.insert(linear_relations, pp, extra_linear_relation_columns[p], axis=1)
+            linear_relations = np.insert(linear_relations, 0, np.ones(len(pts)), axis=0)
+            linear_relations = np.insert(linear_relations, 0, np.zeros(self._dim+1), axis=1)
+            linear_relations[0][0] = 1
+            linrel = linear_relations
+            basis_ind = glsm_basis
         # Check that everything was computed correctly
         if (np.linalg.matrix_rank(glsm[:,basis_ind]) != len(basis_ind)
                 or any(glsm.dot(linrel.T).flat)

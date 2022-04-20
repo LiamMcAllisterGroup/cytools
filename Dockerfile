@@ -8,7 +8,9 @@ ARG ARCH
 ARG AARCH
 ARG VIRTUAL_ENV
 ARG ALLOW_ROOT_ARG
+ARG PORT_ARG
 ENV ALLOW_ROOT=$ALLOW_ROOT_ARG
+ENV PORT=$PORT_ARG
 
 # Install dependencies
 RUN apt-get -yqq update
@@ -86,4 +88,4 @@ WORKDIR /home/$USERNAME/mounted_volume
 
 # Start jupyter lab by default
 USER $USERNAME
-CMD jupyter lab --ip 0.0.0.0 --port 2875 --no-browser $ALLOW_ROOT
+CMD jupyter lab --ip 0.0.0.0 --port $PORT --no-browser $ALLOW_ROOT

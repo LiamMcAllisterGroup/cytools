@@ -27,7 +27,7 @@ topcom_path = "/usr/bin/"
 palp_path = "/usr/bin/"
 
 # Mosek license
-mosek_license = "/opt/cytools/external/mosek/mosek.lic"
+mosek_license = "/home/cytools/mounted_volume/mosek/mosek.lic"
 def check_mosek_license():
     """
     **Description:**

@@ -41,9 +41,10 @@ build:
 	else \
 		notify-send "CYTools" "The CYTools image has started building. We'll notify you once it's done :)" || echo ""; \
 	fi
-	sudo docker build --force-rm -t cytools:uid-$(USERID) --build-arg USERNAME=cytools\
+	sudo docker build --no-cache --force-rm -t cytools:uid-$(USERID) --build-arg USERNAME=cytools\
 	     --build-arg USERID=$(USERID) --build-arg ARCH=$(arch) --build-arg AARCH=$(aarch)\
-			 --build-arg VIRTUAL_ENV=/home/cytools/cytools-venv/ --build-arg ALLOW_ROOT_ARG=" " .
+			 --build-arg VIRTUAL_ENV=/home/cytools/cytools-venv/ --build-arg ALLOW_ROOT_ARG=" "\
+			 --build-arg PORT_ARG=$$(( $(USERID) + 2875 )) .
 	@ echo "Successfully built CYTools image for user $(USERIDN)"
 	@ if [ "$(machine)" = "Mac" ]; then \
 		osascript -e "display notification \"The CYTools image was successfully built!\" with title \"CYTools\"" || echo ""; \
@@ -57,6 +58,8 @@ install: build
 		false; \
 	fi
 	@echo "Copying launcher script and associated files..."
+	@mkdir -p ~/mosek || echo "Mosek directory already exists"
+	@cp external/mosek/mosek.lic ~/mosek/mosek.lic || echo "New Mosek license was not found"
 	@if [ "$(machine)" = "Mac" ]; then \
 		sudo cp scripts/macos/cytools /usr/local/bin/cytools; \
 		sudo chmod +x /usr/local/bin/cytools; \

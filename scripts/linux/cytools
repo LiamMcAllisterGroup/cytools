@@ -27,6 +27,7 @@ then
   echo "Please run the script as a non-root user."
   exit
 fi
+port=$(( $userid + 2875 ))
 
 # We first parse the input parameters and set the way the container will run
 options=$(getopt -l "help,bash,dir" -o "hbd:" -a -- "$@")
@@ -106,7 +107,7 @@ cat << EOF
  ░░█████████     █████       █████   ░░██████ ░░██████  █████ ██████
   ░░░░░░░░░     ░░░░░       ░░░░░     ░░░░░░   ░░░░░░  ░░░░░ ░░░░░░
 
-        Developed by Liam McAllister's Group | Version 0.4.1
+        Developed by Liam McAllister's Group | Version 0.5.0
              https://cytools.liammcallistergroup.com
 
 EOF
@@ -115,7 +116,7 @@ EOF
 echo "Initializing CYTools container..."
 if $runbash
 then
-  contid=$(sudo docker run --rm -d -it --name cytools-uid-${userid} -p 2875:2875 -v $mountdir:/home/cytools/mounted_volume cytools:uid-${userid} bash || echo "failed")
+  contid=$(sudo docker run --rm -d -it --name cytools-uid-${userid} -p $port:$port -v $mountdir:/home/cytools/mounted_volume cytools:uid-${userid} bash || echo "failed")
   if [[ "$contid" == "failed" ]]
   then
     echo "The Docker container failed to start."
@@ -127,7 +128,7 @@ then
   echo "To exit CYTools press Ctrl+D or use the command 'exit'"
   echo
 else
-  contid=$(sudo docker run --rm -d -it --name cytools-uid-${userid} -p 2875:2875 -v $mountdir:/home/cytools/mounted_volume cytools:uid-${userid} || echo "failed")
+  contid=$(sudo docker run --rm -d -it --name cytools-uid-${userid} -p $port:$port -v $mountdir:/home/cytools/mounted_volume cytools:uid-${userid} || echo "failed")
   if [[ "$contid" == "failed" ]]
   then
     echo "The Docker container failed to start."
