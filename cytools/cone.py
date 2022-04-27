@@ -19,6 +19,11 @@ This module contains tools designed to perform cone computations.
 
 # Standard imports
 from multiprocessing import Process, Queue, cpu_count
+from ast import literal_eval
+import subprocess
+import random
+import string
+import os
 # Third party imports
 from flint import fmpz_mat, fmpz, fmpq
 from ortools.linear_solver import pywraplp
@@ -207,6 +212,7 @@ class Cone:
         self._is_pointed = None
         self._is_simplicial = None
         self._is_smooth = None
+        self._hilbert_basis = None
 
     def clear_cache(self):
         """
@@ -240,6 +246,7 @@ class Cone:
         self._is_pointed = None
         self._is_simplicial = None
         self._is_smooth = None
+        self._hilbert_basis = None
         if self._rays_were_input:
             self._hyperplanes = None
         else:
@@ -980,6 +987,71 @@ class Cone:
         self._is_smooth = (abs(np.prod([snf[i,i] for i in range(len(snf))]))
                             == 1)
         return self._is_smooth
+
+    def hilbert_basis(self):
+        """
+        **Description:**
+        Returns the Hilbert basis of the cone. Normaliz is used for the
+        computation.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        *(numpy.ndarray)* The list of vectors forming the Hilbert basis.
+
+        **Example:**
+        We compute the Hilbert basis of a two-dimensional cone.
+        ```python {2}
+        c = Cone([[1,3],[2,1]])
+        c.hilbert_basis()
+        # array([[1, 1],
+        #        [1, 2],
+        #        [1, 3],
+        #        [2, 1]])
+        ```
+        """
+        if self._hilbert_basis is not None:
+            return np.array(self._hilbert_basis)
+        # Generate a random project name so that it doesn't conflict with
+        # other computations
+        letters = string.ascii_lowercase
+        proj_name = "cytools_" + "".join(random.choice(letters) for i in range(10))
+        rays = self.rays()
+        with open(f"/dev/shm/{proj_name}.in", "w+") as f:
+            f.write(f"amb_space {rays.shape[1]}\ncone {rays.shape[0]}\n")
+            f.write(str(rays.tolist()).replace("],","\n").replace(",","").replace("[","").replace("]","")+"\n")
+        normaliz = subprocess.Popen(("normaliz", f"/dev/shm/{proj_name}.in"),
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, universal_newlines=True)
+        normaliz_out = normaliz.communicate()
+        with open(f"/dev/shm/{proj_name}.out", "r") as f:
+            data = f.readlines()
+        os.remove(f"/dev/shm/{proj_name}.in")
+        os.remove(f"/dev/shm/{proj_name}.out")
+        rays = []
+        found_stars = False
+        l_n = 0
+        while True:
+            if l_n >= len(data):
+                break
+            l = data[l_n]
+            if "******" in l:
+                found_stars = True
+                l_n += 1
+                continue
+            if not found_stars:
+                l_n += 1
+                continue
+            if "Hilbert basis elements" in l:
+                n_rays = literal_eval(l.split()[0])
+                for i in range(n_rays):
+                    rays.append([literal_eval(c) for c in data[l_n+1+i].split()])
+                break
+            l_n += 1
+            continue
+        self._hilbert_basis = np.array(rays)
+        return np.array(self._hilbert_basis)
 
     def intersection(self, other):
         """

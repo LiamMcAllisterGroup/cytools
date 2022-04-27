@@ -19,7 +19,7 @@ RUN apt-get -yqq install autoconf build-essential nano cmake libgmp-dev libcgal-
                          libmpc-dev libsuitesparse-dev libppl-dev libeigen3-dev\
                          libc6 libcdd0d libgmp10 libgmpxx4ldbl libstdc++6 palp\
                          libflint-dev libflint-arb-dev python3 python3-pip\
-                         wget libmath-libm-perl python3-venv
+                         wget libmath-libm-perl python3-venv normaliz
 
 # Make a soft link to the arb library and flint headers so that python-flint can install
 RUN ln -s /usr/lib/${AARCH}-linux-gnu/libflint-arb.so /usr/lib/${AARCH}-linux-gnu/libarb.so

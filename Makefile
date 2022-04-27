@@ -52,6 +52,30 @@ build:
 		notify-send "CYTools" "The CYTools image was successfully built!" || echo ""; \
 	fi
 
+build-fast:
+	@ if [ "$(USERID)" = "0" ]; then \
+		echo "Please run make as a non-root user and without sudo!"; \
+		false; \
+	fi
+	@ echo "Building a Docker image requires sudo privileges. Please enter your password:"
+	@ sudo echo ""
+	@ echo "Building CYTools image for user $(USERIDN)..."
+	@ if [ "$(machine)" = "Mac" ]; then \
+		osascript -e "display notification \"The CYTools image has started building. We'll notify you once it's done :)\" with title \"CYTools\"" || echo ""; \
+	else \
+		notify-send "CYTools" "The CYTools image has started building. We'll notify you once it's done :)" || echo ""; \
+	fi
+	sudo docker build -t cytools:uid-$(USERID) --build-arg USERNAME=cytools\
+	     --build-arg USERID=$(USERID) --build-arg ARCH=$(arch) --build-arg AARCH=$(aarch)\
+			 --build-arg VIRTUAL_ENV=/home/cytools/cytools-venv/ --build-arg ALLOW_ROOT_ARG=" "\
+			 --build-arg PORT_ARG=$$(( $(USERID) + 2875 )) .
+	@ echo "Successfully built CYTools image for user $(USERIDN)"
+	@ if [ "$(machine)" = "Mac" ]; then \
+		osascript -e "display notification \"The CYTools image was successfully built!\" with title \"CYTools\"" || echo ""; \
+	else \
+		notify-send "CYTools" "The CYTools image was successfully built!" || echo ""; \
+	fi
+
 install: build
 	@if [ "$(USERID)" = "0" ]; then \
 		echo "Please run make as a non-root user and without sudo!"; \
@@ -135,5 +159,6 @@ build-with-root-user:
 	@ echo "Building CYTools image for root user..."
 	sudo docker build -t cytools:root --build-arg USERNAME=root\
 	     --build-arg USERID=0 --build-arg ARCH=$(arch) --build-arg AARCH=$(aarch)\
-			 --build-arg VIRTUAL_ENV=/opt/cytools/cytools-venv/ --build-arg ALLOW_ROOT_ARG="--allow-root" .
+			 --build-arg VIRTUAL_ENV=/opt/cytools/cytools-venv/ --build-arg ALLOW_ROOT_ARG="--allow-root"\
+			 --build-arg PORT_ARG=2875 .
 	@ echo "Successfully built CYTools image with root user."
