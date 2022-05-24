@@ -42,6 +42,7 @@ RUN pip3 install python-flint matplotlib
 RUN pip3 install scikit-sparse cysignals gmpy2==2.1.0a4
 RUN pip3 install pplpy
 RUN pip3 install -f https://download.mosek.com/stable/wheel/index.html Mosek
+RUN pip3 install h5py
 ENV MOSEKLM_LICENSE_FILE=/opt/cytools/external/mosek/mosek.lic
 
 # Fix cvxopt bug
