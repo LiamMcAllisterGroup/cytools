@@ -153,6 +153,8 @@ class Cone:
                     raise Exception("At least one rays is required.")
                 for r in rays:
                     g = gcd_list(r)
+                    if g == 0:
+                        continue
                     if g < 1e-5:
                         print("Warning: Extremely small gcd found. "
                               "Computations may be incorrect.")
@@ -711,7 +713,7 @@ class Cone:
                         f"The options are: {backends}.")
         if backend == "all":
             for b in backends[1:]:
-                if b == "mosek" and not config.mosek_is_activated:
+                if b == "mosek" and not config.mosek_is_activated():
                     continue
                 solution = self.tip_of_stretched_cone(c,backend=b, check=check,
                     constraint_error_tol=constraint_error_tol, verbose=verbose)
@@ -719,7 +721,7 @@ class Cone:
                     return solution
             raise Exception("All available quadratic programming backends "
                             "have failed.")
-        if backend == "mosek" and not config.mosek_is_activated:
+        if backend == "mosek" and not config.mosek_is_activated():
             raise Exception("Mosek is not activated. See the website for how "
                             "to activate it.")
         hp = self.hyperplanes()
@@ -816,7 +818,7 @@ class Cone:
         if self._rays is not None:
             return np.linalg.matrix_rank(self._rays) == self._ambient_dim
         if backend is None:
-            backend = ("mosek" if config.mosek_is_activated else "ortools")
+            backend = ("mosek" if config.mosek_is_activated() else "ortools")
         if backend == "ppl":
             cs = ppl.Constraint_System()
             vrs = [ppl.Variable(i) for i in range(self._ambient_dim)]

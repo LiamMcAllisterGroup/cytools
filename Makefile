@@ -82,8 +82,6 @@ install: build
 		false; \
 	fi
 	@echo "Copying launcher script and associated files..."
-	@mkdir -p ~/mosek || echo "Mosek directory already exists"
-	@cp external/mosek/mosek.lic ~/mosek/mosek.lic || echo "New Mosek license was not found"
 	@if [ "$(machine)" = "Mac" ]; then \
 		sudo cp scripts/macos/cytools /usr/local/bin/cytools; \
 		sudo chmod +x /usr/local/bin/cytools; \

@@ -42,7 +42,7 @@ RUN pip3 install python-flint matplotlib
 RUN pip3 install scikit-sparse cysignals gmpy2==2.1.0a4
 RUN pip3 install pplpy
 RUN pip3 install -f https://download.mosek.com/stable/wheel/index.html Mosek
-ENV MOSEKLM_LICENSE_FILE=/opt/cytools/external/mosek/mosek.lic
+ENV MOSEKLM_LICENSE_FILE=/home/$USERNAME/mounted_volume/mosek/mosek.lic
 
 # Fix cvxopt bug
 USER root
@@ -57,9 +57,6 @@ RUN dpkg -i topcom_0.17.8+ds-2+cytools-1_${ARCH}.deb
 COPY . /opt/cytools/
 WORKDIR /opt/cytools/
 RUN python3 setup.py install
-
-# Change permissions of Mosek license in case there is a mismatch
-RUN chmod 666 /opt/cytools/external/mosek/mosek.lic || echo "Missing Mosek license"
 
 # Create CGAL code for different dimensions and compile
 WORKDIR /opt/cytools/external/cgal

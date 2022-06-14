@@ -27,8 +27,11 @@ topcom_path = "/usr/bin/"
 palp_path = "/usr/bin/"
 
 # Mosek license
-mosek_license = "/home/cytools/mounted_volume/mosek/mosek.lic"
-def check_mosek_license():
+_mosek_license = f"/home/{'root' if os.geteuid()==0 else 'cytools'}/mounted_volume/mosek/mosek.lic"
+_mosek_is_activated = None
+_mosek_error = ""
+_printed_mosek_error = False
+def check_mosek_license(silent=False):
     """
     **Description:**
     Checks if the Mosek license is valid. If it is not, it prints the reason.
@@ -48,22 +51,39 @@ def check_mosek_license():
     # It will print an error if it is not working, and if nothing is printed then it is working correctly
     ```
     """
-    os.environ["MOSEKLM_LICENSE_FILE"] = mosek_license
-    global mosek_is_activated
+    global _mosek_license
+    os.environ["MOSEKLM_LICENSE_FILE"] = _mosek_license
+    global _mosek_error
+    global _mosek_is_activated
+    global _printed_mosek_error
     try:
         import mosek
         mosek.Env().Task(0,0).optimize()
-        mosek_is_activated = True
+        _mosek_is_activated = True
     except mosek.Error as e:
-        print("\nInfo: Mosek is not activated. "
-              "An alternative optimizer will be used.\n"
-              f"Error encountered: {e}\n")
-        mosek_is_activated = False
+        _mosek_error = ("Info: Mosek is not activated. "
+                        "An alternative optimizer will be used.\n"
+                        f"Error encountered: {e}")
+        _mosek_is_activated = False
     except:
-        print("\nInfo: There was a problem with Mosek. "
-              "An alternative optimizer will be used.\n")
-        mosek_is_activated = False
-check_mosek_license()
+        _mosek_error = ("Info: There was a problem with Mosek. "
+                        "An alternative optimizer will be used.")
+        _mosek_is_activated = False
+    _printed_mosek_error = False
+    if not silent:
+        print(_mosek_error)
+        _printed_mosek_error = True
+
+def mosek_is_activated():
+    global _mosek_error
+    global _mosek_is_activated
+    global _printed_mosek_error
+    if _mosek_is_activated is None:
+        check_mosek_license(silent=True)
+    if not _mosek_is_activated and not _printed_mosek_error:
+        print(_mosek_error)
+        _printed_mosek_error = True
+    return _mosek_is_activated
 
 def set_mosek_path(path):
     """
@@ -88,8 +108,8 @@ def set_mosek_path(path):
     cytools.config.set_mosek_path("/home/cytools/mounted_volume/[path-to-license]") # If not in the Docker image
     ```
     """
-    global mosek_license
-    mosek_license = path
+    global _mosek_license
+    _mosek_license = path
     check_mosek_license()
 
 # Lock experimental features by default.
