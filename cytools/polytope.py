@@ -251,12 +251,14 @@ class Polytope:
         self._hash = None
         self._pts_dict = None
         self._points_sat = None
+        self._boundary_flags = None
+        self._interior_to_facet_flags = None
         self._points = None
-        self._interior_points = None
         self._boundary_points = None
+        self._interior_points = None
         self._points_interior_to_facets = None
-        self._boundary_points_not_interior_to_facets = None
         self._points_not_interior_to_facets = None
+        self._boundary_points_not_interior_to_facets = None
         self._is_reflexive = None
         self._h11 = None
         self._h21 = None
@@ -299,12 +301,14 @@ class Polytope:
         self._hash = None
         self._pts_dict = None
         self._points_sat = None
+        self._boundary_flags = None
+        self._interior_to_facet_flags = None
         self._points = None
-        self._interior_points = None
         self._boundary_points = None
+        self._interior_points = None
         self._points_interior_to_facets = None
-        self._boundary_points_not_interior_to_facets = None
         self._points_not_interior_to_facets = None
+        self._boundary_points_not_interior_to_facets = None
         self._is_reflexive = None
         self._h11 = None
         self._h21 = None
@@ -755,6 +759,37 @@ class Polytope:
         self._pts_dict = {ii[0]:i for i,ii in enumerate(self._points_sat)}
         return copy.copy(self._points_sat)
 
+    def _calculate_boundary_flags(self):
+        """
+        **Description:**
+        Create an ordered list of flags indicating whether a point is on the boundary or not
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        Nothing
+        """
+        if self._boundary_flags is None:
+            self._boundary_flags = np.array([len(pt[1]) > 0 for pt in self._points_saturated()])
+
+    def _calculate_interior_to_facet_flags(self):
+        """
+        **Description:**
+        Create an ordered list of flags indicating whether a point is on the boundary or not
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        Nothing
+        """
+        if self._interior_to_facet_flags is None:
+            if self._dim == 0:
+                self._interior_to_facet_flags = np.array([False for pt in self._points_saturated])
+            else:
+                self._interior_to_facet_flags = np.array([len(pt[1]) == 1 for pt in self._points_saturated()])
+
     def points(self, as_indices=False):
         """
         **Description:**
@@ -801,32 +836,6 @@ class Polytope:
             return self.points_to_indices(self._points)
         return np.array(self._points)
 
-    def interior_points(self, as_indices=False):
-        """
-        **Description:**
-        Returns the interior lattice points of the polytope.
-
-        **Arguments:**
-        - `as_indices` *(bool)*: Return the points as indices of the full
-          list of points of the polytope.
-
-        **Returns:**
-        *(numpy.ndarray)* The list of interior lattice points of the polytope.
-
-        **Example:**
-        We construct a polytope and compute the interior lattice points.
-        ```python {2}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        p.interior_points()
-        # array([[ 0,  0,  0,  0]])
-        ```
-        """
-        if self._interior_points is None:
-            self._interior_points = np.array([pt[0] for pt in self._points_saturated() if len(pt[1]) == 0])
-        if as_indices:
-            return self.points_to_indices(self._interior_points)
-        return np.array(self._interior_points)
-
     def boundary_points(self, as_indices=False):
         """
         **Description:**
@@ -856,10 +865,38 @@ class Polytope:
         ```
         """
         if self._boundary_points is None:
-            self._boundary_points = np.array([pt[0] for pt in self._points_saturated() if len(pt[1]) > 0])
+            self._calculate_boundary_flags()
+            self._boundary_points = np.array([pt[0] for pt in self._points_saturated()[self._boundary_flags]])
         if as_indices:
             return self.points_to_indices(self._boundary_points)
         return np.array(self._boundary_points)
+
+    def interior_points(self, as_indices=False):
+        """
+        **Description:**
+        Returns the interior lattice points of the polytope.
+
+        **Arguments:**
+        - `as_indices` *(bool)*: Return the points as indices of the full
+          list of points of the polytope.
+
+        **Returns:**
+        *(numpy.ndarray)* The list of interior lattice points of the polytope.
+
+        **Example:**
+        We construct a polytope and compute the interior lattice points.
+        ```python {2}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        p.interior_points()
+        # array([[ 0,  0,  0,  0]])
+        ```
+        """
+        if self._interior_points is None:
+            self._calculate_boundary_flags()
+            self._interior_points = np.array([pt[0] for pt in self._points_saturated()[~self._boundary_flags]])
+        if as_indices:
+            return self.points_to_indices(self._interior_points)
+        return np.array(self._interior_points)
 
     def points_interior_to_facets(self, as_indices=False):
         """
@@ -886,44 +923,11 @@ class Polytope:
         ```
         """
         if self._points_interior_to_facets is None:
-            self._points_interior_to_facets = np.array([pt[0] for pt in self._points_saturated() if len(pt[1]) == 1])
+            self._calculate_interior_to_facet_flags()
+            self._points_interior_to_facets = np.array([pt[0] for pt in self._points_saturated()[self._interior_to_facet_flags]])
         if as_indices:
             return self.points_to_indices(self._points_interior_to_facets)
         return np.array(self._points_interior_to_facets)
-
-    def boundary_points_not_interior_to_facets(self, as_indices=False):
-        """
-        **Description:**
-        Returns the boundary lattice points not interior to facets.
-
-        **Arguments:**
-        - `as_indices` *(bool)*: Return the points as indices of the full
-          list of points of the polytope.
-
-        **Returns:**
-        *(numpy.ndarray)* The list of boundary lattice points not interior to
-        facets of the polytope.
-
-        **Example:**
-        We construct a polytope and compute the boundary lattice points not
-        interior to facets.
-        ```python {2}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        p.boundary_points_not_interior_to_facets()
-        # array([[-1, -1, -6, -9],
-        #        [ 0,  0,  0,  1],
-        #        [ 0,  0,  1,  0],
-        #        [ 0,  1,  0,  0],
-        #        [ 1,  0,  0,  0],
-        #        [ 0,  0, -2, -3]])
-        ```
-        """
-        if self._boundary_points_not_interior_to_facets is None:
-            self._boundary_points_not_interior_to_facets = np.array([pt[0] for pt in self._points_saturated() if len(pt[1]) > 1])
-        if as_indices:
-            return self.points_to_indices(
-                                self._boundary_points_not_interior_to_facets)
-        return np.array(self._boundary_points_not_interior_to_facets)
 
     def points_not_interior_to_facets(self, as_indices=False):
         """
@@ -954,10 +958,47 @@ class Polytope:
         ```
         """
         if self._points_not_interior_to_facets is None:
-            self._points_not_interior_to_facets = np.array([pt[0] for pt in self._points_saturated() if len(pt[1]) != 1])
+            self._calculate_interior_to_facet_flags()
+            self._points_not_interior_to_facets = np.array([pt[0] for pt in self._points_saturated[~self._interior_to_facet_flags]])
         if as_indices:
             return self.points_to_indices(self._points_not_interior_to_facets)
         return np.array(self._points_not_interior_to_facets)
+
+    def boundary_points_not_interior_to_facets(self, as_indices=False):
+        """
+        **Description:**
+        Returns the boundary lattice points not interior to facets.
+
+        **Arguments:**
+        - `as_indices` *(bool)*: Return the points as indices of the full
+          list of points of the polytope.
+
+        **Returns:**
+        *(numpy.ndarray)* The list of boundary lattice points not interior to
+        facets of the polytope.
+
+        **Example:**
+        We construct a polytope and compute the boundary lattice points not
+        interior to facets.
+        ```python {2}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        p.boundary_points_not_interior_to_facets()
+        # array([[-1, -1, -6, -9],
+        #        [ 0,  0,  0,  1],
+        #        [ 0,  0,  1,  0],
+        #        [ 0,  1,  0,  0],
+        #        [ 1,  0,  0,  0],
+        #        [ 0,  0, -2, -3]])
+        ```
+        """
+        if self._boundary_points_not_interior_to_facets is None:
+            self._calculate_boundary_flags()
+            self._calculate_interior_to_facet_flags()
+            self._boundary_points_not_interior_to_facets = np.array([pt[0] for pt in self._points_saturated()[self._boundary_flags&(~self._interior_to_facet_flags)]])
+        if as_indices:
+            return self.points_to_indices(
+                                self._boundary_points_not_interior_to_facets)
+        return np.array(self._boundary_points_not_interior_to_facets)
 
     def pts(self, as_indices=False):
         """
