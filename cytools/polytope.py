@@ -801,49 +801,6 @@ class Polytope:
             return self.points_to_indices(self._points)
         return np.array(self._points)
 
-    def pts(self, as_indices=False):
-        """
-        **Description:**
-        [synonym of Polytope.points]
-
-        Returns the lattice points of the polytope.
-
-        :::note
-        Points are sorted so that interior points are first, and then the
-        rest are arranged by decreasing number of saturated inequalities and
-        lexicographically. For reflexive polytopes this is useful since the
-        origin will be at index 0 and boundary points interior to facets will
-        be last.
-        :::
-
-        **Arguments:**
-        - `as_indices` *(bool)*: Return the points as indices of the full
-          list of points of the polytope.
-
-        **Returns:**
-        *(numpy.ndarray)* The list of lattice points of the polytope.
-
-        **Example:**
-        We construct a polytope and compute the lattice points. One can verify
-        that the first point is the only interior point, and the last three
-        points are the ones interior to facets. Thus it follows the
-        aforementioned ordering.
-        ```python {2}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        p.points()
-        # array([[ 0,  0,  0,  0],
-        #        [-1, -1, -6, -9],
-        #        [ 0,  0,  0,  1],
-        #        [ 0,  0,  1,  0],
-        #        [ 0,  1,  0,  0],
-        #        [ 1,  0,  0,  0],
-        #        [ 0,  0, -2, -3],
-        #        [ 0,  0, -1, -2],
-        #        [ 0,  0, -1, -1],
-        #        [ 0,  0,  0, -1]])
-        """
-        return self.points(as_indices)
-
     def interior_points(self, as_indices=False):
         """
         **Description:**
@@ -1001,6 +958,48 @@ class Polytope:
         if as_indices:
             return self.points_to_indices(self._points_not_interior_to_facets)
         return np.array(self._points_not_interior_to_facets)
+
+    def pts(self, as_indices=False):
+        """
+        **Description:**
+        [synonym of Polytope.points]
+        """
+        return self.points(as_indices)
+
+    def interior_pts(self, as_indices=False):
+        """
+        **Description:**
+        [synonym of Polytope.interior_points]
+        """
+        return self.interior_points(as_indices)
+
+    def boundary_pts(self, as_indices=False):
+        """
+        **Description:**
+        [synonym of Polytope.boundary_points]
+        """
+        return self.boundary_points(as_indices)
+
+    def pts_interior_to_facets(self, as_indices=False):
+        """
+        **Description:**
+        [synonym of Polytope.points_interior_to_facets]
+        """
+        return self.points_interior_to_facets(as_indices)
+
+    def boundary_pts_not_interior_to_facets(self, as_indices=False):
+        """
+        **Description:**
+        [synonym of Polytope.boundary_points_not_interior_to_facets]
+        """
+        return self.boundary_points_not_interior_to_facets(as_indices)
+
+    def pts_not_interior_to_facets(self, as_indices=False):
+        """
+        **Description:**
+        [synonym of Polytope.points_not_interior_to_facets]
+        """
+        return self.points_not_interior_to_facets(as_indices)
 
     def is_reflexive(self):
         """
