@@ -791,7 +791,7 @@ class Polytope:
         is in the interior of a facet (True) or not (False).
         """
         if self.__interior_to_facet_flags is None:
-            if self._dim == 0:
+            if self._dim <= 1:
                 self.__interior_to_facet_flags = np.array([False for pt in self._points_saturated()])
             else:
                 self.__interior_to_facet_flags = np.array([len(pt[1]) == 1 for pt in self._points_saturated()])
