@@ -251,8 +251,8 @@ class Polytope:
         self._hash = None
         self._pts_dict = None
         self._points_sat = None
-        self._boundary_flags = None
-        self._interior_to_facet_flags = None
+        self.__boundary_flags = None
+        self.__interior_to_facet_flags = None
         self._points = None
         self._boundary_points = None
         self._interior_points = None
@@ -301,8 +301,8 @@ class Polytope:
         self._hash = None
         self._pts_dict = None
         self._points_sat = None
-        self._boundary_flags = None
-        self._interior_to_facet_flags = None
+        self.__boundary_flags = None
+        self.__interior_to_facet_flags = None
         self._points = None
         self._boundary_points = None
         self._interior_points = None
@@ -759,36 +759,44 @@ class Polytope:
         self._pts_dict = {ii[0]:i for i,ii in enumerate(self._points_sat)}
         return copy.copy(self._points_sat)
 
-    def _calculate_boundary_flags(self):
+    def _boundary_flags(self):
         """
         **Description:**
-        Create an ordered list of flags indicating whether a point is on the boundary or not
+        Create an ordered list of flags indicating whether a point is on the
+        boundary or not.
 
         **Arguments:**
         None.
 
         **Returns:**
-        Nothing
+        *(numpy.ndarray)* The list of flags indicating whether a lattice point
+        is on the boundary (True) or not (False).
         """
-        if self._boundary_flags is None:
-            self._boundary_flags = np.array([len(pt[1]) > 0 for pt in self._points_saturated()])
+        if self.__boundary_flags is None:
+            self.__boundary_flags = np.array([len(pt[1]) > 0 for pt in self._points_saturated()])
 
-    def _calculate_interior_to_facet_flags(self):
+        return self.__boundary_flags
+
+    def _interior_to_facet_flags(self):
         """
         **Description:**
-        Create an ordered list of flags indicating whether a point is on the boundary or not
+        Create an ordered list of flags indicating whether a point is in the
+        interior of a facet or not.
 
         **Arguments:**
         None.
 
         **Returns:**
-        Nothing
+        *(numpy.ndarray)* The list of flags indicating whether a lattice point
+        is in the interior of a facet (True) or not (False).
         """
-        if self._interior_to_facet_flags is None:
+        if self.__interior_to_facet_flags is None:
             if self._dim == 0:
-                self._interior_to_facet_flags = np.array([False for pt in self._points_saturated])
+                self.__interior_to_facet_flags = np.array([False for pt in self._points_saturated()])
             else:
-                self._interior_to_facet_flags = np.array([len(pt[1]) == 1 for pt in self._points_saturated()])
+                self.__interior_to_facet_flags = np.array([len(pt[1]) == 1 for pt in self._points_saturated()])
+
+        return self.__interior_to_facet_flags
 
     def points(self, as_indices=False):
         """
@@ -865,8 +873,9 @@ class Polytope:
         ```
         """
         if self._boundary_points is None:
-            self._calculate_boundary_flags()
-            self._boundary_points = np.array([pt[0] for pt in self._points_saturated()[self._boundary_flags]])
+            # since self._points_saturated returns a list (NOT a np.array),
+            # we can't just do self._points_saturated()[_filter_list]
+            self._boundary_points = np.array([pt[0] for (pt, filter) in zip(self._points_saturated(), self._boundary_flags()) if filter])
         if as_indices:
             return self.points_to_indices(self._boundary_points)
         return np.array(self._boundary_points)
@@ -892,8 +901,9 @@ class Polytope:
         ```
         """
         if self._interior_points is None:
-            self._calculate_boundary_flags()
-            self._interior_points = np.array([pt[0] for pt in self._points_saturated()[~self._boundary_flags]])
+            # since self._points_saturated returns a list (NOT a np.array),
+            # we can't just do self._points_saturated()[_filter_list]
+            self._interior_points = np.array([pt[0] for (pt, filter) in zip(self._points_saturated(), ~self._boundary_flags()) if filter])
         if as_indices:
             return self.points_to_indices(self._interior_points)
         return np.array(self._interior_points)
@@ -923,8 +933,9 @@ class Polytope:
         ```
         """
         if self._points_interior_to_facets is None:
-            self._calculate_interior_to_facet_flags()
-            self._points_interior_to_facets = np.array([pt[0] for pt in self._points_saturated()[self._interior_to_facet_flags]])
+            # since self._points_saturated returns a list (NOT a np.array),
+            # we can't just do self._points_saturated()[_filter_list]
+            self._points_interior_to_facets = np.array([pt[0] for (pt, filter) in zip(self._points_saturated(), self._interior_to_facet_flags()) if filter])
         if as_indices:
             return self.points_to_indices(self._points_interior_to_facets)
         return np.array(self._points_interior_to_facets)
@@ -958,8 +969,9 @@ class Polytope:
         ```
         """
         if self._points_not_interior_to_facets is None:
-            self._calculate_interior_to_facet_flags()
-            self._points_not_interior_to_facets = np.array([pt[0] for pt in self._points_saturated[~self._interior_to_facet_flags]])
+            # since self._points_saturated returns a list (NOT a np.array),
+            # we can't just do self._points_saturated()[_filter_list]
+            self._points_not_interior_to_facets = np.array([pt[0] for (pt, filter) in zip(self._points_saturated(), ~self._interior_to_facet_flags()) if filter])
         if as_indices:
             return self.points_to_indices(self._points_not_interior_to_facets)
         return np.array(self._points_not_interior_to_facets)
@@ -992,9 +1004,9 @@ class Polytope:
         ```
         """
         if self._boundary_points_not_interior_to_facets is None:
-            self._calculate_boundary_flags()
-            self._calculate_interior_to_facet_flags()
-            self._boundary_points_not_interior_to_facets = np.array([pt[0] for pt in self._points_saturated()[self._boundary_flags&(~self._interior_to_facet_flags)]])
+            # since self._points_saturated returns a list (NOT a np.array),
+            # we can't just do self._points_saturated()[_filter_list]
+            self._boundary_points_not_interior_to_facets = np.array([pt[0] for (pt, filter) in zip(self._points_saturated(), self._boundary_flags()&(~self._interior_to_facet_flags())) if filter])
         if as_indices:
             return self.points_to_indices(
                                 self._boundary_points_not_interior_to_facets)
