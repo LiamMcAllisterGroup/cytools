@@ -562,7 +562,9 @@ class Triangulation:
     def dim(self):
         """
         **Description:**
-        Returns the dimension of the triangulation.
+        Returns the dimension of the triangulation. Since triangulation requires
+        the polytope to be full dimensional, this is the same as the ambient
+        dimension.
 
         **Arguments:**
         None.
