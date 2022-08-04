@@ -639,7 +639,7 @@ class Triangulation:
                             self.cpl_cone(include_points_not_in_triangulation=False).is_solid(backend=backend))
         return self._is_regular
 
-    def is_star(self, star_origin=0):
+    def is_star(self, star_origin=0, manual_origin=False):
         """
         **Description:**
         Returns True if the triangulation is star and False otherwise.
@@ -647,6 +647,10 @@ class Triangulation:
         **Arguments:**
         - `star_origin` *(int, optional, default=0)*: The index of the
           origin of the star triangulation
+        - `manual_origin` *(bool, optional, default=False)*: Truth
+          value indicating whether to use the manually-given origin
+          (star_origin) or to just use points_to_indices to find
+          the origin
 
         **Returns:**
         *(bool)* The truth value of the triangulation being star.
@@ -660,6 +664,14 @@ class Triangulation:
         # True
         ```
         """
+        if not manual_origin:
+            try:
+                # manually calculate the origin's index
+                star_origin = self.points_to_indices([0]*self.dim())
+            except:
+                # the origin isn't inside the polytope
+                self._is_star = False
+
         if self._is_star is not None:
             return self._is_star
         self._is_star = all(star_origin in s for s in self._simplices)
