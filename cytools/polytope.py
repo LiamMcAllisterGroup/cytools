@@ -2926,7 +2926,7 @@ class Polytope:
             pts_ind = tuple(set(points))
             if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
                 raise Exception("An index is out of the allowed range.")
-            include_origin = 0 in pts_ind
+
         elif include_points_interior_to_facets is None:
             pts_ind = (tuple(range(self.points_not_interior_to_facets().shape[0]))
                         if self.is_reflexive()
@@ -3035,7 +3035,7 @@ class Polytope:
             pts_ind = tuple(set(points))
             if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
                 raise Exception("An index is out of the allowed range.")
-            include_origin = 0 in pts_ind
+
         elif include_points_interior_to_facets is None:
             pts_ind = (tuple(range(self.points_not_interior_to_facets().shape[0]))
                         if self.is_reflexive()
@@ -3187,7 +3187,7 @@ class Polytope:
             pts_ind = tuple(set(points))
             if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
                 raise Exception("An index is out of the allowed range.")
-            include_origin = 0 in pts_ind
+
         elif include_points_interior_to_facets is None:
             pts_ind = (tuple(range(self.points_not_interior_to_facets().shape[0]))
                         if self.is_reflexive()
@@ -3307,7 +3307,7 @@ class Polytope:
             pts_ind = tuple(set(points))
             if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
                 raise Exception("An index is out of the allowed range.")
-            include_origin = 0 in pts_ind
+
         elif include_points_interior_to_facets is None:
             pts_ind = (tuple(range(self.points_not_interior_to_facets().shape[0]))
                         if self.is_reflexive()
