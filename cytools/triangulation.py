@@ -562,7 +562,9 @@ class Triangulation:
     def dim(self):
         """
         **Description:**
-        Returns the dimension of the triangulation.
+        Returns the dimension of the triangulation. Since triangulation
+        requires the polytope to be full dimensional, this is the same as the
+        dimension of the ambient lattice.
 
         **Arguments:**
         None.
@@ -637,13 +639,16 @@ class Triangulation:
                             self.cpl_cone(include_points_not_in_triangulation=False).is_solid(backend=backend))
         return self._is_regular
 
-    def is_star(self, star_origin=0):
+    def is_star(self, star_origin=None):
         """
         **Description:**
-        Returns True if the triangulation is star and False otherwise.
+        Returns True if the triangulation is star and False otherwise. The star
+        origin is assumed to be the origin, so for polytopes that don't contain
+        the origin this function will always return False unless `star_origin`
+        is specified.
 
         **Arguments:**
-        - `star_origin` *(int, optional, default=0)*: The index of the
+        - `star_origin` *(int, optional)*: The index of the
           origin of the star triangulation
 
         **Returns:**
@@ -658,9 +663,17 @@ class Triangulation:
         # True
         ```
         """
-        if self._is_star is not None:
-            return self._is_star
-        self._is_star = all(star_origin in s for s in self._simplices)
+        if star_origin is not None:
+            return all(star_origin in s for s in self._simplices)
+        if self._is_star is None:
+            if self.polytope().is_reflexive():
+                star_origin = 0
+            else:
+                try:
+                    star_origin = self.points_to_indices([0]*self.dim())
+                except:
+                    star_origin = -1 # negative number so that following line evaluates to false
+            self._is_star = all(star_origin in s for s in self._simplices)
         return self._is_star
 
     def is_valid(self, backend=None):

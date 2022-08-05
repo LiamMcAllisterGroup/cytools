@@ -134,6 +134,8 @@ class Polytope:
                 backend = "ppl"
             else:
                 backend = "palp"
+        if self._dim == 0: # 0-dimensional polytopes are finicky
+            backend = "palp"
         self._backend = backend
         # Find the optimal form of the polytope by performing LLL reduction.
         # If the polytope is not full-dimensional it constructs an
@@ -424,7 +426,8 @@ class Polytope:
     def __add__(self, other):
         """
         **Description:**
-        Alias for the [`minkowski_sum`](#minkowski_sum) function.
+        Implements addition of polytopes with the
+        [`minkowski_sum`](#minkowski_sum) function.
 
         **Arguments:**
         - `other` *(Polytope)*: The other polytope used for the Minkowski
@@ -775,6 +778,9 @@ class Polytope:
         **Returns:**
         *(numpy.ndarray)* The list of lattice points of the polytope.
 
+        **Aliases:**
+        `pts`.
+
         **Example:**
         We construct a polytope and compute the lattice points. One can verify
         that the first point is the only interior point, and the last three
@@ -800,6 +806,8 @@ class Polytope:
         if as_indices:
             return self.points_to_indices(self._points)
         return np.array(self._points)
+    # Aliases
+    pts = points
 
     def interior_points(self, as_indices=False):
         """
@@ -812,6 +820,9 @@ class Polytope:
 
         **Returns:**
         *(numpy.ndarray)* The list of interior lattice points of the polytope.
+
+        **Aliases:**
+        `interior_pts`.
 
         **Example:**
         We construct a polytope and compute the interior lattice points.
@@ -826,6 +837,8 @@ class Polytope:
         if as_indices:
             return self.points_to_indices(self._interior_points)
         return np.array(self._interior_points)
+    # Aliases
+    interior_pts = interior_points
 
     def boundary_points(self, as_indices=False):
         """
@@ -838,6 +851,9 @@ class Polytope:
 
         **Returns:**
         *(numpy.ndarray)* The list of boundary lattice points of the polytope.
+
+        **Aliases:**
+        `boundary_pts`.
 
         **Example:**
         We construct a polytope and compute the boundary lattice points.
@@ -860,6 +876,8 @@ class Polytope:
         if as_indices:
             return self.points_to_indices(self._boundary_points)
         return np.array(self._boundary_points)
+    # Aliases
+    boundary_pts = boundary_points
 
     def points_interior_to_facets(self, as_indices=False):
         """
@@ -873,6 +891,9 @@ class Polytope:
         **Returns:**
         *(numpy.ndarray)* The list of lattice points interior to facets of the
         polytope.
+
+        **Aliases:**
+        `pts_interior_to_facets`.
 
         **Example:**
         We construct a polytope and compute the lattice points interior to
@@ -890,6 +911,8 @@ class Polytope:
         if as_indices:
             return self.points_to_indices(self._points_interior_to_facets)
         return np.array(self._points_interior_to_facets)
+    # Aliases
+    pts_interior_to_facets = points_interior_to_facets
 
     def boundary_points_not_interior_to_facets(self, as_indices=False):
         """
@@ -903,6 +926,9 @@ class Polytope:
         **Returns:**
         *(numpy.ndarray)* The list of boundary lattice points not interior to
         facets of the polytope.
+
+        **Aliases:**
+        `boundary_pts_not_interior_to_facets`.
 
         **Example:**
         We construct a polytope and compute the boundary lattice points not
@@ -924,6 +950,8 @@ class Polytope:
             return self.points_to_indices(
                                 self._boundary_points_not_interior_to_facets)
         return np.array(self._boundary_points_not_interior_to_facets)
+    # Aliases
+    boundary_pts_not_interior_to_facets = boundary_points_not_interior_to_facets
 
     def points_not_interior_to_facets(self, as_indices=False):
         """
@@ -937,6 +965,9 @@ class Polytope:
         **Returns:**
         *(numpy.ndarray)* The list of lattice points not interior to facets of
         the polytope.
+
+        **Aliases:**
+        `pts_not_interior_to_facets`.
 
         **Example:**
         We construct a polytope and compute the lattice points not interior to
@@ -958,6 +989,8 @@ class Polytope:
         if as_indices:
             return self.points_to_indices(self._points_not_interior_to_facets)
         return np.array(self._points_not_interior_to_facets)
+    # Aliases
+    pts_not_interior_to_facets = points_not_interior_to_facets
 
     def is_reflexive(self):
         """
@@ -1119,6 +1152,9 @@ class Polytope:
         **Returns:**
         *(int)* The Hodge number $h^{1,2}$ of the arising Calabi-Yau manifold.
 
+        **Aliases:**
+        `h21`.
+
         **Example:**
         We construct a polytope and compute $h^{1,2}$ of the associated
         hypersurfaces.
@@ -1138,6 +1174,8 @@ class Polytope:
             return self.dual().h12(lattice="N")
         raise Exception("Lattice must be specified. "
                         "Options are: \"N\" or \"M\".")
+    # Aliases
+    h21 = h12
 
     def h13(self, lattice):
         """
@@ -1158,6 +1196,9 @@ class Polytope:
         **Returns:**
         *(int)* The Hodge number $h^{1,3}$ of the arising Calabi-Yau manifold.
 
+        **Aliases:**
+        `h31`.
+
         **Example:**
         We construct a polytope and compute $h^{1,3}$ of the associated
         hypersurfaces.
@@ -1177,31 +1218,8 @@ class Polytope:
             return self.dual().h13(lattice="N")
         raise Exception("Lattice must be specified. "
                         "Options are: \"N\" or \"M\".")
-
-    def h21(self, lattice):
-        """
-        **Description:**
-        Alias for the [`h12`](#h12) function.
-
-        **Arguments:**
-        - `lattice` *(str)*: Specifies the lattice on which the polytope
-          is defined. Options are "N" and "M".
-
-        **Returns:**
-        *(int)* The Hodge number $h^{2,1}$ of the arising Calabi-Yau manifold.
-
-        **Example:**
-        We construct a polytope and compute $h^{2,1}$ of the associated
-        hypersurfaces.
-        ```python {2,4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        p.h21(lattice="N")
-        # 272
-        p.h21(lattice="M")
-        # 2
-        ```
-        """
-        return self.h12(lattice=lattice)
+    # Aliases
+    h31 = h13
 
     def h22(self, lattice):
         """
@@ -1239,31 +1257,6 @@ class Polytope:
             return self.dual().h22(lattice="N")
         raise Exception("Lattice must be specified. "
                         "Options are: \"N\" or \"M\".")
-
-    def h31(self, lattice):
-        """
-        **Description:**
-        Alias for the [`h13`](#h13) function.
-
-        **Arguments:**
-        - `lattice` *(str)*: Specifies the lattice on which the polytope
-          is defined. Options are "N" and "M".
-
-        **Returns:**
-        *(int)* The Hodge number $h^{3,1}$ of the arising Calabi-Yau manifold.
-
-        **Example:**
-        We construct a polytope and compute $h^{3,1}$ of the associated
-        hypersurfaces.
-        ```python {2,4}
-        p = Polytope([[1,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,1],[-1,-1,-6,-9,-18]])
-        p.h31(lattice="N")
-        # 2966
-        p.h31(lattice="M")
-        # 8
-        ```
-        """
-        return self.h13(lattice=lattice)
 
     def chi(self, lattice):
         """
@@ -1633,6 +1626,9 @@ class Polytope:
         **Returns:**
         *(Polytope)* The dual polytope.
 
+        **Aliases:**
+        `polar`.
+
         **Example:**
         We construct a reflexive polytope and find its dual. We then verify
         that the dual of the dual is the original polytope.
@@ -1655,32 +1651,8 @@ class Polytope:
         self._dual = Polytope(pts, backend=self._backend)
         self._dual._dual = self
         return self._dual
-
-    def polar(self):
-        """
-        **Description:**
-        Alias for [`dual`](#dual).
-
-        **Arguments:**
-        None.
-
-        **Returns:**
-        *(Polytope)* The polar polytope.
-
-        **Example:**
-        We construct a reflexive polytope and find its polar polytope. We then
-        verify that the polar of the polar is the original polytope.
-        ```python {2,5}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        p_polar = p.polar()
-        print(p_polar)
-        # A 4-dimensional reflexive lattice polytope in ZZ^4
-        p_polar_polar = p_polar.polar()
-        p_polar_polar is p
-        # True
-        ```
-        """
-        return self.dual()
+    # Aliases
+    polar = dual
 
     def is_favorable(self, lattice):
         """
@@ -2831,7 +2803,6 @@ class Polytope:
             pts_ind = tuple(set(points))
             if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
                 raise Exception("An index is out of the allowed range.")
-            include_origin = 0 in pts_ind
         elif include_points_interior_to_facets is None:
             pts_ind = (tuple(range(self.points_not_interior_to_facets().shape[0]))
                         if self.is_reflexive()
@@ -2940,7 +2911,6 @@ class Polytope:
             pts_ind = tuple(set(points))
             if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
                 raise Exception("An index is out of the allowed range.")
-            include_origin = 0 in pts_ind
         elif include_points_interior_to_facets is None:
             pts_ind = (tuple(range(self.points_not_interior_to_facets().shape[0]))
                         if self.is_reflexive()
@@ -3092,7 +3062,6 @@ class Polytope:
             pts_ind = tuple(set(points))
             if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
                 raise Exception("An index is out of the allowed range.")
-            include_origin = 0 in pts_ind
         elif include_points_interior_to_facets is None:
             pts_ind = (tuple(range(self.points_not_interior_to_facets().shape[0]))
                         if self.is_reflexive()
@@ -3212,7 +3181,6 @@ class Polytope:
             pts_ind = tuple(set(points))
             if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
                 raise Exception("An index is out of the allowed range.")
-            include_origin = 0 in pts_ind
         elif include_points_interior_to_facets is None:
             pts_ind = (tuple(range(self.points_not_interior_to_facets().shape[0]))
                         if self.is_reflexive()
