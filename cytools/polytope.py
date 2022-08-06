@@ -2729,6 +2729,38 @@ class Polytope:
                                                 or not compute_hodge_numbers
                                             else self._nef_parts.get(args_id)[0])
 
+    def _triang_pt_inds(self, include_points_interior_to_facets=None, points=None):
+        """
+        **Description:**
+        Gets the indices of the points in a a triangulation.
+
+        **Arguments:**
+        - `include_points_interior_to_facets` *(bool, optional)*: Whether
+          to include points interior to facets from the triangulation. If not
+          specified, it is set to False for reflexive polytopes and True
+          otherwise.
+        - `points` *(array_like, optional)*: The list of indices of the
+          points that will be used. Note that if this option is used then the
+          parameter `include_points_interior_to_facets` is ignored.
+
+        **Returns:**
+        *(tuple)* A tuple of the indices of the points included in a triangulation
+        """
+        if points is not None:
+            pts_ind = tuple(set(points))
+            if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
+                raise Exception("An index is out of the allowed range.")
+        elif include_points_interior_to_facets is None:
+            pts_ind = (tuple(self.points_not_interior_to_facets(True))
+                        if self.is_reflexive()
+                        else tuple(self.points(True)))
+        else:
+            pts_ind = (tuple(self.points(True))
+                        if include_points_interior_to_facets
+                        else tuple(self.points_not_interior_to_facets(True)))
+
+        return pts_ind
+
     def triangulate(self, heights=None, make_star=None,
                     include_points_interior_to_facets=None, points=None,
                     simplices=None, check_input_simplices=True, backend="cgal"):
@@ -2799,18 +2831,7 @@ class Polytope:
         if self._ambient_dim > self._dim:
             raise Exception("Only triangulations of full-dimensional polytopes"
                             "are supported.")
-        if points is not None:
-            pts_ind = tuple(set(points))
-            if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
-                raise Exception("An index is out of the allowed range.")
-        elif include_points_interior_to_facets is None:
-            pts_ind = (tuple(range(self.points_not_interior_to_facets().shape[0]))
-                        if self.is_reflexive()
-                        else tuple(range(self.points().shape[0])))
-        else:
-            pts_ind = (tuple(range(self.points().shape[0]))
-                        if include_points_interior_to_facets
-                        else tuple(range(self.points_not_interior_to_facets().shape[0])))
+        pts_ind = self._triang_pt_inds(include_points_interior_to_facets, points)
         triang_pts = self.points()[list(pts_ind)]
         if make_star is None:
             if heights is None and simplices is None:
@@ -2907,18 +2928,7 @@ class Polytope:
         if N is None and as_list:
             raise Exception("Number of triangulations must be specified when "
                             "returning a list.")
-        if points is not None:
-            pts_ind = tuple(set(points))
-            if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
-                raise Exception("An index is out of the allowed range.")
-        elif include_points_interior_to_facets is None:
-            pts_ind = (tuple(range(self.points_not_interior_to_facets().shape[0]))
-                        if self.is_reflexive()
-                        else tuple(range(self.points().shape[0])))
-        else:
-            pts_ind = (tuple(range(self.points().shape[0]))
-                        if include_points_interior_to_facets
-                        else tuple(range(self.points_not_interior_to_facets().shape[0])))
+        pts_ind = self._triang_pt_inds(include_points_interior_to_facets, points)
         triang_pts = [tuple(pt) for pt in self.points()[list(pts_ind)]]
         if make_star is None:
             make_star = self.is_reflexive()
@@ -3058,18 +3068,7 @@ class Polytope:
         if N is None and as_list:
             raise Exception("Number of triangulations must be specified when "
                             "returning a list.")
-        if points is not None:
-            pts_ind = tuple(set(points))
-            if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
-                raise Exception("An index is out of the allowed range.")
-        elif include_points_interior_to_facets is None:
-            pts_ind = (tuple(range(self.points_not_interior_to_facets().shape[0]))
-                        if self.is_reflexive()
-                        else tuple(range(self.points().shape[0])))
-        else:
-            pts_ind = (tuple(range(self.points().shape[0]))
-                        if include_points_interior_to_facets
-                        else tuple(range(self.points_not_interior_to_facets().shape[0])))
+        pts_ind = self._triang_pt_inds(include_points_interior_to_facets, points)
         triang_pts = [tuple(pt) for pt in self.points()[list(pts_ind)]]
         if make_star is None:
             make_star =  self.is_reflexive()
@@ -3177,18 +3176,7 @@ class Polytope:
                 raise Exception("The star_origin parameter must be specified "
                                 "when finding star triangulations of "
                                 "non-reflexive polytopes.")
-        if points is not None:
-            pts_ind = tuple(set(points))
-            if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
-                raise Exception("An index is out of the allowed range.")
-        elif include_points_interior_to_facets is None:
-            pts_ind = (tuple(range(self.points_not_interior_to_facets().shape[0]))
-                        if self.is_reflexive()
-                        else tuple(range(self.points().shape[0])))
-        else:
-            pts_ind = (tuple(range(self.points().shape[0]))
-                        if include_points_interior_to_facets
-                        else tuple(range(self.points_not_interior_to_facets().shape[0])))
+        pts_ind = self._triang_pt_inds(include_points_interior_to_facets, points)
         triang_pts = [tuple(pt) for pt in self.points()[list(pts_ind)]]
         if len(triang_pts) >= 15:
             print("Warning: Polytopes with more than around 15 points usually "
