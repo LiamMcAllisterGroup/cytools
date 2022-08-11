@@ -2833,6 +2833,10 @@ class Polytope:
                             "are supported.")
         pts_ind = self._triang_pt_inds(include_points_interior_to_facets, points)
         triang_pts = self.points()[list(pts_ind)]
+        if (heights is not None) and (len(heights) == len(self.points())):
+            triang_heights = heights[list(pts_ind)]
+        else:
+            triang_heights = heights
         if make_star is None:
             if heights is None and simplices is None:
                 make_star = self.is_reflexive()
@@ -2840,7 +2844,7 @@ class Polytope:
                 make_star = False
         if (0,)*self._dim not in triang_pts:
             make_star = False
-        return Triangulation(triang_pts, poly=self, heights=heights,
+        return Triangulation(triang_pts, poly=self, heights=triang_heights,
                              make_star=make_star, simplices=simplices,
                              check_input_simplices=check_input_simplices,
                              backend=backend)
