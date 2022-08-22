@@ -1079,18 +1079,18 @@ class Cone:
         ```
         """
         if isinstance(other, Cone):
-            return Cone(self.dual().rays().tolist()
-                            + other.dual().rays().tolist()
-                        ).dual()
-        dual_rays = self.dual().rays().tolist()
+            return Cone(hyperplanes=self.hyperplanes().tolist()
+                            + other.hyperplanes().tolist()
+                        )
+        hyperplanes = self.hyperplanes().tolist()
         for c in other:
             if not isinstance(c, Cone):
                 raise Exception("Elements of the list must be Cone objects.")
             if c.ambient_dim() != self.ambient_dim():
                 raise Exception("Ambient lattices must have the same"
                                 "dimension.")
-            dual_rays.extend(c.dual().rays().tolist())
-        return Cone(dual_rays).dual()
+            hyperplanes.extend(c.hyperplanes().tolist())
+        return Cone(hyperplanes=hyperplanes)
 
 
 def is_extremal(A, b, i=None, q=None, tol=1e-4):

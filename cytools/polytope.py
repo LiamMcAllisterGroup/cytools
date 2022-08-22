@@ -2834,7 +2834,7 @@ class Polytope:
         pts_ind = self._triang_pt_inds(include_points_interior_to_facets, points)
         triang_pts = self.points()[list(pts_ind)]
         if (heights is not None) and (len(heights) == len(self.points())):
-            triang_heights = heights[list(pts_ind)]
+            triang_heights = np.array(heights)[list(pts_ind)]
         else:
             triang_heights = heights
         if make_star is None:
