@@ -1049,7 +1049,7 @@ class Cone:
                 n_rays = literal_eval(l.split()[0])
                 for i in range(n_rays):
                     rays.append([literal_eval(c) for c in data[l_n+1+i].split()])
-                l_n += 1
+                l_n += n_rays+1
                 continue
             if "further Hilbert basis elements" in l:
                 n_rays = literal_eval(l.split()[0])
@@ -1057,7 +1057,7 @@ class Cone:
                     rays.append([literal_eval(c) for c in data[l_n+1+i].split()])
                 l_n += n_rays+1
                 continue
-            l_n += n_rays+1
+            l_n += 1
             continue
         self._hilbert_basis = np.array(rays)
         return np.array(self._hilbert_basis)
