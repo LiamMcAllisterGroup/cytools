@@ -1291,7 +1291,7 @@ def all_triangulations(points, only_fine=False, only_regular=False,
     """
     **Description:**
     Computes all triangulations of the input point configuration using TOPCOM.
-    There is the option to only compute fire, regular or fine triangulations.
+    There is the option to only compute fine, regular or fine triangulations.
 
     :::note
     This function is not intended to be called by the end user. Instead, it is

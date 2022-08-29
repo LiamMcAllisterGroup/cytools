@@ -45,7 +45,7 @@ class Cone:
     study of Kähler and Mori cones.
 
     :::important warning
-    This class is primarily taylored to pointed (i.e. strongly convex) cones.
+    This class is primarily tailored to pointed (i.e. strongly convex) cones.
     There are a few computations, such as finding extremal rays, that may
     produce some unexpected results when working with non-pointed cones.
     Additionally, cones that are not pointed, and whose dual is also not

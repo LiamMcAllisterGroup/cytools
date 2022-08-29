@@ -302,7 +302,7 @@ class CalabiYau:
         :::important
         This function provides only a very trivial comparison using the
         [`is_trivially_equivalent`](#is_trivially_equivalent) function. It is
-        not recommended to compare CYs with ==, and it a warning will be
+        not recommended to compare CYs with ==, and a warning will be
         printed every time it evaluates to False. This is only implemented so
         that sets and dictionaries of CYs can be created.
         The [`is_trivially_equivalent`](#is_trivially_equivalent) function
@@ -346,7 +346,7 @@ class CalabiYau:
         :::important
         This function provides only a very trivial comparison using the
         [`is_trivially_equivalent`](#is_trivially_equivalent) function. It is
-        not recommended to compare CYs with !=, and it a warning will be
+        not recommended to compare CYs with !=, and a warning will be
         printed every time it evaluates to False. This is only implemented so
         that sets and dictionaries of CYs can be created.
         The [`is_trivially_equivalent`](#is_trivially_equivalent) function

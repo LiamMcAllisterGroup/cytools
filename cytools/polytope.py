@@ -2775,7 +2775,7 @@ class Polytope:
 
         **Arguments:**
         - `heights` *(array_like, optional)*: A list of heights specifying
-          the regular triangulation. When not secified, it will return the
+          the regular triangulation. When not specified, it will return the
           Delaunay triangulation when using CGAL, a triangulation obtained from
           random heights near the Delaunay when using QHull, or the placing
           triangulation when using TOPCOM. Heights can only be specified when

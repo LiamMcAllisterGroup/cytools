@@ -51,9 +51,9 @@ class ToricVariety:
     [`Triangulation`](./triangulation) class.
     :::
 
-    :::tip experimetal features
+    :::tip experimental features
     Only star triangulations of reflexive polytopes are fully supported. There
-    is experimetal support for other kinds of triangulations, but they may not
+    is experimental support for other kinds of triangulations, but they may not
     always work. See [experimental features](./experimental) for more details.
     :::
 
@@ -70,7 +70,7 @@ class ToricVariety:
 
     **Example:**
     We construct a ToricVariety from a regular, star triangulation of a
-    reflexive polytope. Since this class is not intended to by initialized by
+    reflexive polytope. Since this class is not intended to be initialized by
     the end user, we create it via the
     [`get_toric_variety`](./triangulation#get_toric_variety) function of
     the [`Triangulation`](./triangulation) class. In this example we obtain
@@ -99,7 +99,7 @@ class ToricVariety:
         This is the function that is called when creating a new
         `ToricVariety` object. We construct a ToricVariety from a regular,
         star triangulation of a reflexive polytope. Since this class is not
-        intended to by initialized by the end user, we create it via the
+        intended to be initialized by the end user, we create it via the
         [`get_toric_variety`](./triangulation#get_toric_variety) function
         of the [`Triangulation`](./triangulation) class. In this example we
         obtain $\mathbb{P}^4$.
@@ -990,7 +990,7 @@ class ToricVariety:
         None.
 
         **Returns:**
-        *(tuple)* A tuple where the first compotent is a sparse matrix M, the
+        *(tuple)* A tuple where the first component is a sparse matrix M, the
         second is a vector C, which are used to solve the system M*X=C, the
         third is the list of intersection numbers not including
         self-intersections, and the fourth is the list of intersection numbers
@@ -1116,7 +1116,7 @@ class ToricVariety:
         None.
 
         **Returns:**
-        *(tuple)* A tuple where the first compotent is a sparse matrix M, the
+        *(tuple)* A tuple where the first component is a sparse matrix M, the
         second is a vector C, which are used to solve the system M*X=C, the
         third is the list of intersection numbers not including
         self-intersections, and the fourth is the list of intersection numbers
@@ -1688,8 +1688,8 @@ class ToricVariety:
 
         :::note
         Only Calabi-Yau 3-fold hypersurfaces are fully supported. Other
-        dimensions and CICYs require enabling the experimetal features of
-        CYTools. See [experimetal features](./experimental) for more details.
+        dimensions and CICYs require enabling the experimental features of
+        CYTools. See [experimental features](./experimental) for more details.
         :::
 
         **Arguments:**
@@ -1734,7 +1734,7 @@ class ToricVariety:
                      and all((self.triangulation().points() == self.triangulation().polytope().points_not_interior_to_facets()).flat))
                     or (self.triangulation().points().shape == self.triangulation().polytope().points().shape
                         and all((self.triangulation().points() == self.triangulation().polytope().points()).flat))):
-                raise Exception("Calabi-Yau hypersurfaces must be constructed either points not interior to facets or all points.")
+                raise Exception("Calabi-Yau hypersurfaces must be constructed either from points not interior to facets or using all points.")
             self._cy = CalabiYau(self)
             self._nef_part = nef_partition
         return self._cy
