@@ -271,7 +271,7 @@ class Polytope:
         self._is_favorable = None
         self._volume = None
         self._normal_form = [None]*3
-        self._autos = [None]*2
+        self._autos = [None]*4
         self._nef_parts = dict()
         self._glsm_charge_matrix = dict()
         self._glsm_linrels = dict()
@@ -319,7 +319,7 @@ class Polytope:
         self._is_favorable = None
         self._volume = None
         self._normal_form = [None]*3
-        self._autos = [None]*2
+        self._autos = [None]*4
         self._nef_parts = dict()
         self._glsm_charge_matrix = dict()
         self._glsm_linrels = dict()
@@ -2415,7 +2415,7 @@ class Polytope:
             self._normal_form[args_id] = np.array(Vmin).T
         return np.array(self._normal_form[args_id])
 
-    def automorphisms(self, square_to_one=False):
+    def automorphisms(self, square_to_one=False, action="right", as_dictionary=False):
         """
         **Description:**
         Returns the $SL^{\pm}(d,\mathbb{Z})$ matrices that leave the polytope
@@ -2425,15 +2425,24 @@ class Polytope:
         **Arguments:**
         - `square_to_one` *(bool, optional, default=False)*: Flag that
           restricts to only matrices that square to the identity.
+        - `action` *(str, optional, default="right")*: Flag that specifies
+          whether the returned matrices act on the left or the right. This
+          option is ignored when `as_dictionary` is set to True.
+        - `as_dictionary` *(bool, optional, default=False)*: Return each
+          automphism as a dictionary that describes the action on the
+          indices of the points.
 
         **Returns:**
-        *(numpy.ndarray)* A list of automorphism matrices.
+        *(numpy.ndarray or dict)* A list of automorphism matrices or dictionaries.
 
         **Example:**
         We construct a polytope, and find its automorphisms. We also check that
         one of the non-trivial automorphisms is indeed an automorphism by
-        checking that it acts as a permutation on the vertices.
-        ```python {2,20}
+        checking that it acts as a permutation on the vertices. We also show
+        how to get matrices that act on the left, which are simply the transpose
+        matrices, and we show how to get dictionaries that describe how the
+        indices of the points transform.
+        ```python {2,20,31,37}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
         autos = p.automorphisms()
         a = autos[1]
@@ -2464,46 +2473,84 @@ class Polytope:
         #  [0 1 0 0]
         #  [0 0 1 0]
         #  [0 0 0 1]]
+        autos_left = p.automorphisms(square_to_one=True, action="left")
+        print(autos_left[1].dot(p.vertices().T)) # The vertices are now columns
+        # [[ 1 -1  0  0  0]
+        # [ 0 -1  0  0  1]
+        # [ 0 -6  1  0  0]
+        # [ 0 -9  0  1  0]]
+        autos_dict = p.automorphisms(as_dictionary=True)
+        print(autos_dict)
+        # [{0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9},
+        #  {0: 0, 1: 4, 2: 2, 3: 3, 4: 1, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9},
+        #  {0: 0, 1: 1, 2: 2, 3: 3, 4: 5, 5: 4, 6: 6, 7: 7, 8: 8, 9: 9},
+        #  {0: 0, 1: 4, 2: 2, 3: 3, 4: 5, 5: 1, 6: 6, 7: 7, 8: 8, 9: 9},
+        #  {0: 0, 1: 5, 2: 2, 3: 3, 4: 1, 5: 4, 6: 6, 7: 7, 8: 8, 9: 9},
+        #  {0: 0, 1: 5, 2: 2, 3: 3, 4: 4, 5: 1, 6: 6, 7: 7, 8: 8, 9: 9}]
         ```
         """
-        args_id = 1*square_to_one
+        if action not in ("right", "left"):
+            raise Exception("Options for action are \"right\" or \"left\".")
+        args_id = 1*square_to_one + 2*as_dictionary
         if self._autos[args_id] is not None:
+            if as_dictionary:
+                return copy.deepcopy(self._autos[args_id])
+            if action == "left":
+                return np.array([a.T for a in self._autos[args_id]])
             return np.array(self._autos[args_id])
-        vert_set = set(tuple(pt) for pt in self.vertices())
-        f_min = None
-        for f in self.facets():
-            if f_min is None or len(f.vertices()) < len(f_min.vertices()):
-                f_min = f
-        f_min_vert_rref = np.array(fmpz_mat(f_min.vertices().T.tolist()).hnf().tolist(), dtype=int)
-        pivots = []
-        for v in f_min_vert_rref:
-            if any(v):
-                for i,ii in enumerate(v):
-                    if ii != 0:
-                        pivots.append(i)
-                        break
-        basis = [f_min.vertices()[i].tolist() for i in pivots]
-        basis_inverse = fmpz_mat(basis).inv()
-        images = []
-        for f in self.facets():
-            if len(f_min.vertices()) == len(f.vertices()):
-                f_vert = [pt.tolist() for pt in f.vertices()]
-                images.extend(permutations(f_vert, r=int(self.dim())))
-        autos = []
-        autos2 = []
-        for im in images:
-            image = fmpz_mat(im)
-            m = basis_inverse*image
-            if not all(abs(c.q) == 1 for c in np.array(m.tolist()).flatten()):
-                continue
-            m = np.array([[round(int(c.p)/int(c.q)) for c in r]
-                           for r in np.array(m.tolist())], dtype=int)
-            if set(tuple(pt) for pt in np.dot(self.vertices(), m)) != vert_set:
-                continue
-            autos.append(m)
-            if all((np.dot(m,m) == np.eye(self.dim(), dtype=int)).flatten()):
-                autos2.append(m)
-            self._autos = [np.array(autos), np.array(autos2)]
+        if self._autos[0] is None:
+            vert_set = set(tuple(pt) for pt in self.vertices())
+            f_min = None
+            for f in self.facets():
+                if f_min is None or len(f.vertices()) < len(f_min.vertices()):
+                    f_min = f
+            f_min_vert_rref = np.array(fmpz_mat(f_min.vertices().T.tolist()).hnf().tolist(), dtype=int)
+            pivots = []
+            for v in f_min_vert_rref:
+                if any(v):
+                    for i,ii in enumerate(v):
+                        if ii != 0:
+                            pivots.append(i)
+                            break
+            basis = [f_min.vertices()[i].tolist() for i in pivots]
+            basis_inverse = fmpz_mat(basis).inv()
+            images = []
+            for f in self.facets():
+                if len(f_min.vertices()) == len(f.vertices()):
+                    f_vert = [pt.tolist() for pt in f.vertices()]
+                    images.extend(permutations(f_vert, r=int(self.dim())))
+            autos = []
+            autos2 = []
+            for im in images:
+                image = fmpz_mat(im)
+                m = basis_inverse*image
+                if not all(abs(c.q) == 1 for c in np.array(m.tolist()).flatten()):
+                    continue
+                m = np.array([[int(c.p)//int(c.q) for c in r] # just in case c.q==-1 by some weird reason
+                            for r in np.array(m.tolist())], dtype=int)
+                if set(tuple(pt) for pt in np.dot(self.vertices(), m)) != vert_set:
+                    continue
+                autos.append(m)
+                if all((np.dot(m,m) == np.eye(self.dim(), dtype=int)).flatten()):
+                    autos2.append(m)
+            self._autos[0] = np.array(autos)
+            self._autos[1] = np.array(autos2)
+        if as_dictionary and self._autos[2] is None:
+            autos_dict = []
+            autos2_dict = []
+            pts_tup = [tuple(pt) for pt in self.points()]
+            for a in self._autos[0]:
+                new_pts_tup = [tuple(pt) for pt in self.points().dot(a)]
+                autos_dict.append({i:new_pts_tup.index(ii) for i,ii in enumerate(pts_tup)})
+            for a in self._autos[1]:
+                new_pts_tup = [tuple(pt) for pt in self.points().dot(a)]
+                autos2_dict.append({i:new_pts_tup.index(ii) for i,ii in enumerate(pts_tup)})
+            self._autos[2] = autos_dict
+            self._autos[3] = autos2_dict
+        if as_dictionary:
+            return copy.deepcopy(self._autos[args_id])
+        if action == "left":
+            return np.array([a.T for a in self._autos[args_id]])
         return np.array(self._autos[args_id])
 
     def find_2d_reflexive_subpolytopes(self):

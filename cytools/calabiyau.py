@@ -179,6 +179,7 @@ class CalabiYau:
         self._second_chern_class = None
         self._is_smooth = None
         self._eff_cone = None
+        self._auto_orbit = None
         if not self._is_hypersurface:
             self._compute_cicy_hodge_numbers(only_from_cache=True)
 
@@ -231,6 +232,7 @@ class CalabiYau:
             self._second_chern_class = None
             self._is_smooth = None
             self._hodge_nums = None
+            self._auto_orbit = None
             if recursive:
                 self.ambient_variety().clear_cache(recursive=True)
 
@@ -300,7 +302,7 @@ class CalabiYau:
         Implements comparison of Calabi-Yaus with ==.
 
         :::important
-        This function provides only a very trivial comparison using the
+        This function provides only a fairly trivial comparison using the
         [`is_trivially_equivalent`](#is_trivially_equivalent) function. It is
         not recommended to compare CYs with ==, and a warning will be
         printed every time it evaluates to False. This is only implemented so
@@ -344,7 +346,7 @@ class CalabiYau:
         Implements comparison of Calabi-Yaus with !=.
 
         :::important
-        This function provides only a very trivial comparison using the
+        This function provides only a fairly trivial comparison using the
         [`is_trivially_equivalent`](#is_trivially_equivalent) function. It is
         not recommended to compare CYs with !=, and a warning will be
         printed every time it evaluates to False. This is only implemented so
@@ -404,19 +406,20 @@ class CalabiYau:
         if self._hash is not None:
             return self._hash
         if self._is_hypersurface:
-            dim = self.ambient_variety().dim()
-            codim2_faces = [self.ambient_variety().triangulation().points_to_indices(f.points())
-                                for f in self.ambient_variety().triangulation().polytope().faces(dim-2)]
-            restr_triang = set()
-            for f in codim2_faces:
-                face_pts = set(f)
-                for s in self.ambient_variety().triangulation().simplices():
-                    inters = face_pts & set(s)
-                    if len(inters) == dim-1:
-                        ss = tuple(sorted(inters))
-                        restr_triang.add(ss)
-            self._hash = hash((hash(self.ambient_variety().triangulation().polytope()),) +
-                              tuple(sorted(restr_triang)))
+            if self._auto_orbit is None:
+                dim = self.ambient_variety().dim()
+                codim2_faces = [frozenset(self.ambient_variety().triangulation().points_to_indices(f.points()))
+                                    for f in self.ambient_variety().triangulation().polytope().faces(dim-2)]
+                simp = self.ambient_variety().triangulation().simplices()
+                restr_triang = set()
+                for f in codim2_faces:
+                    for s in simp:
+                        inters = f & frozenset(s)
+                        if len(inters) == dim-1:
+                            restr_triang.add(inters)
+                self._auto_orbit = frozenset(frozenset(frozenset(a[ss] for ss in s) for s in simp)
+                                             for a in self.polytope().automorphisms(as_dictionary=True))
+            return hash((hash(self.ambient_variety().triangulation().polytope()),hash(self._auto_orbit)))
         else:
             self._hash = hash((hash(self.ambient_variety()),hash(self._nef_part)))
         return self._hash
@@ -426,10 +429,11 @@ class CalabiYau:
         **Description:**
         Checks if the Calabi-Yaus are trivially equivalent by checking if the
         restrictions of the triangulations to codimension-2 faces are the same.
-        This function is only implemented for CY hypersurfaces.
+        Polytope automorphisms are also taken into account. This function is
+        only implemented for CY hypersurfaces.
 
         :::important
-        This function only provides a very trivial equivalence check. When this
+        This function only provides a fairly trivial equivalence check. When this
         function returns False, there is still the possibility of the
         Calabi-Yaus being equivalent, but is only made evident with a change of
         basis. The full equivalence check is generically very difficult, so it
@@ -443,39 +447,32 @@ class CalabiYau:
         (boolean) The truth value of the CYs being trivially equivalent.
 
         **Example:**
-        We construct two Calabi-Yaus and compare them.
-        ```python {6}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        t1 = p.triangulate(backend="qhull")
-        cy1 = t1.get_cy()
-        t2 = p.triangulate(backend="topcom")
-        cy2 = t2.get_cy()
-        cy1.is_trivially_equivalent(cy2)
-        # True
+        We construct two Calabi-Yaus and compare them. We also show how
+        to get the set of Calabi-Yaus that are not trivially equivalent. As
+        previously mentioned, if two CYs are not trivially equivalent it
+        does not mean that they are actually inequivalent as there might
+        exist some more complicated basis transformation that relates
+        them.
+        ```python {5,7}
+        p = Polytope([[-1,0,0,0],[-1,1,0,0],[-1,0,1,0],[2,-1,0,-1],[2,0,-1,-1],[2,-1,-1,-1],[-1,0,0,1],[-1,1,0,1],[-1,0,1,1]])
+        triangs = p.all_triangulations(as_list=True)
+        cy0 = triangs[0].get_cy()
+        cy1 = triangs[1].get_cy()
+        print(cy0.is_trivially_equivalent(cy1))
+        # False
+        cys_not_triv_eq = {t.get_cy() for t in triangs} # Not trivially equivalent, but not necessarily inequivalent
+        print(len(triangs),len(cys_not_triv_eq))        # We see that many CYs from these triangulations can be trivially equated
+        # 102 5
         ```
         """
         if not self._is_hypersurface or not other._is_hypersurface:
             return NotImplemented
         if self.polytope() != other.polytope():
             return False
-        dim = self.ambient_variety().triangulation().dim()
-        codim2_faces = [self.ambient_variety().triangulation().points_to_indices(f.points())
-                             for f in self.polytope().faces(dim-2)]
-        restr_triang_self = set()
-        restr_triang_other = set()
-        for f in codim2_faces:
-            face_pts = set(f)
-            for s in self.ambient_variety().triangulation().simplices():
-                inters = face_pts & set(s)
-                if len(inters) == dim-1:
-                    ss = tuple(sorted(inters))
-                    restr_triang_self.add(ss)
-            for s in other.ambient_variety().triangulation().simplices():
-                inters = face_pts & set(s)
-                if len(inters) == dim-1:
-                    ss = tuple(sorted(inters))
-                    restr_triang_other.add(ss)
-        return restr_triang_self == restr_triang_other
+        # Run the hash functions to make sure that _auto_orbit is computed
+        hash(self)
+        hash(other)
+        return self._auto_orbit == other._auto_orbit
 
     def ambient_variety(self):
         """
