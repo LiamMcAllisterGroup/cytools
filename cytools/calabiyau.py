@@ -166,6 +166,7 @@ class CalabiYau:
         # Initialize remaining hidden attributes
         self._hodge_nums = None
         self._dim = None
+        self._TFE_hash = None
         self._hash = None
         self._glsm_charge_matrix = None
         self._glsm_linrels = None
@@ -219,6 +220,7 @@ class CalabiYau:
                 self._intersection_numbers.pop(k)
         if not only_in_basis:
             self._dim = None
+            self._TFE_hash = None
             self._hash = None
             self._glsm_charge_matrix = None
             self._glsm_linrels = None
@@ -423,6 +425,54 @@ class CalabiYau:
         else:
             self._hash = hash((hash(self.ambient_variety()),hash(self._nef_part)))
         return self._hash
+
+    def TFE_hash(self):
+        """
+        **Description:**
+        Implements the ability to obtain two-face-equivalent (TFE) hash values
+        from Calabi-Yaus.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        *(int)* The TFE hash value of the CY.
+        ```
+        """
+        if self._TFE_hash is not None:
+            return self._TFE_hash
+        if self._is_hypersurface:
+            dim = self.ambient_variety().dim()
+            codim2_faces = [self.ambient_variety().triangulation().points_to_indices(f.points())
+                                for f in self.ambient_variety().triangulation().polytope().faces(dim-2)]
+            restr_triang = set()
+            for f in codim2_faces:
+                face_pts = set(f)
+                for s in self.ambient_variety().triangulation().simplices():
+                    inters = face_pts & set(s)
+                    if len(inters) == dim-1:
+                        ss = tuple(sorted(inters))
+                        restr_triang.add(ss)
+            self._TFE_hash = hash((hash(self.ambient_variety().triangulation().polytope()),) +
+                              tuple(sorted(restr_triang)))
+        else:
+            self._TFE_hash = hash((hash(self.ambient_variety()),hash(self._nef_part)))
+        return self._TFE_hash
+
+    def is_TFE(self, other):
+        """
+        **Description:**
+        Checks if the Calabi-Yaus are two-face equivalent (TFE) by checking if
+        the restrictions of the triangulations to codimension-2 faces are the
+        same. This function is only implemented for CY hypersurfaces.
+
+        **Arguments:**
+        - `other` (CalabiYau): The other CY that is being compared.
+
+        **Returns:**
+        (boolean) The truth value of the CYs being trivially equivalent.
+        """
+        return self.TFE_hash()==other.TFE_hash()
 
     def is_trivially_equivalent(self, other):
         """
