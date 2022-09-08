@@ -417,7 +417,7 @@ class CalabiYau:
                         inters = f & frozenset(s)
                         if len(inters) == dim-1:
                             restr_triang.add(inters)
-                self._auto_orbit = frozenset(frozenset(frozenset(a[ss] for ss in s) for s in simp)
+                self._auto_orbit = frozenset(frozenset(frozenset(a[ss] for ss in s) for s in restr_triang)
                                              for a in self.polytope().automorphisms(as_dictionary=True))
             return hash((hash(self.ambient_variety().triangulation().polytope()),hash(self._auto_orbit)))
         else:
