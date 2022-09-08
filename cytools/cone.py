@@ -1045,7 +1045,7 @@ class Cone:
             if not found_stars:
                 l_n += 1
                 continue
-            if "lattice points in polytope" in l:
+            if "lattice points in polytope" in l or "Hilbert basis elements" in l:
                 n_rays = literal_eval(l.split()[0])
                 for i in range(n_rays):
                     rays.append([literal_eval(c) for c in data[l_n+1+i].split()])
