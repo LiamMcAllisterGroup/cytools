@@ -587,7 +587,9 @@ class Triangulation:
         """
         **Description:**
         Returns True if the triangulation is fine (all the points are used),
-        and False otherwise.
+        and False otherwise. Note that this only checks if it is fine with
+        respect to the point configuration, not with respect to the full set
+        of lattice points of the polytope.
 
         **Arguments:**
         None.
@@ -666,13 +668,10 @@ class Triangulation:
         if star_origin is not None:
             return all(star_origin in s for s in self._simplices)
         if self._is_star is None:
-            if self.polytope().is_reflexive():
-                star_origin = 0
-            else:
-                try:
-                    star_origin = self.points_to_indices([0]*self.dim())
-                except:
-                    star_origin = -1 # negative number so that following line evaluates to false
+            try:
+                star_origin = self.points_to_indices([0]*self.dim())
+            except:
+                star_origin = -1 # negative number so that following line evaluates to false
             self._is_star = all(star_origin in s for s in self._simplices)
         return self._is_star
 

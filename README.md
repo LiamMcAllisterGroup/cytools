@@ -10,8 +10,6 @@
 
 -------------------------------------------------------------------------------
 
-### Important: This package is currently in beta. If you want to be a beta tester please contact Mehmet Demirtas (&#109;&#46;&#100;&#101;&#109;&#105;&#114;&#116;&#97;&#115;&#64;&#110;&#111;&#114;&#116;&#104;&#101;&#97;&#115;&#116;&#101;&#114;&#110;&#46;&#101;&#100;&#117;) or Andres Rios-Tascon (&#97;&#114;&#50;&#50;&#56;&#53;&#64;&#99;&#111;&#114;&#110;&#101;&#108;&#108;&#46;&#101;&#100;&#117;).
-
 CYTools is an open-source software package developed by [Liam McAllister's group](https://liammcallistergroup.com/) with the purpose of studying Calabi-Yau manifolds arising from the Kreuzer-Skarke database. It emerged from several years of effort towards exploring previously uncharted parts of the string landscape. It offers vastly superior computational performance compared to other software that are typically used in the field. Installation instructions and detailed documentation can be found in the [CYTools website](https://cytools.liammcallistergroup.com).
 
 Most of the code is written in Python, with wrappers to interface with various other open-source software. The full package comes in the form of a Docker image that includes all the necessary dependencies, so that it is easy to install and use on most operating systems.
@@ -20,4 +18,4 @@ CYTools makes use of a variety of open-source projects. It includes a few code s
 
 All original CYTools code is distributed under the terms of the [GNU General Public License version 3](https://www.gnu.org/licenses/gpl-3.0.txt). All other packages and code snippets are redistributed under their respective licenses.
 
-The current lead developers are Mehmet Demirtas (&#109;&#46;&#100;&#101;&#109;&#105;&#114;&#116;&#97;&#115;&#64;&#110;&#111;&#114;&#116;&#104;&#101;&#97;&#115;&#116;&#101;&#114;&#110;&#46;&#101;&#100;&#117;) and Andres Rios-Tascon (&#97;&#114;&#50;&#50;&#56;&#53;&#64;&#99;&#111;&#114;&#110;&#101;&#108;&#108;&#46;&#101;&#100;&#117;). Questions, comments and/or suggestions can be directed to either of us.
+The current lead developers are Mehmet Demirtas and Andres Rios-Tascon. Questions, comments and/or suggestions can be directed to [cytools-support@liammcallistergroup.com](mailto:cytools-support@liammcallistergroup.com).

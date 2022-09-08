@@ -2779,7 +2779,13 @@ class Polytope:
     def _triang_pt_inds(self, include_points_interior_to_facets=None, points=None):
         """
         **Description:**
-        Gets the indices of the points in a a triangulation.
+        Constructs the list of indices of the points that will be used in a
+        triangulation.
+
+        :::note
+        Typically this function should not be called by the user. Instead, it
+        is called by various other functions in the Polytope class.
+        :::
 
         **Arguments:**
         - `include_points_interior_to_facets` *(bool, optional)*: Whether
@@ -2791,20 +2797,38 @@ class Polytope:
           parameter `include_points_interior_to_facets` is ignored.
 
         **Returns:**
-        *(tuple)* A tuple of the indices of the points included in a triangulation
+        *(tuple)* A tuple of the indices of the points that will be included in
+        a triangulation
+
+        **Example:**
+        We construct triangulations in various ways. We use the
+        [`triangulate`](#triangulate) function instead of using this function
+        directly.
+        ```python {2,5,8}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        t1 = p.triangulate()
+        print(t1)
+        # A fine, regular, star triangulation of a 4-dimensional point configuration with 7 points in ZZ^4
+        t2 = p.triangulate(include_points_interior_to_facets=True)
+        print(t2)
+        # A fine, regular, star triangulation of a 4-dimensional point configuration with 10 points in ZZ^4
+        t3 = p.triangulate(points=[1,2,3,4,5])
+        print(t3)
+        # A fine, regular, non-star triangulation of a 4-dimensional point configuration with 5 points in ZZ^4
+        ```
         """
         if points is not None:
             pts_ind = tuple(set(points))
             if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
                 raise Exception("An index is out of the allowed range.")
         elif include_points_interior_to_facets is None:
-            pts_ind = (tuple(self.points_not_interior_to_facets(True))
+            pts_ind = (tuple(self.points_not_interior_to_facets(as_indices=True))
                         if self.is_reflexive()
-                        else tuple(self.points(True)))
+                        else tuple(self.points(as_indices=True)))
         else:
-            pts_ind = (tuple(self.points(True))
+            pts_ind = (tuple(self.points(as_indices=True))
                         if include_points_interior_to_facets
-                        else tuple(self.points_not_interior_to_facets(True)))
+                        else tuple(self.points_not_interior_to_facets(as_indices=True)))
 
         return pts_ind
 
