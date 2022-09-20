@@ -199,6 +199,7 @@ class Triangulation:
         self._sr_ideal = None
         self._cpl_cone = [None]*2
         self._toricvariety = None
+        self._automorphism_orbit = dict()
         # Now save input triangulation or construct it
         if simplices is not None:
             self._simplices = np.array(sorted([sorted(s) for s in simplices]),dtype=int)
@@ -262,6 +263,7 @@ class Triangulation:
                     self._simplices = convert_to_star(self._simplices, facets_ind, self._origin_index)
         # Make sure that the simplices are sorted
         self._simplices = np.array(sorted([sorted(s) for s in self._simplices]))
+        self._restricted_simplices = [None]*self._simplices.shape[1]
 
     def clear_cache(self, recursive=False):
         """
@@ -295,6 +297,8 @@ class Triangulation:
         self._sr_ideal = None
         self._cpl_cone = [None]*2
         self._toricvariety = None
+        self._automorphism_orbit = dict()
+        self._restricted_simplices = [None]*self._simplices.shape[1]
         if recursive:
             self._poly.clear_cache()
 
@@ -533,20 +537,27 @@ class Triangulation:
             return self._pts_triang_to_poly[points]
         return np.array([self._pts_triang_to_poly[pt] for pt in points])
 
-    def simplices(self):
+    def simplices(self, on_faces_dim=None, on_faces_codim=None):
         """
         **Description:**
-        Returns the simplices of the triangulation.
+        Returns the simplices of the triangulation. It also has the option of
+        restricting the simplices to faces of the polytope of a particular
+        dimension or codimension. This restriction is useful for checking
+        CY equivalences from different triangulations.
 
         **Arguments:**
-        None.
+        - `on_faces_dim` *(int, optional)*: Restrict the simplices to faces
+          of the polytope of a given dimension.
+        - `on_faces_codim` *(int, optional)*: Restrict the simplices to faces
+          of the polytope of a given codimension.
 
         **Returns:**
         *(numpy.ndarray)* The simplices of the triangulation.
 
         **Example:**
-        We construct a triangulation and find its simplices.
-        ```python {3}
+        We construct a triangulation and find its simplices. We also find the
+        simplices the lie on 2-faces of the polytope.
+        ```python {3,9}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
         t = p.triangulate()
         t.simplices()
@@ -555,9 +566,177 @@ class Triangulation:
         #        [0, 1, 2, 4, 5],
         #        [0, 1, 3, 4, 5],
         #        [0, 2, 3, 4, 5]])
+        t.simplices(on_faces_dim=2)
+        # [[1 2 3]
+        #  [1 2 4]
+        #  [1 2 5]
+        #  [1 3 4]
+        #  [1 3 5]
+        #  [1 4 5]
+        #  [2 3 4]
+        #  [2 3 5]
+        #  [2 4 5]
+        #  [3 4 5]]
         ```
         """
-        return np.array(self._simplices)
+        if on_faces_dim is None and on_faces_codim is None:
+            return np.array(self._simplices)
+        faces_dim = (on_faces_dim if on_faces_dim is not None else self.dim()-on_faces_codim)
+        if faces_dim < 0 or faces_dim > self.dim():
+            raise Exception("Invalid face dimension.")
+        if self._restricted_simplices[faces_dim] is None:
+            full_simp = [frozenset(s) for s in self._simplices]
+            faces_list = [frozenset(self.points_to_indices([pt for pt in f.points() if tuple(pt) in self._pts_dict])) for f in self.polytope().faces(faces_dim)]
+            restr_triang = set()
+            for f in faces_list:
+                for s in full_simp:
+                    inters = f & s
+                    if len(inters) == faces_dim+1:
+                        restr_triang.add(inters)
+            restr_triang = np.array(sorted(sorted(s) for s in restr_triang))
+            self._restricted_simplices[faces_dim] = restr_triang
+        return np.array(self._restricted_simplices[faces_dim])
+
+    def automorphism_orbit(self, automorphism=None, on_faces_dim=None, on_faces_codim=None):
+        """
+        **Description:**
+        Returns all of the triangulations of the polytope that can be obtained
+        by applying one or more polytope automorphisms to the triangulation.
+        It also has the option of restricting the simplices to faces of the
+        polytope of a particular dimension or codimension. This restriction
+        is useful for checking CY equivalences from different triangulations.
+
+        :::note
+        Depending on how the point configuration was constructed, it may be
+        the case that the automorphism group of the point configuration is
+        larger or smaller than the one from the polytope. This function only
+        uses the subset of automorphisms of the polytope that are also
+        automorphisms of the point configuration.
+        :::
+
+        **Arguments:**
+        - `automorphism` *(int or array_like)*: The index of list of indices
+          of the polytope automorphisms to use. If not specified it uses all
+          automorphisms.
+        - `on_faces_dim` *(int, optional)*: Restrict the simplices to faces
+          of the polytope of a given dimension.
+        - `on_faces_codim` *(int, optional)*: Restrict the simplices to faces
+          of the polytope of a given codimension.
+
+        **Returns:**
+        *(numpy.ndarray)* The list of triangulations obtained by performing
+        automorphisms transformations.
+
+        **Example:**
+        We construct a triangulation and find some of its automorphism orbits.
+        ```python {3,9}
+        p = Polytope([[-1,0,0,0],[-1,1,0,0],[-1,0,1,0],[2,-1,0,-1],[2,0,-1,-1],[2,-1,-1,-1],[-1,0,0,1],[-1,1,0,1],[-1,0,1,1]])
+        t = p.triangulate()
+        orbit_all_autos = t.automorphism_orbit()
+        print(len(orbit_all_autos))
+        # 36
+        orbit_all_autos_2faces = t.automorphism_orbit(on_faces_dim=2)
+        print(len(orbit_all_autos_2faces))
+        # 36
+        orbit_sixth_auto = t.automorphism_orbit(automorphism=5)
+        print(len(orbit_sixth_auto))
+        # 2
+        orbit_list_autos = t.automorphism_orbit(automorphism=[5,6,9])
+        print(len(orbit_list_autos))
+        # 12
+        ```
+        """
+        if on_faces_dim is None and on_faces_codim is None:
+            on_faces_dim = self.dim()
+        faces_dim = (on_faces_dim if on_faces_dim is not None else self.dim()-on_faces_codim)
+        if automorphism is None:
+            orbit_id = (None,faces_dim)
+        else:
+            try:
+                orbit_id = (tuple(automorphism),faces_dim)
+            except:
+                orbit_id = ((automorphism,),faces_dim)
+        if orbit_id in self._automorphism_orbit:
+            return np.array(self._automorphism_orbit[orbit_id])
+        simps = self.simplices(on_faces_dim=faces_dim)
+        autos = self.polytope().automorphisms(as_dictionary=True)
+        # We see which automorphisms of the polytope are also automorphisms of the point configuration
+        pts = [tuple(pt) for pt in self.polytope().points()]
+        good_autos = [i for i in range(len(autos)) if all( (pts[i] in self._pts_dict and pts[j] in self._pts_dict) or (pts[i] not in self._pts_dict and pts[j] not in self._pts_dict) for i,j in autos[i].items())]
+        # Finally, we reindex the good automorphisms so that the indices match the indices of the point configuration
+        # and remove the bad automorphisms to make sure they are not used (we just replace them with None so that the indexing still matches the list of automorphisms of the polytope).
+        for i in range(len(autos)):
+            autos[i] = ({self._pts_dict[pts[j]]:self._pts_dict[pts[jj]] for j,jj in autos[i].items()} if i in good_autos else None)
+        if automorphism is None:
+            orbit = frozenset(tuple(sorted((tuple(sorted([a[i] for i in s]))) for s in simps)) for j,a in enumerate(autos) if j in good_autos)
+        else:
+            if any(i not in range(len(autos)) for i in orbit_id[0]):
+                raise Exception("Automorphism index is out of range.")
+            # First apply all the automorphisms in the list to the starting triangulation
+            orbit = set(tuple(sorted((tuple(sorted([a[i] for i in s]))) for s in simps)) for a in [autos[j] for j in (0,)+orbit_id[0] if j in good_autos])
+            new_triangs = []
+            # Then we keep applying them until we stop getting new triangulations
+            while True:
+                for simps in orbit:
+                    for i in orbit_id[0]:
+                        new_triang = tuple(sorted((tuple(sorted([autos[i][j] for j in s]))) for s in simps))
+                        if new_triang not in orbit:
+                            new_triangs.append(new_triang)
+                if len(new_triangs):
+                    for t in new_triangs:
+                        orbit.add(t)
+                    new_triangs = []
+                else:
+                    break
+        self._automorphism_orbit[orbit_id] = np.array(sorted(orbit))
+        return np.array(self._automorphism_orbit[orbit_id])
+
+    def is_equivalent(self, other, use_automorphisms=True, on_faces_dim=None, on_faces_codim=None):
+        """
+        **Description:**
+        Compares two triangulations with or without allowing automorphism
+        transformations and with the option of restricting to faces of a
+        particular dimension.
+
+        **Arguments:**
+        - `other` *(Triangulation)*: The other triangulation that is being
+          compared.
+        - `use_automorphisms` *(bool, optional, default=True)*: Whether to
+          check the equivalence using automorphism transformations.
+        - `on_faces_dim` *(int, optional)*: Restrict the simplices to faces
+          of the polytope of a given dimension.
+        - `on_faces_codim` *(int, optional)*: Restrict the simplices to faces
+          of the polytope of a given codimension.
+
+        **Returns:**
+        *(bool)* The truth value of the triangulations being equivalent under
+        the specified parameters.
+
+        **Example:**
+        We construct two triangulations and check whether they are equivalent
+        under various conditions.
+        ```python {5,7,9}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[-1,1,1,0],[0,-1,-1,0],[0,0,0,1],[1,-2,1,1],[-2,2,1,-1],[1,1,-1,-1]])
+        triangs_gen = p.all_triangulations()
+        t1 = next(triangs_gen)
+        t2 = next(triangs_gen)
+        t1.is_equivalent(t2)
+        # False
+        t1.is_equivalent(t2, on_faces_dim=2)
+        # True
+        t1.is_equivalent(t2, on_faces_dim=2, use_automorphisms=False)
+        # True
+        ```
+        """
+        if self.polytope() != other.polytope():
+            return False
+        if use_automorphisms:
+            orbit1 = self.automorphism_orbit(on_faces_dim=on_faces_dim, on_faces_codim=on_faces_codim)
+            orbit2 = other.automorphism_orbit(on_faces_dim=on_faces_dim, on_faces_codim=on_faces_codim)
+            return orbit1.shape == orbit2.shape and all((orbit1 == orbit2).flat)
+        simp1 = self.simplices(on_faces_dim=on_faces_dim, on_faces_codim=on_faces_codim)
+        simp2 = other.simplices(on_faces_dim=on_faces_dim, on_faces_codim=on_faces_codim)
+        return simp1.shape == simp2.shape and all((simp1 == simp2).flat)
 
     def dim(self):
         """

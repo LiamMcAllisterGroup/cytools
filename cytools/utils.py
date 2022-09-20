@@ -1063,6 +1063,9 @@ def fetch_polytopes(h11=None, h12=None, h13=None, h21=None, h22=None, h31=None,
     *(generator or list)* A generator of [`Polytope`](./polytope) objects,
     or the full list when `as_list` is set to True.
 
+    **Example:**
+    We fetch polytope from the Kreuzer-Skarke and Schöller-Skarke databases
+    with a few different parameters.
     ```python {2,5,8}
     from cytools import fetch_polytopes # Note that it can directly be imported from the root
     g = fetch_polytopes(h11=27, lattice="N") # Constructs a generator of polytopes

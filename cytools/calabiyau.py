@@ -179,7 +179,6 @@ class CalabiYau:
         self._second_chern_class = None
         self._is_smooth = None
         self._eff_cone = None
-        self._auto_orbit = None
         if not self._is_hypersurface:
             self._compute_cicy_hodge_numbers(only_from_cache=True)
 
@@ -232,7 +231,6 @@ class CalabiYau:
             self._second_chern_class = None
             self._is_smooth = None
             self._hodge_nums = None
-            self._auto_orbit = None
             if recursive:
                 self.ambient_variety().clear_cache(recursive=True)
 
@@ -406,20 +404,9 @@ class CalabiYau:
         if self._hash is not None:
             return self._hash
         if self._is_hypersurface:
-            if self._auto_orbit is None:
-                dim = self.ambient_variety().dim()
-                codim2_faces = [frozenset(self.ambient_variety().triangulation().points_to_indices(f.points()))
-                                    for f in self.ambient_variety().triangulation().polytope().faces(dim-2)]
-                simp = self.ambient_variety().triangulation().simplices()
-                restr_triang = set()
-                for f in codim2_faces:
-                    for s in simp:
-                        inters = f & frozenset(s)
-                        if len(inters) == dim-1:
-                            restr_triang.add(inters)
-                self._auto_orbit = frozenset(frozenset(frozenset(a[ss] for ss in s) for s in restr_triang)
-                                             for a in self.polytope().automorphisms(as_dictionary=True))
-            return hash((hash(self.ambient_variety().triangulation().polytope()),hash(self._auto_orbit)))
+            self_orbit = self.triangulation().automorphism_orbit(on_faces_codim=2)
+            self_orbit = tuple(tuple(tuple(s) for s in t) for t in self_orbit)
+            return hash((hash(self.triangulation().polytope()),hash(self_orbit)))
         else:
             self._hash = hash((hash(self.ambient_variety()),hash(self._nef_part)))
         return self._hash
@@ -469,10 +456,9 @@ class CalabiYau:
             return NotImplemented
         if self.polytope() != other.polytope():
             return False
-        # Run the hash functions to make sure that _auto_orbit is computed
-        hash(self)
-        hash(other)
-        return self._auto_orbit == other._auto_orbit
+        self_orbit = self.triangulation().automorphism_orbit(on_faces_codim=2)
+        other_orbit = other.triangulation().automorphism_orbit(on_faces_codim=2)
+        return self_orbit.shape == other_orbit.shape and all((self_orbit == other_orbit).flat)
 
     def ambient_variety(self):
         """

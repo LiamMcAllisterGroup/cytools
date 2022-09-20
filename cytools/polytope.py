@@ -54,6 +54,13 @@ class Polytope:
     Constructs a `Polytope` object describing a lattice polytope. This is
     handled by the hidden [`__init__`](#__init__) function.
 
+    :::note notes
+    - CYTools only supports lattice polytopes, so any floating point numbers
+      will be truncated to integers.
+    - The Polytope class is also imported to the root of the CYTools package,
+      so it can be imported from `cytools.polytope` or from `cytools`.
+    :::
+
     **Arguments:**
     - `points` *(array_like)*: A list of lattice points defining the
       polytope as their convex hull.
@@ -61,13 +68,6 @@ class Polytope:
       used to construct the convex hull. The available options are "ppl",
       "qhull", or "palp". When not specified, it uses PPL for dimensions up to
       four, and palp otherwise.
-
-    :::note notes
-    - CYTools only supports lattice polytopes, so any floating point numbers
-      will be truncated to integers.
-    - The Polytope class is also imported to the root of the CYTools package,
-      so it can be imported from `cytools.polytope` or from `cytools`.
-    :::
 
     **Example:**
     We construct two polytopes from lists of points.
