@@ -2829,7 +2829,7 @@ class Polytope:
             pts_ind = (tuple(self.points(as_indices=True))
                         if include_points_interior_to_facets
                         else tuple(self.points_not_interior_to_facets(as_indices=True)))
-
+        pts_ind = tuple(sorted(pts_ind))
         return pts_ind
 
     def triangulate(self, heights=None, make_star=None,
@@ -3244,7 +3244,7 @@ class Polytope:
         # 6
         ```
         """
-        if star_origin is None:
+        if only_star and star_origin is None:
             if self.is_reflexive():
                 star_origin = 0
             else:

@@ -1525,6 +1525,8 @@ def all_triangulations(points, only_fine=False, only_regular=False,
     if poly is None:
         from cytools.polytope import Polytope
         poly = Polytope(points)
+    # Make sure that the points are sorted in the right way
+    points = poly.points()[sorted(set(poly.points_to_indices(points)))]
     topcom_bin = (config.topcom_path
                   + ("topcom-points2finetriangs" if only_fine
                      else "topcom-points2triangs"))
