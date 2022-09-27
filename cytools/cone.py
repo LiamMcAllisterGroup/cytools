@@ -21,16 +21,18 @@ This module contains tools designed to perform cone computations.
 from multiprocessing import Process, Queue, cpu_count
 from ast import literal_eval
 import subprocess
+import warnings
 import random
 import string
 import os
 # Third party imports
 from flint import fmpz_mat, fmpz, fmpq
 from ortools.linear_solver import pywraplp
+from ortools.sat.python import cp_model
 from scipy.optimize import nnls
+from scipy import sparse
 import numpy as np
-import cvxopt
-import mosek
+import qpsolvers
 import ppl
 # CYTools imports
 from cytools.utils import gcd_list, array_fmpz_to_int, array_fmpq_to_float
@@ -83,7 +85,7 @@ class Cone:
     ```python {2,3}
     from cytools import Cone
     c1 = Cone([[0,1],[1,1]]) # Create a cone using rays. It can also be done with Cone(rays=[[0,1],[1,1]])
-    c2 = Cone(hyperplanes=[[1,0],[-1,1]]) # Ceate a cone using hyperplane normals.
+    c2 = Cone(hyperplanes=[[1,0],[-1,1]]) # Create a cone using hyperplane normals.
     c1 == c2 # We verify that the two cones are the same.
     # True
     ```
@@ -120,18 +122,20 @@ class Cone:
         ```python {2,3}
         from cytools import Cone
         c1 = Cone([[0,1],[1,1]]) # Create a cone using rays. It can also be done with Cone(rays=[[0,1],[1,1]])
-        c2 = Cone(hyperplanes=[[1,0],[-1,1]]) # Ceate a cone using hyperplane normals.
+        c2 = Cone(hyperplanes=[[1,0],[-1,1]]) # Create a cone using hyperplane normals.
         c1 == c2 # We verify that the two cones are the same.
         # True
         ```
         """
         if not ((rays is None) ^ (hyperplanes is None)):
-            raise Exception("Exactly one of \"rays\" and \"hyperplanes\" "
+            raise ValueError("Exactly one of \"rays\" and \"hyperplanes\" "
                             "must be specified.")
         if rays is not None:
             tmp_rays = np.array(rays)
+            if any(not i for i in tmp_rays.shape):
+                raise NotImplementedError("Zero-dimensional cones are not supported.")
             if len(tmp_rays.shape) != 2:
-                raise Exception("Input must be a matrix.")
+                raise ValueError("Input must be a matrix.")
             t = type(tmp_rays[0,0])
             if t == fmpz:
                 if not config._exp_features_enabled:
@@ -146,18 +150,18 @@ class Cone:
                           "must be enabled in the configuration.")
                 rays = array_fmpq_to_float(tmp_rays)
             elif t not in (np.int64, np.float64):
-                raise Exception("Unsupported data type.")
+                raise NotImplementedError("Unsupported data type.")
             if check or t in (fmpz, np.float64):
                 tmp_rays = []
                 if len(rays) < 1:
-                    raise Exception("At least one rays is required.")
+                    raise ValueError("At least one rays is required.")
                 for r in rays:
                     g = gcd_list(r)
                     if g == 0:
                         continue
                     if g < 1e-5:
-                        print("Warning: Extremely small gcd found. "
-                              "Computations may be incorrect.")
+                        warnings.warn("Extremely small gcd found. "
+                                      "Computations may be incorrect.")
                     tmp_rays.append([int(round(c/g)) for c in r])
                 self._rays = np.array(tmp_rays, dtype=int)
             else:
@@ -166,8 +170,10 @@ class Cone:
             self._rays_were_input = True
         if hyperplanes is not None:
             tmp_hp = np.array(hyperplanes)
+            if any(not i for i in tmp_hp.shape):
+                raise NotImplementedError("Cones that cover the entire space are not supported.")
             if len(tmp_hp.shape) != 2:
-                raise Exception("Input must be a matrix.")
+                raise ValueError("Input must be a matrix.")
             t = type(tmp_hp[0,0])
             if t == fmpz:
                 if not config._exp_features_enabled:
@@ -182,18 +188,18 @@ class Cone:
                           "must be enabled in the configuration.")
                 hyperplanes = array_fmpq_to_float(tmp_hp)
             elif t not in (np.int64, np.float64):
-                raise Exception("Unsupported data type.")
+                raise NotImplementedError("Unsupported data type.")
             if check or t in (fmpz, np.float64):
                 tmp_hp = []
                 if len(hyperplanes) < 1:
-                    raise Exception("At least one hyperplane is required.")
+                    raise ValueError("At least one hyperplane is required.")
                 for r in hyperplanes:
                     g = gcd_list(r)
                     if g == 0:
                         continue
                     if g < 1e-5:
-                        print("Warning: Extremely small gcd found. "
-                              "Computations may be incorrect.")
+                        warnings.warn("Extremely small gcd found. "
+                                      "Computations may be incorrect.")
                     tmp_hp.append([int(round(c/g)) for c in r])
                 self._hyperplanes = np.array(tmp_hp, dtype=int)
             else:
@@ -327,8 +333,8 @@ class Cone:
         if self.dual().is_pointed() and other.dual().is_pointed():
             return (sorted(self.dual().extremal_rays().tolist())
                     == sorted(other.dual().extremal_rays().tolist()))
-        print("Warning: The comparison of cones that are not pointed, and "
-              "whose duals are also not pointed, is not supported.")
+        warnings.warn("The comparison of cones that are not pointed, and "
+                      "whose duals are also not pointed, is not supported.")
         return NotImplemented
 
     def __ne__(self, other):
@@ -398,8 +404,8 @@ class Cone:
             self._hash = -hash(tuple(sorted(tuple(v)
                                         for v in self.dual().extremal_rays())))
             return self._hash
-        print("Warning: Cones that are not pointed and whose duals are also "
-              "not pointed are assigned a hash value of 0.")
+        warnings.warn("Cones that are not pointed and whose duals are also "
+                      "not pointed are assigned a hash value of 0.")
         return 0
 
     def ambient_dim(self):
@@ -480,8 +486,8 @@ class Cone:
             return np.array(self._rays)
         if (self._ambient_dim >= 12
                 and len(self._hyperplanes) != self._ambient_dim):
-            print("Warning: This operation might take a while for d > ~12 "
-                  "and is likely impossible for d > ~18.")
+            warnings.warn("This operation might take a while for d > ~12 "
+                          "and is likely impossible for d > ~18.")
         cs = ppl.Constraint_System()
         vrs = [ppl.Variable(i) for i in range(self._ambient_dim)]
         for h in self.dual().extremal_rays():
@@ -528,8 +534,8 @@ class Cone:
         if self._hyperplanes is not None:
             return np.array(self._hyperplanes)
         if self._ambient_dim >= 12 and len(self.rays()) != self._ambient_dim:
-            print("Warning: This operation might take a while for d > ~12 "
-                  "and is likely impossible for d > ~18.")
+            warnings.warn("This operation might take a while for d > ~12 "
+                          "and is likely impossible for d > ~18.")
         gs = ppl.Generator_System()
         vrs = [ppl.Variable(i) for i in range(self._ambient_dim)]
         gs.insert(ppl.point(0))
@@ -612,10 +618,10 @@ class Cone:
             else:
                 n_threads = cpu_count()
         elif n_threads > 1 and not self.is_pointed():
-            print("Warning: When finding the extremal rays of a non-pointed "
-                  "cone in parallel there can be conflits that end up "
-                  "producing erroneous results. It is highly recommended to "
-                  "use a single thread.")
+            warnings.warn("When finding the extremal rays of a non-pointed "
+                          "cone in parallel there can be conflicts that end up "
+                          "producing erroneous results. It is highly recommended to "
+                          "use a single thread.")
         current_rays = set(range(rays.shape[0]))
         ext_rays = set()
         error_rays = set()
@@ -663,37 +669,49 @@ class Cone:
                 print(f"Eliminated {sum(not r[1] for r in results)}. "
                       f"Current number of rays: {len(current_rays)}")
         if failed_after_rechecking:
-            print("Warning: Minimization failed after multiple attempts. "
-                  "Some rays may not be extremal.")
+            warnings.warn("Minimization failed after multiple attempts. "
+                          "Some rays may not be extremal.")
         self._ext_rays = rays[list(ext_rays),:]
         return self._ext_rays
 
-    def tip_of_stretched_cone(self, c, backend="all", check=True,
-                              constraint_error_tol=1e-4, verbose=0):
+    def tip_of_stretched_cone(self, c, backend=None, check=True,
+                              constraint_error_tol=1e-2):
         """
         **Description:**
-        Finds the tip of the stretched cone via quadratic programming. The
-        stretched cone is defined as the convex polyhedral region inside the
-        cone that is at least a distance `c` from any of its defining
-        hyperplanes.
+        Finds the tip of the stretched cone. The stretched cone is defined
+        as the convex polyhedral region inside the cone that is at least a
+        distance `c` from any of its defining hyperplanes. Its tip is defined
+        as the point in this region with the smallest norm.
+
+        :::note
+        This is a problem that requires quadratic programming since the norm
+        of a vector is being minimized. For dimensions up to around 50, this
+        can easily be done with open-source solvers like OSQP or CVXOPT,
+        however for higher dimensions this becomes a difficult task that only
+        the Mosek optimizer is able to handle. However, Mosek is closed-source
+        and requires a license. For this reason we preferentially use ORTools,
+        which is open-source, to solve a linear problem and find a good
+        approximation of the tip. Nevertheless, if Mosek is activated then
+        it uses Mosek as it is faster and more accurate.
+        :::
 
         **Arguments:**
         - `c` *(float)*: A real positive number specifying the stretching
           of the cone (i.e. the minimum distance to the defining hyperplanes).
-        - `backend` *(str, optional, default="all")*: String that
-          specifies the optimizer to use. Options are "all", "mosek", and
-          "cvxopt".
-        - `checks` *(bool, optional, default=True)*: Flag that specifies
+        - `backend` *(str, optional, default=None)*: String that
+          specifies the optimizer to use. Options are "mosek", "osqp",
+          "cvxopt", and "glop". If it is not specified then for $d<50$
+          it uses "osqp" by default. For $d\geq50$ it uses "mosek" if it is
+          activated, or "glop" otherwise.
+        - `check` *(bool, optional, default=True)*: Flag that specifies
           whether to check if the output of the optimizer is consistent and
-          satisfies constraint_error_tol.
-        - `constraint_error_tol` *(float, optional, default=1e-4)*: Error
-          tolerence for the linear constraints.
-        - `verbose` *(int, optional, default=0)*: The verbosity level.
-          - verbose = 0: Do not print anything.
-          - verbose = 1: Print warnings when optimizers fail.
+          satisfies `constraint_error_tol`.
+        - `constraint_error_tol` *(float, optional, default=1e-2)*: Error
+          tolerance for the linear constraints.
 
         **Returns:**
-        *(numpy.ndarray)* The vector specifying the location of the tip.
+        *(numpy.ndarray)* The vector specifying the location of the tip. If it
+        could not be found then None is returned.
 
         **Example:**
         We construct two cones and find the locations of the tips of the
@@ -704,72 +722,358 @@ class Cone:
         c1.tip_of_stretched_cone(1)
         # array([1., 1.])
         c2.tip_of_stretched_cone(1)
-        # array([7.99999991, 4.99999994])
+        # array([8., 5.])
         ```
         """
-        backends = ["all", "mosek", "cvxopt"]
+        backends = (None, "mosek", "osqp", "cvxopt", "glop")
         if backend not in backends:
-            raise Exception("Invalid backend. "
-                        f"The options are: {backends}.")
-        if backend == "all":
-            for b in backends[1:]:
-                if b == "mosek" and not config.mosek_is_activated():
-                    continue
-                solution = self.tip_of_stretched_cone(c,backend=b, check=check,
-                    constraint_error_tol=constraint_error_tol, verbose=verbose)
-                if solution is not None:
-                    return solution
-            raise Exception("All available quadratic programming backends "
-                            "have failed.")
+            raise ValueError("Invalid backend. "
+                             f"The options are: {backends}.")
+        if backend is None:
+            if self.ambient_dim() < 50:
+                backend = "osqp"
+            else:
+                backend = ("mosek" if config.mosek_is_activated() and self.ambient_dim() >= 50
+                           else "glop")
         if backend == "mosek" and not config.mosek_is_activated():
-            raise Exception("Mosek is not activated. See the website for how "
-                            "to activate it.")
-        hp = self.hyperplanes()
-        optimization_done = False
-        ## The problem is defined as:
-        ## Minimize (1/2) x.Q.x + p.x
-        ## Subject to G.x <= h
-        Q = 2*np.identity(hp.shape[1], dtype=float)
-        p = np.zeros(hp.shape[1], dtype=float)
-        h = np.full(hp.shape[0], (-c,), dtype=float)
-        G = -1*hp.astype(dtype=float)
-        Q_cvxopt = cvxopt.matrix(Q)
-        p_cvxopt = cvxopt.matrix(p)
-        h_cvxopt = cvxopt.matrix(h)
-        G_cvxopt = cvxopt.matrix(G)
-        if backend == "mosek":
-            cvxopt.solvers.options["mosek"] = {mosek.iparam.num_threads: 1,
-                                               mosek.iparam.log: 0}
+            raise Exception("Mosek is not activated. See the advanced usage page on our website to see how to activate it.")
+        if backend == "glop":
+            solution = self.find_interior_point(c, backend="glop")
+            G = -1*sparse.csc_matrix(self.hyperplanes(), dtype=float)
         else:
-            cvxopt.solvers.options["abstol"] = 1e-4
-            cvxopt.solvers.options["reltol"] = 1e-4
-            cvxopt.solvers.options["feastol"] = 1e-2
-            cvxopt.solvers.options["maxiters"] = 1000
-            cvxopt.solvers.options["show_progress"] = False
-        try:
-            solution = cvxopt.solvers.qp(Q_cvxopt, p_cvxopt, G_cvxopt,
-                                         h_cvxopt, solver=("mosek" if backend=="mosek" else None))
-            assert solution["status"] == "optimal"
-        except:
-            if verbose >= 1:
-                print(f"Quadratic programming error: {backend} failed. "
-                      f"Returned status: {solution['status']}")
-        else:
-            optimization_done = True
-            solution_x = [x[0] for x in np.array(solution["x"]).tolist()]
-            solution_val = solution["primal objective"]
-        if optimization_done and check:
-            res = max(np.dot(G, solution_x)) + c
-            if res > constraint_error_tol or solution_val < 0:
-                optimization_done = False
-                if verbose >= 1:
-                    print("Quadratic programming error: Large numerical "
-                          "error. Try raising constraint_error_tol, or "
-                          "using a different backend")
-        if optimization_done:
-            return np.array(solution_x)
+            hp = self.hyperplanes()
+            # The problem is defined as:
+            # Minimize (1/2) x.P.x + q.x
+            # Subject to G.x <= h
+            P = 2*sparse.identity(hp.shape[1], dtype=float, format="csc")
+            q = np.zeros(hp.shape[1], dtype=float)
+            h = np.full(hp.shape[0], -c, dtype=float)
+            G = -1*sparse.csc_matrix(hp, dtype=float)
+            settings_dict = ({"max_iter":100000, "scaling":50} if backend=="osqp"
+                                else dict())
+            solution = qpsolvers.solve_qp(P,q,G,h,solver=backend, **settings_dict)
+        if solution is None:
+            return
+        if check:
+            res = max(G.dot(solution)) + c
+            if res > constraint_error_tol:
+                warnings.warn("The solution that was found is invalid.")
+                return
+        return solution
 
-    def is_solid(self, backend=None, c=0.01, verbose=0):
+    def find_grading_vector(self, backend=None):
+        """
+        **Description:**
+        Finds a grading vector for the cone, i.e. a vector $\mathbf{v}$ such
+        that any non-zero point in the cone $\mathbf{p}$ has a positive dot
+        product $\mathbf{v}\cdot\mathbf{p}>0$. Thus, the grading vector must
+        be strictly interior to the dual cone, so it is only defined for
+        pointed cones. This function returns an integer grading vector.
+
+        **Arguments:**
+        - `backend` *(str, optional, default=None)*: String that
+          specifies the optimizer to use. The options are the same as for the
+          [`find_interior_point`](#find_interior_point) function.
+
+        **Returns:**
+        *(numpy.ndarray)* A grading vector. If it could not be found then
+        None is returned.
+
+        **Example:**
+        We construct a cone and find a grading vector.
+        ```python {2}
+        c = Cone([[3,2],[5,3]])
+        c.find_grading_vector()
+        # array([-1,  2])
+        ```
+        """
+        if not self.is_pointed():
+            raise Exception("Grading vectors are only defined for pointed cones.")
+        return self.dual().find_interior_point(backend=backend, integral=True)
+
+    def find_interior_point(self, c=1, integral=False, backend=None):
+        """
+        **Description:**
+        Finds a point in the strict interior of the cone. If no point is found
+        then None is returned.
+
+        **Arguments:**
+        - `c` *(float, optional, default=1)*: A real positive number specifying the stretching
+          of the cone (i.e. the minimum distance to the defining hyperplanes).
+        - `backend` *(str, optional, default=None)*: String that
+          specifies the optimizer to use. Options are "glop", "scip", "cpsat",
+          "mosek", "osqp", and "cvxopt". If it is not specified then for $d<50$
+          it uses "glop" by if `integral` is False or "scip" if it is True. For
+          $d\geq50$ it uses "mosek" if it is activated, or "glop" otherwise.
+        - `integral` *(bool, optional, default=False)*: A flag that specifies
+          whether the point should have integral coordinates.
+
+        **Returns:**
+        *(numpy.ndarray)* A point in the strict interior of the cone. If no
+        point is found then None is returned.
+
+        **Example:**
+        We construct a cone and find some interior points.
+        ```python {2,4}
+        c = Cone([[3,2],[5,3]])
+        c.find_interior_point()
+        # array([4. , 2.5])
+        c.find_interior_point(integral=True)
+        # array([8, 5])
+        ```
+        """
+        backends = (None, "glop", "scip", "cpsat", "mosek", "osqp", "cvxopt")
+        if backend not in backends:
+            raise ValueError(f"Backend must be one of {backends}.")
+        # If the rays are already computed then this is a simple task
+        if self._rays is not None and backend is None:
+            if np.linalg.matrix_rank(self._rays) != self._ambient_dim:
+                return None
+            point = np.sum(self._rays, axis=0)
+            point //= gcd_list(point)
+            if not integral:
+                point = point/len(self._rays)
+            return point
+        # Otherwise we need to do a harder computation to find an interior point
+        if integral and backend is None and self.ambient_dim() < 50:
+            backend = "scip"
+        if backend is None:
+            backend = ("mosek" if config.mosek_is_activated() and self.ambient_dim() >= 50 else "glop")
+        if backend in ("glop", "scip"):
+            hp = self.hyperplanes().tolist()
+            obj_vec = np.sum(hp, axis=0)/len(hp)
+            solver = pywraplp.Solver.CreateSolver(backend.upper())
+            obj = solver.Objective()
+            var = []
+            for i in range(self._ambient_dim):
+                var.append((solver.NumVar if backend=="glop" else solver.IntVar)(-solver.infinity(), solver.infinity(), f"x_{i}"))
+                obj.SetCoefficient(var[-1], obj_vec[i])
+            obj.SetMinimization()
+            cons_list = []
+            for v in hp:
+                cons_list.append(solver.Constraint(c, solver.infinity()))
+                for j in range(self._ambient_dim):
+                    cons_list[-1].SetCoefficient(var[j], v[j])
+            status = solver.Solve()
+            if status in (solver.FEASIBLE, solver.OPTIMAL):
+                solution = np.array([x.solution_value() for x in var])
+            elif status == solver.INFEASIBLE:
+                return None
+            else:
+                warnings.warn(f"Solver returned status {status}.")
+        elif backend == "cpsat":
+            hp = self.hyperplanes().tolist()
+            obj_vec = np.sum(hp, axis=0)
+            obj_vec //= gcd_list(obj_vec)
+            model = cp_model.CpModel()
+            obj = 0
+            var = []
+            for i in range(self._ambient_dim):
+                var.append(model.NewIntVar(cp_model.INT32_MIN, cp_model.INT32_MAX, f"x_{i}"))
+                obj += var[-1]*obj_vec[i]
+            model.Minimize(obj)
+            for v in hp:
+                model.Add(sum(ii*var[i] for i,ii in enumerate(v)) >= c)
+            solver = cp_model.CpSolver()
+            status = solver.Solve(model)
+            if status in (cp_model.FEASIBLE, cp_model.OPTIMAL):
+                solution = np.array([solver.Value(x) for x in var])
+            elif status == cp_model.INFEASIBLE:
+                return None
+            else:
+                warnings.warn(f"Solver returned status {status}.")
+        else:
+            solution = self.tip_of_stretched_cone(c, backend=backend)
+            if solution is None:
+                return None
+        # Make sure that the solution is valid
+        hp = self.hyperplanes()
+        if any(v.dot(solution) <= 0 for v in hp):
+            warnings.warn("The solution that was found is invalid.")
+            return None
+        # Finally, round to an integer if necessary
+        if integral:
+            n_tries = 1000
+            for i in range(1,n_tries):
+                int_sol = np.array([int(round(x)) for x in i*solution])
+                if all(int_sol.dot(v) > 0 for v in hp):
+                    break
+                if i == n_tries-1:
+                    return None
+            solution = int_sol
+        return solution
+
+    def find_lattice_points(self, min_points=None, max_deg=None,
+                            grading_vector=None, max_coord=1000,
+                            filter_function=None, process_function=None):
+        """
+        **Description:**
+        Finds lattice points in the cone. The points are found in the region
+        bounded by the cone, and by a cutoff surface given by the grading
+        vector. Note that this requires the cone to be pointed. The minimum
+        number of points to find can be specified, or if working with a
+        preferred grading vector it is possible to specify the maximum degree.
+
+        **Arguments:**
+        - `min_point` *(int, optional)*: Specifies the minimum number of
+          points to find. The degree will be increased until this minimum
+          number is achieved.
+        - `max_deg` *(int, optional)*: The maximum degree of the points to
+          find. This is useful when working with a preferred grading.
+        - `grading_vector` *(array_like, optional)*: The grading vector that
+          will be used. If it is not specified then it is computed.
+        - `max_coord` *(int, optional, default=1000)*: The maximum magnitude
+          of the coordinates of the points.
+        - `filter_function` *(function, optional)*: A function to use as a
+          filter of the points that will be kept. It should return a boolean
+          indicating whether to keep the point. Note that `min_points` does
+          not take the filtering into account.
+        - `process_function` *(function, optional)*: A function to process the
+          points as the are found. This is useful to avoid first constructing
+          a large list of points and then processing it.
+
+        **Returns:**
+        *(numpy.ndarray)* The list of points.
+
+        **Example:**
+        We construct a cone and find at least 20 lattice points in it.
+        ```python {2}
+        c = Cone([[3,2],[5,3]])
+        pts = c.find_lattice_points(min_points=20)
+        print(len(pts)) # We see that it found 21 points
+        # 21
+        ```
+        Let's also give an example where we use a function to apply some
+        filtering. This can be something very complicated, but here we just
+        pick the points where all coordinates are odd.
+        ```python {5}
+        def filter_function(pt):
+            return all(c%2 for c in pt)
+
+        c = Cone([[3,2],[5,3]])
+        pts = c.find_lattice_points(min_points=20, filter_function=filter_function)
+        print(len(pts)) # Now we get only 6 points instead of 21
+        # 6
+        ```
+        Finally, let's give an example where we process the data as it comes
+        instead of first constructing a list. In this simple example we just
+        print each point with odd coordinates, but in general it can be a
+        complex algorithm.
+        ```python {6}
+        def process_function(pt):
+            if all(c%2 for c in pt):
+                print(f"Processing point {pt}")
+
+        c = Cone([[3,2],[5,3]])
+        c.find_lattice_points(min_points=20, process_function=process_function)
+        # Processing point (5, 3)
+        # Processing point (11, 7)
+        # Processing point (15, 9)
+        # Processing point (17, 11)
+        # Processing point (21, 13)
+        # Processing point (25, 15)
+        ```
+        """
+        if max_deg is None and min_points is None:
+            raise Exception("Either the maximum degree or the minimum number of points must be specified.")
+        if not self.is_pointed():
+            raise Exception("Only pointed cones are currently supported.")
+        if process_function is not None and filter_function is not None:
+            raise Exception("Only one of filter_function or process_function can be specified.")
+        if grading_vector is None:
+            grading_vector = self.find_grading_vector()
+        if max_coord is None:
+            max_coord = cp_model.INT32_MAX - 1
+        hp = self.hyperplanes()
+        # We start by defining a class that will store the points we find
+        class SolutionStorage(cp_model.CpSolverSolutionCallback):
+            def __init__(self, variables, filter_function=None, process_function=None):
+                super().__init__()
+                self._variables = variables
+                self._solutions = set()
+                self._filter_function = filter_function
+                self._process_function = process_function
+                self._n_sol = 0
+        # We now define various versions of the on_solution_callback method for the different scenarios
+        # The reason for having multiple functions instead of having various if statements in a single
+        # function is that, since it will be run many times, it is very inefficient to keep checking
+        # the conditions even though they will never change.
+        # This first method is for when we want to check that it is a pointed cone with a good grading vector
+        class MoreThanOneSolution(Exception):
+            pass
+        def on_solution_callback_single_point(self):
+            self._n_sol += 1
+            if self._n_sol > 1:
+                raise MoreThanOneSolution
+        # This one is the standard one that will be used
+        def on_solution_callback_default(self):
+            self._n_sol += 1
+            self._solutions.add(tuple(self.Value(v) for v in self._variables))
+        # This one is the one that will be used when a custom filtering is specified
+        def on_solution_callback_filter(self):
+            self._n_sol += 1
+            point = tuple(self.Value(v) for v in self._variables)
+            if self._filter_function(point):
+                self._solutions.add(point)
+        def on_solution_callback_process(self):
+            self._n_sol += 1
+            process_function(tuple(self.Value(v) for v in self._variables))
+        # If it is a pointed cone we first check that we have a good grading vector
+        if self.is_pointed():
+            model = cp_model.CpModel()
+            var = [model.NewIntVar(-max_coord, max_coord, f"x_{i}") for i in range(hp.shape[1])]
+            for v in hp:
+                model.Add(sum(ii*var[i] for i,ii in enumerate(v)) >= 0)
+            model.Add(sum(ii*var[i] for i,ii in enumerate(grading_vector)) <= 0)
+            solver = cp_model.CpSolver()
+            SolutionStorage.on_solution_callback = on_solution_callback_single_point
+            solution_storage = SolutionStorage(var, filter_function, process_function)
+            try:
+                status = solver.SearchForAllSolutions(model, solution_storage)
+            except MoreThanOneSolution:
+                raise Exception("More than one solution was found. The grading vector must be wrong.")
+        # Now we construct the solution storage that will hold the points we find
+        if filter_function is not None:
+            SolutionStorage.on_solution_callback = on_solution_callback_filter
+        elif process_function is not None:
+            SolutionStorage.on_solution_callback = on_solution_callback_process
+        else:
+            SolutionStorage.on_solution_callback = on_solution_callback_default
+        solution_storage = SolutionStorage(var, filter_function, process_function)
+        # If the maximum degree is specified, we use it as a constraint
+        if max_deg is not None:
+            model = cp_model.CpModel()
+            var = [model.NewIntVar(-max_coord, max_coord, f"x_{i}")
+                        for i in range(hp.shape[1])]
+            for v in hp:
+                model.Add(sum(ii*var[i] for i,ii in enumerate(v)) >= 0)
+            model.Add(sum(ii*var[i] for i,ii in enumerate(grading_vector)) <= max_deg)
+            solver = cp_model.CpSolver()
+            status = solver.SearchForAllSolutions(model, solution_storage)
+            if status != cp_model.OPTIMAL:
+                raise Exception(f"There was a problem finding the points. Status code: {status}")
+        else: # Else, we're going to add points until the minimum number is reached
+            deg = 0
+            while True:
+                model = cp_model.CpModel()
+                var = [model.NewIntVar(-max_coord, max_coord, f"x_{i}")
+                            for i in range(hp.shape[1])]
+                for v in hp:
+                    model.Add(sum(ii*var[i] for i,ii in enumerate(v)) >= 0)
+                model.Add(sum(ii*var[i] for i,ii in enumerate(grading_vector)) == deg)
+                solver = cp_model.CpSolver()
+                status = solver.SearchForAllSolutions(model, solution_storage)
+                if status != cp_model.OPTIMAL:
+                    raise Exception(f"There was a problem finding the points. Status code: {status}")
+                deg += 1
+                if solution_storage._n_sol >= min_points:
+                    break
+        if process_function is not None:
+            return
+        pts = np.array(list(solution_storage._solutions), dtype=int)
+        return pts
+
+    def is_solid(self, backend=None):
         """
         **Description:**
         Returns True if the cone is solid, i.e. if it is full-dimensional.
@@ -777,30 +1081,27 @@ class Cone:
         :::note
         If the generating rays are known then this can simply be checked by
         computing the dimension of the linear space that they span. However,
-        when only the hyperplane inequalities are known this can be a difficult
-        problem. When using PPL as the backend, the convex hull is explicitly
-        constructed and checked. The other backends try to solve an
-        optimization problem inside the stretched cone, which fails if the cone
-        is not solid. The latter approach is much faster, but there can be
+        when only the hyperplane inequalities are known this can be a
+        difficult problem. When using PPL as the backend, the convex hull is
+        explicitly constructed and checked. The other backends try to find a
+        point in the strict interior of the cone, which fails if the cone
+        is not solid. The latter approach is much faster, but there could be
         extremely narrow cones where the optimization fails and this function
-        returns a false negative. Mosek is recommended when using such
-        extremely narrow cones.
+        returns a false negative.
         :::
 
         **Arguments:**
         - `backend` *(str, optional)*: Specifies which backend to use.
-          Available options are "ppl", "ortools", and any backends available
-          for the [`tip_of_stretched_cone`](#tip_of_stretched_cone)
-          function. If not specified, it tries all available backends.
-        - `c` *(float, optional, default=0.01)*: A number used to create
-          the stretched cone and try to find the tip. This is ignored when
-          using PPL as the backend.
-        - `verbose` *(int, optional, default=0)*: The verbosity level.
-          - verbose = 0: Do not print anything.
-          - verbose = 1: Print warnings when optimizers fail.
+          Available options are "ppl", and any backends available
+          for the [`find_interior_point`](#find_interior_point)
+          function. If not specified, it uses the default backend of
+          the [`find_interior_point`](#find_interior_point) function.
 
         **Returns:**
         *(bool)* The truth value of the cone being solid.
+
+        **Aliases:**
+        `is_full_dimensional`.
 
         **Example:**
         We construct two cones and check if they are solid.
@@ -817,64 +1118,23 @@ class Cone:
             return self._is_solid
         if self._rays is not None:
             return np.linalg.matrix_rank(self._rays) == self._ambient_dim
-        if backend is None:
-            backend = ("mosek" if config.mosek_is_activated() else "ortools")
+        backends = (None, "ppl", "glop", "scip", "cpsat", "mosek", "osqp", "cvxopt")
+        if backend not in backends:
+            raise ValueError(f"Backend must be one of {backends}.")
         if backend == "ppl":
             cs = ppl.Constraint_System()
             vrs = [ppl.Variable(i) for i in range(self._ambient_dim)]
             for h in self._hyperplanes:
-                cs.insert(sum(h[i]*vrs[i] for i in range(self._ambient_dim)
-                              ) >= 0 )
+                cs.insert(sum(h[i]*vrs[i] for i in range(self._ambient_dim)) >= 0 )
             cone = ppl.C_Polyhedron(cs)
             self._is_solid = cone.affine_dimension() == self._ambient_dim
             return self._is_solid
-        if backend == "ortools":
-            hp = self._hyperplanes.tolist()
-            solve_ctr = 0
-            while solve_ctr < 10:
-                obj_vec = np.dot(np.random.random(size=len(hp)), hp)
-                solver = pywraplp.Solver("find_pt",
-                                pywraplp.Solver.GLOP_LINEAR_PROGRAMMING)
-                obj = solver.Objective()
-                var = []
-                for i in range(self._ambient_dim):
-                    var.append(solver.NumVar(-solver.infinity(),
-                                             solver.infinity(),
-                                             f"x_{i}"))
-                    obj.SetCoefficient(var[-1], obj_vec[i])
-                obj.SetMinimization()
-                cons_list = []
-                for v in hp:
-                    cons_list.append(solver.Constraint(c, solver.infinity()))
-                    for j in range(self._ambient_dim):
-                        cons_list[-1].SetCoefficient(var[j], v[j])
-                status = solver.Solve()
-                if status in (solver.FEASIBLE, solver.OPTIMAL):
-                    self._is_solid = True
-                    return self._is_solid
-                elif status == solver.INFEASIBLE:
-                    self._is_solid = False
-                    return self._is_solid
-                else:
-                    if verbose >= 1:
-                        print(f"Solver returned status: {status}. Trying again.")
-                    solve_ctr += 1
-            if verbose >= 1:
-                print("Linear solver failed too many times. "
-                      "Assuming problem infeasible.")
-            self._is_solid = False
-            return self._is_solid
-        if backend in ("all", "mosek", "cvxopt"):
-            opt_res = None
-            try:
-                opt_res = self.tip_of_stretched_cone(c, backend=backend, verbose=verbose)
-            except:
-                pass
-            self._is_solid = opt_res is not None
-            return self._is_solid
-        else:
-            backends = ["ppl", "ortools", "all", "mosek", "cvxopt"]
-            raise Exception(f"Available options for backends are: {backends}")
+        # Otherwise we check this by trying to find an interior point
+        interior_point = self.find_interior_point(backend=backend)
+        self._is_solid = interior_point is not None
+        return self._is_solid
+    # Aliases
+    is_full_dimensional = is_solid
 
     def is_pointed(self, backend=None, tol=1e-7):
         """
@@ -900,6 +1160,9 @@ class Cone:
         **Returns:**
         *(bool)* The truth value of the cone being pointed.
 
+        **Aliases:**
+        `is_strongly_convex`.
+
         **Example:**
         We construct two cones and check if they are pointed.
         ```python {3,5}
@@ -924,6 +1187,8 @@ class Cone:
             return self._is_pointed
         self._is_pointed = self.dual().is_solid(backend=backend)
         return self._is_pointed
+    # Aliases
+    is_strongly_convex = is_pointed
 
     def is_simplicial(self):
         """
@@ -1092,10 +1357,10 @@ class Cone:
         hyperplanes = self.hyperplanes().tolist()
         for c in other:
             if not isinstance(c, Cone):
-                raise Exception("Elements of the list must be Cone objects.")
+                raise ValueError("Elements of the list must be Cone objects.")
             if c.ambient_dim() != self.ambient_dim():
-                raise Exception("Ambient lattices must have the same"
-                                "dimension.")
+                raise ValueError("Ambient lattices must have the same"
+                                 "dimension.")
             hyperplanes.extend(c.hyperplanes().tolist())
         return Cone(hyperplanes=hyperplanes)
 
@@ -1119,7 +1384,7 @@ def is_extremal(A, b, i=None, q=None, tol=1e-4):
       determining whether a ray is extremal.
 
     **Returns:**
-    *(bool or None)* The truth value of the ray baing extremal. If the process
+    *(bool or None)* The truth value of the ray being extremal. If the process
     fails then it returns nothing.
 
     **Example:**

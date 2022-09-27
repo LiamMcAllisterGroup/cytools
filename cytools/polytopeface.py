@@ -388,7 +388,7 @@ class PolytopeFace:
         if self._dual_face is not None:
             return self._dual_face
         if not self._ambient_poly.is_reflexive():
-            raise Exception("Ambient polytope is not reflexive.")
+            raise NotImplementedError("Ambient polytope is not reflexive.")
         dual_vert = self._ambient_poly._input_ineqs[
                                             list(self._saturated_ineqs),:-1]
         dual_poly = self._ambient_poly.dual()
@@ -450,7 +450,7 @@ class PolytopeFace:
         ```
         """
         if d is not None and d not in range(self._dim + 1):
-            raise Exception(f"There are no faces of dimension {d}")
+            raise ValueError(f"There are no faces of dimension {d}")
         if self._faces is not None:
             return (self._faces[d] if d is not None else self._faces)
         faces = []

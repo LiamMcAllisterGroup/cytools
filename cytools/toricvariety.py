@@ -114,7 +114,7 @@ class ToricVariety:
         # We first make sure that the input triangulation is appropriate.
         # Regularity is not checked since it is generally slow.
         if not triang.is_star():
-            raise Exception("The input triangulation must be star.")
+            raise ValueError("The input triangulation must be star.")
         if not triang.polytope().is_reflexive() and not config._exp_features_enabled:
             raise Exception("The experimental features must be enabled to "
                             "construct toric varieties from triangulations "
@@ -766,7 +766,7 @@ class ToricVariety:
                         self._compute_mori_rays_from_intersections())
                 self._mori_cone[0] = Cone(rays)
             else:
-                self._mori_cone[0] = self.triangulation().cpl_cone().dual()
+                self._mori_cone[0] = self.triangulation().secondary_cone().dual()
         # 0: All divs, 1: No origin, 2: In basis
         args_id = ((not include_origin)*1 if not in_basis else 0) + in_basis*2
         if self._mori_cone[args_id] is not None:
@@ -1084,7 +1084,7 @@ class ToricVariety:
                 eqn_dict[(v[0],v[2],v[3])] += [[v[1],variable_dict[v]]]
                 eqn_dict[(v[1],v[2],v[3])] += [[v[0],variable_dict[v]]]
             else:
-                raise Exception("Failed to construct linear system.")
+                raise RuntimeError("Failed to construct linear system.")
         # Construct Linear System
         num_rows = len(linear_relations)*len(eqn_array)
         C = np.array([0.0]*num_rows)
@@ -1335,7 +1335,7 @@ class ToricVariety:
         ```
         """
         if format not in ("dok", "coo", "dense"):
-            raise Exception("Options for format are \"dok\", \"coo\", \"dense\".")
+            raise ValueError("Options for format are \"dok\", \"coo\", \"dense\".")
         if in_basis:
             zero_as_anticanonical = False
         args_id = (zero_as_anticanonical, in_basis, exact_arithmetic, format)
@@ -1346,11 +1346,11 @@ class ToricVariety:
                     and exact_arithmetic)):
             backends = ["all", "sksparse", "scipy"]
             if backend not in backends:
-                raise Exception("Invalid linear system backend. "
-                                f"The options are: {backends}.")
+                raise ValueError("Invalid linear system backend. "
+                                 f"The options are: {backends}.")
             if exact_arithmetic and not config._exp_features_enabled:
-                raise Exception("The experimental features must be enabled to "
-                                "use exact arithmetic.")
+                raise ValueError("The experimental features must be enabled to "
+                                 "use exact arithmetic.")
             # Construct the linear equations
             # Note that self.dim gives the dimension of the CY not the of the
             # variety
@@ -1369,7 +1369,7 @@ class ToricVariety:
                                            backend_error_tol=backend_error_tol,
                                            verbose=verbose)
             if solution is None:
-                raise Exception("Linear system solution failed.")
+                raise RuntimeError("Linear system solution failed.")
             if exact_arithmetic:
                 solution_fmpq = fmpq_mat([array_float_to_fmpq(solution).tolist()]).transpose()
                 if check:
@@ -1380,7 +1380,7 @@ class ToricVariety:
                     C_fmpq = fmpq_mat([array_float_to_fmpq(C).tolist()]).transpose()
                     res = Mat_fmpq*solution_fmpq + C_fmpq
                     if any(np.array(res.tolist()).flat):
-                        raise Exception("Failed to convert to rational numbers.")
+                        raise RuntimeError("Failed to convert to rational numbers.")
             intnums = dict()
             if exact_arithmetic:
                 for ii in distintnum_array:
@@ -1401,14 +1401,14 @@ class ToricVariety:
                     for ii in intnums:
                         c = intnums[ii]
                         if c.q != 1:
-                            raise Exception("Non-integer intersection numbers "
-                                            "detected in a smooth toric variety.")
+                            raise RuntimeError("Non-integer intersection numbers "
+                                               "detected in a smooth toric variety.")
                 else:
                     for ii in intnums:
                         c = intnums[ii]
                         if abs(round(c)-c) > round_to_integer_error_tol:
-                            raise Exception("Non-integer intersection numbers "
-                                            "detected in a smooth toric variety.")
+                            raise RuntimeError("Non-integer intersection numbers "
+                                               "detected in a smooth toric variety.")
                         intnums[ii] = int(round(c))
             # Add intersections with canonical divisor
             # First we only compute intersection numbers with a single index 0
@@ -1428,8 +1428,8 @@ class ToricVariety:
                 for ii in list(canon_intnum.keys()):
                     val = canon_intnum[ii]
                     if val.q != 1:
-                        raise Exception(f"Non-integer intersection numbers "
-                                        f"detected in a smooth CY. {ii}:{val}")
+                        raise RuntimeError(f"Non-integer intersection numbers "
+                                           f"detected in a smooth CY. {ii}:{val}")
                     if val != 0:
                         canon_intnum[ii] = val
                     else:
@@ -1439,8 +1439,8 @@ class ToricVariety:
                     val = canon_intnum[ii]
                     round_val = int(round(val))
                     if abs(val-round_val) > round_to_integer_error_tol:
-                        raise Exception(f"Non-integer intersection numbers "
-                                        f"detected in a smooth CY. {ii}:{val}")
+                        raise RuntimeError(f"Non-integer intersection numbers "
+                                           f"detected in a smooth CY. {ii}:{val}")
                     if round_val != 0:
                         canon_intnum[ii] = round_val
                     else:
@@ -1662,8 +1662,8 @@ class ToricVariety:
         if d is None:
             d = (self.dim() if face_dim is None else face_dim)
         if d not in range(1,self.dim()+1):
-            raise Exception("Only cones of dimension 1 through d are "
-                            "supported.")
+            raise ValueError("Only cones of dimension 1 through d are "
+                             "supported.")
         if (d,face_dim) in self._fan_cones:
             return self._fan_cones[(d,face_dim)]
         pts = self.triangulation().points()
@@ -1724,7 +1724,7 @@ class ToricVariety:
             self._nef_part = nef_partition
         else:
             if not self.triangulation().is_fine():
-                raise Exception("Triangulation is non-fine.")
+                raise ValueError("Triangulation is non-fine.")
             if ((self.dim() != 4 or not self.triangulation().polytope().is_favorable(lattice="N"))
                     and not config._exp_features_enabled):
                 raise Exception("The experimental features must be enabled to "
@@ -1734,7 +1734,7 @@ class ToricVariety:
                      and all((self.triangulation().points() == self.triangulation().polytope().points_not_interior_to_facets()).flat))
                     or (self.triangulation().points().shape == self.triangulation().polytope().points().shape
                         and all((self.triangulation().points() == self.triangulation().polytope().points()).flat))):
-                raise Exception("Calabi-Yau hypersurfaces must be constructed either from points not interior to facets or using all points.")
+                raise ValueError("Calabi-Yau hypersurfaces must be constructed either from points not interior to facets or using all points.")
             self._cy = CalabiYau(self)
             self._nef_part = nef_partition
         return self._cy

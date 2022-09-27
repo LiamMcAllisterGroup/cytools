@@ -21,6 +21,7 @@ This module contains tools designed for Calabi-Yau hypersurface computations.
 from collections import Counter, defaultdict
 from itertools import combinations
 from math import factorial
+import warnings
 import copy
 # Third party imports
 from flint import fmpz_mat, fmpq_mat, fmpz, fmpq
@@ -134,13 +135,13 @@ class CalabiYau:
             pts = toric_var.polytope().points()
             convpoly = Polytope(pts[list(set.union(*[set(ii) for ii in nef_partition]))])
             if convpoly != toric_var.polytope():
-                raise Exception("Input data does not define a nef partition")
+                raise ValueError("Input data does not define a nef partition")
             polys = [Polytope(pts[[0]+list(ii)]) for ii in nef_partition]
             sumpoly = polys[0]
             for i in range(1,len(polys)):
                 sumpoly = sumpoly.minkowski_sum(polys[i])
             if not sumpoly.is_reflexive():
-                raise Exception("Input data does not define a nef partition")
+                raise ValueError("Input data does not define a nef partition")
             triang = toric_var.triangulation()
             triangpts = [tuple(pt) for pt in triang.points()]
             parts = [tuple(triang.points_to_indices(pt) for pt in pp.points() if any(pt) and tuple(pt) in triangpts)
@@ -149,7 +150,7 @@ class CalabiYau:
         else:
             self._nef_part = None
             if not toric_var.triangulation().is_fine():
-                raise Exception("Triangulation is non-fine.")
+                raise ValueError("Triangulation is non-fine.")
             if ((toric_var.dim() != 4 or not toric_var.triangulation().polytope().is_favorable(lattice="N"))
                     and not config._exp_features_enabled):
                 raise Exception("The experimental features must be enabled to "
@@ -159,7 +160,7 @@ class CalabiYau:
                      and all((toric_var.triangulation().points() == toric_var.triangulation().polytope().points_not_interior_to_facets()).flat))
                     or (toric_var.triangulation().points().shape == toric_var.triangulation().polytope().points().shape
                         and all((toric_var.triangulation().points() == toric_var.triangulation().polytope().points()).flat))):
-                raise Exception("Calabi-Yau hypersurfaces must be constructed either points not interior to facets or all points.")
+                raise ValueError("Calabi-Yau hypersurfaces must be constructed either points not interior to facets or all points.")
         self._ambient_var = toric_var
         self._optimal_ambient_var = None
         self._is_hypersurface = nef_partition is None or len(nef_partition) == 1
@@ -334,8 +335,8 @@ class CalabiYau:
         is_triv_equiv =  self.is_trivially_equivalent(other)
         if is_triv_equiv:
             return True
-        print("Warning: Comparison of CYs should not be done with ==. "
-              "Please use the is_trivially_equivalent function.")
+        warnings.warn("The comparison of CYs should not be done with ==. "
+                      "Please use the is_trivially_equivalent function.")
         return False
 
     def __ne__(self, other):
@@ -633,8 +634,8 @@ class CalabiYau:
                 self._compute_cicy_hodge_numbers()
             return self._hodge_nums.get((p,q),0)
         if self.dim() not in (2,3,4) and p!=1 and q!=1:
-            raise Exception("Only Calabi-Yaus of dimension 2-4 are currently "
-                            "supported.")
+            raise NotImplementedError("Only Calabi-Yaus of dimension 2-4 are currently "
+                                      "supported.")
         return self.polytope().hpq(p,q,lattice="N")
 
     def h11(self):
@@ -666,8 +667,8 @@ class CalabiYau:
         if not self._is_hypersurface:
             return self.hpq(1,1)
         if self.dim() not in (2,3,4):
-            raise Exception("Only Calabi-Yaus of dimension 2-4 are currently "
-                            "supported.")
+            raise NotImplementedError("Only Calabi-Yaus of dimension 2-4 are currently "
+                                      "supported.")
         return self.polytope().h11(lattice="N")
 
     def h12(self):
@@ -686,6 +687,9 @@ class CalabiYau:
         **Returns:**
         *(int)* The Hodge number $h^{1,2}$ of Calabi-Yau manifold.
 
+        **Aliases:**
+        `h21`.
+
         **Example:**
         We construct a Calabi-Yau hypersurface and compute its $h^{1,2}$.
         ```python {4}
@@ -699,9 +703,11 @@ class CalabiYau:
         if not self._is_hypersurface:
             return self.hpq(1,2)
         if self.dim() not in (2,3,4):
-            raise Exception("Only Calabi-Yaus of dimension 2-4 are currently "
-                            "supported.")
+            raise NotImplementedError("Only Calabi-Yaus of dimension 2-4 are currently "
+                                      "supported.")
         return self.polytope().h12(lattice="N")
+    # Aliases
+    h21 = h12
 
     def h13(self):
         """
@@ -719,6 +725,9 @@ class CalabiYau:
         **Returns:**
         *(int)* The Hodge number $h^{1,3}$ of Calabi-Yau manifold.
 
+        **Aliases:**
+        `h31`.
+
         **Example:**
         We construct a Calabi-Yau hypersurface and compute its $h^{1,3}$.
         ```python {4}
@@ -732,37 +741,11 @@ class CalabiYau:
         if not self._is_hypersurface:
             return self.hpq(1,3)
         if self.dim() not in (2,3,4):
-            raise Exception("Only Calabi-Yaus of dimension 2-4 are currently "
-                            "supported.")
+            raise NotImplementedError("Only Calabi-Yaus of dimension 2-4 are currently "
+                                      "supported.")
         return self.polytope().h13(lattice="N")
-
-    def h21(self):
-        """
-        **Description:**
-        Alias for the [`h12`](#h12) function.
-
-        :::note
-        Only Calabi-Yaus hypersurfaces of dimension 2-4 are currently
-        supported. Hodge numbers of CICYs are computed with PALP.
-        :::
-
-        **Arguments:**
-        None.
-
-        **Returns:**
-        *(int)* The Hodge number $h^{2,1}$ of Calabi-Yau manifold.
-
-        **Example:**
-        We construct a Calabi-Yau hypersurface and compute its $h^{2,1}$.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        cy.h21()
-        # 272
-        ```
-        """
-        return self.h12()
+    # Aliases
+    h31 = h13
 
     def h22(self):
         """
@@ -793,37 +776,9 @@ class CalabiYau:
         if not self._is_hypersurface:
             return self.hpq(2,2)
         if self.dim() not in (2,3,4):
-            raise Exception("Only Calabi-Yaus of dimension 2-4 are currently "
-                            "supported.")
+            raise NotImplementedError("Only Calabi-Yaus of dimension 2-4 are currently "
+                                      "supported.")
         return self.polytope().h22(lattice="N")
-
-    def h31(self):
-        """
-        **Description:**
-        Alias for the [`h13`](#h13) function.
-
-        :::note
-        Only Calabi-Yaus hypersurfaces of dimension 2-4 are currently
-        supported. Hodge numbers of CICYs are computed with PALP.
-        :::
-
-        **Arguments:**
-        None.
-
-        **Returns:**
-        *(int)* The Hodge number $h^{3,1}$ of Calabi-Yau manifold.
-
-        **Example:**
-        We construct a Calabi-Yau hypersurface and compute its $h^{3,1}$.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        cy.h31()
-        # 0
-        ```
-        """
-        return self.h13()
 
     def chi(self):
         """
@@ -870,8 +825,8 @@ class CalabiYau:
             self._hodge_nums["chi"] = chi
             return self._hodge_nums["chi"]
         if self.dim() not in (2,3,4):
-            raise Exception("Only Calabi-Yaus of dimension 2-4 are currently "
-                            "supported.")
+            raise NotImplementedError("Only Calabi-Yaus of dimension 2-4 are currently "
+                                      "supported.")
         return self.polytope().chi(lattice="N")
 
     def glsm_charge_matrix(self, include_origin=True):
@@ -992,8 +947,8 @@ class CalabiYau:
                                    points=pts))
         if len(self._divisor_basis.shape) == 1:
             if 0 in self._divisor_basis and not include_origin:
-                raise Exception("The basis was requested not including the "
-                                "origin, but it is included in the current basis.")
+                raise ValueError("The basis was requested not including the "
+                                 "origin, but it is included in the current basis.")
             if as_matrix:
                 return np.array(self._divisor_basis_mat[:,(0 if include_origin else 1):])
             return np.array(self._divisor_basis) - (0 if include_origin else 1)
@@ -1097,8 +1052,8 @@ class CalabiYau:
                                     )
         if len(self._curve_basis.shape) == 1:
             if 0 in self._curve_basis and not include_origin:
-                raise Exception("The basis was requested not including the "
-                                "origin, but it is included in the current basis.")
+                raise ValueError("The basis was requested not including the "
+                                 "origin, but it is included in the current basis.")
             if as_matrix:
                 return np.array(self._curve_basis_mat[:,(0 if include_origin else 1):])
             return np.array(self._curve_basis) - (0 if include_origin else 1)
@@ -1267,7 +1222,7 @@ class CalabiYau:
         ```
         """
         if format not in ("dok", "coo", "dense"):
-            raise Exception("Options for format are \"dok\", \"coo\", \"dense\".")
+            raise ValueError("Options for format are \"dok\", \"coo\", \"dense\".")
         if in_basis:
             zero_as_anticanonical = False
         args_id = (zero_as_anticanonical, in_basis, exact_arithmetic, format)
@@ -1315,12 +1270,12 @@ class CalabiYau:
                 if len(self._prime_divs) == self.ambient_variety().triangulation().points().shape[0]-1:
                     self._optimal_ambient_var = self._ambient_var
                 else:
-                    heights = self.triangulation().cpl_cone().tip_of_stretched_cone(1)[triang_inds]
+                    heights = self.triangulation().heights()[triang_inds]
                     try:
                         self._optimal_ambient_var = self.polytope().triangulate(heights=heights, points=self.polytope().points_to_indices(
                                             self.polytope().points()[[0]+list(self._prime_divs)])).get_toric_variety()
                     except:
-                        raise Exception("This type of complete intersection is not supported.")
+                        raise NotImplementedError("This type of complete intersection is not supported.")
             self._intersection_numbers[(False,False,exact_arithmetic,"dok")] = intnums_cy
         # Now intersection numbers have been computed
         # We now compute the intersection numbers of the basis if necessary
@@ -1420,7 +1375,7 @@ class CalabiYau:
         ```
         """
         if self.dim() != 3:
-            raise Exception("This function currently only supports 3-folds.")
+            raise NotImplementedError("This function currently only supports 3-folds.")
         if self._second_chern_class is None:
             c2 = np.zeros(len(self.prime_toric_divisors())+1, dtype=int)
             intnums = self.intersection_numbers(in_basis=False)
@@ -1755,7 +1710,7 @@ class CalabiYau:
         ```
         """
         if self.dim() != 3:
-            raise Exception("This function only supports Calabi-Yau 3-folds.")
+            raise NotImplementedError("This function only supports Calabi-Yau 3-folds.")
         intnums = self.intersection_numbers(in_basis=True, exact_arithmetic=False)
         basis = self.divisor_basis()
         if len(basis.shape) == 2: # If basis is matrix
@@ -1811,7 +1766,7 @@ class CalabiYau:
         ```
         """
         if self.dim() != 3:
-            raise Exception("This function only supports Calabi-Yau 3-folds.")
+            raise NotImplementedError("This function only supports Calabi-Yau 3-folds.")
         xvol = self.compute_cy_volume(tloc)
         Tau = self.compute_divisor_volumes(tloc, in_basis=True)
         AA = self.compute_AA(tloc)
@@ -1855,7 +1810,7 @@ class CalabiYau:
         ```
         """
         if self._is_hypersurface:
-            raise Exception("This function should only be used for codim > 2 CICYs.")
+            raise NotImplementedError("This function should only be used for codim > 2 CICYs.")
         if self._hodge_nums is not None:
            return
         codim = self.ambient_variety().dim() - self.dim()
@@ -1881,7 +1836,7 @@ class CalabiYau:
             poly.nef_partitions(keep_symmetric=True)
             matched_hodge_nums = search_in_cache()
         if not len(matched_hodge_nums) and not only_from_cache:
-            raise Exception("This type of complete intersection is not supported.")
+            raise NotImplementedError("This type of complete intersection is not supported.")
         if len(matched_hodge_nums):
             self._hodge_nums = dict()
             n = 0

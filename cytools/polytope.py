@@ -21,6 +21,7 @@ This module contains tools designed to perform polytope computations.
 from collections import defaultdict
 from itertools import permutations
 import subprocess
+import warnings
 import copy
 import math
 # Third party imports
@@ -1060,13 +1061,13 @@ class Polytope:
         """
         d = self.dim()
         if not self.is_reflexive() or d not in (2,3,4,5):
-            raise Exception("Only reflexive polytopes of dimension 2-5 are "
-                            "currently supported.")
+            raise ValueError("Only reflexive polytopes of dimension 2-5 are "
+                             "currently supported.")
         if lattice == "M":
             p = d-p-1
         elif lattice != "N":
-            raise Exception("Lattice must be specified. "
-                            "Options are: \"N\" or \"M\".")
+            raise ValueError("Lattice must be specified. "
+                             "Options are: \"N\" or \"M\".")
         if p > q:
             p,q = q,p
         if p > d-1 or p > d-1 or p < 0 or q < 0 or p+q > d-1:
@@ -1130,8 +1131,8 @@ class Polytope:
             return self._h11
         if lattice == "M":
             return self.dual().h11(lattice="N")
-        raise Exception("Lattice must be specified. "
-                        "Options are: \"N\" or \"M\".")
+        raise ValueError("Lattice must be specified. "
+                         "Options are: \"N\" or \"M\".")
 
     def h12(self, lattice):
         """
@@ -1172,8 +1173,8 @@ class Polytope:
             return self._h21
         if lattice == "M":
             return self.dual().h12(lattice="N")
-        raise Exception("Lattice must be specified. "
-                        "Options are: \"N\" or \"M\".")
+        raise ValueError("Lattice must be specified. "
+                         "Options are: \"N\" or \"M\".")
     # Aliases
     h21 = h12
 
@@ -1216,8 +1217,8 @@ class Polytope:
             return self._h13
         if lattice == "M":
             return self.dual().h13(lattice="N")
-        raise Exception("Lattice must be specified. "
-                        "Options are: \"N\" or \"M\".")
+        raise ValueError("Lattice must be specified. "
+                         "Options are: \"N\" or \"M\".")
     # Aliases
     h31 = h13
 
@@ -1255,8 +1256,8 @@ class Polytope:
             return self._h22
         if lattice == "M":
             return self.dual().h22(lattice="N")
-        raise Exception("Lattice must be specified. "
-                        "Options are: \"N\" or \"M\".")
+        raise ValueError("Lattice must be specified. "
+                         "Options are: \"N\" or \"M\".")
 
     def chi(self, lattice):
         """
@@ -1289,9 +1290,9 @@ class Polytope:
         ```
         """
         if not self.is_reflexive() or self.dim() not in (2,3,4,5):
-           raise Exception("Not a reflexive polytope of dimension 2-5.")
+           raise NotImplementedError("Not a reflexive polytope of dimension 2-5.")
         if lattice not in ("N","M"):
-            raise Exception("Lattice must be specified. Options are: 'N' or 'M'.")
+            raise ValueError("Lattice must be specified. Options are: 'N' or 'M'.")
         if lattice == "M":
             return self.dual().chi(lattice="N")
         if self._chi is not None:
@@ -1429,7 +1430,7 @@ class Polytope:
         ```
         """
         if d is not None and d not in range(self._dim + 1):
-            raise Exception(f"Polytope does not have faces of dimension {d}")
+            raise ValueError(f"Polytope does not have faces of dimension {d}")
         if self._faces is not None:
             return (self._faces[d] if d is not None else self._faces)
         if self._dual is not None and self._dual._faces is not None:
@@ -1575,7 +1576,7 @@ class Polytope:
                 pt_list += (str(pt).replace("(","").replace(")","").replace(","," ") + "\n")
             palp_out = palp.communicate(input=f"{len(optimal_pts)} {self._dim}\n" + pt_list + "\n")[0]
             if "Vertices of P" not in palp_out:
-                raise Exception(f"PALP error. Full output: {palp_out}")
+                raise RuntimeError(f"PALP error. Full output: {palp_out}")
             palp_out = palp_out.split("\n")
             for i,line in enumerate(palp_out):
                 if "Vertices of P" not in line:
@@ -1645,8 +1646,7 @@ class Polytope:
         if self._dual is not None:
             return self._dual
         if not self.is_reflexive():
-            raise Exception("Duality of non-reflexive polytopes not "
-                            "supported.")
+            raise NotImplementedError("Duality of non-reflexive polytopes not supported.")
         pts = np.array(self._input_ineqs[:,:-1])
         self._dual = Polytope(pts, backend=self._backend)
         self._dual._dual = self
@@ -1690,7 +1690,7 @@ class Polytope:
             return self._is_favorable
         if lattice=='M':
             return self.dual().is_favorable(lattice="N")
-        raise Exception("Lattice must be specified. "
+        raise ValueError("Lattice must be specified. "
                         "Options are: \"N\" or \"M\".")
 
     def glsm_charge_matrix(self, include_origin=True,
@@ -1744,14 +1744,14 @@ class Polytope:
         ```
         """
         if not self.is_reflexive():
-            raise Exception("The GLSM charge matrix can only be computed for "
-                            "reflexive polytopes.")
+            raise ValueError("The GLSM charge matrix can only be computed for "
+                             "reflexive polytopes.")
         # Set up the list of points that will be used.
         if points is not None:
             # We always add the origin, but remove it later if necessary
             pts_ind = tuple(set(list(points)+[0]))
             if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
-                raise Exception("An index is out of the allowed range.")
+                raise ValueError("An index is out of the allowed range.")
             include_origin = 0 in points
         elif include_points_interior_to_facets:
             pts_ind = tuple(range(self.points().shape[0]))
@@ -1822,15 +1822,15 @@ class Polytope:
                 if found_good_basis:
                     break
             if not found_good_basis:
-                print("Warning: An integral basis could not be found. "
-                      "A non-integral one will be computed. However, this "
-                      "will not be usable as a basis of divisors for the "
-                      "ToricVariety or CalabiYau classes.")
+                warnings.warn("An integral basis could not be found. "
+                              "A non-integral one will be computed. However, this "
+                              "will not be usable as a basis of divisors for the "
+                              "ToricVariety or CalabiYau classes.")
                 if pts_ind == tuple(self.points_not_interior_to_facets(as_indices=True)):
-                    print("Please let the developers know about the "
-                          "polytope that caused this issue. "
-                          "Here are the vertices of the polytope: "
-                          f"{self.vertices().tolist()}")
+                    warnings.warn("Please let the developers know about the "
+                                  "polytope that caused this issue. "
+                                  "Here are the vertices of the polytope: "
+                                  f"{self.vertices().tolist()}")
                 return self.glsm_charge_matrix(include_origin=include_origin,
                                                include_points_interior_to_facets=include_points_interior_to_facets,
                                                points=points, integral=False)
@@ -1843,7 +1843,7 @@ class Polytope:
             for nb in basis_exc[::-1]:
                 tup = [(k,kk) for k,kk in enumerate(linrel[:,nb]) if kk]
                 if sublat_ind % tup[-1][1] != 0:
-                    raise Exception("Problem with linear relations")
+                    raise RuntimeError("Problem with linear relations")
                 i,ii = tup[-1]
                 if integral:
                     glsm[:,nb] = -glsm.dot(linrel[i])//ii
@@ -1894,7 +1894,7 @@ class Polytope:
         if (np.linalg.matrix_rank(glsm[:,basis_ind]) != len(basis_ind)
                 or any(glsm.dot(linrel.T).flat)
                 or any(glsm.dot(self.points()[list(pts_ind)]).flat)):
-            raise Exception("Error finding basis")
+            raise RuntimeError("Error finding basis")
         # We now cache the results
         if integral:
             self._glsm_charge_matrix[(pts_ind,integral)] = glsm
@@ -1969,7 +1969,7 @@ class Polytope:
         if points is not None:
             pts_ind = tuple(set(list(points)+[0]))
             if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
-                raise Exception("An index is out of the allowed range.")
+                raise ValueError("An index is out of the allowed range.")
             include_origin = 0 in points
         elif include_points_interior_to_facets:
             pts_ind = tuple(range(self.points().shape[0]))
@@ -2033,7 +2033,7 @@ class Polytope:
         if points is not None:
             pts_ind = tuple(set(list(points)+[0]))
             if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
-                raise Exception("An index is out of the allowed range.")
+                raise ValueError("An index is out of the allowed range.")
             include_origin = 0 in points
         elif include_points_interior_to_facets:
             pts_ind = tuple(range(self.points().shape[0]))
@@ -2164,15 +2164,15 @@ class Polytope:
         # https://github.com/sagemath/sage/blob/develop/src/sage/geometry/lattice_polytope.py
         # https://trac.sagemath.org/ticket/13525
         if backend not in ("native", "palp"):
-            raise Exception("Error: options for backend are \"native\" and "
-                            "\"palp\".")
+            raise ValueError("Error: options for backend are \"native\" and "
+                             "\"palp\".")
         args_id = 1*affine_transform + affine_transform*(backend=="native")*1
         if self._normal_form[args_id] is not None:
             return np.array(self._normal_form[args_id])
         if backend == "palp":
             if not self.is_solid():
-                print("Warning: PALP doesn't support polytopes that are not "
-                      "full-dimensional. Using native backend.")
+                warnings.warn("PALP doesn't support polytopes that are not "
+                              "full-dimensional. Using native backend.")
                 backend = "native"
         if backend == "palp":
             palp = subprocess.Popen((config.palp_path + "poly.x", ("-A" if affine_transform else "-N")),
@@ -2187,7 +2187,7 @@ class Polytope:
             palp_in = f"{len(optimal_pts)} {self._dim}\n{pt_list}\n"
             palp_out = palp.communicate(input=palp_in)[0]
             if "ormal form" not in palp_out:
-                raise Exception(f"PALP error. Full output: {palp_out}")
+                raise RuntimeError(f"PALP error. Full output: {palp_out}")
             palp_out = palp_out.split("\n")
             for i in range(len(palp_out)):
                 if "ormal form" not in palp_out[i]:
@@ -2490,7 +2490,7 @@ class Polytope:
         ```
         """
         if action not in ("right", "left"):
-            raise Exception("Options for action are \"right\" or \"left\".")
+            raise ValueError("Options for action are \"right\" or \"left\".")
         args_id = 1*square_to_one + 2*as_dictionary
         if self._autos[args_id] is not None:
             if as_dictionary:
@@ -2575,7 +2575,7 @@ class Polytope:
         ```
         """
         if not self.is_reflexive() or self.dim() != 4:
-            raise Exception("Only 4D reflexive polytopes are supported.")
+            raise NotImplementedError("Only 4D reflexive polytopes are supported.")
         pts = self.points()
         dual_vert = self.dual().vertices()
         # Construct the sets S_i by finding the maximum dot product with dual vertices
@@ -2717,7 +2717,7 @@ class Polytope:
             vert_str += (str(pt).replace("(","").replace(")","").replace(","," ") + "\n")
         palp_out = palp.communicate(input=f"{len(vert)} {self._dim}\n" + vert_str + "\n")[0]
         if "Vertices of P" not in palp_out:
-            raise Exception(f"PALP error. Full output: {palp_out}")
+            raise RuntimeError(f"PALP error. Full output: {palp_out}")
         palp_out = palp_out.split("\n")
         n_parts = 0
         # Read number of nef partitions and vertices to make sure it looks right
@@ -2769,7 +2769,7 @@ class Polytope:
             for i in range(len(data)):
                 hodge_nums.append(tuple(int(h) for h in data[i].split()[:(cy_dim+1)**2]))
             if len(hodge_nums) != len(nef_parts):
-                raise Exception("Unexpected length mismatch.")
+                raise RuntimeError("Unexpected length mismatch.")
             nef_parts = (tuple(nef_parts),tuple(hodge_nums))
         self._nef_parts[args_id] = tuple(nef_parts)
         return (self._nef_parts.get(args_id) if return_hodge_numbers
@@ -2820,7 +2820,7 @@ class Polytope:
         if points is not None:
             pts_ind = tuple(set(points))
             if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
-                raise Exception("An index is out of the allowed range.")
+                raise ValueError("An index is out of the allowed range.")
         elif include_points_interior_to_facets is None:
             pts_ind = (tuple(self.points_not_interior_to_facets(as_indices=True))
                         if self.is_reflexive()
@@ -2900,8 +2900,8 @@ class Polytope:
         ```
         """
         if self._ambient_dim > self._dim:
-            raise Exception("Only triangulations of full-dimensional polytopes"
-                            "are supported.")
+            raise NotImplementedError("Only triangulations of full-dimensional polytopes "
+                                      "are supported.")
         pts_ind = self._triang_pt_inds(include_points_interior_to_facets, points)
         triang_pts = self.points()[list(pts_ind)]
         if (heights is not None) and (len(heights) == len(self.points())):
@@ -2998,11 +2998,11 @@ class Polytope:
         ```
         """
         if self._ambient_dim > self._dim:
-            raise Exception("Only triangulations of full-dimensional polytopes"
-                            "are supported.")
+            raise NotImplementedError("Only triangulations of full-dimensional polytopes"
+                                      "are supported.")
         if N is None and as_list:
-            raise Exception("Number of triangulations must be specified when "
-                            "returning a list.")
+            raise ValueError("Number of triangulations must be specified when "
+                             "returning a list.")
         pts_ind = self._triang_pt_inds(include_points_interior_to_facets, points)
         triang_pts = [tuple(pt) for pt in self.points()[list(pts_ind)]]
         if make_star is None:
@@ -3037,7 +3037,7 @@ class Polytope:
                                    progress_bar=True):
         """
         **Description:**
-        Constructs pseudorandom regular (optionally fine and star)
+        Constructs pseudorandom regular (optionally star)
         triangulations of a given point set. Implements Algorithm \#3 from the
         paper
         *Bounding the Kreuzer-Skarke Landscape*
@@ -3138,11 +3138,11 @@ class Polytope:
         desired balance between speed and fairness of the sampling.
         """
         if self._ambient_dim > self._dim:
-            raise Exception("Only triangulations of full-dimensional polytopes"
-                            "are supported.")
+            raise NotImplementedError("Only triangulations of full-dimensional polytopes"
+                                      "are supported.")
         if N is None and as_list:
-            raise Exception("Number of triangulations must be specified when "
-                            "returning a list.")
+            raise ValueError("Number of triangulations must be specified when "
+                             "returning a list.")
         pts_ind = self._triang_pt_inds(include_points_interior_to_facets, points)
         triang_pts = [tuple(pt) for pt in self.points()[list(pts_ind)]]
         if make_star is None:
@@ -3248,15 +3248,15 @@ class Polytope:
             if self.is_reflexive():
                 star_origin = 0
             else:
-                raise Exception("The star_origin parameter must be specified "
-                                "when finding star triangulations of "
-                                "non-reflexive polytopes.")
+                raise ValueError("The star_origin parameter must be specified "
+                                 "when finding star triangulations of "
+                                 "non-reflexive polytopes.")
         pts_ind = self._triang_pt_inds(include_points_interior_to_facets, points)
         triang_pts = [tuple(pt) for pt in self.points()[list(pts_ind)]]
         if len(triang_pts) >= 15:
-            print("Warning: Polytopes with more than around 15 points usually "
-                  "have too many triangulations, so this function may take "
-                  "too long or run out of memory.")
+            warnings.warn("Polytopes with more than around 15 points usually "
+                          "have too many triangulations, so this function may take "
+                          "too long or run out of memory.")
         triangs = all_triangulations(
                     triang_pts, only_fine=only_fine, only_regular=only_regular,
                     only_star=only_star, star_origin=star_origin,

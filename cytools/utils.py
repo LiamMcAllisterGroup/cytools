@@ -114,7 +114,7 @@ def to_sparse(rule_arr_in, sparse_type="dok"):
         rule_arr_in = [list(ii)+[rule_arr_in[ii]] for ii in rule_arr_in]
     rule_arr = np.array(rule_arr_in)
     if sparse_type not in ("dok", "csr"):
-        raise Exception("sparse_type must be either \"dok\" or \"csr\".")
+        raise ValueError("sparse_type must be either \"dok\" or \"csr\".")
     dim_0 = max(rule_arr[:,0]+1)
     dim_1 = max(rule_arr[:,1]+1)
     sp_mat = dok_matrix((dim_0,dim_1))
@@ -159,8 +159,8 @@ def solve_linear_system(M, C, backend="all", check=True,
     """
     backends = ["all", "sksparse", "scipy"]
     if backend not in backends:
-        raise Exception("Invalid linear system backend. "
-                        f"The options are: {backends}.")
+        raise ValueError("Invalid linear system backend. "
+                         f"The options are: {backends}.")
     system_solved = False
     if backend == "all":
         for s in backends[1:]:
@@ -321,7 +321,7 @@ def symmetric_dense_to_sparse(tensor, basis=None):
     s = set(dense_tensor.shape)
     d = len(dense_tensor.shape)
     if len(s) != 1:
-        raise Exception("All dimensions must have the same length")
+        raise ValueError("All dimensions must have the same length")
     s = list(s)[0]
     ind = [0]*d
     inc = d-1
@@ -574,12 +574,12 @@ def set_divisor_basis(tv_or_cy, basis, include_origin=True):
             b += 1
         # Check if it is a valid basis
         if min(b) < 0 or max(b) >= glsm_cm.shape[1]:
-            raise Exception("Indices are not in appropriate range.")
+            raise ValueError("Indices are not in appropriate range.")
         if (glsm_rnk != np.linalg.matrix_rank(glsm_cm[:,b])
                 or glsm_rnk != len(b)):
-            raise Exception("Input divisors do not form a basis.")
+            raise ValueError("Input divisors do not form a basis.")
         if abs(int(round(np.linalg.det(glsm_cm[:,b])))) != 1:
-            raise Exception("Only integer bases are supported.")
+            raise ValueError("Only integer bases are supported.")
         # Save divisor basis
         self._divisor_basis = b
         self._divisor_basis_mat = np.zeros(glsm_cm.shape, dtype=int)
@@ -602,7 +602,7 @@ def set_divisor_basis(tv_or_cy, basis, include_origin=True):
         for nb in nobasis[::-1]:
             tup = [(k,kk) for k,kk in enumerate(linrels_new[:,nb]) if kk]
             if sublat_ind % tup[-1][1] != 0:
-                raise Exception("Problem with linear relations")
+                raise RuntimeError("Problem with linear relations")
             i,ii = tup[-1]
             self._curve_basis_mat[:,nb] = -self._curve_basis_mat.dot(linrels_new[i])//ii
     # Else if input is a matrix
@@ -612,7 +612,7 @@ def set_divisor_basis(tv_or_cy, basis, include_origin=True):
                             "use generic bases.")
         # We start by checking if the input matrix looks right
         if np.linalg.matrix_rank(b) != glsm_rnk:
-            raise Exception("Input matrix has incorrect rank.")
+            raise ValueError("Input matrix has incorrect rank.")
         if b.shape == (glsm_rnk, glsm_cm.shape[1]):
             new_b = b
         elif b.shape == (glsm_rnk, glsm_cm.shape[1]-1):
@@ -620,12 +620,12 @@ def set_divisor_basis(tv_or_cy, basis, include_origin=True):
             new_b[:,1:] = b
             new_b[:,0] = 0
         else:
-            raise Exception("Input matrix has incorrect shape.")
+            raise ValueError("Input matrix has incorrect shape.")
         new_glsm_cm = new_b.dot(glsm_cm.T).T
         if np.linalg.matrix_rank(new_glsm_cm) != glsm_rnk:
-            raise Exception("Input divisors do not form a basis.")
+            raise ValueError("Input divisors do not form a basis.")
         if abs(int(round(np.linalg.det(np.array(fmpz_mat(new_glsm_cm.tolist()).snf().tolist(),dtype=int)[:glsm_rnk,:glsm_rnk])))) != 1:
-            raise Exception("Input divisors do not form an integral basis.")
+            raise ValueError("Input divisors do not form an integral basis.")
         self._divisor_basis = np.array(new_b)
         # Now we store a more convenient form of the matrix where we use the
         # linear relations to express them in terms of the default prime toric
@@ -643,13 +643,13 @@ def set_divisor_basis(tv_or_cy, basis, include_origin=True):
         for nb in nobasis[::-1]:
             tup = [(k,kk) for k,kk in enumerate(linrels[:,nb]) if kk]
             if sublat_ind % tup[-1][1] != 0:
-                raise Exception("Problem with linear relations")
+                raise RuntimeError("Problem with linear relations")
             i,ii = tup[-1]
             for j in range(self._divisor_basis_mat.shape[0]):
                 self._divisor_basis_mat[j] -= self._divisor_basis_mat[j,nb]*linrels[i]
         # Finally, we invert the matrix and construct the dual curve basis
         if abs(int(round(np.linalg.det(self._divisor_basis_mat[:,standard_basis])))) != 1:
-            raise Exception("Input divisors do not form an integral basis.")
+            raise ValueError("Input divisors do not form an integral basis.")
         inv_mat = fmpz_mat(self._divisor_basis_mat[:,standard_basis].tolist()).inv(integer=True)
         inv_mat = np.array(inv_mat.tolist(), dtype=int)
         # flint sometimes returns the negative inverse
@@ -660,12 +660,12 @@ def set_divisor_basis(tv_or_cy, basis, include_origin=True):
         for nb in nobasis[::-1]:
             tup = [(k,kk) for k,kk in enumerate(linrels[:,nb]) if kk]
             if sublat_ind % tup[-1][1] != 0:
-                raise Exception("Problem with linear relations")
+                raise RuntimeError("Problem with linear relations")
             i,ii = tup[-1]
             self._curve_basis_mat[:,nb] = -self._curve_basis_mat.dot(linrels[i])//ii
         self._curve_basis = np.array(self._curve_basis_mat)
     else:
-        raise Exception("Input must be either a vector or a matrix.")
+        raise ValueError("Input must be either a vector or a matrix.")
     # Clear the cache of all in-basis computations
     self.clear_cache(recursive=False, only_in_basis=True)
 
@@ -741,7 +741,7 @@ def set_curve_basis(tv_or_cy, basis, include_origin=True):
         set_divisor_basis(self, b, include_origin=include_origin)
         return
     if len(b.shape) != 2:
-        raise Exception("Input must be either a vector or a matrix.")
+        raise ValueError("Input must be either a vector or a matrix.")
     # Else input is a matrix
     if not config._exp_features_enabled:
         raise Exception("The experimental features must be enabled to "
@@ -749,7 +749,7 @@ def set_curve_basis(tv_or_cy, basis, include_origin=True):
     glsm_cm = self.glsm_charge_matrix(include_origin=True)
     glsm_rnk = np.linalg.matrix_rank(glsm_cm)
     if np.linalg.matrix_rank(b) != glsm_rnk:
-        raise Exception("Input matrix has incorrect rank.")
+        raise ValueError("Input matrix has incorrect rank.")
     if b.shape == (glsm_rnk, glsm_cm.shape[1]):
         new_b = b
     elif b.shape == (glsm_rnk, glsm_cm.shape[1]-1):
@@ -757,18 +757,18 @@ def set_curve_basis(tv_or_cy, basis, include_origin=True):
         new_b[:,1:] = b
         new_b[:,0] = -np.sum(b, axis=1)
     else:
-        raise Exception("Input matrix has incorrect shape.")
+        raise ValueError("Input matrix has incorrect shape.")
     pts = [tuple(pt)+(1,) for pt in self.polytope().points()[[0]+list(self.prime_toric_divisors())]]
     if any(new_b.dot(pts).flat):
-        raise Exception("Input curves do not form a valid basis.")
+        raise ValueError("Input curves do not form a valid basis.")
     if abs(int(round(np.linalg.det(np.array(fmpz_mat(new_b.tolist()).snf().tolist(),dtype=int)[:glsm_rnk,:glsm_rnk])))) != 1:
-        raise Exception("Input divisors do not form an integral basis.")
+        raise ValueError("Input divisors do not form an integral basis.")
     standard_basis = self.polytope().glsm_basis(
                             integral=True,
                             include_origin=True,
                             points=self.prime_toric_divisors())
     if abs(int(round(np.linalg.det(new_b[:,standard_basis])))) != 1:
-        raise Exception("Input divisors do not form an integral basis.")
+        raise ValueError("Input divisors do not form an integral basis.")
     inv_mat = fmpz_mat(new_b[:,standard_basis].tolist()).inv(integer=True)
     inv_mat = np.array(inv_mat.tolist(), dtype=int)
     # flint sometimes returns the negative inverse
@@ -841,9 +841,9 @@ def polytope_generator(input, input_type="file", format="ks", backend=None,
     """
     from cytools import Polytope
     if favorable is not None and lattice is None:
-        raise Exception("Lattice must be specified. Options are \"M\" and \"N\".")
+        raise ValueError("Lattice must be specified. Options are \"M\" and \"N\".")
     if input_type not in ["file", "str"]:
-        raise Exception("\"input_type\" must be either \"file\" or \"str\"")
+        raise ValueError("\"input_type\" must be either \"file\" or \"str\"")
     if input_type == "file":
         in_file = open(input, "r")
         l = in_file.readline()
@@ -896,7 +896,7 @@ def polytope_generator(input, input_type="file", format="ks", backend=None,
                 else:
                     break
     elif format != "ks":
-        raise Exception("Unsupported format. Options are \"ks\" and \"ws\".")
+        raise ValueError("Unsupported format. Options are \"ks\" and \"ws\".")
     while limit is None or n_yielded < limit:
         if "M:" in l:
             h = l.split()
@@ -910,7 +910,7 @@ def polytope_generator(input, input_type="file", format="ks", backend=None,
                     in_string.pop(0)
             vert = np.array(vert)
             if vert.shape != (n, m):
-                raise Exception("Error: Dimensions of array do not match")
+                raise ValueError("Dimensions of array do not match")
             if m > n:
                 vert = vert.T
             p = Polytope(vert, backend=backend)
@@ -1080,17 +1080,17 @@ def fetch_polytopes(h11=None, h12=None, h13=None, h21=None, h22=None, h31=None,
     ```
     """
     if dim not in (4,5):
-        raise Exception("Only polytopes of dimension 4 or 5 are available.")
+        raise ValueError("Only polytopes of dimension 4 or 5 are available.")
     if lattice not in ("N", "M", None):
-        raise Exception("Options for lattice are 'N' and 'M'.")
+        raise ValueError("Options for lattice are 'N' and 'M'.")
     if favorable is not None and lattice is None:
-        raise Exception("Lattice must be specified when checking favorability.")
+        raise ValueError("Lattice must be specified when checking favorability.")
     if h12 is not None and h21 is not None and h12 != h21:
-        raise Exception("Only one of h12 or h21 should be specified.")
+        raise ValueError("Only one of h12 or h21 should be specified.")
     if h12 is None and h21 is not None:
         h12 = h21
     if h13 is not None and h31 is not None and h13 != h31:
-        raise Exception("Only one of h13 or h31 should be specified.")
+        raise ValueError("Only one of h13 or h31 should be specified.")
     if h13 is None and h31 is not None:
         h13 = h31
     fetch_limit = limit
@@ -1102,14 +1102,14 @@ def fetch_polytopes(h11=None, h12=None, h13=None, h21=None, h22=None, h31=None,
             print("Ignoring inputs for h13 and h22.")
         if (lattice is None
                 and (h11 is not None or h12 is not None or chi is not None)):
-            raise Exception("Lattice must be specified when Hodge numbers "
-                            "or Euler characteristic are given.")
+            raise ValueError("Lattice must be specified when Hodge numbers "
+                             "or Euler characteristic are given.")
         if lattice == "N":
             h11, h12 = h12, h11
             chi = (-chi if chi is not None else None)
         if (chi is not None and h11 is not None and h12 is not None
                 and chi != 2*(h11-h21)):
-            raise Exception("Inconsistent Euler characteristic input.")
+            raise ValueError("Inconsistent Euler characteristic input.")
         variables = [h11, h12, n_points, n_vertices, n_dual_points, n_facets,
                      chi, fetch_limit]
         names = ["h11", "h12", "M", "V", "N", "F", "chi", "L"]
@@ -1119,16 +1119,16 @@ def fetch_polytopes(h11=None, h12=None, h13=None, h21=None, h22=None, h31=None,
                          params=parameters, timeout=timeout)
     else:
         if lattice is None and (h11 is not None or h13 is not None):
-            raise Exception("Lattice must be specified when h11 or h13 "
-                            "are given.")
+            raise ValueError("Lattice must be specified when h11 or h13 "
+                             "are given.")
         if lattice == "N":
             h11, h13 = h13, h11
             if (chi is not None and h11 is not None and h12 is not None
                     and h13 is not None and chi != 48+6*(h11-h12+h13)):
-                raise Exception("Inconsistent Euler characteristic input.")
+                raise ValueError("Inconsistent Euler characteristic input.")
             if (h22 is not None and h11 is not None and h12 is not None
                     and h13 is not None and h22 != 44+6*h11-2*h12+4*h13):
-                raise Exception("Inconsistent h22 input.")
+                raise ValueError("Inconsistent h22 input.")
         variables = [h11, h12, h13, h22, chi, fetch_limit]
         names = ["h11", "h12", "h13", "h22", "chi", "limit"]
         url = "http://rgc.itp.tuwien.ac.at/fourfolds/db/5d_reflexive"

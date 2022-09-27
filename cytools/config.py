@@ -18,6 +18,7 @@ This module contains various configuration variables for experimental features
 and custom installations.
 """
 
+import warnings
 import os
 
 # Paths to external software in the Docker image. These can be modified when
@@ -30,7 +31,6 @@ palp_path = "/usr/bin/"
 _mosek_license = f"/home/{'root' if os.geteuid()==0 else 'cytools'}/mounted_volume/mosek/mosek.lic"
 _mosek_is_activated = None
 _mosek_error = ""
-_printed_mosek_error = False
 def check_mosek_license(silent=False):
     """
     **Description:**
@@ -55,7 +55,6 @@ def check_mosek_license(silent=False):
     os.environ["MOSEKLM_LICENSE_FILE"] = _mosek_license
     global _mosek_error
     global _mosek_is_activated
-    global _printed_mosek_error
     try:
         import mosek
         mosek.Env().Task(0,0).optimize()
@@ -69,10 +68,8 @@ def check_mosek_license(silent=False):
         _mosek_error = ("Info: There was a problem with Mosek. "
                         "An alternative optimizer will be used.")
         _mosek_is_activated = False
-    _printed_mosek_error = False
     if not silent:
         print(_mosek_error)
-        _printed_mosek_error = True
 
 def mosek_is_activated():
     global _mosek_error
@@ -80,9 +77,6 @@ def mosek_is_activated():
     global _printed_mosek_error
     if _mosek_is_activated is None:
         check_mosek_license(silent=True)
-    if not _mosek_is_activated and not _printed_mosek_error:
-        print(_mosek_error)
-        _printed_mosek_error = True
     return _mosek_is_activated
 
 def set_mosek_path(path):
@@ -136,8 +130,8 @@ def enable_experimental_features():
     """
     global _exp_features_enabled
     _exp_features_enabled = True
-    print("\n**************************************************************\n"
-          "Warning: You have enabled experimental features of CYTools.\n"
-          "Some of these features may be broken or not fully tested,\n"
-          "and they may undergo significant changes in future versions.\n"
-          "**************************************************************\n")
+    warnings.warn("\n**************************************************************\n"
+                  "Warning: You have enabled experimental features of CYTools.\n"
+                  "Some of these features may be broken or not fully tested,\n"
+                  "and they may undergo significant changes in future versions.\n"
+                  "**************************************************************\n")
