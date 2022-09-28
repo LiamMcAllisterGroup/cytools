@@ -23,9 +23,8 @@
 #include <cstdlib>
 #include <ctype.h>
 #include <string.h>
-const int D = 4; // Dimension
 const bool useHeights = true; // Toggle between using heights or weights
-typedef CGAL::Epick_d< CGAL::Dimension_tag<D> >         K;
+typedef CGAL::Epick_d< CGAL::Dynamic_dimension_tag >    K;
 typedef CGAL::Regular_triangulation<K>                  T;
 typedef K::Point_d                                      Bare_point;
 typedef K::Weighted_point_d                             Weighted_point;
@@ -74,6 +73,7 @@ std::vector<double> readWeights(std::istream& ist){
 std::vector<int> readPoint(std::istream& ist){
   char c;
   int i;
+  int D = -1;
   std::vector<int> point;
   ist >> std::ws >> c;
   if (c == '[') {
@@ -107,8 +107,11 @@ std::vector<int> readPoint(std::istream& ist){
     return point;
   }
   ist.clear(std::ios::goodbit);
-  if(point.size()!=D){
-    std::cerr << "Error reading point: Wrong dimension" << std::endl;
+  if (D == -1) {
+    D = point.size();
+  }
+  else if (point.size() != D){
+    std::cerr << "Error reading point: Inconsistent dimension." << std::endl;
     point.clear();
   }
   return point;
@@ -165,6 +168,7 @@ int main(int argc, char *argv[])
     std::cerr << "Error: points list was empty" << std::endl;
     return 1;
   }
+  int D = points[0].size();
   // Read weights or heights
   std::vector<double> weights = readWeights(std::cin);
   if(nPoints != weights.size()){

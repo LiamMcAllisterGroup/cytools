@@ -765,8 +765,8 @@ class Triangulation:
         ```python {3}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
         t = p.triangulate()
-        t.is_regular()
-        # True
+        t.heights()
+        # array([0., 0., 0., 0., 0., 1.])
         ```
         """
         # If the triangulation is trivial we just return a vector of zeros
@@ -1451,9 +1451,8 @@ def cgal_triangulate(points, heights):
     ```
     """
     dim = points.shape[1]
-    if dim > 6:
-        raise ValueError("CGAL code is only compiled up to d=6.")
-    cgal_bin = config.cgal_path + f"/cgal-triangulate-{dim}d"
+    cgal_bin = config.cgal_path + (f"/cgal-triangulate-{dim}d" if dim in (2,3,4,5)
+                                    else "cgal-triangulate")
     cgal = subprocess.Popen((cgal_bin,), stdin=subprocess.PIPE,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                             universal_newlines=True)

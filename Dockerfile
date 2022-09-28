@@ -60,7 +60,7 @@ RUN python3 setup.py install
 
 # Create CGAL code for different dimensions and compile
 WORKDIR /opt/cytools/external/cgal
-RUN for i in $(seq 1 6); do sed "26s/.*/const int D = ${i};/" triangulate.cpp > "triangulate-${i}d.cpp"; done; rm triangulate.cpp
+RUN for i in $(seq 2 5); do sed "27s/.*/typedef CGAL::Epick_d<CGAL::Dimension_tag<${i}> >    K;/" cgal-triangulate.cpp > "cgal-triangulate-${i}d.cpp"; done;
 
 # Fix CGAL headers so that Eigen3 is imported correctly
 RUN sed -i -e 's/Eigen\/Core/eigen3\/Eigen\/Core/g' /usr/include/CGAL/Dimension.h
@@ -72,7 +72,8 @@ RUN sed -i -e 's/find_package/find_package( Eigen3 3.3 REQUIRED )\nfind_package/
 RUN cmake . -DCMAKE_BUILD_TYPE=Release
 # Must be single-threaded or it crashes on macOS
 RUN make -j 1
-RUN for i in $(seq 1 6); do ln -s "/opt/cytools/external/cgal/triangulate-${i}d" "/usr/local/bin/cgal-triangulate-${i}d"; done
+RUN for i in $(seq 2 5); do ln -s "/opt/cytools/external/cgal/cgal-triangulate-${i}d" "/usr/local/bin/cgal-triangulate-${i}d"; done
+RUN ln -s "/opt/cytools/external/cgal/cgal-triangulate" "/usr/local/bin/cgal-triangulate"
 
 # Set variables so that numpy is limited to one thread
 ENV MKL_NUM_THREADS=1
