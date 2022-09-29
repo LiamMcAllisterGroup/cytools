@@ -326,10 +326,10 @@ class Triangulation:
         ```
         """
         return (f"A {('fine' if self.is_fine() else 'non-fine')}, "
-                + (("regular, " if self._is_regular else "irregular, ")
+                + (("regular" if self._is_regular else "irregular")
                     if self._is_regular is not None else "") +
-                f"{('star' if self.is_star() else 'non-star')} "
-                f"triangulation of a {self.dim()}-dimensional "
+                (f", {('star' if self.is_star() else 'non-star')}" if self.polytope().is_reflexive() else "") +
+                f" triangulation of a {self.dim()}-dimensional "
                 f"point configuration with {len(self._triang_pts)} points "
                 f"in ZZ^{self.dim()}")
 
@@ -1510,7 +1510,7 @@ def topcom_triangulate(points):
 
 def all_triangulations(points, only_fine=False, only_regular=False,
                        only_star=False, star_origin=None, backend=None,
-                       poly=None):
+                       poly=None, raw_output=False):
     """
     **Description:**
     Computes all triangulations of the input point configuration using TOPCOM.
@@ -1534,17 +1534,20 @@ def all_triangulations(points, only_fine=False, only_regular=False,
       will be used as the star origin. If the polytope is reflexive this
       is set to 0, but otherwise it must be specified.
     - `backend` *(str, optional)*: The optimizer used to check
-      regularity computation. The available options are the backends of the
-      [`is_solid`](./cone#is_solid) function of the
+      regularity computation. The available options are "topcom" and the
+      backends of the [`is_solid`](./cone#is_solid) function of the
       [`Cone`](./cone) class. If not specified, it will be picked
-      automatically. Note that TOPCOM is not used to check regularity since
-      it is much slower.
+      automatically. Note that using TOPCOM to check regularity is slower.
     - `poly` *(Polytope, optional)*: The ambient polytope. It is
       constructed if not specified.
+    - `raw_output` *(bool, optional, default=False)*: Return the
+      triangulations as lists of simplices instead of as Triangulation
+      objects.
 
     **Returns:**
     *(generator)* A generator of [`Triangulation`](./triangulation) objects
-    with the specified properties.
+    with the specified properties. If `raw_output` is set to True then it
+    numpy arrays are used instead.
 
     **Example:**
     This function is not intended to be directly used, but it is used in the
@@ -1567,15 +1570,18 @@ def all_triangulations(points, only_fine=False, only_regular=False,
     if only_star and star_origin is None:
         raise ValueError("The star_origin parameter must be specified when "
                          "restricting to star triangulations.")
-    if poly is None:
+    if poly is None and not raw_output:
         from cytools.polytope import Polytope
         poly = Polytope(points)
-    # Make sure that the points are sorted in the right way
-    points = poly.points()[sorted(set(poly.points_to_indices(points)))]
+    # Make sure that the points are sorted in the right way when constructing Triangulation objects
+    if raw_output:
+        backend = "topcom"
+    else:
+        points = poly.points()[sorted(set(poly.points_to_indices(points)))]
     topcom_bin = (config.topcom_path
                   + ("topcom-points2finetriangs" if only_fine
                      else "topcom-points2triangs"))
-    topcom = subprocess.Popen((topcom_bin,),
+    topcom = subprocess.Popen((topcom_bin,)+(("--regular",) if backend=="topcom" and only_regular else ()),
                               stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE, universal_newlines=True)
     pts_str = str([list(pt)+[1] for pt in points])
@@ -1589,6 +1595,9 @@ def all_triangulations(points, only_fine=False, only_regular=False,
     srt_triangs = [np.array(sorted([sorted(s) for s in t])) for t in triangs
                     if (not only_star or all(star_origin in ss for ss in t))]
     for t in srt_triangs:
+        if raw_output:
+            yield t
+            continue
         tri = Triangulation(points, poly=poly, simplices=t, make_star=False,
                             check_input_simplices=False)
         if not only_regular or tri.is_regular(backend=backend):
