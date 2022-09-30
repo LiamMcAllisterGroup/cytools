@@ -1143,3 +1143,52 @@ def fetch_polytopes(h11=None, h12=None, h13=None, h21=None, h22=None, h31=None,
     if as_list:
         return list(g)
     return g
+
+
+def find_new_affinely_independent_points(points):
+    """
+    **Description:**
+    Finds new points that are affinely independent to the input list of
+    points. This is useful when one wants to turn a polytope that is not
+    full-dimensional into one that is, without affecting the structure of
+    the triangulations.
+
+    **Arguments:**
+    - `points` *(array_like)*: A list of points.
+
+    **Returns:**
+    *(numpy.ndarray)* A list of affinely independent points with respect to
+    the ones inputted.
+
+    **Example:**
+    We construct a list of points and then find a set of affinely independent
+    points.
+    ```python {2}
+    pts = [[1,0,1],[0,0,1],[0,1,1]]
+    find_new_affinely_independent_points(pts)
+    array([[1, 0, 2]])
+    ```
+    """
+    if len(points) == 0:
+        raise ValueError("List of points cannot be empty.")
+    pts = np.array(points)
+    pts_trans = np.array([pt-pts[0] for pt in pts])
+    if len(pts) == 1:
+        pts_trans = np.array(pts_trans.tolist()+[[1]+[0]*(pts.shape[1]-1)])
+    dim = np.linalg.matrix_rank(pts_trans)
+    basis_dim = 0
+    basis_pts = []
+    for pt in pts_trans:
+        new_rank = np.linalg.matrix_rank(basis_pts+[pt])
+        if new_rank > basis_dim:
+            basis_pts.append(pt)
+            basis_dim = new_rank
+        if basis_dim == dim:
+            break
+    basis_pts = np.array(basis_pts)
+    k, n_k = fmpz_mat(basis_pts.tolist()).nullspace()
+    new_pts = np.array(k.transpose().tolist(), dtype=int)[:n_k,:]
+    if len(pts) == 1:
+        new_pts = np.array(new_pts.tolist() + [[1]+[0]*(pts.shape[1]-1)])
+    new_pts = np.array([pt+pts[0] for pt in new_pts])
+    return new_pts

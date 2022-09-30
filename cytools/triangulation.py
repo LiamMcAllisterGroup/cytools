@@ -23,6 +23,7 @@ from ast import literal_eval
 import subprocess
 import warnings
 import copy
+import math
 import re
 # Third party imports
 from scipy.spatial import ConvexHull
@@ -73,7 +74,7 @@ class Triangulation:
       be triangulated. If not specified, it is constructed as the convex hull
       of the given points.
     - `heights` *(array_like, optional)*: A list of heights specifying the
-      regular triangulation. When not secified, it will return the Delaunay
+      regular triangulation. When not specified, it will return the Delaunay
       triangulation when using CGAL, a triangulation obtained from random
       heights near the Delaunay when using QHull, or the placing triangulation
       when using TOPCOM. Heights can only be specified when using CGAL or QHull
@@ -125,7 +126,7 @@ class Triangulation:
           to be triangulated. If not specified, it is constructed as the convex
           hull of the given points.
         - `heights` *(array_like, optional)*: A list of heights specifying
-          the regular triangulation. When not secified, it will return the
+          the regular triangulation. When not specified, it will return the
           Delaunay triangulation when using CGAL, a triangulation obtained from
           random heights near the Delaunay when using QHull, or the placing
           triangulation when using TOPCOM. Heights can only be specified when
@@ -166,21 +167,29 @@ class Triangulation:
         ```
         """
         tmp_triang_pts = {tuple(pt) for pt in np.array(triang_pts, dtype=int)}
+        if len(tmp_triang_pts) == 0:
+            raise ValueError("List of points cannot be empty.")
         heights = copy.deepcopy(heights)
         if poly is None:
             from cytools.polytope import Polytope
             self._poly = Polytope(list(tmp_triang_pts))
         else:
             self._poly = poly
-        if (not self._poly.is_solid()
-                or np.linalg.matrix_rank([pt+(1,) for pt in tmp_triang_pts]) != len(next(iter(tmp_triang_pts)))+1):
-            raise NotImplementedError("Only triangulations of full-dimensional point "
-                                      "configurations are supported.")
         # Now we reorder the points to make sure they match the ordering of
         # the Polytope class
         poly_pts = [tuple(pt) for pt in self._poly.points()]
         self._triang_pts = np.array([pt for pt in poly_pts if pt in tmp_triang_pts])
         triang_pts_tup = [tuple(pt) for pt in self._triang_pts]
+        # If the point configuration is not full-dimensional we find an better representation of the points
+        self._dim = np.linalg.matrix_rank([pt+(1,) for pt in tmp_triang_pts])-1
+        if self._dim == len(next(iter(tmp_triang_pts))):
+            self._is_fulldim = True
+            self._optimal_pts = self._triang_pts
+        else:
+            self._is_fulldim = False
+            optimal_pts = np.array([pt - self._triang_pts[0] for pt in self._triang_pts])
+            optimal_pts = np.array(fmpz_mat(optimal_pts.T.tolist()).lll().transpose().tolist(), dtype=int)[:,-self._dim:]
+            self._optimal_pts = optimal_pts
         # Try to find the index of the origin.
         try:
             self._origin_index = triang_pts_tup.index((0,)*self._poly.dim())
@@ -204,7 +213,7 @@ class Triangulation:
         # Now save input triangulation or construct it
         if simplices is not None:
             self._simplices = np.array(sorted([sorted(s) for s in simplices]),dtype=int)
-            if self._simplices.shape[1] != self._triang_pts.shape[1]+1:
+            if self._simplices.shape[1] != self._dim+1:
                 raise ValueError("Input simplices have wrong dimension.")
             self._heights = None
             if make_star:
@@ -242,7 +251,7 @@ class Triangulation:
             self._heights = heights
             # Now run the appropriate triangulation function
             if backend == "qhull":
-                self._simplices = qhull_triangulate(self._triang_pts, heights)
+                self._simplices = qhull_triangulate(self._optimal_pts, heights)
                 if make_star:
                     facets_ind = [[self._pts_dict[tuple(pt)] for pt in f.boundary_points()]
                                   for f in self._poly.facets()]
@@ -255,9 +264,9 @@ class Triangulation:
                 if make_star:
                     origin_offset = 1e6
                     heights[self._origin_index] = min(heights) - origin_offset
-                self._simplices = cgal_triangulate(self._triang_pts, heights)
+                self._simplices = cgal_triangulate(self._optimal_pts, heights)
             else: # Use TOPCOM
-                self._simplices = topcom_triangulate(self._triang_pts)
+                self._simplices = topcom_triangulate(self._optimal_pts)
                 if make_star:
                     facets_ind = [[self._pts_dict[tuple(pt)] for pt in f.boundary_points()]
                                   for f in self._poly.facets()]
@@ -331,7 +340,7 @@ class Triangulation:
                 (f", {('star' if self.is_star() else 'non-star')}" if self.polytope().is_reflexive() else "") +
                 f" triangulation of a {self.dim()}-dimensional "
                 f"point configuration with {len(self._triang_pts)} points "
-                f"in ZZ^{self.dim()}")
+                f"in ZZ^{self.ambient_dim()}")
 
     def __eq__(self, other):
         """
@@ -647,6 +656,8 @@ class Triangulation:
         # 12
         ```
         """
+        if not self._is_fulldim:
+            raise NotImplementedError("Automorphisms can only be computed for full-dimensional point configurations.")
         if on_faces_dim is None and on_faces_codim is None:
             on_faces_dim = self.dim()
         faces_dim = (on_faces_dim if on_faces_dim is not None else self.dim()-on_faces_codim)
@@ -703,7 +714,8 @@ class Triangulation:
         - `other` *(Triangulation)*: The other triangulation that is being
           compared.
         - `use_automorphisms` *(bool, optional, default=True)*: Whether to
-          check the equivalence using automorphism transformations.
+          check the equivalence using automorphism transformations. This flag
+          is ignored for point configurations that are not full dimensional.
         - `on_faces_dim` *(int, optional)*: Restrict the simplices to faces
           of the polytope of a given dimension.
         - `on_faces_codim` *(int, optional)*: Restrict the simplices to faces
@@ -731,6 +743,8 @@ class Triangulation:
         """
         if self.polytope() != other.polytope():
             return False
+        if not self._is_fulldim:
+            use_automorphisms = False
         if use_automorphisms:
             orbit1 = self.automorphism_orbit(on_faces_dim=on_faces_dim, on_faces_codim=on_faces_codim)
             orbit2 = other.automorphism_orbit(on_faces_dim=on_faces_dim, on_faces_codim=on_faces_codim)
@@ -778,9 +792,7 @@ class Triangulation:
     def dim(self):
         """
         **Description:**
-        Returns the dimension of the triangulation. Since triangulation
-        requires the polytope to be full dimensional, this is the same as the
-        dimension of the ambient lattice.
+        Returns the dimension of the triangulated point configuration.
 
         **Arguments:**
         None.
@@ -797,7 +809,29 @@ class Triangulation:
         # 4
         ```
         """
-        return self._poly.dim()
+        return self._dim
+
+    def ambient_dim(self):
+        """
+        **Description:**
+        Returns the dimension of the ambient lattice.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        *(int)* The dimension of the ambient lattice.
+
+        **Example:**
+        We construct a triangulation and find its ambient dimension.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        t = p.triangulate()
+        t.ambient_dim()
+        # 4
+        ```
+        """
+        return self._poly._ambient_dim
 
     def is_fine(self):
         """
@@ -925,7 +959,7 @@ class Triangulation:
         if simps.shape[0] == 1:
             self._is_valid = True
             return self._is_valid
-        pts = self.points()
+        pts = self._optimal_pts
         pts_ext = np.empty((pts.shape[0],pts.shape[1]+1), dtype=int)
         pts_ext[:,:-1] = pts
         pts_ext[:,-1] = 1
@@ -934,7 +968,7 @@ class Triangulation:
             self._is_valid = False
             return self._is_valid
         # If the triangulation is presumably regular, then we can check if
-        # heights inside the CPL cone yield the same triangulation.
+        # heights inside the secondary cone yield the same triangulation.
         if self.is_regular(backend=backend):
             heights = self.heights()
             tmp_triang = Triangulation(self.points(), self.polytope(),
@@ -952,14 +986,14 @@ class Triangulation:
                 self._is_valid = False
                 return self._is_valid
             v += tmp_v
-        if v != self._poly.volume():
+        poly_vol = int(round(ConvexHull(pts).volume * math.factorial(self._dim)))
+        if v != poly_vol:
             self._is_valid = False
             return self._is_valid
         # Finally, check if simplices have full-dimensional intersections.
-        pts_ext = pts_ext.tolist()
         for i,s1 in enumerate(simps):
             for s2 in simps[i+1:]:
-                inters = Cone(s1).intersection(Cone(s2))
+                inters = Cone(pts_ext[s1]).intersection(Cone(pts_ext[s2]))
                 if inters.is_solid():
                     self._is_valid = False
                     return self._is_valid
@@ -991,8 +1025,8 @@ class Triangulation:
         """
         if self._gkz_phi is not None:
             return np.array(self._gkz_phi)
-        ext_pts = [tuple(pt)+(1,) for pt in self._triang_pts]
-        phi = np.array([0]*len(ext_pts))
+        ext_pts = [tuple(pt)+(1,) for pt in self._optimal_pts.tolist()]
+        phi = np.zeros(len(ext_pts), dtype=int)
         for s in self._simplices:
             simp_vol = int(round(abs(np.linalg.det([ext_pts[i] for i in s]))))
             for i in s:
@@ -1094,11 +1128,11 @@ class Triangulation:
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]]).dual()
         t = p.triangulate()
         triangs = t.neighbor_triangulations()
-        len(triangs) # Pring how many triangulations it found
+        len(triangs) # Print how many triangulations it found
         # 263
         ```
         """
-        pts_str = str([list(pt)+[1] for pt in self._triang_pts])
+        pts_str = str([list(pt)+[1] for pt in self._optimal_pts])
         triang_str = str([list(s) for s in self._simplices]
                          ).replace("[","{").replace("]","}")
         flips_str = "(-1)"
@@ -1108,7 +1142,7 @@ class Triangulation:
                                   stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE,
                                   universal_newlines=True)
-        topcom_res, topcom_err = topcom.communicate(input=topcom_input)
+        topcom_res = topcom.communicate(input=topcom_input)[0]
         if len(topcom_res)==0:
             return []
         triangs_list = [literal_eval(r) for r in topcom_res.strip().split("\n")]
@@ -1150,8 +1184,8 @@ class Triangulation:
         """
         if self._sr_ideal is not None:
             return np.array(self._sr_ideal)
-        if not self.is_star():
-            raise NotImplementedError("Triangulation is not star.")
+        if not self.is_star() or not self._is_fulldim:
+            raise NotImplementedError("SR ideals can only be computed for full-dimensional star triangulations.")
         points = (frozenset(range(len(self._triang_pts))) - frozenset([self._origin_index]))
         simplices = [[i for i in s if i != self._origin_index] for s in self.simplices()]
         simplex_tuples = tuple(frozenset(frozenset(ss) for s in simplices for ss in combinations(s, dd)) for dd in range(1,self.dim()+1))
@@ -1225,7 +1259,7 @@ class Triangulation:
         if self._secondary_cone[args_id] is not None:
             return self._secondary_cone[args_id]
         if backend == "native":
-            pts_ext = [tuple(pt) + (1,) for pt in self._triang_pts]
+            pts_ext = [tuple(pt) + (1,) for pt in self._optimal_pts]
             dim = self.dim()
             simps = [set(s) for s in self._simplices]
             m = np.zeros((dim+1, dim+2), dtype=int)
@@ -1291,8 +1325,10 @@ class Triangulation:
         """
         if self._toricvariety is not None:
             return self._toricvariety
+        if not self._is_fulldim:
+            raise NotImplementedError("Toric varieties can only be constructed from full-dimensional triangulations.")
         if not self.is_star():
-            raise NotImplementedError("Triangulation is non-star.")
+            raise NotImplementedError("Toric varieties can only be constructed from star triangulations.")
         self._toricvariety = ToricVariety(self)
         return self._toricvariety
 
@@ -1524,11 +1560,11 @@ def all_triangulations(points, only_fine=False, only_regular=False,
 
     **Arguments:**
     - `points` *(array_like)*: The list of points to be triangulated.
-    - `only_fine` *(bool, optional, default=True)*: Restricts to only
+    - `only_fine` *(bool, optional, default=False)*: Restricts to only
       fine triangulations.
-    - `only_regular` *(bool, optional, default=True)*: Restricts to
+    - `only_regular` *(bool, optional, default=False)*: Restricts to
       only regular triangulations.
-    - `only_star` *(bool, optional, default=True)*: Restricts to only
+    - `only_star` *(bool, optional, default=False)*: Restricts to only
         star triangulations.
     - `star_origin` *(int, optional)*: The index of the point that
       will be used as the star origin. If the polytope is reflexive this
@@ -1567,6 +1603,8 @@ def all_triangulations(points, only_fine=False, only_regular=False,
     # 6
     ```
     """
+    if len(points) == 0:
+        raise ValueError("List of points cannot be empty.")
     if only_star and star_origin is None:
         raise ValueError("The star_origin parameter must be specified when "
                          "restricting to star triangulations.")
@@ -1578,13 +1616,23 @@ def all_triangulations(points, only_fine=False, only_regular=False,
         backend = "topcom"
     else:
         points = poly.points()[sorted(set(poly.points_to_indices(points)))]
+    points = np.array(points, dtype=int)
+    # If the point configuration is not full-dimensional we find an better representation of the points
+    # Note that we only perform an affine transformation, so we can treat this new list of points as if it
+    # was the original one.
+    dim = np.linalg.matrix_rank([tuple(pt)+(1,) for pt in points])-1
+    if dim == points.shape[1]:
+        optimal_pts = points
+    else:
+        optimal_pts = np.array([pt - points[0] for pt in points])
+        optimal_pts = np.array(fmpz_mat(optimal_pts.T.tolist()).lll().transpose().tolist(), dtype=int)[:,-dim:]
     topcom_bin = (config.topcom_path
                   + ("topcom-points2finetriangs" if only_fine
                      else "topcom-points2triangs"))
     topcom = subprocess.Popen((topcom_bin,)+(("--regular",) if backend=="topcom" and only_regular else ()),
                               stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE, universal_newlines=True)
-    pts_str = str([list(pt)+[1] for pt in points])
+    pts_str = str([list(pt)+[1] for pt in optimal_pts])
     topcom_res, topcom_err = topcom.communicate(input=pts_str+"[]")
     try:
         triangs = [literal_eval("["+ t.replace("{","[").replace("}","]") + "]")

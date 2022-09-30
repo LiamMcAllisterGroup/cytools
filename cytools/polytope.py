@@ -2489,6 +2489,8 @@ class Polytope:
         #  {0: 0, 1: 5, 2: 2, 3: 3, 4: 4, 5: 1, 6: 6, 7: 7, 8: 8, 9: 9}]
         ```
         """
+        if self.dim() != self.ambient_dim():
+            raise NotImplementedError("Automorphisms can only be computed for full-dimensional polytopes.")
         if action not in ("right", "left"):
             raise ValueError("Options for action are \"right\" or \"left\".")
         args_id = 1*square_to_one + 2*as_dictionary
@@ -2899,9 +2901,6 @@ class Polytope:
         # A fine, regular, star triangulation of a 4-dimensional polytope in ZZ^4
         ```
         """
-        if self._ambient_dim > self._dim:
-            raise NotImplementedError("Only triangulations of full-dimensional polytopes "
-                                      "are supported.")
         pts_ind = self._triang_pt_inds(include_points_interior_to_facets, points)
         triang_pts = self.points()[list(pts_ind)]
         if (heights is not None) and (len(heights) == len(self.points())):
@@ -3179,9 +3178,10 @@ class Polytope:
         return triangs_list
 
     def all_triangulations(self, only_fine=True, only_regular=True,
-                           only_star=True, star_origin=None,
+                           only_star=None, star_origin=None,
                            include_points_interior_to_facets=None,
-                           points=None, backend=None, as_list=False):
+                           points=None, backend=None, as_list=False,
+                           raw_output=False):
         """
         **Description:**
         Computes all triangulations of the polytope using TOPCOM. There is the
@@ -3198,8 +3198,9 @@ class Polytope:
           fine triangulations.
         - `only_regular` *(bool, optional, default=True)*: Restricts to
           only regular triangulations.
-        - `only_star` *(bool, optional, default=True)*: Restricts to only
-            star triangulations.
+        - `only_star` *(bool, optional)*: Restricts to only
+            star triangulations. When not specified it defaults to True for
+            reflexive polytopes and False otherwise.
         - `star_origin` *(int, optional)*: The index of the point that
           will be used as the star origin. If the polytope is reflexive this
           is set to 0, but otherwise it must be specified.
@@ -3220,6 +3221,9 @@ class Polytope:
           function returns a generator object, which is usually desired for
           efficiency. However, this flag can be set to True so that it returns
           the full list of triangulations at once.
+        - `raw_output` *(bool, optional, default=False)*: Return the
+          triangulations as lists of simplices instead of as Triangulation
+          objects.
 
         **Returns:**
         *(generator or list)* A generator of
@@ -3244,6 +3248,8 @@ class Polytope:
         # 6
         ```
         """
+        if only_star is None:
+            only_star = self.is_reflexive()
         if only_star and star_origin is None:
             if self.is_reflexive():
                 star_origin = 0
@@ -3260,7 +3266,7 @@ class Polytope:
         triangs = all_triangulations(
                     triang_pts, only_fine=only_fine, only_regular=only_regular,
                     only_star=only_star, star_origin=star_origin,
-                    backend=backend, poly=self)
+                    backend=backend, poly=self, raw_output=raw_output)
         if as_list:
             return list(triangs)
         return triangs
