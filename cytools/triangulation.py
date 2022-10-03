@@ -1035,7 +1035,7 @@ class Triangulation:
         return np.array(self._gkz_phi)
 
     def random_flips(self, N, only_fine=None, only_regular=None,
-                     only_star=None, backend=None):
+                     only_star=None, backend=None, seed=None):
         """
         **Description:**
         Returns a triangulation obtained by performing N random bistellar
@@ -1060,6 +1060,8 @@ class Triangulation:
           [`is_solid`](./cone#is_solid) function of the
           [`Cone`](./cone) class. If not specified, it will be picked
           automatically.
+        - `seed` *(int, optional)*: A seed for the random number generator.
+          This can be used to obtain reproducible results.
 
         **Returns:**
         *(Triangulation)* A new triangulation obtained by performing N random
@@ -1075,6 +1077,8 @@ class Triangulation:
         # A fine, star triangulation of a 4-dimensional point configuration with 106 points in ZZ^4
         ```
         """
+        if seed is not None:
+            np.random.seed(seed)
         current_triang = self
         for n in range(N):
             neighbors = current_triang.neighbor_triangulations(only_fine=False, only_regular=False, only_star=False)
@@ -1654,7 +1658,7 @@ def all_triangulations(points, only_fine=False, only_regular=False,
 
 def random_triangulations_fast_generator(triang_pts, N=None, c=0.2,
                             max_retries=500, make_star=False, only_fine=True,
-                            backend="cgal", poly=None):
+                            backend="cgal", poly=None, seed=None):
     """
     Constructs pseudorandom regular (optionally fine and star) triangulations
     of a given point set. This is done by picking random heights around the
@@ -1696,6 +1700,8 @@ def random_triangulations_fast_generator(triang_pts, N=None, c=0.2,
       "cgal" and "qhull".
     - `poly` *(Polytope, optional)*: The ambient polytope. It is
       constructed if not specified.
+    - `seed` *(int, optional)*: A seed for the random number generator.
+      This can be used to obtain reproducible results.
 
     **Returns:**
     *(generator)* A generator of [`Triangulation`](./triangulation) objects
@@ -1718,6 +1724,8 @@ def random_triangulations_fast_generator(triang_pts, N=None, c=0.2,
     rand_triangs = p.random_triangulations_fast(N=10, as_list=True) # Produces the list of 10 triangulations very quickly
     ```
     """
+    if seed is not None:
+        np.random.seed(seed)
     triang_pts = np.array(triang_pts)
     triang_hashes = set()
     n_retries = 0
@@ -1743,7 +1751,7 @@ def random_triangulations_fast_generator(triang_pts, N=None, c=0.2,
 def random_triangulations_fair_generator(triang_pts, N=None, n_walk=10, n_flip=10,
                     initial_walk_steps=20, walk_step_size=1e-2,
                     max_steps_to_wall=10, fine_tune_steps=8, max_retries=50,
-                    make_star=False, backend="cgal", poly=None):
+                    make_star=False, backend="cgal", poly=None, seed=None):
     """
     **Description:**
     Constructs pseudorandom regular (optionally star)
@@ -1802,6 +1810,8 @@ def random_triangulations_fair_generator(triang_pts, N=None, n_walk=10, n_flip=1
       "cgal" and "qhull".
     - `poly` *(Polytope, optional)*: The ambient polytope. It is
       constructed if not specified.
+    - `seed` *(int, optional)*: A seed for the random number generator.
+      This can be used to obtain reproducible results.
 
     **Returns:**
     *(generator)* A generator of [`Triangulation`](./triangulation) objects
@@ -1833,6 +1843,11 @@ def random_triangulations_fair_generator(triang_pts, N=None, n_walk=10, n_flip=1
     triang_hashes = set()
     triang_pts = np.array(triang_pts)
     num_points = len(triang_pts)
+    dim = np.linalg.matrix_rank([tuple(pt)+(1,) for pt in triang_pts])-1
+    if dim != triang_pts.shape[1]:
+        raise Exception("Point configuration must be full-dimensional.")
+    if seed is not None:
+        np.random.seed(seed)
     n_retries = 0
     # Obtain a random Delaunay triangulation by picking a random point as the
     # origin.

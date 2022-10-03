@@ -2923,7 +2923,7 @@ class Polytope:
                                    make_star=True, only_fine=True,
                                    include_points_interior_to_facets=None,
                                    points=None, backend="cgal", as_list=False,
-                                   progress_bar=True):
+                                   progress_bar=True, seed=None):
         """
         **Description:**
         Constructs pseudorandom regular (optionally fine and star)
@@ -2973,6 +2973,8 @@ class Polytope:
         - `progress_bar` *(bool, optional, default=True)*: Shows the number
           of triangulations obtained and progress bar. Note that this option is
           only available when returning a list instead of a generator.
+        - `seed` *(int, optional)*: A seed for the random number generator.
+          This can be used to obtain reproducible results.
 
         **Returns:**
         *(generator or list)* A generator of
@@ -3010,7 +3012,7 @@ class Polytope:
             make_star = False
         g = random_triangulations_fast_generator(triang_pts, N=N, c=c,
                 max_retries=max_retries, make_star=make_star,
-                only_fine=only_fine, backend=backend, poly=self)
+                only_fine=only_fine, backend=backend, poly=self, seed=seed)
         if not as_list:
             return g
         if progress_bar:
@@ -3033,7 +3035,7 @@ class Polytope:
                                    max_retries=50, make_star=None,
                                    include_points_interior_to_facets=None,
                                    points=None, backend="cgal", as_list=False,
-                                   progress_bar=True):
+                                   progress_bar=True, seed=None):
         """
         **Description:**
         Constructs pseudorandom regular (optionally star)
@@ -3107,6 +3109,8 @@ class Polytope:
         - `progress_bar` *(bool, optional, default=True)*: Shows number of
           triangulations obtained and progress bar. Note that this option is
           only available when returning a list instead of a generator.
+        - `seed` *(int, optional)*: A seed for the random number generator.
+          This can be used to obtain reproducible results.
 
         **Returns:**
         *(generator or list)* A generator of
@@ -3160,7 +3164,7 @@ class Polytope:
                 walk_step_size=walk_step_size,
                 max_steps_to_wall=max_steps_to_wall,
                 fine_tune_steps=fine_tune_steps, max_retries=max_retries,
-                make_star=make_star, backend=backend, poly=self)
+                make_star=make_star, backend=backend, poly=self, seed=seed)
         if not as_list:
             return g
         if progress_bar:
