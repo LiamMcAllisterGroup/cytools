@@ -581,18 +581,20 @@ class Cone:
             self._dual._dual = self
         return self._dual
 
-    def extremal_rays(self, tol=1e-4, n_threads=None, verbose=False):
+    def extremal_rays(self, tol=1e-4, verbose=False):
         """
         **Description:**
         Returns the extremal rays of the cone.
 
+        :::note
+        By default, this function will use as many CPU threads as there are
+        available. To fix the number of threads, you can set the `n_threads`
+        variable in the `config` submodule.
+        :::
+
         **Arguments:**
         - `tol` *(float, optional, default=1e-4)*: Specifies the tolerance
           for deciding whether a ray is extremal or not.
-        - `n_threads` *(int, optional)*: Specifies the number of CPU
-          threads to be used in the computation. Using multiple threads can
-          greatly speed up the computation. If not specified, it is set to the
-          number of available CPU threads.
         - verbose *(bool, optional, default=False)*: When set to True it show
           the progress while finding the extremal rays.
 
@@ -612,6 +614,7 @@ class Cone:
             return np.array(self._ext_rays)
         # It is important to delete duplicates
         rays = np.array(list({tuple(r) for r in self.rays()}))
+        n_threads = config.n_threads
         if n_threads is None:
             if rays.shape[0] < 32 or not self.is_pointed():
                 n_threads = 1

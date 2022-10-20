@@ -21,6 +21,10 @@ and custom installations.
 import warnings
 import os
 
+# The number of CPU threads to use in some computations, such as finding the extremal rays of a cone.
+# When set to None, then it uses all available threads.
+n_threads = None
+
 # Paths to external software in the Docker image. These can be modified when
 # using a custom installation.
 cgal_path = "/usr/local/bin/"
