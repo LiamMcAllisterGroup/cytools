@@ -127,21 +127,12 @@ run:
 		bash scripts/linux/cytools; \
 	fi
 
-unittests:
+test:
 	@if [ "$(USERID)" = "0" ]; then \
 		echo "Please run make as a non-root user and without sudo!"; \
 		false; \
 	fi
-	wget "https://github.com/LiamMcAllisterGroup/cytools/releases/download/v0.0.1/unittests.tar.gz"
-	tar zxvf unittests.tar.gz
-	rm unittests.tar.gz
-
-test: unittests
-	@if [ "$(USERID)" = "0" ]; then \
-		echo "Please run make as a non-root user and without sudo!"; \
-		false; \
-	fi
-	sudo docker run --rm -it -v ${PWD}/unittests:/home/cytools/mounted_volume/ cytools bash -c "bash run_tests.sh"
+	sudo docker run --rm -it cytools:uid-$(USERID) bash -c "cd /opt/cytools/unittests/; bash /opt/cytools/unittests/run_tests.sh"
 
 build-with-root-user:
 	@ echo " "

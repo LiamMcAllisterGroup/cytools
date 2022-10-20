@@ -675,7 +675,7 @@ class Cone:
         return self._ext_rays
 
     def tip_of_stretched_cone(self, c, backend=None, check=True,
-                              constraint_error_tol=1e-2):
+                              constraint_error_tol=5e-2):
         """
         **Description:**
         Finds the tip of the stretched cone. The stretched cone is defined
@@ -730,10 +730,10 @@ class Cone:
             raise ValueError("Invalid backend. "
                              f"The options are: {backends}.")
         if backend is None:
-            if self.ambient_dim() < 50:
+            if self.ambient_dim() < 25:
                 backend = "osqp"
             else:
-                backend = ("mosek" if config.mosek_is_activated() and self.ambient_dim() >= 50
+                backend = ("mosek" if config.mosek_is_activated() and self.ambient_dim() >= 25
                            else "glop")
         if backend == "mosek" and not config.mosek_is_activated():
             raise Exception("Mosek is not activated. See the advanced usage page on our website to see how to activate it.")
@@ -757,7 +757,7 @@ class Cone:
         if check:
             res = max(G.dot(solution)) + c
             if res > constraint_error_tol:
-                warnings.warn("The solution that was found is invalid.")
+                warnings.warn(f"The solution that was found is invalid: {res} > {constraint_error_tol}")
                 return
         return solution
 
@@ -835,10 +835,10 @@ class Cone:
                 point = point/len(self._rays)
             return point
         # Otherwise we need to do a harder computation to find an interior point
-        if integral and backend is None and self.ambient_dim() < 50:
+        if integral and backend is None and self.ambient_dim() < 25:
             backend = "scip"
         if backend is None:
-            backend = ("mosek" if config.mosek_is_activated() and self.ambient_dim() >= 50 else "glop")
+            backend = ("mosek" if config.mosek_is_activated() and self.ambient_dim() >= 25 else "glop")
         if backend in ("glop", "scip"):
             hp = self.hyperplanes().tolist()
             obj_vec = np.sum(hp, axis=0)/len(hp)

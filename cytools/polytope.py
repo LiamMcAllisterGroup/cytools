@@ -3263,8 +3263,8 @@ class Polytope:
                                  "non-reflexive polytopes.")
         pts_ind = self._triang_pt_inds(include_points_interior_to_facets, points)
         triang_pts = [tuple(pt) for pt in self.points()[list(pts_ind)]]
-        if len(triang_pts) >= 15:
-            warnings.warn("Polytopes with more than around 15 points usually "
+        if len(triang_pts) >= 17:
+            warnings.warn("Polytopes with more than around 17 points usually "
                           "have too many triangulations, so this function may take "
                           "too long or run out of memory.")
         triangs = all_triangulations(

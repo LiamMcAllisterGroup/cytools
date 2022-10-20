@@ -182,10 +182,10 @@ def solve_linear_system(M, C, backend="all", check=True,
             system_solved = False
     elif backend == "scipy":
         try:
-            from scipy.sparse.linalg import dsolve
+            from scipy.sparse.linalg import spsolve
             MM = M.transpose()*M
             CC = -M.transpose()*C
-            solution = dsolve.spsolve(MM, CC).tolist()
+            solution = spsolve(MM, CC).tolist()
             system_solved = True
         except:
             if verbose >= 1:
@@ -1123,12 +1123,12 @@ def fetch_polytopes(h11=None, h12=None, h13=None, h21=None, h22=None, h31=None,
                              "are given.")
         if lattice == "N":
             h11, h13 = h13, h11
-            if (chi is not None and h11 is not None and h12 is not None
-                    and h13 is not None and chi != 48+6*(h11-h12+h13)):
-                raise ValueError("Inconsistent Euler characteristic input.")
-            if (h22 is not None and h11 is not None and h12 is not None
-                    and h13 is not None and h22 != 44+6*h11-2*h12+4*h13):
-                raise ValueError("Inconsistent h22 input.")
+        if (chi is not None and h11 is not None and h12 is not None
+                and h13 is not None and chi != 48+6*(h11-h12+h13)):
+            raise ValueError("Inconsistent Euler characteristic input.")
+        if (h22 is not None and h11 is not None and h12 is not None
+                and h13 is not None and h22 != 44+6*h11-2*h12+4*h13):
+            raise ValueError("Inconsistent h22 input.")
         variables = [h11, h12, h13, h22, chi, fetch_limit]
         names = ["h11", "h12", "h13", "h22", "chi", "limit"]
         url = "http://rgc.itp.tuwien.ac.at/fourfolds/db/5d_reflexive"

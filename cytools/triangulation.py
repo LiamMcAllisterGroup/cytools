@@ -1187,7 +1187,7 @@ class Triangulation:
         ```
         """
         if self._sr_ideal is not None:
-            return np.array(self._sr_ideal)
+            return self._sr_ideal
         if not self.is_star() or not self._is_fulldim:
             raise NotImplementedError("SR ideals can only be computed for full-dimensional star triangulations.")
         points = (frozenset(range(len(self._triang_pts))) - frozenset([self._origin_index]))
@@ -1209,9 +1209,8 @@ class Triangulation:
                                 in_SR = True
                     if k not in simplex_tuples[i+1] and not in_SR:
                         SR_ideal.add(k)
-        self._sr_ideal = np.array(sorted([sorted(s)for s in SR_ideal], key=lambda x: (len(x),x)))
-        return np.array(self._sr_ideal)
-
+        self._sr_ideal = tuple(sorted([tuple(sorted(s))for s in SR_ideal], key=lambda x: (len(x),x)))
+        return self._sr_ideal
 
     def secondary_cone(self, backend=None,
                        include_points_not_in_triangulation=True):
