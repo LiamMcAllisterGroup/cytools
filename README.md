@@ -1,6 +1,6 @@
 
 <p align="center">
-    <img src="https://cy.tools/img/titleimage-circle.svg?sanitize=true" height="250"></img><br></br>
+    <img src="https://cy.tools/img/titleimage-circle.svg?sanitize=true" width="250"></img><br></br>
     <b>A software package for analyzing Calabi-Yau hypersurfaces in toric varieties.</b><br></br>
     <img alt="Latest release" src="https://img.shields.io/github/v/release/liammcallistergroup/cytools"></img>
     <img alt="Number of downloads" src="https://img.shields.io/github/downloads/liammcallistergroup/topcom/total"></img>

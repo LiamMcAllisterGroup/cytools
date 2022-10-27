@@ -63,6 +63,8 @@ def check_mosek_license(silent=False):
         import mosek
         mosek.Env().Task(0,0).optimize()
         _mosek_is_activated = True
+        if not silent:
+            print("Mosek was successfully activated.")
     except mosek.Error as e:
         _mosek_error = ("Info: Mosek is not activated. "
                         "An alternative optimizer will be used.\n"

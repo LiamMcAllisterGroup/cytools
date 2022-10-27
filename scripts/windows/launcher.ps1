@@ -39,7 +39,7 @@ $banner=@"
   ░░░░░░░░░     ░░░░░       ░░░░░     ░░░░░░   ░░░░░░  ░░░░░ ░░░░░░
 
                 Developed by Liam McAllister's Group
-                  https://cy.tools | Version 0.7.1
+                  https://cy.tools | Version 0.8.0
 
 "@
 

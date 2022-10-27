@@ -418,7 +418,7 @@ class ToricVariety:
         None.
 
         **Returns:**
-        *(numpy.ndarray)* The Stanley–Reisner ideal of the toric variety.
+        *(tuple)* The Stanley–Reisner ideal of the toric variety.
 
         **Example:**
         We construct a toric variety and find its SR ideal.

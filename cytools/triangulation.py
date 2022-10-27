@@ -334,8 +334,8 @@ class Triangulation:
         # A fine, regular, star triangulation of a 4-dimensional point configuration with 7 points in ZZ^4
         ```
         """
-        return (f"A {('fine' if self.is_fine() else 'non-fine')}, "
-                + (("regular" if self._is_regular else "irregular")
+        return (f"A {('fine' if self.is_fine() else 'non-fine')}"
+                + (f", {('regular' if self._is_regular else 'irregular')}"
                     if self._is_regular is not None else "") +
                 (f", {('star' if self.is_star() else 'non-star')}" if self.polytope().is_reflexive() else "") +
                 f" triangulation of a {self.dim()}-dimensional "
@@ -1174,7 +1174,7 @@ class Triangulation:
         None.
 
         **Returns:**
-        *(numpy.ndarray)* The Stanley-Reisner ideal of the triangulation.
+        *(tuple)* The Stanley-Reisner ideal of the triangulation.
 
         **Example:**
         We construct a triangulation and find its SR ideal.
