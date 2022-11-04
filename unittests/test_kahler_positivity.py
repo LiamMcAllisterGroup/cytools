@@ -15,7 +15,7 @@ def compute_positivity_data(poly, triangulation_backend, intnum_backend):
     kcone_tip = kahler_cone.tip_of_stretched_cone(1)
     XVol = cy.compute_cy_volume(kcone_tip)
     div_vols = cy.compute_divisor_volumes(kcone_tip, in_basis=False)
-    Kinv = cy.compute_Kinv(kcone_tip)
+    Kinv = cy.compute_inverse_kahler_metric(kcone_tip)
     Kinv_eigvals = np.linalg.eigvals(Kinv)
     K_eigvals = sorted([1/eig for eig in Kinv_eigvals])
     return {'CY_Volume':XVol, 'Divisor_Volumes':div_vols, 'Kahler_eigenvalues':K_eigvals}

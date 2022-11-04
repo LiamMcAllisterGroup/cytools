@@ -506,7 +506,7 @@ class Polytope:
         return (self.normal_form(affine_transform=True, backend=backend).tolist()
                 == other.normal_form(affine_transform=True, backend=backend).tolist())
 
-    def ambient_dim(self):
+    def ambient_dimension(self):
         """
         **Description:**
         Returns the dimension of the ambient lattice.
@@ -517,17 +517,22 @@ class Polytope:
         **Returns:**
         *(int)* The dimension of the ambient lattice.
 
+        **Aliases:**
+        `ambient_dim`.
+
         **Example:**
         We construct a polytope and check the dimension of the ambient lattice.
         ```python {2}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[-1,-1,-1,0]])
-        p.ambient_dim()
+        p.ambient_dimension()
         # 4
         ```
         """
         return self._ambient_dim
+    # Aliases
+    ambient_dim = ambient_dimension
 
-    def dim(self):
+    def dimension(self):
         """
         **Description:**
         Returns the dimension of the polytope.
@@ -538,15 +543,20 @@ class Polytope:
         **Returns:**
         *(int)* The dimension of the polytope.
 
+        **Aliases:**
+        `dim`.
+
         **Example:**
         We construct a polytope and check its dimension.
         ```python {2}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[-1,-1,-1,0]])
-        p.dim()
+        p.dimension()
         # 3
         ```
         """
         return self._dim
+    # Aliases
+    dim = dimension
 
     def is_solid(self):
         """
@@ -1436,7 +1446,7 @@ class Polytope:
         if self._dual is not None and self._dual._faces is not None:
             self._faces = (tuple(tuple(f.dual() for f in ff) for ff in self._dual._faces[::-1][1:])
                            + ((PolytopeFace(self, self.vertices(), frozenset(), dim=self._dim),),))
-            return np.array(self._faces[d] if d is not None else [np.array(ff) for ff in self._faces])
+            return (self._faces[d] if d is not None else self._faces)
         if self._dim == 4:
             self._faces = self._faces4d()
             return (self._faces[d] if d is not None else self._faces)
@@ -1608,7 +1618,7 @@ class Polytope:
             return self.points_to_indices(self._vertices)
         return np.array(self._vertices)
 
-    def dual(self):
+    def dual_polytope(self):
         """
         **Description:**
         Returns the dual polytope (also called polar polytope).  Only lattice
@@ -1628,17 +1638,17 @@ class Polytope:
         *(Polytope)* The dual polytope.
 
         **Aliases:**
-        `polar`.
+        `dual`, `polar_polytope`, `polar`.
 
         **Example:**
         We construct a reflexive polytope and find its dual. We then verify
         that the dual of the dual is the original polytope.
         ```python {2,5}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        p_dual = p.dual()
+        p_dual = p.dual_polytope()
         print(p_dual)
         # A 4-dimensional reflexive lattice polytope in ZZ^4
-        p_dual_dual = p_dual.dual()
+        p_dual_dual = p_dual.dual_polytope()
         p_dual_dual is p
         # True
         ```
@@ -1652,7 +1662,9 @@ class Polytope:
         self._dual._dual = self
         return self._dual
     # Aliases
-    polar = dual
+    dual = dual_polytope
+    polar_polytope = dual_polytope
+    polar = dual_polytope
 
     def is_favorable(self, lattice):
         """
@@ -2853,11 +2865,13 @@ class Polytope:
           random heights near the Delaunay when using QHull, or the placing
           triangulation when using TOPCOM. Heights can only be specified when
           using CGAL or QHull as the backend.
-        - `make_star` *(bool, optional)*: Indicates whether to turn the
-          triangulation into a star triangulation by deleting internal lines
-          and connecting all points to the origin, or equivalently by
-          decreasing the height of the origin to be much lower than the rest.
-          If not specified, this is done only for reflexive polytopes.
+        - `make_star` *(bool, optional)*: Indicates whether to
+          turn the triangulation into a star triangulation by deleting
+          internal lines and connecting all points to the origin, or
+          equivalently by decreasing the height of the origin to be much lower
+          than the rest. By default, this flag is set to true if the polytope
+          is reflexive and neither heights or simplices are inputted.
+          Otherwise, it is set to False.
         - `include_points_interior_to_facets` *(bool, optional)*: Whether
           to include points interior to facets from the triangulation. If not
           specified, it is set to False for reflexive polytopes and True
@@ -2912,7 +2926,7 @@ class Polytope:
                 make_star = self.is_reflexive()
             else:
                 make_star = False
-        if (0,)*self._dim not in triang_pts:
+        if not self.is_reflexive() and (0,)*self._dim not in [tuple(pt) for pt in triang_pts]:
             make_star = False
         return Triangulation(triang_pts, poly=self, heights=triang_heights,
                              make_star=make_star, simplices=simplices,

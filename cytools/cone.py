@@ -408,7 +408,7 @@ class Cone:
                       "not pointed are assigned a hash value of 0.")
         return 0
 
-    def ambient_dim(self):
+    def ambient_dimension(self):
         """
         **Description:**
         Returns the dimension of the ambient lattice.
@@ -419,17 +419,22 @@ class Cone:
         **Returns:**
         *(int)* The dimension of the ambient lattice.
 
+        **Aliases:**
+        `ambient_dim`.
+
         **Example:**
         We construct a cone and find the dimension of the ambient lattice.
         ```python {2}
         c = Cone([[0,1,0],[1,1,0]])
-        c.ambient_dim()
+        c.ambient_dimension()
         # 3
         ```
         """
         return self._ambient_dim
+    # Aliases
+    ambient_dim = ambient_dimension
 
-    def dim(self):
+    def dimension(self):
         """
         **Description:**
         Returns the dimension of the cone.
@@ -440,11 +445,14 @@ class Cone:
         **Returns:**
         *(int)* The dimension of the cone.
 
+        **Aliases:**
+        `dim`.
+
         **Example:**
         We construct a cone and find its dimension.
         ```python {2}
         c = Cone([[0,1,0],[1,1,0]])
-        c.dim()
+        c.dimension()
         # 2
         ```
         """
@@ -455,6 +463,8 @@ class Cone:
             return self._dim
         self._dim = np.linalg.matrix_rank(self.rays())
         return self._dim
+    # Aliases
+    dim = dimension
 
     def rays(self):
         """
@@ -551,7 +561,7 @@ class Cone:
         self._hyperplanes = np.array(hyperplanes, dtype=int)
         return np.array(self._hyperplanes)
 
-    def dual(self):
+    def dual_cone(self):
         """
         **Description:**
         Returns the dual cone.
@@ -562,13 +572,16 @@ class Cone:
         **Returns:**
         *(Cone)* The dual cone.
 
+        **Aliases:**
+        `dual`.
+
         **Example:**
         We construct a cone and find its dual cone.
         ```python {2,4}
         c = Cone([[0,1],[1,1]])
-        c.dual()
+        c.dual_cone()
         # A rational polyhedral cone in RR^2 defined by 2 hyperplanes normals
-        c.dual().rays()
+        c.dual_cone().rays()
         # array([[ 1,  0],
         #        [-1,  1]])
         ```
@@ -580,6 +593,8 @@ class Cone:
                 self._dual = Cone(rays=self.hyperplanes(), check=False)
             self._dual._dual = self
         return self._dual
+    # Aliases
+    dual = dual_cone
 
     def extremal_rays(self, tol=1e-4, verbose=False):
         """

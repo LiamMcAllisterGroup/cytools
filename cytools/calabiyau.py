@@ -537,7 +537,7 @@ class CalabiYau:
         """
         return self.ambient_variety().polytope()
 
-    def ambient_dim(self):
+    def ambient_dimension(self):
         """
         **Description:**
         Returns the complex dimension of the ambient toric variety.
@@ -548,6 +548,9 @@ class CalabiYau:
         **Returns:**
         *(int)* The complex dimension of the ambient toric variety.
 
+        **Aliases:**
+        `ambient_dim`.
+
         **Example:**
         We construct a Calabi-Yau and find the dimension of its ambient
         variety.
@@ -555,13 +558,15 @@ class CalabiYau:
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
         t = p.triangulate()
         cy = t.get_cy()
-        cy.ambient_dim()
+        cy.ambient_dimension()
         # 4
         ```
         """
         return self.ambient_variety().dim()
+    # Aliases
+    ambient_dim = ambient_dimension
 
-    def dim(self):
+    def dimension(self):
         """
         **Description:**
         Returns the complex dimension of the Calabi-Yau hypersurface.
@@ -572,13 +577,16 @@ class CalabiYau:
         **Returns:**
         *(int)* The complex dimension of the Calabi-Yau hypersurface.
 
+        **Aliases:**
+        `dim`.
+
         **Example:**
         We construct a Calabi-Yau and find its dimension.
         ```python {4}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
         t = p.triangulate()
         cy = t.get_cy()
-        cy.dim()
+        cy.dimension()
         # 3
         ```
         """
@@ -589,6 +597,8 @@ class CalabiYau:
         else:
             self._dim = self.ambient_variety().triangulation().dim() - len(self._nef_part)
         return self._dim
+    # Aliases
+    dim = dimension
 
     def hpq(self, p, q):
         """
@@ -1679,7 +1689,7 @@ class CalabiYau:
             return c.extremal_rays().dot(tloc)
         return c.rays().dot(tloc)
 
-    def compute_AA(self, tloc):
+    def compute_kappa_matrix(self, tloc):
         """
         **Description:**
         Computes the matrix $\kappa_{ijk}t^k$ at a location in the Kähler cone.
@@ -1696,6 +1706,9 @@ class CalabiYau:
         *(numpy.ndarray)* The matrix $\kappa_{ijk}t^k$ at the specified
         location.
 
+        **Aliases:**
+        `compute_AA`.
+
         **Example:**
         We construct a Calabi-Yau hypersurface and compute this matrix at the
         tip of the stretched Kähler cone.
@@ -1704,7 +1717,7 @@ class CalabiYau:
         t = p.triangulate()
         cy = t.get_cy()
         tip = cy.toric_kahler_cone().tip_of_stretched_cone(1)
-        cy.compute_AA(tip)
+        cy.compute_kappa_matrix(tip)
         # array([[ 1.,  1.],
         #        [ 1., -3.]])
         ```
@@ -1735,8 +1748,42 @@ class CalabiYau:
             else:
                 raise Exception("Error: Inconsistent intersection numbers.")
         return AA
+    # Aliases
+    compute_AA = compute_kappa_matrix
 
-    def compute_Kinv(self, tloc):
+    def compute_kappa_vector(self, tloc):
+        """
+        **Description:**
+        Computes the vector $\kappa_{ijk} t^j t^k$ at a location in the Kähler cone.
+
+        :::note
+        This function only supports Calabi-Yau 3-folds.
+        :::
+
+        **Arguments:**
+        - `tloc` *(array_like)*: A vector specifying a location in the
+          Kähler cone.
+
+        **Returns:**
+        *(numpy.ndarray)* The vector $\kappa_{ijk} t^j t^k$ at the specified
+        location.
+
+        **Example:**
+        We construct a Calabi-Yau hypersurface and compute this vector at the
+        tip of the stretched Kähler cone.
+        ```python {5}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        t = p.triangulate()
+        cy = t.get_cy()
+        tip = cy.toric_kahler_cone().tip_of_stretched_cone(1)
+        cy.compute_kappa_vector(tip)
+        # array([5., 1.])
+        ```
+        """
+        AA = self.compute_kappa_matrix(tloc)
+        return AA.dot(tloc)
+
+    def compute_inverse_kahler_metric(self, tloc):
         """
         **Description:**
         Computes the inverse Kähler metric at a location in the Kähler cone.
@@ -1760,9 +1807,9 @@ class CalabiYau:
         t = p.triangulate()
         cy = t.get_cy()
         tip = cy.toric_kahler_cone().tip_of_stretched_cone(1)
-        cy.compute_Kinv(tip)
-        # array([[11.        , -9.        ],
-        #        [-9.        , 42.99999998]])
+        cy.compute_inverse_kahler_metric(tip)
+        # array([[11., -9.],
+        #        [-9., 43.]])
         ```
         """
         if self.dim() != 3:
@@ -1772,6 +1819,37 @@ class CalabiYau:
         AA = self.compute_AA(tloc)
         Kinv = 4*(np.outer(Tau,Tau) - AA*xvol)
         return Kinv
+
+    def compute_kahler_metric(self, tloc):
+        """
+        **Description:**
+        Computes the Kähler metric at a location in the Kähler cone.
+
+        :::note
+        This function only supports Calabi-Yau 3-folds.
+        :::
+
+        **Arguments:**
+        - `tloc` *(array_like)*: A vector specifying a location in the
+          Kähler cone.
+
+        **Returns:**
+        *(numpy.ndarray)* The Kähler metric at the specified location.
+
+        **Example:**
+        We construct a Calabi-Yau hypersurface and compute the Kähler
+        metric at the tip of the stretched Kähler cone.
+        ```python {5}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        t = p.triangulate()
+        cy = t.get_cy()
+        tip = cy.toric_kahler_cone().tip_of_stretched_cone(1)
+        cy.compute_kahler_metric(tip)
+        # array([[0.10969388, 0.02295918],
+                 [0.02295918, 0.02806122]])
+        ```
+        """
+        return np.linalg.inv(self.compute_inverse_kahler_metric(tloc))
 
     def _compute_cicy_hodge_numbers(self, only_from_cache=False):
         """

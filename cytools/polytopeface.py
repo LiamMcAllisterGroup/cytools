@@ -225,6 +225,9 @@ class PolytopeFace:
         **Returns:**
         *(numpy.ndarray)* The list of lattice points of the face.
 
+        **Aliases:**
+        `pts`.
+
         **Example:**
         We construct a face object and find its lattice points.
         ```python {3}
@@ -242,6 +245,8 @@ class PolytopeFace:
         if as_indices:
             return self._ambient_poly.points_to_indices(self._points)
         return np.array(self._points)
+    # Aliases
+    pts = points
 
     def interior_points(self, as_indices=False):
         """
@@ -254,6 +259,9 @@ class PolytopeFace:
 
         **Returns:**
         *(numpy.ndarray)* The list of interior lattice points of the face.
+
+        **Aliases:**
+        `interior_pts`.
 
         **Example:**
         We construct a face object and find its interior lattice points.
@@ -272,6 +280,8 @@ class PolytopeFace:
         if as_indices:
             return self._ambient_poly.points_to_indices(self._interior_points)
         return np.array(self._interior_points)
+    # Aliases
+    interior_pts = interior_points
 
     def boundary_points(self, as_indices=False):
         """
@@ -284,6 +294,9 @@ class PolytopeFace:
 
         **Returns:**
         *(numpy.ndarray)* The list of boundary lattice points of the face.
+
+        **Aliases:**
+        `boundary_pts`.
 
         **Example:**
         We construct a face object and find its boundary lattice points.
@@ -304,6 +317,8 @@ class PolytopeFace:
         if as_indices:
             return self._ambient_poly.points_to_indices(self._boundary_points)
         return np.array(self._boundary_points)
+    # Aliases
+    boundary_pts = boundary_points
 
     def as_polytope(self):
         """
@@ -358,7 +373,7 @@ class PolytopeFace:
         """
         return self._ambient_poly
 
-    def dual(self):
+    def dual_face(self):
         """
         **Description:**
         Returns the dual face of the dual polytope.
@@ -374,13 +389,16 @@ class PolytopeFace:
         **Returns:**
         *(PolytopeFace)* The dual face.
 
+        **Aliases:**
+        `dual`.
+
         **Example:**
         We construct a face object from a polytope, then find the dual face
         in the dual polytope.
         ```python {3}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
         f = p.faces(2)[0] # Pick one of the 2-faces
-        f_dual = f.dual()
+        f_dual = f.dual_face()
         print(f_dual)
         # A 1-dimensional face of a 4-dimensional polytope in ZZ^4
         ```
@@ -400,6 +418,8 @@ class PolytopeFace:
                                        dual_saturated_ineqs, dim=dual_face_dim)
         self._dual_face._dual_face = self
         return self._dual_face
+    # Aliases
+    dual = dual_face
 
     def vertices(self):
         """
@@ -460,7 +480,7 @@ class PolytopeFace:
         self._faces = tuple(faces)
         return (self._faces[d] if d is not None else self._faces)
 
-    def dim(self):
+    def dimension(self):
         """
         **Description:**
         Returns the dimension of the face.
@@ -471,18 +491,23 @@ class PolytopeFace:
         **Returns:**
         *(int)* The dimension of the face.
 
+        **Aliases:**
+        `dim`.
+
         **Example:**
         We construct a face from a polytope and print its dimension.
         ```python {3}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
         f = p.faces(3)[0] # Pick one of the 3-faces
-        f.dim()
+        f.dimension()
         # 3
         ```
         """
         return self._dim
+    # Aliases
+    dim = dimension
 
-    def ambient_dim(self):
+    def ambient_dimension(self):
         """
         **Description:**
         Returns the dimension of the ambient lattice.
@@ -493,13 +518,18 @@ class PolytopeFace:
         **Returns:**
         *(int)* The dimension of the ambient lattice.
 
+        **Aliases:**
+        `ambient_dim`.
+
         **Example:**
         We construct a face from a polytope and print its ambient dimension.
         ```python {3}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
         f = p.faces(3)[0] # Pick one of the 3-faces
-        f.ambient_dim()
+        f.ambient_dimension()
         # 4
         ```
         """
         return self._ambient_dim
+    # Aliases
+    ambient_dim = ambient_dimension

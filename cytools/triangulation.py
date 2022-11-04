@@ -459,6 +459,9 @@ class Triangulation:
         **Returns:**
         *(numpy.ndarray)* The points of the triangulation.
 
+        **Aliases:**
+        `pts`.
+
         **Example:**
         We construct a triangulation and print the points in the point
         configuration. Note that since the polytope is reflexive, then by
@@ -477,6 +480,8 @@ class Triangulation:
         ```
         """
         return np.array(self._triang_pts)
+    # Aliases
+    pts = points
 
     def points_to_indices(self, points):
         """
@@ -789,7 +794,7 @@ class Triangulation:
         # Otherwise we find a point in the secondary cone
         return self.secondary_cone(include_points_not_in_triangulation=True).find_interior_point(integral=integral, backend=backend)
 
-    def dim(self):
+    def dimension(self):
         """
         **Description:**
         Returns the dimension of the triangulated point configuration.
@@ -800,18 +805,23 @@ class Triangulation:
         **Returns:**
         *(int)* The dimension of the triangulation.
 
+        **Aliases:**
+        `dim`.
+
         **Example:**
         We construct a triangulation and find its dimension.
         ```python {3}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
         t = p.triangulate()
-        t.dim()
+        t.dimension()
         # 4
         ```
         """
         return self._dim
+    # Aliases
+    dim = dimension
 
-    def ambient_dim(self):
+    def ambient_dimension(self):
         """
         **Description:**
         Returns the dimension of the ambient lattice.
@@ -821,6 +831,9 @@ class Triangulation:
 
         **Returns:**
         *(int)* The dimension of the ambient lattice.
+
+        **Aliases:**
+        `ambient_dim`.
 
         **Example:**
         We construct a triangulation and find its ambient dimension.
@@ -832,6 +845,8 @@ class Triangulation:
         ```
         """
         return self._poly._ambient_dim
+    # Aliases
+    ambient_dim = ambient_dimension
 
     def is_fine(self):
         """

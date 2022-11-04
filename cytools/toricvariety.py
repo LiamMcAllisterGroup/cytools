@@ -386,7 +386,7 @@ class ToricVariety:
         """
         return self._triang.polytope()
 
-    def dim(self):
+    def dimension(self):
         """
         **Description:**
         Returns the complex dimension of the toric variety.
@@ -397,17 +397,22 @@ class ToricVariety:
         **Returns:**
         *(int)* The complex dimension of the toric variety.
 
+        **Aliases:**
+        `dim`.
+
         **Example:**
         We construct a toric variety and find its dimension.
         ```python {4}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
         t = p.triangulate()
         v = t.get_toric_variety()
-        v.dim()
+        v.dimension()
         # 4
         ```
         """
         return self.triangulation().dim()
+    # Aliases
+    dim = dimension
 
     def sr_ideal(self):
         """
