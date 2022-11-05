@@ -40,8 +40,8 @@ from cytools import config
 
 class ToricVariety:
     """
-    This class handles various computations relating to the toric varieties.
-    It can be used to compute intersection numbers, the Kähler cone, among
+    This class handles various computations relating to toric varieties.
+    It can be used to compute intersection numbers and the Kähler cone, among
     other things.
 
     :::important
@@ -1230,7 +1230,7 @@ class ToricVariety:
     def intersection_numbers(self, in_basis=False, format="dok",
                              zero_as_anticanonical=False, backend="all",
                              check=True, backend_error_tol=1e-3,
-                             round_to_zero_treshold=1e-3,
+                             round_to_zero_threshold=1e-3,
                              round_to_integer_error_tol=5e-2,
                              verbose=0, exact_arithmetic=False):
         """
@@ -1268,8 +1268,8 @@ class ToricVariety:
           check the solution to the linear system.
         - `backend_error_tol` *(float, optional, default=1e-3)*: Error
           tolerance for the solution of the linear system.
-        - `round_to_zero_treshold` *(float, optional, default=1e-3)*:
-          Intersection numbers with magnitude smaller than this treshold are
+        - `round_to_zero_threshold` *(float, optional, default=1e-3)*:
+          Intersection numbers with magnitude smaller than this threshold are
           rounded to zero.
         - `round_to_integer_error_tol` *(float, optional, default=5e-2)*:
           All intersection numbers of the Calabi-Yau hypersurface must be
@@ -1391,14 +1391,14 @@ class ToricVariety:
                 for ii in distintnum_array:
                     intnums[tuple(int(round(j)) for j in ii[:-1])] = float_to_fmpq(ii[-1])
                 for i,ii in enumerate(variable_array):
-                    if abs(solution[i]) < round_to_zero_treshold:
+                    if abs(solution[i]) < round_to_zero_threshold:
                         continue
                     intnums[tuple(ii)] = float_to_fmpq(solution[i])
             else:
                 for ii in distintnum_array:
                     intnums[tuple(int(round(j)) for j in ii[:-1])] = ii[-1]
                 for i,ii in enumerate(variable_array):
-                    if abs(solution[i]) < round_to_zero_treshold:
+                    if abs(solution[i]) < round_to_zero_threshold:
                         continue
                     intnums[tuple(ii)] = solution[i]
             if self.is_smooth():
@@ -1456,7 +1456,7 @@ class ToricVariety:
                         canon_intnum.pop(ii)
             else:
                 for ii in list(canon_intnum.keys()):
-                    if abs(canon_intnum[ii]) < round_to_zero_treshold:
+                    if abs(canon_intnum[ii]) < round_to_zero_threshold:
                         canon_intnum.pop(ii)
             # Now we compute remaining intersection numbers
             canon_intnum_n = [canon_intnum]
@@ -1472,7 +1472,7 @@ class ToricVariety:
                             tmp_intnum.pop(ii)
                 else:
                     for ii in list(tmp_intnum.keys()):
-                        if abs(tmp_intnum[ii]) < round_to_zero_treshold:
+                        if abs(tmp_intnum[ii]) < round_to_zero_threshold:
                             tmp_intnum.pop(ii)
                 canon_intnum_n.append(tmp_intnum)
             for i in range(len(canon_intnum_n)):
@@ -1611,7 +1611,8 @@ class ToricVariety:
     def effective_cone(self):
         """
         **Description:**
-        Returns the effective cone of the toric variety.
+        Returns the cone of effective divisors, aka the effective cone, of the
+        toric variety.
 
         **Arguments:**
         None.

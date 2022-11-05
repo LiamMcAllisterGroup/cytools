@@ -26,7 +26,7 @@ versions_with_serious_bugs = []
 def check_for_updates():
     """
     **Description:**
-    Checks for updates of CYTools. It prints a message if a new version is,
+    Checks for updates of CYTools. It prints a message if a new version is
     avaiable, and displays a warning if the current version has a serious bug.
 
     **Arguments:**

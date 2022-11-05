@@ -42,9 +42,8 @@ from cytools import config
 class CalabiYau:
     """
     This class handles various computations relating to the Calabi-Yau manifold
-    itself. It can be used to compute intersection numbers, the toric Mori and
-    Kähler cones that can be inferred from the ambient variety, among other
-    things.
+    itself. It can be used to compute intersection numbers and the toric Mori and
+    Kähler cones, among other things.
 
     :::important
     Generally, objects of this class should not be constructed directly by the
@@ -58,7 +57,7 @@ class CalabiYau:
     :::tip experimental feature
     This package is focused on computations on Calabi-Yau 3-fold hypersurfaces,
     but there is experimental support for Calabi-Yaus of other dimensions and
-    complete intersection. See [experimental features](./experimental) for more
+    complete intersections. See [experimental features](./experimental) for more
     details.
     :::
 
@@ -78,8 +77,8 @@ class CalabiYau:
       defines a complete intersection Calabi-Yau.
 
     **Example:**
-    We construct a Calabi-Yau from an fine, regular, star triangulation of a
-    polytope. Since this class is not intended to by initialized by the end
+    We construct a Calabi-Yau from a fine, regular, star triangulation of a
+    polytope. Since this class is not intended to be initialized by the end
     user, we create it via the
     [`get_cy`](./triangulation#get_cy) function of the
     [`Triangulation`](./triangulation) class. In this example we obtain the
@@ -110,9 +109,9 @@ class CalabiYau:
 
         **Example:**
         This is the function that is called when creating a new
-        `ToricVariety` object. We construct a Calabi-Yau from an fine,
+        `ToricVariety` object. We construct a Calabi-Yau from a fine,
         regular, star triangulation of a polytope. Since this class is not
-        intended to by initialized by the end user, we create it via the
+        intended to be initialized by the end user, we create it via the
         [`get_cy`](./triangulation#get_cy) function of the
         [`Triangulation`](./triangulation) class. In this example we obtain the
         quintic hypersurface in $\mathbb{P}^4$.
@@ -606,7 +605,7 @@ class CalabiYau:
         Returns the Hodge number $h^{p,q}$ of the Calabi-Yau.
 
         :::note notes
-        - Only Calabi-Yaus hypersurfaces of dimension 2-4 are currently
+        - Only Calabi-Yau hypersurfaces of dimension 2-4 are currently
           supported. Hodge numbers of CICYs are computed with PALP.
         - This function always computes Hodge numbers from scratch, unless
           they were computed with PALP. The functions [`h11`](#h11),
@@ -654,7 +653,7 @@ class CalabiYau:
         Returns the Hodge number $h^{1,1}$ of the Calabi-Yau.
 
         :::note
-        Only Calabi-Yaus hypersurfaces of dimension 2-4 are currently
+        Only Calabi-Yau hypersurfaces of dimension 2-4 are currently
         supported. Hodge numbers of CICYs are computed with PALP.
         :::
 
@@ -687,7 +686,7 @@ class CalabiYau:
         Returns the Hodge number $h^{1,2}$ of the Calabi-Yau.
 
         :::note
-        Only Calabi-Yaus hypersurfaces of dimension 2-4 are currently
+        Only Calabi-Yau hypersurfaces of dimension 2-4 are currently
         supported. Hodge numbers of CICYs are computed with PALP.
         :::
 
@@ -725,7 +724,7 @@ class CalabiYau:
         Returns the Hodge number $h^{1,3}$ of the Calabi-Yau.
 
         :::note
-        Only Calabi-Yaus hypersurfaces of dimension 2-4 are currently
+        Only Calabi-Yau hypersurfaces of dimension 2-4 are currently
         supported. Hodge numbers of CICYs are computed with PALP.
         :::
 
@@ -763,7 +762,7 @@ class CalabiYau:
         Returns the Hodge number $h^{2,2}$ of the Calabi-Yau.
 
         :::note
-        Only Calabi-Yaus hypersurfaces of dimension 2-4 are currently
+        Only Calabi-Yau hypersurfaces of dimension 2-4 are currently
         supported. Hodge numbers of CICYs are computed with PALP.
         :::
 
@@ -796,7 +795,7 @@ class CalabiYau:
         Computes the Euler characteristic of the Calabi-Yau.
 
         :::note
-        Only Calabi-Yaus hypersurfaces of dimension 2-4 are currently
+        Only Calabi-Yau hypersurfaces of dimension 2-4 are currently
         supported. Hodge numbers of CICYs are computed with PALP.
         :::
 
@@ -1128,7 +1127,7 @@ class CalabiYau:
     def intersection_numbers(self, in_basis=False, format="dok",
                              zero_as_anticanonical=False, backend="all",
                              check=True, backend_error_tol=1e-3,
-                             round_to_zero_treshold=1e-3,
+                             round_to_zero_threshold=1e-3,
                              round_to_integer_error_tol=5e-2, verbose=0,
                              exact_arithmetic=False):
         """
@@ -1136,12 +1135,12 @@ class CalabiYau:
         Returns the intersection numbers of the Calabi-Yau manifold.
 
         :::tip experimental feature
-        The intersection numbers are computed as integers when it is smooth and
-        using a subset of prime toric divisors as a basis. Otherwise, they are
-        computed as floating-point numbers. There is the option to turn them
-        into rationals. The process is fairly quick, but it is unreliable at
-        large $h^{1,1}$. Furthermore, verifying that they are correct becomes
-        very slow at large $h^{1,1}$.
+        The intersection numbers are computed as integers when the Calabi-Yau
+        is smooth, and a subset of the prime toric divisors is used as the
+        basis. Otherwise, they are computed as floating-point numbers. There
+        is the option to turn them into rationals. The process is fairly
+        quick, but it is unreliable at large $h^{1,1}$. Furthermore,
+        verifying that they are correct becomes very slow at large $h^{1,1}$.
         :::
 
         **Arguments:**
@@ -1167,8 +1166,8 @@ class CalabiYau:
           check the solution to the linear system.
         - `backend_error_tol` *(float, optional, default=1e-3)*: Error
           tolerance for the solution of the linear system.
-        - `round_to_zero_treshold` *(float, optional, default=1e-3)*:
-          Intersection numbers with magnitude smaller than this treshold are
+        - `round_to_zero_threshold` *(float, optional, default=1e-3)*:
+          Intersection numbers with magnitude smaller than this threshold are
           rounded to zero.
         - `round_to_integer_error_tol` *(float, optional, default=5e-2)*:
           All intersection numbers of the Calabi-Yau hypersurface must be
@@ -1244,7 +1243,7 @@ class CalabiYau:
             ambient_intnums = self.ambient_variety().intersection_numbers(
                         in_basis=False, format="dok", backend=backend,
                         check=check, backend_error_tol=backend_error_tol,
-                        round_to_zero_treshold=round_to_zero_treshold,
+                        round_to_zero_threshold=round_to_zero_threshold,
                         round_to_integer_error_tol=round_to_integer_error_tol,
                         verbose=verbose, exact_arithmetic=exact_arithmetic)
             if self._is_hypersurface:
@@ -1260,7 +1259,7 @@ class CalabiYau:
                         choices = set(tuple(sorted(c for i,c in enumerate(ii) if i!=j)) for j in range(ambient_dim-dd) if ii[j] in parts[dd])
                         for c in choices:
                             intnums_dict_tmp[c] += intnums_dict[ii]
-                    intnums_dict = {ii:intnums_dict_tmp[ii] for ii in intnums_dict_tmp if abs(intnums_dict_tmp[ii]) > round_to_zero_treshold}
+                    intnums_dict = {ii:intnums_dict_tmp[ii] for ii in intnums_dict_tmp if abs(intnums_dict_tmp[ii]) > round_to_zero_threshold}
                 intnums_cy = intnums_dict
                 if all(abs(round(intnums_cy[ii])-intnums_cy[ii]) < round_to_integer_error_tol for ii in intnums_cy):
                     self._is_smooth = True
@@ -1528,7 +1527,8 @@ class CalabiYau:
     def toric_effective_cone(self):
         """
         **Description:**
-        Returns the effective cone inferred from toric geometry.
+        Returns the cone of effective divisors, aka the effective cone,
+        inferred from toric geometry.
 
         **Arguments:**
         None.

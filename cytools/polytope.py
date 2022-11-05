@@ -43,7 +43,7 @@ from cytools import config
 class Polytope:
     """
     This class handles all computations relating to lattice polytopes, such as
-    the computation of its lattice points and faces. When using reflexive
+    the computation of lattice points and faces. When using reflexive
     polytopes, it also allows the computation of topological properties of the
     arising Calabi-Yau hypersurfaces that only depend on the polytope.
 
@@ -3203,7 +3203,7 @@ class Polytope:
         """
         **Description:**
         Computes all triangulations of the polytope using TOPCOM. There is the
-        option to only compute fire, regular or fine triangulations.
+        option to only compute fine, regular or fine triangulations.
 
         :::caution warning
         Polytopes with more than around 15 points usually have too many

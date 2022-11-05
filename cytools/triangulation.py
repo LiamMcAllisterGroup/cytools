@@ -1360,8 +1360,8 @@ class Triangulation:
 
         :::note
         Only Calabi-Yau 3-fold hypersurfaces are fully supported. Other
-        dimensions and CICYs require enabling the experimetal features of
-        CYTools. See [experimetal features](./experimental) for more details.
+        dimensions and CICYs require enabling the experimental features of
+        CYTools. See [experimental features](./experimental) for more details.
         :::
 
         **Arguments:**
@@ -1398,7 +1398,7 @@ def convert_to_star(simplices, facets, star_origin):
 
     :::important
     This function is only reliable for triangulations of reflexive polytopes
-    and may produce invalid tiangulations for other polytopes.
+    and may produce invalid triangulations for other polytopes.
     :::
 
     **Arguments:**
@@ -1600,7 +1600,7 @@ def all_triangulations(points, only_fine=False, only_regular=False,
 
     **Returns:**
     *(generator)* A generator of [`Triangulation`](./triangulation) objects
-    with the specified properties. If `raw_output` is set to True then it
+    with the specified properties. If `raw_output` is set to True then
     numpy arrays are used instead.
 
     **Example:**

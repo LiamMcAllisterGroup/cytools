@@ -128,7 +128,7 @@ def enable_experimental_features():
     Nothing.
 
     **Example:**
-    We enable the experimetal features.
+    We enable the experimental features.
     ```python {2}
     import cytools
     cytools.config.enable_experimental_features()

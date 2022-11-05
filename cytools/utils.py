@@ -1064,7 +1064,7 @@ def fetch_polytopes(h11=None, h12=None, h13=None, h21=None, h22=None, h31=None,
     or the full list when `as_list` is set to True.
 
     **Example:**
-    We fetch polytope from the Kreuzer-Skarke and Schöller-Skarke databases
+    We fetch polytopes from the Kreuzer-Skarke and Schöller-Skarke databases
     with a few different parameters.
     ```python {2,5,8}
     from cytools import fetch_polytopes # Note that it can directly be imported from the root
@@ -1096,7 +1096,7 @@ def fetch_polytopes(h11=None, h12=None, h13=None, h21=None, h22=None, h31=None,
     fetch_limit = limit
     # if favorable is set to True or False we fetch extra polytopes
     if favorable is not None:
-         fetch_limit = (2 if favorable else 10)*fetch_limit + 50
+         fetch_limit = (5 if favorable else 10)*fetch_limit + 100
     if dim == 4:
         if h13 is not None or h22 is not None:
             print("Ignoring inputs for h13 and h22.")
