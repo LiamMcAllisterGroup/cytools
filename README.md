@@ -1,10 +1,10 @@
 
 <p align="center">
-    <img src="https://cy.tools/img/titleimage-circle.svg?sanitize=true" width="250"></img><br></br>
-    <b>A software package for analyzing Calabi-Yau hypersurfaces in toric varieties.</b><br></br>
+    <img src="https://cy.tools/img/titleimage-circle.png?sanitize=true" width="250"></img><br></br>
+    <b>A software package for analyzing Calabi-Yau manifolds</b><br></br>
     <img alt="Latest release" src="https://img.shields.io/github/v/release/liammcallistergroup/cytools"></img>
     <img alt="Number of downloads" src="https://img.shields.io/github/downloads/liammcallistergroup/topcom/total"></img>
-    <img alt="Lines of code" src="https://img.shields.io/tokei/lines/github/liammcallistergroup/cytools"></img>
+    <img alt="Docker Image Size" src="https://img.shields.io/docker/image-size/liammcallistergroup/cytools/singularity"></img>
     <img alt="License" src="https://img.shields.io/github/license/liammcallistergroup/cytools"></img>
 </p>
 
