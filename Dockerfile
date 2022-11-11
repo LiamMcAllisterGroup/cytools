@@ -53,6 +53,9 @@ WORKDIR /opt/cytools/external/topcom-mod
 RUN wget https://github.com/LiamMcAllisterGroup/topcom/releases/download/v0.17.8%2Bds-2%2Bcytools-1/topcom_0.17.8+ds-2+cytools-1_${ARCH}.deb
 RUN dpkg -i topcom_0.17.8+ds-2+cytools-1_${ARCH}.deb
 
+# Download file from github to keep track of the number of downloads
+RUN wget https://github.com/LiamMcAllisterGroup/cytools/releases/download/v1.0.0/download_counter.txt
+
 # Copy code and installer
 COPY . /opt/cytools/
 WORKDIR /opt/cytools/

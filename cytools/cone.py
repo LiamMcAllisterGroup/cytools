@@ -767,7 +767,7 @@ class Cone:
             q = np.zeros(hp.shape[1], dtype=float)
             h = np.full(hp.shape[0], -c, dtype=float)
             G = -1*sparse.csc_matrix(hp, dtype=float)
-            settings_dict = ({"max_iter":100000, "scaling":50} if backend=="osqp"
+            settings_dict = ({"max_iter":100000, "scaling":50, "eps_abs":1e-4, "eps_rel":1e-4, "polish":True} if backend=="osqp"
                                 else dict())
             solution = qpsolvers.solve_qp(P,q,G,h,solver=backend, **settings_dict)
         if solution is None:
