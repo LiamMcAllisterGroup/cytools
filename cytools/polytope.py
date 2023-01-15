@@ -1080,7 +1080,7 @@ class Polytope:
                              "Options are: \"N\" or \"M\".")
         if p > q:
             p,q = q,p
-        if p > d-1 or p > d-1 or p < 0 or q < 0 or p+q > d-1:
+        if p > d-1 or q > d-1 or p < 0 or q < 0 or p+q > d-1:
             return 0
         if p in (0,d-1) or q in (0,d-1):
             if p == q or (p,q) == (0,d-1):
