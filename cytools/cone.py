@@ -947,7 +947,7 @@ class Cone:
           indicating whether to keep the point. Note that `min_points` does
           not take the filtering into account.
         - `process_function` *(function, optional)*: A function to process the
-          points as the are found. This is useful to avoid first constructing
+          points as they are found. This is useful to avoid first constructing
           a large list of points and then processing it.
 
         **Returns:**

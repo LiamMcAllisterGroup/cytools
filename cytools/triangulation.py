@@ -1156,7 +1156,7 @@ class Triangulation:
                          ).replace("[","{").replace("]","}")
         flips_str = "(-1)"
         topcom_input = pts_str + "[]" + triang_str + flips_str
-        topcom_bin = config.topcom_path + "topcom-randomwalk"
+        topcom_bin = config.topcom_path + "topcom-points2flips"
         topcom = subprocess.Popen((topcom_bin,), stdin=subprocess.PIPE,
                                   stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE,
