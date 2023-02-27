@@ -853,8 +853,6 @@ class Cone:
                 point = point/len(self._rays)
             return point
         # Otherwise we need to do a harder computation to find an interior point
-        if integral and backend is None and self.ambient_dim() < 25:
-            backend = "scip"
         if backend is None:
             backend = ("mosek" if config.mosek_is_activated() and self.ambient_dim() >= 25 else "glop")
         if backend in ("glop", "scip"):
@@ -878,7 +876,16 @@ class Cone:
             elif status == solver.INFEASIBLE:
                 return None
             else:
-                warnings.warn(f"Solver returned status {status}.")
+                status_list = [
+                    "OPTIMAL",
+                    "FEASIBLE",
+                    "INFEASIBLE",
+                    "UNBOUNDED",
+                    "ABNORMAL",
+                    "MODEL_INVALID",
+                    "NOT_SOLVED"]
+                warnings.warn(f"Solver returned status {status_list[status]}.")
+                return None
         elif backend == "cpsat":
             hp = self.hyperplanes().tolist()
             obj_vec = np.sum(hp, axis=0)
