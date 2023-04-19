@@ -1632,9 +1632,9 @@ def all_triangulations(points, only_fine=False, only_regular=False,
     # Make sure that the points are sorted in the right way when constructing Triangulation objects
     if raw_output:
         backend = "topcom"
+        points = np.array(points, dtype=int)
     else:
         points = poly.points()[sorted(set(poly.points_to_indices(points)))]
-    points = np.array(points, dtype=int)
     # If the point configuration is not full-dimensional we find an better representation of the points
     # Note that we only perform an affine transformation, so we can treat this new list of points as if it
     # was the original one.
@@ -1645,8 +1645,8 @@ def all_triangulations(points, only_fine=False, only_regular=False,
         optimal_pts = np.array([pt - points[0] for pt in points])
         optimal_pts = np.array(fmpz_mat(optimal_pts.T.tolist()).lll().transpose().tolist(), dtype=int)[:,-dim:]
     topcom_bin = (config.topcom_path
-                  + ("topcom-points2finetriangs" if only_fine
-                     else "topcom-points2triangs"))
+                  + ("topcom-points2allfinetriangs" if only_fine
+                     else "topcom-points2alltriangs"))
     topcom = subprocess.Popen((topcom_bin,)+(("--regular",) if backend=="topcom" and only_regular else ()),
                               stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE, universal_newlines=True)

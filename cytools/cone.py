@@ -816,13 +816,13 @@ class Cone:
         then None is returned.
 
         **Arguments:**
-        - `c` *(float, optional, default=1)*: A real positive number specifying the stretching
-          of the cone (i.e. the minimum distance to the defining hyperplanes).
+        - `c` *(float, optional, default=1)*: A real positive number specifying
+          the stretching of the cone (i.e. the minimum distance to the defining
+          hyperplanes).
         - `backend` *(str, optional, default=None)*: String that
           specifies the optimizer to use. Options are "glop", "scip", "cpsat",
-          "mosek", "osqp", and "cvxopt". If it is not specified then for $d<50$
-          it uses "glop" by if `integral` is False or "scip" if it is True. For
-          $d\geq50$ it uses "mosek" if it is activated, or "glop" otherwise.
+          "mosek", "osqp", and "cvxopt". If it is not specified then "glop" is
+          used by default. For $d\geq50$ it uses "mosek" if it is activated.
         - `integral` *(bool, optional, default=False)*: A flag that specifies
           whether the point should have integral coordinates.
 
