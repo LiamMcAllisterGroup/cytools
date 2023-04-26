@@ -1,0 +1,67 @@
+/**
+ * Any CSS included here will be global. The classic template
+ * bundles Infima by default. Infima is a CSS framework designed to
+ * work well for content-centric websites.
+ */
+
+/* You can override the default Infima variables here. */
+/* :root {
+  --ifm-color-primary: #2e8555;
+  --ifm-color-primary-dark: #29784c;
+  --ifm-color-primary-darker: #277148;
+  --ifm-color-primary-darkest: #205d3b;
+  --ifm-color-primary-light: #33925d;
+  --ifm-color-primary-lighter: #359962;
+  --ifm-color-primary-lightest: #3cad6e;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+} */
+
+:root {
+  --ifm-color-primary: #3578e5;
+  --ifm-color-primary-dark: #1d68e1;
+  --ifm-color-primary-darker: #1b62d4;
+  --ifm-color-primary-darkest: #1751af;
+  --ifm-color-primary-light: #4e89e8;
+  --ifm-color-primary-lighter: #5a91ea;
+  --ifm-color-primary-lightest: #80aaef;
+  --ifm-code-font-size: 95%;
+}
+[data-theme='dark'] {
+  --ifm-color-primary: #4984e4;
+  --ifm-color-primary-dark: #2f72e0;
+  --ifm-color-primary-darker: #2269de;
+  --ifm-color-primary-darkest: #1b57b7;
+  --ifm-color-primary-light: #6396e8;
+  --ifm-color-primary-lighter: #709fea;
+  --ifm-color-primary-lightest: #98b9f0;
+}
+
+/* For readability concerns, you should choose a lighter palette in dark mode. */
+/* [data-theme='dark'] {
+  --ifm-color-primary: #25c2a0;
+  --ifm-color-primary-dark: #21af90;
+  --ifm-color-primary-darker: #1fa588;
+  --ifm-color-primary-darkest: #1a8870;
+  --ifm-color-primary-light: #29d5b0;
+  --ifm-color-primary-lighter: #32d8b4;
+  --ifm-color-primary-lightest: #4fddbf;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+} */
+
+
+:root {
+  --docusaurus-highlighted-code-line-bg: rgb(204, 205, 207);
+}
+
+[data-theme='dark'] {
+  --docusaurus-highlighted-code-line-bg: rgb(72, 77, 91);
+}
+
+
+@import url("https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css");
+
+.animation-delay-100 {
+  -webkit-animation-delay: .7s;
+  animation-delay: .7s;
+}
