@@ -930,7 +930,8 @@ class Cone:
 
     def find_lattice_points(self, min_points=None, max_deg=None,
                             grading_vector=None, max_coord=1000,
-                            filter_function=None, process_function=None):
+                            filter_function=None, process_function=None,
+                            verbose=True):
         """
         **Description:**
         Finds lattice points in the cone. The points are found in the region
@@ -1076,7 +1077,8 @@ class Cone:
             solver = cp_model.CpSolver()
             status = solver.SearchForAllSolutions(model, solution_storage)
             if status != cp_model.OPTIMAL:
-                raise Exception(f"There was a problem finding the points. Status code: {status}")
+                print(f"There was a problem finding the points. Status code: {solver.StatusName(status)}")
+                return
         else: # Else, we're going to add points until the minimum number is reached
             deg = 0
             while True:
@@ -1088,8 +1090,8 @@ class Cone:
                 model.Add(sum(ii*var[i] for i,ii in enumerate(grading_vector)) == deg)
                 solver = cp_model.CpSolver()
                 status = solver.SearchForAllSolutions(model, solution_storage)
-                if status != cp_model.OPTIMAL:
-                    raise Exception(f"There was a problem finding the points. Status code: {status}")
+                if status != cp_model.OPTIMAL and verbose:
+                    print(f"There was a problem finding the points at degree {deg}. Status code: {solver.StatusName(status)}")
                 deg += 1
                 if solution_storage._n_sol >= min_points:
                     break
