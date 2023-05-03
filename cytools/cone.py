@@ -25,6 +25,7 @@ import warnings
 import random
 import string
 import os
+import math
 # Third party imports
 from flint import fmpz_mat, fmpz, fmpq
 from ortools.linear_solver import pywraplp
@@ -136,6 +137,12 @@ class Cone:
                 raise NotImplementedError("Zero-dimensional cones are not supported.")
             if len(tmp_rays.shape) != 2:
                 raise ValueError("Input must be a matrix.")
+            if np.min(tmp_rays)<=-100000000000000:
+                warnings.warn(f"Extremely small coordinate, {np.min(tmp_rays)},"
+                        " found in rays. Computations may be incorrect.")
+            if np.max(tmp_rays)>=+100000000000000:
+                warnings.warn(f"Extremely large coordinate, {np.max(tmp_rays)},"
+                        " found in rays. Computations may be incorrect.")
             t = type(tmp_rays[0,0])
             if t == fmpz:
                 if not config._exp_features_enabled:
@@ -152,18 +159,19 @@ class Cone:
             elif t not in (np.int64, np.float64):
                 raise NotImplementedError("Unsupported data type.")
             if check or t in (fmpz, np.float64):
-                tmp_rays = []
                 if len(rays) < 1:
                     raise ValueError("At least one rays is required.")
-                for r in rays:
-                    g = gcd_list(r)
-                    if g == 0:
-                        continue
-                    if g < 1e-5:
+                self._rays = np.array(rays)
+                if t == np.int64:
+                    gcds = np.array([math.gcd(*r) for r in rays], dtype=int).reshape(-1,1)
+                    self._rays = self._rays.astype(int)//gcds
+                else:
+                    self._rays = np.array(rays, dtype=int)
+                    gcds = np.array([gcd_list(r) for r in rays]).reshape(-1,1)
+                    if min(gcds) < 1e-5:
                         warnings.warn("Extremely small gcd found. "
                                       "Computations may be incorrect.")
-                    tmp_rays.append([int(round(c/g)) for c in r])
-                self._rays = np.array(tmp_rays, dtype=int)
+                    self._rays = (self._rays/gcds).astype(int)
             else:
                 self._rays = np.array(rays, dtype=int)
             self._hyperplanes = None
@@ -174,6 +182,12 @@ class Cone:
                 raise NotImplementedError("Cones that cover the entire space are not supported.")
             if len(tmp_hp.shape) != 2:
                 raise ValueError("Input must be a matrix.")
+            if np.min(tmp_hp)<=-100000000000000:
+                warnings.warn(f"Extremely small coordinate, {np.min(tmp_hp)},"
+                        " found in hyperplanes. Computations may be incorrect.")
+            if np.max(tmp_hp)>=+100000000000000:
+                warnings.warn(f"Extremely large coordinate, {np.max(tmp_hp)},"
+                        " found in hyperplanes. Computations may be incorrect.")
             t = type(tmp_hp[0,0])
             if t == fmpz:
                 if not config._exp_features_enabled:
@@ -190,18 +204,18 @@ class Cone:
             elif t not in (np.int64, np.float64):
                 raise NotImplementedError("Unsupported data type.")
             if check or t in (fmpz, np.float64):
-                tmp_hp = []
                 if len(hyperplanes) < 1:
                     raise ValueError("At least one hyperplane is required.")
-                for r in hyperplanes:
-                    g = gcd_list(r)
-                    if g == 0:
-                        continue
-                    if g < 1e-5:
+                self._hyperplanes = np.array(hyperplanes)
+                if t == np.int64:
+                    gcds = np.array([math.gcd(*hp) for hp in hyperplanes], dtype=int).reshape(-1,1)
+                    self._hyperplanes = self._hyperplanes.astype(int)//gcds
+                else:
+                    gcds = np.array([gcd_list(hp) for hp in hyperplanes]).reshape(-1,1)
+                    if min(gcds) < 1e-5:
                         warnings.warn("Extremely small gcd found. "
                                       "Computations may be incorrect.")
-                    tmp_hp.append([int(round(c/g)) for c in r])
-                self._hyperplanes = np.array(tmp_hp, dtype=int)
+                    self._hyperplanes = (self._hyperplanes/gcds).astype(int)
             else:
                 self._hyperplanes = np.array(hyperplanes, dtype=int)
             self._rays = None
