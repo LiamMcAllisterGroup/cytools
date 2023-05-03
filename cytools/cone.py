@@ -138,10 +138,10 @@ class Cone:
             if len(tmp_rays.shape) != 2:
                 raise ValueError("Input must be a matrix.")
             if np.min(tmp_rays)<=-100000000000000:
-                warnings.warn(f"Extremely small coordinate, {np.min(tmp_rays)}"
+                warnings.warn(f"Extremely small coordinate, {np.min(tmp_rays)},"
                         " found in rays. Computations may be incorrect.")
             if np.max(tmp_rays)>=+100000000000000:
-                warnings.warn(f"Extremely large coordinate, {np.max(tmp_rays)}"
+                warnings.warn(f"Extremely large coordinate, {np.max(tmp_rays)},"
                         " found in rays. Computations may be incorrect.")
             t = type(tmp_rays[0,0])
             if t == fmpz:
@@ -183,10 +183,10 @@ class Cone:
             if len(tmp_hp.shape) != 2:
                 raise ValueError("Input must be a matrix.")
             if np.min(tmp_hp)<=-100000000000000:
-                warnings.warn(f"Extremely small coordinate, {np.min(tmp_hp)}"
+                warnings.warn(f"Extremely small coordinate, {np.min(tmp_hp)},"
                         " found in hyperplanes. Computations may be incorrect.")
             if np.max(tmp_hp)>=+100000000000000:
-                warnings.warn(f"Extremely large coordinate, {np.max(tmp_hp)}"
+                warnings.warn(f"Extremely large coordinate, {np.max(tmp_hp)},"
                         " found in hyperplanes. Computations may be incorrect.")
             t = type(tmp_hp[0,0])
             if t == fmpz:
