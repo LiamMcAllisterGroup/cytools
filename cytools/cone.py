@@ -161,7 +161,6 @@ class Cone:
             if check or t in (fmpz, np.float64):
                 if len(rays) < 1:
                     raise ValueError("At least one rays is required.")
-
                 self._rays = np.array(rays)
                 if t == np.int64:
                     gcds = np.array([math.gcd(*r) for r in rays], dtype=int).reshape(-1,1)
@@ -207,7 +206,6 @@ class Cone:
             if check or t in (fmpz, np.float64):
                 if len(hyperplanes) < 1:
                     raise ValueError("At least one hyperplane is required.")
-
                 self._hyperplanes = np.array(hyperplanes)
                 if t == np.int64:
                     gcds = np.array([math.gcd(*hp) for hp in hyperplanes], dtype=int).reshape(-1,1)
