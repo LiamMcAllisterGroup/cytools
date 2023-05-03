@@ -166,7 +166,6 @@ class Cone:
                     gcds = np.array([math.gcd(*r) for r in rays], dtype=int).reshape(-1,1)
                     self._rays = self._rays.astype(int)//gcds
                 else:
-                    self._rays = np.array(rays, dtype=int)
                     gcds = np.array([gcd_list(r) for r in rays]).reshape(-1,1)
                     if min(gcds) < 1e-5:
                         warnings.warn("Extremely small gcd found. "
