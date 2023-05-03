@@ -301,13 +301,13 @@ class Cone:
         """
         if not isinstance(other, Cone):
             return NotImplemented
+
         if (self._rays is not None and other._rays is not None and
             sorted(self._rays.tolist()) == sorted(other._rays.tolist())):
             return True
-        if (self._hyperplanes is not None and
-                other._hyperplanes is not None and
-                sorted(self._hyperplanes.tolist()) ==
-                    sorted(other._hyperplanes.tolist())):
+        if (self._hyperplanes is not None and other._hyperplanes is not None
+                and sorted(self._hyperplanes.tolist()) ==
+                                        sorted(other._hyperplanes.tolist())):
             return True
         if self.is_pointed() ^ other.is_pointed():
             return False
@@ -319,6 +319,7 @@ class Cone:
         if self.dual().is_pointed() and other.dual().is_pointed():
             return (sorted(self.dual().extremal_rays().tolist())
                     == sorted(other.dual().extremal_rays().tolist()))
+
         warnings.warn("The comparison of cones that are not pointed, and "
                       "whose duals are also not pointed, is not supported.")
         return NotImplemented
@@ -390,6 +391,7 @@ class Cone:
             self._hash = -hash(tuple(sorted(tuple(v)
                                         for v in self.dual().extremal_rays())))
             return self._hash
+
         warnings.warn("Cones that are not pointed and whose duals are also "
                       "not pointed are assigned a hash value of 0.")
         return 0
@@ -613,8 +615,11 @@ class Cone:
         """
         if self._ext_rays is not None:
             return np.array(self._ext_rays)
+
         # It is important to delete duplicates
         rays = np.array(list({tuple(r) for r in self.rays()}))
+
+        # configure threads
         n_threads = config.n_threads
         if n_threads is None:
             if rays.shape[0] < 32 or not self.is_pointed():
@@ -623,9 +628,10 @@ class Cone:
                 n_threads = cpu_count()
         elif n_threads > 1 and not self.is_pointed():
             warnings.warn("When finding the extremal rays of a non-pointed "
-                          "cone in parallel there can be conflicts that end up "
-                          "producing erroneous results. It is highly recommended to "
-                          "use a single thread.")
+                    "cone in parallel, there can be conflicts that end up "
+                    "producing erroneous results. It is highly recommended to "
+                    "use a single thread.")
+
         current_rays = set(range(rays.shape[0]))
         ext_rays = set()
         error_rays = set()
@@ -633,27 +639,38 @@ class Cone:
         failed_after_rechecking = False
         while True:
             checking = []
+
+            # fill list of rays that we're currently checking
             for i in current_rays:
                 if (i not in ext_rays
                         and (i not in error_rays or rechecking_rays)):
                     checking.append(i)
                 if len(checking) >= n_threads:
                     break
+
             if len(checking) == 0:
                 if rechecking_rays:
                     break
                 rechecking_rays = True
+
+            # check each ray (using multiple threads)
+            q = Queue()
+
             As = [np.array([rays[j] for j in current_rays if j!=k],dtype=int).T
                     for k in checking]
             bs = [rays[k] for k in checking]
-            q = Queue()
+
             procs = [Process(target=is_extremal,
                      args=(As[k],bs[k],k,q,tol)) for k in range(len(checking))]
+
             for t in procs:
                 t.start()
             for t in procs:
                 t.join()
+
             results = [q.get() for j in range(len(checking))]
+
+            # parse results
             for res in results:
                 if res[1] is None:
                     error_rays.add(checking[res[0]])
@@ -661,20 +678,25 @@ class Cone:
                         failed_after_rechecking = True
                         ext_rays.add(checking[res[0]])
                     elif verbose:
-                        print("Minimization failed. "
-                              "Ray will be rechecked later...")
+                        print("Cone.extremal_rays: Minimization failed. Ray "
+                                                "will be rechecked later...")
                 elif not res[1]:
                     current_rays.remove(checking[res[0]])
                 else:
                     ext_rays.add(checking[res[0]])
+
                 if rechecking_rays:
                     error_rays.remove(checking[res[0]])
+
             if verbose:
-                print(f"Eliminated {sum(not r[1] for r in results)}. "
-                      f"Current number of rays: {len(current_rays)}")
+                print("Cone.extremal_rays: Eliminated "
+                    f"{sum(not r[1] for r in results)}. "
+                    f"Current number of rays: {len(current_rays)}")
+
         if failed_after_rechecking:
             warnings.warn("Minimization failed after multiple attempts. "
                           "Some rays may not be extremal.")
+
         self._ext_rays = rays[list(ext_rays),:]
         return self._ext_rays
 
