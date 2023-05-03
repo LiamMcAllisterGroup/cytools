@@ -128,112 +128,85 @@ class Cone:
         # True
         ```
         """
+        # initialize variables
+        self.clear_cache()
+
+        # check inputs
         if not ((rays is None) ^ (hyperplanes is None)):
             raise ValueError("Exactly one of \"rays\" and \"hyperplanes\" "
                             "must be specified.")
-        if rays is not None:
-            tmp_rays = np.array(rays)
-            if any(not i for i in tmp_rays.shape):
-                raise NotImplementedError("Zero-dimensional cones are not supported.")
-            if len(tmp_rays.shape) != 2:
-                raise ValueError("Input must be a matrix.")
-            if np.min(tmp_rays)<=-100000000000000:
-                warnings.warn(f"Extremely small coordinate, {np.min(tmp_rays)},"
-                        " found in rays. Computations may be incorrect.")
-            if np.max(tmp_rays)>=+100000000000000:
-                warnings.warn(f"Extremely large coordinate, {np.max(tmp_rays)},"
-                        " found in rays. Computations may be incorrect.")
-            t = type(tmp_rays[0,0])
-            if t == fmpz:
-                if not config._exp_features_enabled:
-                    print("Arbitrary precision data types only have "
-                          "experimental support, so experimental features "
-                          "must be enabled in the configuration.")
-                rays = array_fmpz_to_int(tmp_rays)
-            elif t == fmpq:
-                if not config._exp_features_enabled:
-                    print("Arbitrary precision data types only have "
-                          "experimental support, so experimental features "
-                          "must be enabled in the configuration.")
-                rays = array_fmpq_to_float(tmp_rays)
-            elif t not in (np.int64, np.float64):
-                raise NotImplementedError("Unsupported data type.")
-            if check or t in (fmpz, np.float64):
-                if len(rays) < 1:
-                    raise ValueError("At least one rays is required.")
-                self._rays = np.array(rays)
-                if t == np.int64:
-                    gcds = np.array([math.gcd(*r) for r in rays], dtype=int).reshape(-1,1)
-                    self._rays = self._rays.astype(int)//gcds
-                else:
-                    gcds = np.array([gcd_list(r) for r in rays]).reshape(-1,1)
-                    if min(gcds) < 1e-5:
-                        warnings.warn("Extremely small gcd found. "
-                                      "Computations may be incorrect.")
-                    self._rays = (self._rays/gcds).astype(int)
-            else:
-                self._rays = np.array(rays, dtype=int)
-            self._hyperplanes = None
-            self._rays_were_input = True
-        if hyperplanes is not None:
-            tmp_hp = np.array(hyperplanes)
-            if any(not i for i in tmp_hp.shape):
-                raise NotImplementedError("Cones that cover the entire space are not supported.")
-            if len(tmp_hp.shape) != 2:
-                raise ValueError("Input must be a matrix.")
-            if np.min(tmp_hp)<=-100000000000000:
-                warnings.warn(f"Extremely small coordinate, {np.min(tmp_hp)},"
-                        " found in hyperplanes. Computations may be incorrect.")
-            if np.max(tmp_hp)>=+100000000000000:
-                warnings.warn(f"Extremely large coordinate, {np.max(tmp_hp)},"
-                        " found in hyperplanes. Computations may be incorrect.")
-            t = type(tmp_hp[0,0])
-            if t == fmpz:
-                if not config._exp_features_enabled:
-                    print("Arbitrary precision data types only have "
-                          "experimental support, so experimental features "
-                          "must be enabled in the configuration.")
-                hyperplanes = array_fmpz_to_int(tmp_hp)
-            elif t == fmpq:
-                if not config._exp_features_enabled:
-                    print("Arbitrary precision data types only have "
-                          "experimental support, so experimental features "
-                          "must be enabled in the configuration.")
-                hyperplanes = array_fmpq_to_float(tmp_hp)
-            elif t not in (np.int64, np.float64):
-                raise NotImplementedError("Unsupported data type.")
-            if check or t in (fmpz, np.float64):
-                if len(hyperplanes) < 1:
-                    raise ValueError("At least one hyperplane is required.")
-                self._hyperplanes = np.array(hyperplanes)
-                if t == np.int64:
-                    gcds = np.array([math.gcd(*hp) for hp in hyperplanes], dtype=int).reshape(-1,1)
-                    self._hyperplanes = self._hyperplanes.astype(int)//gcds
-                else:
-                    gcds = np.array([gcd_list(hp) for hp in hyperplanes]).reshape(-1,1)
-                    if min(gcds) < 1e-5:
-                        warnings.warn("Extremely small gcd found. "
-                                      "Computations may be incorrect.")
-                    self._hyperplanes = (self._hyperplanes/gcds).astype(int)
-            else:
-                self._hyperplanes = np.array(hyperplanes, dtype=int)
-            self._rays = None
+        if rays is None:
             self._rays_were_input = False
-        self._ambient_dim = (self._rays.shape[1] if rays is not None else
-                             self._hyperplanes.shape[1])
-        if rays is not None:
+            self._rays = None
+            data = np.array(hyperplanes)
+            data_name = "hyperplane(s)"
+        else:
+            self._rays_were_input = True
+            self._hyperplanes = None
+            data = np.array(rays)
+            data_name = "ray(s)"
+
+        # basic data-checking
+        if len(data.shape) != 2:
+            raise ValueError(f"Input {data_name} must be a 2D matrix.")
+        elif data[0]<1:
+            raise ValueError(f"At least one {data_name} is required.")
+        elif data[1]<1:
+            raise ValueError("Zero-dimensional cones are not supported.")
+
+        self._ambient_dim = data.shape[1]
+
+        # check size of coordinates
+        if np.min(data)<=-100000000000000:
+            warnings.warn(f"Extremely small coordinate, {np.min(data)}, "
+                    f"found in {data_name}. Computations may be incorrect.")
+        if np.max(data)>=+100000000000000:
+            warnings.warn(f"Extremely large coordinate, {np.max(data)}, "
+                    f"found in {data_name}. Computations may be incorrect.")
+
+        # parse input according to data type
+        t = type(data[0,0])
+        if t in (fmpz, fmpq):
+            if not config._exp_features_enabled:
+                raise Exception("Arbitrary precision data types only have "
+                            "experimental support, so experimental features "
+                            "must be enabled in the configuration.")
+            if t == fmpz:
+                data = array_fmpz_to_int(data)
+            else:
+                data = array_fmpq_to_float(data)
+        elif t not in (np.int64, np.float64):
+            raise NotImplementedError("Unsupported data type.")
+
+        # reduce by GCD
+        if check or t in (fmpz, np.float64):
+            # get GCDs
+            if t == np.int64:
+                gcd_fct = lambda v: math.gcd(*v)
+            else:
+                gcd_fct = gcd_list
+
+            gcds = np.array([gcd_fct(v) for v in data])
+            gcds = gcds.reshape(-1,1).astype(int)
+
+            # reduce by them
+            if t == np.int64:
+                data = data//gcds
+            else:
+                if min(gcds) < 1e-5:
+                    warnings.warn("Extremely small gcd found. "
+                                  "Computations may be incorrect.")
+                data = (data/gcds).astype(int)
+        else:
+            data = data.astype(int)
+
+        # put data in correct variable
+        if self._rays_were_input:
+            self._rays = np.array(data)
             self._dim = np.linalg.matrix_rank(self._rays)
         else:
+            self._hyperplanes = np.array(data)
             self._dim = None
-        # Initialize remaining hidden attributes
-        self._hash = None
-        self._dual = None
-        self._ext_rays = None
-        self._is_solid = None
-        self._is_pointed = None
-        self._is_simplicial = None
-        self._is_smooth = None
-        self._hilbert_basis = None
 
     def clear_cache(self):
         """
