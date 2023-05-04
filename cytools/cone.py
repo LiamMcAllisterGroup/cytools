@@ -128,10 +128,7 @@ class Cone:
         # True
         ```
         """
-        # initialize variables
-        self.clear_cache()
-
-        # check inputs
+        # check whether rays or hyperplanes were input
         if not ((rays is None) ^ (hyperplanes is None)):
             raise ValueError("Exactly one of \"rays\" and \"hyperplanes\" "
                             "must be specified.")
@@ -146,12 +143,15 @@ class Cone:
             data = np.array(rays)
             data_name = "ray(s)"
 
+        # initialize other variables
+        self.clear_cache()
+
         # basic data-checking
         if len(data.shape) != 2:
             raise ValueError(f"Input {data_name} must be a 2D matrix.")
-        elif data[0]<1:
+        elif data.shape[0]<1:
             raise ValueError(f"At least one {data_name} is required.")
-        elif data[1]<1:
+        elif data.shape[1]<1:
             raise ValueError("Zero-dimensional cones are not supported.")
 
         self._ambient_dim = data.shape[1]
@@ -187,11 +187,11 @@ class Cone:
                 gcd_fct = gcd_list
 
             gcds = np.array([gcd_fct(v) for v in data])
-            gcds = gcds.reshape(-1,1).astype(int)
+            gcds = gcds.reshape(-1,1)
 
             # reduce by them
             if t == np.int64:
-                data = data//gcds
+                data = data//gcds.astype(int)
             else:
                 if min(gcds) < 1e-5:
                     warnings.warn("Extremely small gcd found. "
@@ -1264,7 +1264,7 @@ class Cone:
                 cs.insert(sum(h[i]*vrs[i] for i in range(self._ambient_dim))\
                                                                         >= 0)
             cone = ppl.C_Polyhedron(cs)
-            
+
             self._is_solid = cone.affine_dimension() == self._ambient_dim
         else:
             # Otherwise we check this by trying to find an interior point
