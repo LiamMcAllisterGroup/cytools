@@ -984,6 +984,7 @@ class Cone:
 
     def find_lattice_points(self, min_points=None, max_deg=None,
                             grading_vector=None, max_coord=1000,
+                            deg_window=0,
                             filter_function=None, process_function=None,
                             verbose=True):
         """
@@ -1004,6 +1005,9 @@ class Cone:
           will be used. If it is not specified then it is computed.
         - `max_coord` *(int, optional, default=1000)*: The maximum magnitude
           of the coordinates of the points.
+        - `deg_window` *(int, optional)*: If using min_points, search for
+            lattice points with degrees in range
+            [n*(deg_window+1), n*(deg_window+1)+deg_window] for 0<=n
         - `filter_function` *(function, optional)*: A function to use as a
           filter of the points that will be kept. It should return a boolean
           indicating whether to keep the point. Note that `min_points` does
@@ -1011,6 +1015,8 @@ class Cone:
         - `process_function` *(function, optional)*: A function to process the
           points as they are found. This is useful to avoid first constructing
           a large list of points and then processing it.
+        - `verbose` *(boolean, optional)*: Whether to print extra diagnostic
+            information (True) or not (False).
 
         **Returns:**
         *(numpy.ndarray)* The list of points.
@@ -1171,30 +1177,32 @@ class Cone:
         else: # Else, add points until the minimum number is reached
             solver = cp_model.CpSolver()
             model = cp_model.CpModel()
-            
+
             # define the variables
             var = [model.NewIntVar(-max_coord, max_coord, f"x_{i}")
                             for i in range(hp.shape[1])]
-            
+
             # define the constraints
             for v in hp:
                 model.Add(sum(ii*var[i] for i,ii in enumerate(v)) >= 0)
-                
+
             soln_deg = sum(ii*var[i] for i,ii in enumerate(grading_vector))
-            
+
             deg = 0
             while solution_storage._n_sol<min_points:
-                deg_constr = model.Add(soln_deg == deg)
+                deg_constr_low = model.Add(soln_deg >= deg)
+                deg_constr_up = model.Add(soln_deg <= deg+deg_window)
 
                 # solve and check status
                 status = solver.SearchForAllSolutions(model, solution_storage)
                 if verbose and status != cp_model.OPTIMAL:
-                    print("There was a problem finding the points at degree "
-                            f"{deg}. Status code: {solver.StatusName(status)}")
-                deg_constr.Proto().Clear()
+                    print("There was a problem finding the points b/t degrees "
+                            f"{deg} and {deg+deg_window}. "
+                            f"Status code: {solver.StatusName(status)}")
+                deg_constr_low.Proto().Clear()
+                deg_constr_up.Proto().Clear()
 
-                deg += 1
-            deg = 0
+                deg += (deg_window+1)
 
         # parse solutions
         if process_function is not None:
