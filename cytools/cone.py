@@ -1153,20 +1153,24 @@ class Cone:
         solution_storage = SolutionStorage(var, filter_function,\
                                                             process_function)
 
-        # If the maximum degree is specified, we use it as a constraint
+        # define the model
+        solver = cp_model.CpSolver()
+        model = cp_model.CpModel()
+
+        # define variables
+        var = [model.NewIntVar(-max_coord, max_coord, f"x_{i}")
+                                            for i in range(hp.shape[1])]
+
+        # define constraints
+        for h in hp:
+            model.Add(sum(ii*var[i] for i,ii in enumerate(h)) >= 0)
+
+        soln_deg = sum(ii*var[i] for i,ii in enumerate(grading_vector))
+
+        # solve according to whether max_deg or min_points was specified
         if max_deg is not None:
-            solver = cp_model.CpSolver()
-            model = cp_model.CpModel()
-
-            # define variables
-            var = [model.NewIntVar(-max_coord, max_coord, f"x_{i}")
-                                                for i in range(hp.shape[1])]
-
-            # define constraints
-            for v in hp:
-                model.Add(sum(ii*var[i] for i,ii in enumerate(v)) >= 0)
-            model.Add(sum(ii*var[i] for i,ii in enumerate(grading_vector))\
-                                                                    <= max_deg)
+            # If the maximum degree is specified, we use it as a constraint
+            model.Add(soln_deg <= max_deg)
             
             # solve and check status
             status = solver.SearchForAllSolutions(model, solution_storage)
@@ -1174,23 +1178,11 @@ class Cone:
                 print("There was a problem finding the points. Status code: "
                                                 f"{solver.StatusName(status)}")
                 return
-        else: # Else, add points until the minimum number is reached
-            solver = cp_model.CpSolver()
-            model = cp_model.CpModel()
-
-            # define the variables
-            var = [model.NewIntVar(-max_coord, max_coord, f"x_{i}")
-                            for i in range(hp.shape[1])]
-
-            # define the constraints
-            for v in hp:
-                model.Add(sum(ii*var[i] for i,ii in enumerate(v)) >= 0)
-
-            soln_deg = sum(ii*var[i] for i,ii in enumerate(grading_vector))
-
+        else:
+            # Else, add points until the minimum number is reached
             deg = 0
             while solution_storage._n_sol<min_points:
-                deg_constr_low = model.Add(soln_deg >= deg)
+                deg_constr_low = model.Add(deg <= soln_deg)
                 deg_constr_up = model.Add(soln_deg <= deg+deg_window)
 
                 # solve and check status
@@ -1199,6 +1191,7 @@ class Cone:
                     print("There was a problem finding the points b/t degrees "
                             f"{deg} and {deg+deg_window}. "
                             f"Status code: {solver.StatusName(status)}")
+
                 deg_constr_low.Proto().Clear()
                 deg_constr_up.Proto().Clear()
 
