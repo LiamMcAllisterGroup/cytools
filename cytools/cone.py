@@ -1169,31 +1169,32 @@ class Cone:
                                                 f"{solver.StatusName(status)}")
                 return
         else: # Else, add points until the minimum number is reached
-            deg = 0
-            while True:
-                solver = cp_model.CpSolver()
-                model = cp_model.CpModel()
-
-                # define the variables
-                var = [model.NewIntVar(-max_coord, max_coord, f"x_{i}")
+            solver = cp_model.CpSolver()
+            model = cp_model.CpModel()
+            
+            # define the variables
+            var = [model.NewIntVar(-max_coord, max_coord, f"x_{i}")
                             for i in range(hp.shape[1])]
-
-                # define the constraints
-                for v in hp:
-                    model.Add(sum(ii*var[i] for i,ii in enumerate(v)) >= 0)
-                model.Add(sum(ii*var[i] for i,ii in enumerate(grading_vector))\
-                                                                        == deg)
+            
+            # define the constraints
+            for v in hp:
+                model.Add(sum(ii*var[i] for i,ii in enumerate(v)) >= 0)
                 
+            soln_deg = sum(ii*var[i] for i,ii in enumerate(grading_vector))
+            
+            deg = 0
+            while solution_storage._n_sol<min_points:
+                deg_constr = model.Add(soln_deg == deg)
+
                 # solve and check status
                 status = solver.SearchForAllSolutions(model, solution_storage)
-                if status != cp_model.OPTIMAL and verbose:
+                if verbose and status != cp_model.OPTIMAL:
                     print("There was a problem finding the points at degree "
                             f"{deg}. Status code: {solver.StatusName(status)}")
+                deg_constr.Proto().Clear()
 
-                if solution_storage._n_sol >= min_points:
-                    break
-                else:
-                    deg += 1
+                deg += 1
+            deg = 0
 
         # parse solutions
         if process_function is not None:
