@@ -1151,6 +1151,13 @@ class Triangulation:
         # 263
         ```
         """
+        # check for topcom bug
+        if len(self.simplices())==1:
+            warnings.warn("Triangulation.neighbor_triangulations called for trivial"
+                            "triangulation (1 simplex)... Returning []! Fix TOPCOM!")
+            return []
+
+        # standard case
         pts_str = str([list(pt)+[1] for pt in self._optimal_pts])
         triang_str = str([list(s) for s in self._simplices]
                          ).replace("[","{").replace("]","}")
