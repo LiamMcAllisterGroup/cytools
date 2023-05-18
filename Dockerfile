@@ -40,11 +40,10 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 # Install pip packages
 ENV CVXOPT_SUITESPARSE_INC_DIR=/usr/include/suitesparse
-RUN pip3 install pip==21.0.1
-RUN pip3 install numpy scipy jupyterlab cvxopt gekko pymongo ortools tqdm cython qpsolvers osqp
-RUN pip3 install python-flint matplotlib h5py
-RUN pip3 install scikit-sparse cysignals gmpy2
-RUN pip3 install pplpy
+WORKDIR /opt/cytools/
+COPY ./requirements.txt /opt/cytools/requirements.txt
+RUN pip3 install -r requirements.txt
+RUN pip3 install python-flint==0.3.0
 RUN pip3 install -f https://download.mosek.com/stable/wheel/index.html Mosek
 ENV MOSEKLM_LICENSE_FILE=/home/$USERNAME/mounted_volume/mosek/mosek.lic
 
