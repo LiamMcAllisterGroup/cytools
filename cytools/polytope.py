@@ -3266,6 +3266,23 @@ class Polytope:
         # 6
         ```
         """
+        if len(self.points()) == self.dim()+1:
+            # simplex... trivial
+            triangs = None
+            if raw_output:
+                triangs = [self.points(as_indices=True)[None,:]]
+            else:
+                triangs = [Triangulation(self.points())]
+
+            if as_list:
+                return triangs
+            else:
+                def gen():
+                    for triang in triangs:
+                        yield(triang)
+
+                return gen()
+        
         if only_star is None:
             only_star = self.is_reflexive()
         if only_star and star_origin is None:
