@@ -92,7 +92,7 @@ class Cone:
     ```
     """
 
-    def __init__(self, rays=None, hyperplanes=None, check=True):
+    def __init__(self, rays=None, hyperplanes=None, check=True, copy=True):
         """
         **Description:**
         Initializes a `Cone` object.
@@ -106,6 +106,8 @@ class Cone:
           the generating rays must be specified.
         - `check` *(bool, optional, default=True)*: Whether to check the
           input. Recommended if constructing a cone directly.
+        - `copy` *(bool, optional, default=True)*: Whether to ensure we copy
+          the input rays/hyperplanes. Recommended.
 
         :::note
         Exactly one of `rays` or `hyperplanes` must be specified.
@@ -135,12 +137,18 @@ class Cone:
         if rays is None:
             self._rays_were_input = False
             self._rays = None
-            data = np.array(hyperplanes)
+            if copy:
+                data = np.array(hyperplanes)
+            else:
+                data = np.asarray(hyperplanes)
             data_name = "hyperplane(s)"
         else:
             self._rays_were_input = True
             self._hyperplanes = None
-            data = np.array(rays)
+            if copy:
+                data = np.array(rays)
+            else:
+                data = np.asarray(rays)
             data_name = "ray(s)"
 
         # initialize other variables
@@ -186,7 +194,7 @@ class Cone:
             else:
                 gcd_fct = gcd_list
 
-            gcds = np.array([gcd_fct(v) for v in data])
+            gcds = np.asarray([gcd_fct(v) for v in data])
             gcds = gcds.reshape(-1,1)
 
             # reduce by them
@@ -202,10 +210,10 @@ class Cone:
 
         # put data in correct variable
         if self._rays_were_input:
-            self._rays = np.array(data)
+            self._rays = np.asarray(data)
             self._dim = np.linalg.matrix_rank(self._rays)
         else:
-            self._hyperplanes = np.array(data)
+            self._hyperplanes = np.asarray(data)
             self._dim = None
 
     def clear_cache(self):
