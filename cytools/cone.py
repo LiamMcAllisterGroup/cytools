@@ -92,7 +92,8 @@ class Cone:
     ```
     """
 
-    def __init__(self, rays=None, hyperplanes=None, check=True, copy=True):
+    def __init__(self, rays=None, hyperplanes=None, parse_inputs=True,\
+                                                        check=True, copy=True):
         """
         **Description:**
         Initializes a `Cone` object.
@@ -134,6 +135,30 @@ class Cone:
         if not ((rays is None) ^ (hyperplanes is None)):
             raise ValueError("Exactly one of \"rays\" and \"hyperplanes\" "
                             "must be specified.")
+
+        # minimal work if we don't parse the data
+        if not parse_inputs:
+            if rays is None:
+                data_name = "hyperplane(s)"
+                self._rays_were_input = False
+                self._rays = None
+                data = hyperplanes
+            else:
+                raise NotImplementedError("Currently, parse_input is required "
+                                                        "if rays are input...")
+
+            # initialize other variables
+            self.clear_cache()
+            self._ambient_dim = data.shape[1]
+            self._dim = None
+
+            if self._rays_were_input:
+                self._rays = data
+            else:
+                self._hyperplanes = data
+            return
+
+        # standard case
         if rays is None:
             data_name = "hyperplane(s)"
             self._rays_were_input = False
