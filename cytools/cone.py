@@ -135,21 +135,21 @@ class Cone:
             raise ValueError("Exactly one of \"rays\" and \"hyperplanes\" "
                             "must be specified.")
         if rays is None:
+            data_name = "hyperplane(s)"
             self._rays_were_input = False
             self._rays = None
             if copy:
                 data = np.array(hyperplanes)
             else:
                 data = np.asarray(hyperplanes)
-            data_name = "hyperplane(s)"
         else:
+            data_name = "ray(s)"
             self._rays_were_input = True
             self._hyperplanes = None
             if copy:
                 data = np.array(rays)
             else:
                 data = np.asarray(rays)
-            data_name = "ray(s)"
 
         # initialize other variables
         self.clear_cache()
@@ -904,8 +904,8 @@ class Cone:
             cons_list = []
             for v in hp:
                 cons_list.append(solver.Constraint(c, solver.infinity()))
-                for j in range(self._ambient_dim):
-                    cons_list[-1].SetCoefficient(var[j], v[j])
+                for i,ii in enumerate(v):
+                    cons_list[-1].SetCoefficient(var[i], ii)
 
             # define objective
             obj = solver.Objective()
