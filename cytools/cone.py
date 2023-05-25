@@ -927,16 +927,16 @@ class Cone:
 
             # define constraints
             cons_list = []
-            for v in hp:
+            for v in self._hyperplanes:
                 cons_list.append(solver.Constraint(c, solver.infinity()))
                 for i,ii in enumerate(v):
-                    cons_list[-1].SetCoefficient(var[i], ii)
+                    cons_list[-1].SetCoefficient(var[i], float(ii))
 
             # define objective
             obj = solver.Objective()
             obj.SetMinimization()
 
-            obj_vec = np.sum(hp, axis=0)/len(hp)
+            obj_vec = sum(r for r in self._hyperplanes)/len(self._hyperplanes)
             for i in range(self._ambient_dim):
                 obj.SetCoefficient(var[i], obj_vec[i])
             
@@ -969,11 +969,11 @@ class Cone:
                                                 cp_model.INT32_MAX, f"x_{i}"))
 
             # define constraints
-            for v in hp:
+            for v in self._hyperplanes:
                 model.Add(sum(ii*var[i] for i,ii in enumerate(v)) >= c)
 
             # define objective
-            obj_vec = np.sum(hp, axis=0)
+            obj_vec = sum(r for r in hypers[0])
             obj_vec //= gcd_list(obj_vec)
             
             obj = 0
@@ -997,8 +997,7 @@ class Cone:
                 return None
 
         # Make sure that the solution is valid
-        hp = self.hyperplanes()
-        if any(v.dot(solution) <= 0 for v in hp):
+        if any(v.dot(solution) <= 0 for v in self._hyperplanes):
             warnings.warn("The solution that was found is invalid.")
             return None
 
@@ -1007,7 +1006,7 @@ class Cone:
             n_tries = 1000
             for i in range(1,n_tries):
                 int_sol = np.array([int(round(x)) for x in i*solution])
-                if all(int_sol.dot(v) > 0 for v in hp):
+                if all(int_sol.dot(v) > 0 for v in self._hyperplanes):
                     break
                 if i == n_tries-1:
                     return None
