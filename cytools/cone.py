@@ -858,7 +858,7 @@ class Cone:
                                                                     "cones.")
         return self.dual().find_interior_point(backend=backend, integral=True)
 
-    def find_interior_point(self, c=1, integral=False, backend=None):
+    def find_interior_point(self, c=1, integral=False, backend=None, check=True):
         """
         **Description:**
         Finds a point in the strict interior of the cone. If no point is found
@@ -899,7 +899,7 @@ class Cone:
             if np.linalg.matrix_rank(self._rays) != self._ambient_dim:
                 return None
 
-            point = np.sum(self._rays, axis=0)
+            point = self._rays.sum(axis=0)
             point //= gcd_list(point)
 
             if not integral:
@@ -936,7 +936,7 @@ class Cone:
             obj = solver.Objective()
             obj.SetMinimization()
 
-            obj_vec = sum(r for r in self._hyperplanes)/len(self._hyperplanes)
+            obj_vec = self._hyperplanes.sum(axis=0)/len(self._hyperplanes)
             for i in range(self._ambient_dim):
                 obj.SetCoefficient(var[i], obj_vec[i])
             
@@ -973,7 +973,7 @@ class Cone:
                 model.Add(sum(ii*var[i] for i,ii in enumerate(v)) >= c)
 
             # define objective
-            obj_vec = sum(r for r in hypers[0])
+            obj_vec = hypers[0].sum(axis=0)
             obj_vec //= gcd_list(obj_vec)
             
             obj = 0
@@ -997,7 +997,7 @@ class Cone:
                 return None
 
         # Make sure that the solution is valid
-        if any(v.dot(solution) <= 0 for v in self._hyperplanes):
+        if check and any(v.dot(solution) <= 0 for v in self._hyperplanes):
             warnings.warn("The solution that was found is invalid.")
             return None
 
