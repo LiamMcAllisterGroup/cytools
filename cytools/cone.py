@@ -208,6 +208,10 @@ class Cone:
                 data = array_fmpz_to_int(data)
             else:
                 data = array_fmpq_to_float(data)
+        elif t == np.int8:
+            # rest of calculations assume ints are 64-bit? convert...
+            data = data.astype(np.int64)
+            t = np.int64
         elif t not in (np.int64, np.float64):
             raise NotImplementedError("Unsupported data type.")
 
