@@ -261,10 +261,16 @@ class Triangulation:
             # others. In theory this can also be done with QHull, but one
             # sometimes runs into errors.
             elif backend == "cgal":
-                if make_star:
-                    origin_offset = 1e6
-                    heights[self._origin_index] = min(heights) - origin_offset
                 self._simplices = cgal_triangulate(self._optimal_pts, heights)
+                
+                if make_star:
+                    assert self._origin_index == 0
+                    min_other_heights, max_other_heights = min(heights[1:]), max(heights[1:])
+                    origin_height_step = (max_other_heights-min_other_heights)
+                    
+                    while self._simplices[:,0].any():
+                        heights[0] -= origin_height_step
+                        self._simplices = cgal_triangulate(self._optimal_pts, heights)
             else: # Use TOPCOM
                 self._simplices = topcom_triangulate(self._optimal_pts)
                 if make_star:
