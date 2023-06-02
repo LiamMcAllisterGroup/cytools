@@ -794,11 +794,32 @@ class Triangulation:
         # array([0., 0., 0., 0., 0., 1.])
         ```
         """
-        # If the triangulation is trivial we just return a vector of zeros
+        # check if we already know the heights...
+        if self._heights is not None:
+            t = self._heights.dtype
+            if t==int:
+                if integral:
+                    return self._heights.copy()
+                else:
+                    return self._heights.copy().astype(float)
+            elif t==float:
+                if integral:
+                    warnings.warn("There may be rounding bugs... better to solve LP problem in this case...")
+                    return np.rint(self._heights.copy()/gcd_list(self._heights)).astype(int)
+                else:
+                    return self._heights.copy()
+            else:
+                raise TypeError(f"Heights have unexpected type: {t}")
+
+        # need to calculate the heights
         if self._simplices.shape[0] == 1 and self._triang_pts.shape[0] == self._simplices.shape[1]:
-            return np.zeros(self._triang_pts.shape[0], dtype=(int if integral else float))
-        # Otherwise we find a point in the secondary cone
-        return self.secondary_cone(include_points_not_in_triangulation=True).find_interior_point(integral=integral, backend=backend)
+            # If the triangulation is trivial we just return a vector of zeros
+            self._heights = np.zeros(self._triang_pts.shape[0], dtype=(int if integral else float))
+        else:
+            # Otherwise we find a point in the secondary cone
+            self._heights = self.secondary_cone(include_points_not_in_triangulation=True).find_interior_point(integral=integral, backend=backend)
+        
+        return self._heights.copy()
 
     def dimension(self):
         """
