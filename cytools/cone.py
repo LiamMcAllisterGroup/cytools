@@ -977,7 +977,7 @@ class Cone:
                 model.Add(sum(ii*var[i] for i,ii in enumerate(v)) >= c)
 
             # define objective
-            obj_vec = hypers[0].sum(axis=0)
+            obj_vec = self._hyperplanes.sum(axis=0)
             obj_vec //= gcd_list(obj_vec)
             
             obj = 0
