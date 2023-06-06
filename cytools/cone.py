@@ -809,7 +809,7 @@ class Cone:
             solution = self.find_interior_point(c, backend="glop")
             G = -1*sparse.csc_matrix(self.hyperplanes(), dtype=float)
         else:
-            hp = self.hyperplanes()
+            hp = self._hyperplanes
             # The problem is defined as:
             # Minimize (1/2) x.P.x + q.x
             # Subject to G.x <= h
