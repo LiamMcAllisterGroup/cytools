@@ -248,7 +248,7 @@ class Triangulation:
                 if len(heights) != len(triang_pts):
                     raise ValueError("Lists of heights and points must have the"
                                      " same number of elements.")
-            self._heights = heights
+            self._heights = np.asarray(heights)
             # Now run the appropriate triangulation function
             if backend == "qhull":
                 self._simplices = qhull_triangulate(self._optimal_pts, heights)
