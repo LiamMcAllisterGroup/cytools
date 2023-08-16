@@ -17,27 +17,29 @@
 This module contains tools designed to perform cone computations.
 """
 
-# Standard imports
-from multiprocessing import Process, Queue, cpu_count
+# standard imports
 from ast import literal_eval
-import subprocess
-import warnings
+import math
+from multiprocessing import Process, Queue, cpu_count
+import os
 import random
 import string
-import os
-import math
-# Third party imports
+import subprocess
+import warnings
+
+# third party imports
 from flint import fmpz_mat, fmpz, fmpq
+import numpy as np
 from ortools.linear_solver import pywraplp
 from ortools.sat.python import cp_model
-from scipy.optimize import nnls
-from scipy import sparse
-import numpy as np
-import qpsolvers
 import ppl
+import qpsolvers
+from scipy import sparse
+from scipy.optimize import nnls
+
 # CYTools imports
-from cytools.utils import gcd_list, array_fmpz_to_int, array_fmpq_to_float
 from cytools import config
+from cytools.utils import gcd_list, array_fmpz_to_int, array_fmpq_to_float
 
 
 
@@ -112,7 +114,7 @@ class Cone:
 
         :::note
         Exactly one of `rays` or `hyperplanes` must be specified.
-        Otherwise an exception is raised.
+        Otherwise, an exception is raised.
         :::
 
         **Returns:**
@@ -227,14 +229,14 @@ class Cone:
             if t == np.int64:
                 mask = (gcds > 0)
                 if False in mask:
-                    warnings.warn("0 gcd found. "
-                                  "Likely row of zeros.")
+                    warnings.warn("0 gcd found (row of zeros)... "
+                                  "Skipping it!")
                 data = data[mask]//gcds[mask].astype(int)
             else:
                 mask = (gcds >= 1e-5)
                 if False in mask:
-                    warnings.warn("Extremely small gcd found. "
-                                  "Computations may be incorrect.")
+                    warnings.warn("Extremely small gcd found... "
+                                  "Computations may be incorrect!")
                 data = (data[mask]/gcds[mask]).astype(int)
         else:
             data = data.astype(int)
