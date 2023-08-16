@@ -219,18 +219,23 @@ class Cone:
         if check or t in (fmpz, np.float64):
             # get GCDs
             if t == np.int64:
-                gcds = np.gcd.reduce(data, axis=1).reshape(-1,1)
+                gcds = np.gcd.reduce(data, axis=1)
             else:
-                gcds = np.asarray([gcd_list(v) for v in data]).reshape(-1,1)
+                gcds = np.asarray([gcd_list(v) for v in data])
 
             # reduce by them
             if t == np.int64:
-                data = data//gcds.astype(int)
+                mask = (gcds > 0)
+                if False in mask:
+                    warnings.warn("0 gcd found. "
+                                  "Likely row of zeros.")
+                data = data[mask]//gcds[mask].astype(int)
             else:
-                if min(gcds) < 1e-5:
+                mask = (gcds >= 1e-5)
+                if False in mask:
                     warnings.warn("Extremely small gcd found. "
                                   "Computations may be incorrect.")
-                data = (data/gcds).astype(int)
+                data = (data[mask]/gcds[mask]).astype(int)
         else:
             data = data.astype(int)
 
