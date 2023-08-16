@@ -219,12 +219,9 @@ class Cone:
         if check or t in (fmpz, np.float64):
             # get GCDs
             if t == np.int64:
-                gcd_fct = lambda v: math.gcd(*v)
+                gcds = np.gcd.reduce(data, axis=1).reshape(-1,1)
             else:
-                gcd_fct = gcd_list
-
-            gcds = np.asarray([gcd_fct(v) for v in data])
-            gcds = gcds.reshape(-1,1)
+                gcds = np.asarray([gcd_list(v) for v in data]).reshape(-1,1)
 
             # reduce by them
             if t == np.int64:
