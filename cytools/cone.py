@@ -231,13 +231,13 @@ class Cone:
                 if False in mask:
                     warnings.warn("0 gcd found (row of zeros)... "
                                   "Skipping it!")
-                data = data[mask]//gcds[mask].astype(int)
+                data = data[mask]//gcds[mask].reshape(-1,1).astype(int)
             else:
                 mask = (gcds >= 1e-5)
                 if False in mask:
                     warnings.warn("Extremely small gcd found... "
                                   "Computations may be incorrect!")
-                data = (data[mask]/gcds[mask]).astype(int)
+                data = (data[mask]/gcds[mask].reshape(-1,1)).astype(int)
         else:
             data = data.astype(int)
 

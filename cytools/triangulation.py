@@ -1418,6 +1418,9 @@ class Triangulation:
         """
         return self.get_toric_variety().get_cy(nef_partition)
 
+    # aliases
+    compute_cy = get_cy
+    cy = get_cy
 
 def convert_to_star(simplices, facets, star_origin):
     """
