@@ -533,3 +533,42 @@ class PolytopeFace:
         return self._ambient_dim
     # Aliases
     ambient_dim = ambient_dimension
+
+    def triangulate(self, heights=None, points=None, simplices=None,
+                    check_input_simplices=True, backend="cgal"):
+        """
+        **Description:**
+        Returns a single regular triangulation of the face.
+
+        Just a simple wrapper for the Triangulation constructor.
+
+        Also see Polytope.triangulate
+
+        **Arguments:**
+        - `heights` *(array_like, optional)*: A list of heights specifying
+          the regular triangulation. When not specified, it will return the
+          Delaunay triangulation when using CGAL, a triangulation obtained from
+          random heights near the Delaunay when using QHull, or the placing
+          triangulation when using TOPCOM. Heights can only be specified when
+          using CGAL or QHull as the backend.
+        - `simplices` *(array_like, optional)*: A list of simplices
+          specifying the triangulation. This is useful when a triangulation was
+          previously computed and it needs to be used again. Note that the
+          order of the points needs to be consistent with the order that the
+          `Polytope` class uses.
+        - `check_input_simplices` *(bool, optional, default=True)*: Flag
+          that specifies whether to check if the input simplices define a valid
+          triangulation.
+        - `backend` *(str, optional, default="cgal")*: Specifies the
+          backend used to compute the triangulation. The available options are
+          "qhull", "cgal", and "topcom". CGAL is the default one as it is very
+          fast and robust.
+
+        **Returns:**
+        *(Triangulation)* A [`Triangulation`](./triangulation) object
+        describing a triangulation of the polytope.
+        """
+        return Triangulation(self.points(), poly=self, heights=heights,
+                             make_star=False, simplices=simplices,
+                             check_input_simplices=check_input_simplices,
+                             backend=backend)

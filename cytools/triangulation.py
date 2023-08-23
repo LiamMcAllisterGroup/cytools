@@ -120,34 +120,33 @@ class Triangulation:
         Initializes a `Triangulation` object.
 
         **Arguments:**
-        - `triang_pts` *(array_like)*: The list of points to be
-          triangulated.
-        - `poly` *(Polytope, optional)*: The ambient polytope of the points
-          to be triangulated. If not specified, it is constructed as the convex
-          hull of the given points.
-        - `heights` *(array_like, optional)*: A list of heights specifying
-          the regular triangulation. When not specified, it will return the
-          Delaunay triangulation when using CGAL, a triangulation obtained from
-          random heights near the Delaunay when using QHull, or the placing
-          triangulation when using TOPCOM. Heights can only be specified when
-          using CGAL or QHull as the backend.
-        - `make_star` *(bool, optional, default=False)*: Indicates whether
-          to turn the triangulation into a star triangulation by deleting
-          internal lines and connecting all points to the origin, or
-          equivalently, by decreasing the height of the origin until it is much
-          lower than all other heights.
-        - `simplices` *(array_like, optional)*: A list of simplices
-          specifying the triangulation. Each simplex is a list of point
-          indices. This is useful when a triangulation was previously computed
-          and it needs to be used again. Note that the ordering of the points
-          needs to be consistent.
-        - `check_input_simplices` *(bool, optional, default=True)*: Flag
-          that specifies whether to check if the input simplices define a valid
-          triangulation.
-        - `backend` *(str, optional, default="cgal")*: Specifies the
-          backend used to compute the triangulation.  The available options are
-          "qhull", "cgal", and "topcom". CGAL is the default one as it is very
-          fast and robust.
+        - `triang_pts` *(array_like)*: The list of points to be triangulated.
+        - `poly` *(Polytope, optional)*: The ambient polytope of the points to
+            be triangulated. If not specified, it is constructed as the convex
+            hull of the given points.
+        - `heights` *(array_like, optional)*: A list of heights specifying the
+            regular triangulation. When not specified, it will return the
+            Delaunay triangulation when using CGAL, a triangulation obtained
+            from random heights near the Delaunay when using QHull, or the
+            placing triangulation when using TOPCOM. Heights can only be
+            specified when using CGAL or QHull as the backend.
+        - `make_star` *(bool, optional, default=False)*: Indicates whether to
+            turn the triangulation into a star triangulation by deleting
+            internal lines and connecting all points to the origin, or
+            equivalently, by decreasing the height of the origin until it is
+            much lower than all other heights.
+        - `simplices` *(array_like, optional)*: A list of simplices specifying
+            the triangulation. Each simplex is a list of point indices. This is
+            useful when a triangulation was previously computed and it needs to
+            be used again. Note that the ordering of the points needs to be
+            consistent.
+        - `check_input_simplices` *(bool, optional, default=True)*: Flag that
+            specifies whether to check if the input simplices define a valid
+            triangulation.
+        - `backend` *(str, optional, default="cgal")*: Specifies the backend
+            used to compute the triangulation.  The available options are
+            "qhull", "cgal", and "topcom". CGAL is the default one as it is very
+            fast and robust.
 
         **Returns:**
         Nothing.
