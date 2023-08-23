@@ -348,6 +348,8 @@ class PolytopeFace:
             self._polytope = Polytope(self._vertices,
                                       backend=self._ambient_poly._backend)
         return self._polytope
+    # alias
+    as_poly = as_polytope
 
     def ambient_polytope(self):
         """
