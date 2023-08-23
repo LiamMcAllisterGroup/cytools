@@ -21,8 +21,8 @@ This module contains tools designed to perform polytope face computations.
 import copy
 # Third party imports
 import numpy as np
-
-
+# CYTools imports
+from cytools.triangulation import Triangulation
 
 class PolytopeFace:
     """
@@ -568,7 +568,33 @@ class PolytopeFace:
         *(Triangulation)* A [`Triangulation`](./triangulation) object
         describing a triangulation of the polytope.
         """
-        return Triangulation(self.points(), poly=self, heights=heights,
-                             make_star=False, simplices=simplices,
+        # check if we're just grabbing the Delaunay triangulation
+        if (simplices is None) and (heights is None):
+            return Triangulation(self.points(), poly=self.as_polytope(),
+                                 make_star=False, backend=backend)
+
+        # user input simplices or heights... must do work reordering points
+        # since polytopes may reorder points...
+        polypts = self.as_polytope().points()
+
+        # calculate the permutation from face points to poly points
+        sort_poly = np.lexsort(polypts.T[::-1])
+        sort_face = np.lexsort(self.points().T[::-1])
+        #unsort_poly = np.argsort(sort_poly)
+        unsort_face = np.argsort(sort_face)
+        p = sort_poly[unsort_face]
+
+        # apply the permutation
+        if heights is not None:
+            heights_permuted = np.asarray(heights)[p]
+            simps_permuted = None
+        else:
+            f_perm = lambda ind:p[ind]
+
+            heights_permuted = None
+            simps_permuted = [list(map(f_perm, simp)) for simp in simplices]
+
+        return Triangulation(self.points(), poly=self.as_polytope(), heights=heights_permuted,
+                             make_star=False, simplices=simps_permuted,
                              check_input_simplices=check_input_simplices,
                              backend=backend)
