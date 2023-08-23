@@ -485,7 +485,7 @@ class Triangulation:
         ```
         """
         return np.array(self._triang_pts)
-    # Aliases
+    # aliases
     pts = points
 
     def points_to_indices(self, points):
@@ -616,6 +616,8 @@ class Triangulation:
             restr_triang = np.array(sorted(sorted(s) for s in restr_triang))
             self._restricted_simplices[faces_dim] = restr_triang
         return np.array(self._restricted_simplices[faces_dim])
+    # aliases
+    simps = simplices
 
     def automorphism_orbit(self, automorphism=None, on_faces_dim=None, on_faces_codim=None):
         """
@@ -844,7 +846,7 @@ class Triangulation:
         ```
         """
         return self._dim
-    # Aliases
+    # aliases
     dim = dimension
 
     def ambient_dimension(self):
@@ -871,7 +873,7 @@ class Triangulation:
         ```
         """
         return self._poly._ambient_dim
-    # Aliases
+    # aliases
     ambient_dim = ambient_dimension
 
     def is_fine(self):
@@ -1350,7 +1352,7 @@ class Triangulation:
             diffs.append(t.gkz_phi()-gkz_phi)
         self._secondary_cone[args_id] = Cone(hyperplanes=diffs)
         return self._secondary_cone[args_id]
-    # Aliases
+    # aliases
     cpl_cone = secondary_cone
 
     def get_toric_variety(self):
