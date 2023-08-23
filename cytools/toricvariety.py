@@ -411,7 +411,7 @@ class ToricVariety:
         ```
         """
         return self.triangulation().dim()
-    # Aliases
+    # aliases
     dim = dimension
 
     def sr_ideal(self):

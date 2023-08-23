@@ -460,7 +460,7 @@ class Cone:
         ```
         """
         return self._ambient_dim
-    # Aliases
+    # aliases
     ambient_dim = ambient_dimension
 
     def dimension(self):
@@ -492,7 +492,7 @@ class Cone:
             return self._dim
         self._dim = np.linalg.matrix_rank(self.rays())
         return self._dim
-    # Aliases
+    # aliases
     dim = dimension
 
     def rays(self):
@@ -622,7 +622,7 @@ class Cone:
                 self._dual = Cone(rays=self.hyperplanes(), check=False)
             self._dual._dual = self
         return self._dual
-    # Aliases
+    # aliases
     dual = dual_cone
 
     def extremal_rays(self, tol=1e-4, verbose=False):
@@ -1315,7 +1315,7 @@ class Cone:
         
         return self._is_solid
 
-    # Aliases
+    # aliases
     is_full_dimensional = is_solid
 
     def is_pointed(self, backend=None, tol=1e-7):
@@ -1369,7 +1369,7 @@ class Cone:
             return self._is_pointed
         self._is_pointed = self.dual().is_solid(backend=backend)
         return self._is_pointed
-    # Aliases
+    # aliases
     is_strongly_convex = is_pointed
 
     def is_simplicial(self):

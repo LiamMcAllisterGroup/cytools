@@ -245,7 +245,7 @@ class PolytopeFace:
         if as_indices:
             return self._ambient_poly.points_to_indices(self._points)
         return np.array(self._points)
-    # Aliases
+    # aliases
     pts = points
 
     def interior_points(self, as_indices=False):
@@ -280,7 +280,7 @@ class PolytopeFace:
         if as_indices:
             return self._ambient_poly.points_to_indices(self._interior_points)
         return np.array(self._interior_points)
-    # Aliases
+    # aliases
     interior_pts = interior_points
 
     def boundary_points(self, as_indices=False):
@@ -317,7 +317,7 @@ class PolytopeFace:
         if as_indices:
             return self._ambient_poly.points_to_indices(self._boundary_points)
         return np.array(self._boundary_points)
-    # Aliases
+    # aliases
     boundary_pts = boundary_points
 
     def as_polytope(self):
@@ -420,7 +420,7 @@ class PolytopeFace:
                                        dual_saturated_ineqs, dim=dual_face_dim)
         self._dual_face._dual_face = self
         return self._dual_face
-    # Aliases
+    # aliases
     dual = dual_face
 
     def vertices(self):
@@ -506,7 +506,7 @@ class PolytopeFace:
         ```
         """
         return self._dim
-    # Aliases
+    # aliases
     dim = dimension
 
     def ambient_dimension(self):
@@ -533,7 +533,7 @@ class PolytopeFace:
         ```
         """
         return self._ambient_dim
-    # Aliases
+    # aliases
     ambient_dim = ambient_dimension
 
     def triangulate(self, heights=None, points=None, simplices=None,

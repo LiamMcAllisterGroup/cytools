@@ -529,7 +529,7 @@ class Polytope:
         ```
         """
         return self._ambient_dim
-    # Aliases
+    # aliases
     ambient_dim = ambient_dimension
 
     def dimension(self):
@@ -555,7 +555,7 @@ class Polytope:
         ```
         """
         return self._dim
-    # Aliases
+    # aliases
     dim = dimension
 
     def is_solid(self):
@@ -817,7 +817,7 @@ class Polytope:
         if as_indices:
             return self.points_to_indices(self._points)
         return np.array(self._points)
-    # Aliases
+    # aliases
     pts = points
 
     def interior_points(self, as_indices=False):
@@ -848,7 +848,7 @@ class Polytope:
         if as_indices:
             return self.points_to_indices(self._interior_points)
         return np.array(self._interior_points)
-    # Aliases
+    # aliases
     interior_pts = interior_points
 
     def boundary_points(self, as_indices=False):
@@ -887,7 +887,7 @@ class Polytope:
         if as_indices:
             return self.points_to_indices(self._boundary_points)
         return np.array(self._boundary_points)
-    # Aliases
+    # aliases
     boundary_pts = boundary_points
 
     def points_interior_to_facets(self, as_indices=False):
@@ -922,7 +922,7 @@ class Polytope:
         if as_indices:
             return self.points_to_indices(self._points_interior_to_facets)
         return np.array(self._points_interior_to_facets)
-    # Aliases
+    # aliases
     pts_interior_to_facets = points_interior_to_facets
 
     def boundary_points_not_interior_to_facets(self, as_indices=False):
@@ -961,7 +961,7 @@ class Polytope:
             return self.points_to_indices(
                                 self._boundary_points_not_interior_to_facets)
         return np.array(self._boundary_points_not_interior_to_facets)
-    # Aliases
+    # aliases
     boundary_pts_not_interior_to_facets = boundary_points_not_interior_to_facets
 
     def points_not_interior_to_facets(self, as_indices=False):
@@ -1000,7 +1000,7 @@ class Polytope:
         if as_indices:
             return self.points_to_indices(self._points_not_interior_to_facets)
         return np.array(self._points_not_interior_to_facets)
-    # Aliases
+    # aliases
     pts_not_interior_to_facets = points_not_interior_to_facets
 
     def is_reflexive(self):
@@ -1185,7 +1185,7 @@ class Polytope:
             return self.dual().h12(lattice="N")
         raise ValueError("Lattice must be specified. "
                          "Options are: \"N\" or \"M\".")
-    # Aliases
+    # aliases
     h21 = h12
 
     def h13(self, lattice):
@@ -1229,7 +1229,7 @@ class Polytope:
             return self.dual().h13(lattice="N")
         raise ValueError("Lattice must be specified. "
                          "Options are: \"N\" or \"M\".")
-    # Aliases
+    # aliases
     h31 = h13
 
     def h22(self, lattice):
@@ -1661,7 +1661,7 @@ class Polytope:
         self._dual = Polytope(pts, backend=self._backend)
         self._dual._dual = self
         return self._dual
-    # Aliases
+    # aliases
     dual = dual_polytope
     polar_polytope = dual_polytope
     polar = dual_polytope
