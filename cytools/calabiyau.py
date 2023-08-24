@@ -885,7 +885,7 @@ class CalabiYau:
 
         **Returns:**
         *(numpy.ndarray)* A matrix of linear relations of the columns of the
-        GLSM charge matrix.
+            GLSM charge matrix.
 
         **Example:**
         We construct a Calabi-Yau hypersurface and compute the GLSM linear
@@ -925,11 +925,11 @@ class CalabiYau:
 
         **Returns:**
         *(numpy.ndarray)* A list of column indices that form a basis. If a more
-        generic basis has been specified with the
-        [`set_divisor_basis`](#set_divisor_basis) or
-        [`set_curve_basis`](#set_curve_basis) functions then it returns a
-        matrix where the rows are the basis elements specified as a linear
-        combination of the canonical divisor and the prime toric divisors.
+            generic basis has been specified with the
+            [`set_divisor_basis`](#set_divisor_basis) or
+            [`set_curve_basis`](#set_curve_basis) functions then it returns a
+            matrix where the rows are the basis elements specified as a linear
+            combination of the canonical divisor and the prime toric divisors.
 
         **Example:**
         We consider a simple Calabi-Yau with two independent divisors. If no
@@ -1027,11 +1027,11 @@ class CalabiYau:
 
         **Returns:**
         *(numpy.ndarray)* A list of column indices that form a basis. If a more
-        generic basis has been specified with the
-        [`set_divisor_basis`](#set_divisor_basis) or
-        [`set_curve_basis`](#set_curve_basis) functions then it returns a
-        matrix where the rows are the basis elements specified as a linear
-        combination of the canonical divisor and the prime toric divisors.
+            generic basis has been specified with the
+            [`set_divisor_basis`](#set_divisor_basis) or
+            [`set_curve_basis`](#set_curve_basis) functions then it returns a
+            matrix where the rows are the basis elements specified as a linear
+            combination of the canonical divisor and the prime toric divisors.
 
         **Example:**
         We consider a simple Calabi-Yau with two independent curves. If no
