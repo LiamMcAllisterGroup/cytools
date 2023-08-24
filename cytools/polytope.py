@@ -1,44 +1,46 @@
+# =============================================================================
 # This file is part of CYTools.
 #
-# CYTools is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# CYTools is free software: you can redistribute it and/or modify it under the
+# terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or (at your option) any later
+# version.
 #
-# CYTools is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
+# CYTools is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+# A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with CYTools.  If not, see <https://www.gnu.org/licenses/>.
+# You should have received a copy of the GNU General Public License along with
+# CYTools. If not, see <https://www.gnu.org/licenses/>.
+# =============================================================================
+#
+# -----------------------------------------------------------------------------
+# Description:  This module contains tools designed to perform polytope
+#               computations.
+# -----------------------------------------------------------------------------
 
-"""
-This module contains tools designed to perform polytope computations.
-"""
-
-# Standard imports
+# 'standard' imports
 from collections import defaultdict
+import copy
 from itertools import permutations
+import math
 import subprocess
 import warnings
-import copy
-import math
-# Third party imports
-from scipy.spatial import ConvexHull
+
+# 3rd party imports
 from flint import fmpz_mat, fmpq_mat
-from tqdm import tqdm
 import numpy as np
 import ppl
+from tqdm import tqdm
+from scipy.spatial import ConvexHull
+
 # CYTools imports
+from cytools import config
+from cytools.polytopeface import PolytopeFace
 from cytools.triangulation import (Triangulation, all_triangulations,
                                    random_triangulations_fast_generator,
                                    random_triangulations_fair_generator)
-from cytools.polytopeface import PolytopeFace
 from cytools.utils import gcd_list
-from cytools import config
-
-
 
 class Polytope:
     """
@@ -57,18 +59,18 @@ class Polytope:
 
     :::note notes
     - CYTools only supports lattice polytopes, so any floating point numbers
-      will be truncated to integers.
+        will be truncated to integers.
     - The Polytope class is also imported to the root of the CYTools package,
-      so it can be imported from `cytools.polytope` or from `cytools`.
+        so it can be imported from `cytools.polytope` or from `cytools`.
     :::
 
     **Arguments:**
-    - `points` *(array_like)*: A list of lattice points defining the
-      polytope as their convex hull.
-    - `backend` *(string, optional)*: A string that specifies the backend
-      used to construct the convex hull. The available options are "ppl",
-      "qhull", or "palp". When not specified, it uses PPL for dimensions up to
-      four, and palp otherwise.
+    - `points` *(array_like)*: A list of lattice points defining the polytope
+        as their convex hull.
+    - `backend` *(string, optional)*: A string that specifies the backend used
+        to construct the convex hull. The available options are "ppl", "qhull",
+        or "palp". When not specified, it uses PPL for dimensions up to four,
+        and palp otherwise.
 
     **Example:**
     We construct two polytopes from lists of points.
@@ -95,11 +97,11 @@ class Polytope:
 
         **Arguments:**
         - `points` *(array_like)*: A list of lattice points defining the
-          polytope as their convex hull.
-        - `backend` *(string, optional)*: A string that specifies the
-          backend used to construct the convex hull. The available options are
-          "ppl", "qhull", or "palp". When not specified, it uses PPL for
-          dimensions up to four, and palp otherwise.
+            polytope as their convex hull.
+        - `backend` *(string, optional)*: A string that specifies the backend
+            used to construct the convex hull. The available options are "ppl",
+            "qhull", or "palp". When not specified, it uses PPL for dimensions
+            up to four, and palp otherwise.
 
         **Returns:**
         Nothing.
@@ -139,8 +141,10 @@ class Polytope:
             backend = "palp"
         self._backend = backend
         # Find the optimal form of the polytope by performing LLL reduction.
+        #
         # If the polytope is not full-dimensional it constructs an
         # affinely-equivalent polytope in a lattice of matching dimension.
+        #
         # Internally it uses the optimal form for computations, but it outputs
         # everything in the same form as the input
         if self._dim == self._ambient_dim:
@@ -431,8 +435,7 @@ class Polytope:
         [`minkowski_sum`](#minkowski_sum) function.
 
         **Arguments:**
-        - `other` *(Polytope)*: The other polytope used for the Minkowski
-          sum.
+        - `other` *(Polytope)*: The other polytope used for the Minkowski sum.
 
         **Returns:**
         *(Polytope)* The Minkowski sum.
@@ -458,10 +461,9 @@ class Polytope:
 
         **Arguments:**
         - `other` *(Polytope)*: The other polytope being compared.
-        - `backend` *(string, optional, default="palp")*: Selects which
-          backend to use to compute the normal form. Options are "native",
-          which uses native python code, or "palp", which uses PALP for the
-          computation.
+        - `backend` *(string, optional, default="palp")*: Selects which backend
+            to use to compute the normal form. Options are "native", which uses
+            native python code, or "palp", which uses PALP for the computation.
 
         **Returns:**
         *(bool)* The truth value of the polytopes being linearly equivalent.
@@ -486,10 +488,9 @@ class Polytope:
 
         **Arguments:**
         - `other` *(Polytope)*: The other polytope being compared.
-        - `backend` *(string, optional, default="palp")*: Selects which
-          backend to use to compute the normal form. Options are "native",
-          which uses native python code, or "palp", which uses PALP for the
-          computation.
+        - `backend` *(string, optional, default="palp")*: Selects which backend
+            to use to compute the normal form. Options are "native", which uses
+            native python code, or "palp", which uses PALP for the computation.
 
         **Returns:**
         *(bool)* The truth value of the polytopes being affinely equivalent.
@@ -585,7 +586,9 @@ class Polytope:
         **Description:**
         Returns the inequalities giving the hyperplane representation of the
         polytope. The inequalities are given in the form
+        
         $c_0x_0 + \cdots + c_{d-1}x_{d-1} + c_d \geq 0$.
+        
         Note, however, that equalities are not included.
 
         **Arguments:**
@@ -615,13 +618,13 @@ class Polytope:
         the hyperplane inequalities that they saturate.
 
         :::note notes
-        - Points are sorted so that interior points are first, and then the
-          rest are arranged by decreasing number of saturated inequalities and
-          lexicographically. For reflexive polytopes this is useful since the
-          origin will be at index 0 and boundary points interior to facets will
-          be last.
+        - Points are sorted so that interior points are first, and then the rest
+            are arranged by decreasing number of saturated inequalities and
+            lexicographically. For reflexive polytopes this is useful since the
+            origin will be at index 0 and boundary points interior to facets
+            will be last.
         - Typically this function should not be called by the user. Instead, it
-          is called by various other functions in the Polytope class.
+            is called by various other functions in the Polytope class.
         :::
 
         **Arguments:**
@@ -629,8 +632,8 @@ class Polytope:
 
         **Returns:**
         *(list)* A list of tuples. The first component of each tuple is the list
-        of coordinates of the point and the second component is a
-        `frozenset` of the hyperplane inequalities that it saturates.
+            of coordinates of the point and the second component is a
+            `frozenset` of the hyperplane inequalities that it saturates.
 
         **Example:**
         We construct a polytope and compute the lattice points along with the
@@ -650,13 +653,15 @@ class Polytope:
         """
         # This function is based on code by Volker Braun, and is redistributed
         # under the GNU General Public License version 2+.
+        #
         # The original code can be found at
         # https://github.com/sagemath/sage/blob/master/src/sage/geometry/integral_points.pyx
+
         if self._points_sat is not None:
             return copy.copy(self._points_sat)
         d = self._dim
-        # When using PALP as the backend we use it to compute all lattice
-        # points in the polytope.
+        # When using PALP as the backend we use it to compute all lattice points
+        # in the polytope.
         if self._backend == "palp":
             if self._dim == 0: # PALP cannot handle 0-dimensional polytopes
                 points = [self._optimal_pts[0]]
@@ -775,16 +780,16 @@ class Polytope:
         Returns the lattice points of the polytope.
 
         :::note
-        Points are sorted so that interior points are first, and then the
-        rest are arranged by decreasing number of saturated inequalities and
+        Points are sorted so that interior points are first, and then the rest
+        are arranged by decreasing number of saturated inequalities and
         lexicographically. For reflexive polytopes this is useful since the
-        origin will be at index 0 and boundary points interior to facets will
-        be last.
+        origin will be at index 0 and boundary points interior to facets will be
+        last.
         :::
 
         **Arguments:**
-        - `as_indices` *(bool)*: Return the points as indices of the full
-          list of points of the polytope.
+        - `as_indices` *(bool)*: Return the points as indices of the full list
+        of points of the polytope.
 
         **Returns:**
         *(numpy.ndarray)* The list of lattice points of the polytope.
@@ -795,8 +800,7 @@ class Polytope:
         **Example:**
         We construct a polytope and compute the lattice points. One can verify
         that the first point is the only interior point, and the last three
-        points are the ones interior to facets. Thus it follows the
-        aforementioned ordering.
+        points are the ones interior to facets. Thus it follows the aforementioned ordering.
         ```python {2}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
         p.points()
@@ -826,8 +830,8 @@ class Polytope:
         Returns the interior lattice points of the polytope.
 
         **Arguments:**
-        - `as_indices` *(bool)*: Return the points as indices of the full
-          list of points of the polytope.
+        - `as_indices` *(bool)*: Return the points as indices of the full list
+            of points of the polytope.
 
         **Returns:**
         *(numpy.ndarray)* The list of interior lattice points of the polytope.
@@ -857,8 +861,8 @@ class Polytope:
         Returns the boundary lattice points of the polytope.
 
         **Arguments:**
-        - `as_indices` *(bool)*: Return the points as indices of the full
-          list of points of the polytope.
+        - `as_indices` *(bool)*: Return the points as indices of the full list
+            of points of the polytope.
 
         **Returns:**
         *(numpy.ndarray)* The list of boundary lattice points of the polytope.
@@ -896,12 +900,12 @@ class Polytope:
         Returns the lattice points interior to facets.
 
         **Arguments:**
-        - `as_indices` *(bool)*: Return the points as indices of the full
-          list of points of the polytope.
+        - `as_indices` *(bool)*: Return the points as indices of the full list
+            of points of the polytope.
 
         **Returns:**
         *(numpy.ndarray)* The list of lattice points interior to facets of the
-        polytope.
+            polytope.
 
         **Aliases:**
         `pts_interior_to_facets`.
@@ -931,12 +935,12 @@ class Polytope:
         Returns the boundary lattice points not interior to facets.
 
         **Arguments:**
-        - `as_indices` *(bool)*: Return the points as indices of the full
-          list of points of the polytope.
+        - `as_indices` *(bool)*: Return the points as indices of the full list
+            of points of the polytope.
 
         **Returns:**
         *(numpy.ndarray)* The list of boundary lattice points not interior to
-        facets of the polytope.
+            facets of the polytope.
 
         **Aliases:**
         `boundary_pts_not_interior_to_facets`.
@@ -970,12 +974,12 @@ class Polytope:
         Returns the lattice points not interior to facets.
 
         **Arguments:**
-        - `as_indices` *(bool)*: Return the points as indices of the full
-          list of points of the polytope.
+        - `as_indices` *(bool)*: Return the points as indices of the full list
+            of points of the polytope.
 
         **Returns:**
         *(numpy.ndarray)* The list of lattice points not interior to facets of
-        the polytope.
+            the polytope.
 
         **Aliases:**
         `pts_not_interior_to_facets`.
@@ -1038,18 +1042,18 @@ class Polytope:
         :::note notes
         - Only reflexive polytopes of dimension 2-5 are currently supported.
         - This function always computes Hodge numbers from scratch. The
-          functions [`h11`](#h11), [`h21`](#h21), [`h12`](#h12),
-          [`h13`](#h13), and [`h22`](#h22) cache the results so they
-          offer improved performance.
+            functions [`h11`](#h11), [`h21`](#h21), [`h12`](#h12),
+            [`h13`](#h13), and [`h22`](#h22) cache the results so they
+            offer improved performance.
         :::
 
         **Arguments:**
-        - `p` *(int)*: The holomorphic index of the Dolbeault cohomology
-          of interest.
-        - `q` *(int)*: The anti-holomorphic index of the Dolbeault
-          cohomology of interest.
-        - `lattice` *(str)*: Specifies the lattice on which the polytope
-          is defined. Options are "N" and "M".
+        - `p` *(int)*: The holomorphic index of the Dolbeault cohomology of
+            interest.
+        - `q` *(int)*: The anti-holomorphic index of the Dolbeault cohomology
+            of interest.
+        - `lattice` *(str)*: Specifies the lattice on which the polytope is
+            defined. Options are "N" and "M".
 
         **Returns:**
         *(int)* The Hodge number $h^{p,q}$ of the arising Calabi-Yau manifold.
@@ -1118,8 +1122,8 @@ class Polytope:
         :::
 
         **Arguments:**
-        - `lattice` *(str)*: Specifies the lattice on which the polytope
-          is defined. Options are "N" and "M".
+        - `lattice` *(str)*: Specifies the lattice on which the polytope is
+            defined. Options are "N" and "M".
 
         **Returns:**
         *(int)* The Hodge number $h^{1,1}$ of the arising Calabi-Yau manifold.
@@ -1157,8 +1161,8 @@ class Polytope:
         :::
 
         **Arguments:**
-        - `lattice` *(str)*: Specifies the lattice on which the polytope
-          is defined. Options are "N" and "M".
+        - `lattice` *(str)*: Specifies the lattice on which the polytope is
+            defined. Options are "N" and "M".
 
         **Returns:**
         *(int)* The Hodge number $h^{1,2}$ of the arising Calabi-Yau manifold.
@@ -1201,8 +1205,8 @@ class Polytope:
         :::
 
         **Arguments:**
-        - `lattice` *(str)*: Specifies the lattice on which the polytope
-          is defined. Options are "N" and "M".
+        - `lattice` *(str)*: Specifies the lattice on which the polytope is
+            defined. Options are "N" and "M".
 
         **Returns:**
         *(int)* The Hodge number $h^{1,3}$ of the arising Calabi-Yau manifold.
@@ -1245,8 +1249,8 @@ class Polytope:
         :::
 
         **Arguments:**
-        - `lattice` *(str)*: Specifies the lattice on which the polytope
-          is defined. Options are "N" and "M".
+        - `lattice` *(str)*: Specifies the lattice on which the polytope is
+            defined. Options are "N" and "M".
 
         **Returns:**
         *(int)* The Hodge number $h^{2,2}$ of the arising Calabi-Yau manifold.
@@ -1282,8 +1286,8 @@ class Polytope:
         :::
 
         **Arguments:**
-        - `lattice` *(str)*: Specifies the lattice on which the polytope
-          is defined. Options are "N" and "M".
+        - `lattice` *(str)*: Specifies the lattice on which the polytope is
+            defined. Options are "N" and "M".
 
         **Returns:**
         *(int)* The Euler characteristic of the arising Calabi-Yau manifold.
@@ -1414,21 +1418,21 @@ class Polytope:
         :::
 
         **Arguments:**
-        - `d` *(int, optional)*: Optional parameter that specifies the
-          dimension of the desired faces.
+        - `d` *(int, optional)*: Optional parameter that specifies the dimension
+            of the desired faces.
 
         **Returns:**
         *(tuple)* A tuple of [`PolytopeFace`](./polytopeface) objects of
-        dimension d, if specified. Otherwise, a tuple of tuples of
-        [`PolytopeFace`](./polytopeface) objects organized in ascending
-        dimension.
+            dimension d, if specified. Otherwise, a tuple of tuples of
+            [`PolytopeFace`](./polytopeface) objects organized in ascending
+            dimension.
 
         **Example:**
-        We show that this function returns a tuple of 2-faces if `d`
-        is set to 2. Otherwise, the function returns all faces in tuples
-        organized in ascending dimension. We verify that the first element in
-        the tuple of 2-faces is the same as the first element in the
-        corresponding subtuple in the tuple of all faces.
+        We show that this function returns a tuple of 2-faces if `d` is set to
+        2. Otherwise, the function returns all faces in tuples organized in
+        ascending dimension. We verify that the first element in the tuple of
+        2-faces is the same as the first element in the corresponding subtuple
+        in the tuple of all faces.
         ```python {2,3}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
         faces2d = p.faces(2)
@@ -1527,8 +1531,8 @@ class Polytope:
         Returns the vertices of the polytope.
 
         **Arguments:**
-        - `as_indices` *(bool)*: Return the points as indices of the full
-          list of points of the polytope.
+        - `as_indices` *(bool)*: Return the points as indices of the full list
+            of points of the polytope.
 
         **Returns:**
         *(numpy.ndarray)* The list of vertices of the polytope.
@@ -1641,8 +1645,8 @@ class Polytope:
         `dual`, `polar_polytope`, `polar`.
 
         **Example:**
-        We construct a reflexive polytope and find its dual. We then verify
-        that the dual of the dual is the original polytope.
+        We construct a reflexive polytope and find its dual. We then verify that
+        the dual of the dual is the original polytope.
         ```python {2,5}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
         p_dual = p.dual_polytope()
@@ -1678,14 +1682,14 @@ class Polytope:
         :::
 
         **Arguments:**
-        - `lattice` *(str)*: Specifies the lattice on which the polytope
-          is defined. Options are "N" and "M".
+        - `lattice` *(str)*: Specifies the lattice on which the polytope is
+            defined. Options are "N" and "M".
 
         *(bool)* The truth value of the polytope being favorable.
 
         **Example:**
-        We construct two reflexive polytopes and find whether they are
-        favorable when considered in the N lattice.
+        We construct two reflexive polytopes and find whether they are favorable
+        when considered in the N lattice.
         ```python {3,5}
         p1 = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
         p2 = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-3,-6]])
@@ -1714,21 +1718,21 @@ class Polytope:
         polytope.
 
         **Arguments:**
-        - `include_origin` *(bool, optional, default=True)*: Indicates
-          whether to use the origin in the calculation. This corresponds to the
-          inclusion of the canonical divisor.
-        - `include_points_interior_to_facets` *(bool, optional,
-          default=False)*: By default only boundary points not interior to
-          facets are used. If this flag is set to true then points interior to
-          facets are also used.
-        - `points` *(array_like, optional)*: The list of indices of the
-          points that will be used. Note that if this option is used then the
-          parameters `include_origin` and
-          `include_points_interior_to_facets` are ignored.
-        - `integral` *(bool, optional, default=True)*: Indicates whether
-          to find an integral basis for the columns of the GLSM charge matrix.
-          (i.e. so that remaining columns can be written as an integer linear
-          combination of the basis elements.)
+        - `include_origin` *(bool, optional, default=True)*: Indicates whether
+            to use the origin in the calculation. This corresponds to the
+            inclusion of the canonical divisor.
+        - `include_points_interior_to_facets` *(bool, optional, default=False)*:
+            By default only boundary points not interior to facets are used. If
+            this flag is set to true then points interior to facets are also
+            used.
+        - `points` *(array_like, optional)*: The list of indices of the points
+            that will be used. Note that if this option is used then the
+            parameters `include_origin` and `include_points_interior_to_facets`
+            are ignored.
+        - `integral` *(bool, optional, default=True)*: Indicates whether to find
+            an integral basis for the columns of the GLSM charge matrix. (i.e.
+            so that remaining columns can be written as an integer linear
+            combination of the basis elements.)
 
         **Returns:**
         *(numpy.ndarray)* The GLSM charge matrix.
@@ -1928,25 +1932,25 @@ class Polytope:
         Computes the linear relations of the GLSM charge matrix.
 
         **Arguments:**
-        - `include_origin` *(bool, optional, default=True)*: Indicates
-          whether to use the origin in the calculation. This corresponds to the
-          inclusion of the canonical divisor.
-        - `include_points_interior_to_facets` *(bool, optional,
-          default=False)*: By default
-          only boundary points not interior to facets are used. If this flag is
-          set to true then points interior to facets are also used.
-        - `points` *(array_like, optional)*: The list of indices of the
-          points that will be used. Note that if this option is used then the
-          parameters `include_origin` and
-          `include_points_interior_to_facets` are ignored.
-        - `integral` *(bool, optional, default=True)*: Indicates whether
-          to find an integral basis for the columns of the GLSM charge matrix.
-          (i.e. so that remaining columns can be written as an integer linear
-          combination of the basis elements.)
+        - `include_origin` *(bool, optional, default=True)*: Indicates whether
+            to use the origin in the calculation. This corresponds to the
+            inclusion of the canonical divisor.
+        - `include_points_interior_to_facets` *(bool, optional, default=False)*:
+            By default only boundary points not interior to facets are used. If
+            this flag is set to true then points interior to facets are also
+            used.
+        - `points` *(array_like, optional)*: The list of indices of the points
+            that will be used. Note that if this option is used then the
+            parameters `include_origin` and `include_points_interior_to_facets`
+            are ignored.
+        - `integral` *(bool, optional, default=True)*: Indicates whether to find
+            an integral basis for the columns of the GLSM charge matrix. (i.e.
+            so that remaining columns can be written as an integer linear
+            combination of the basis elements.)
 
         **Returns:**
         *(numpy.ndarray)* A matrix of linear relations of the columns of the
-        GLSM charge matrix.
+            GLSM charge matrix.
 
         **Example:**
         We construct a polytope and find its GLSM charge matrix and linear
@@ -2008,23 +2012,22 @@ class Polytope:
         Computes a basis of columns of the GLSM charge matrix.
 
         **Arguments:**
-        - `include_origin` *(bool, optional, default=True)*: Indicates
-          whether to use the origin in the calculation. This corresponds to the
-          inclusion of the canonical divisor.
-        - `include_points_interior_to_facets` *(bool, optional,
-          default=False)*: By default
-          only boundary points not interior to facets are used. If this flag is
-          set to true then points interior to facets are also used.
-        - `points` *(array_like, optional)*: The list of indices of the
-          points that will be used. Note that if this option is used then the
-          parameters `include_origin` and
-          `include_points_interior_to_facets` are ignored. Also, note that
-          the indices returned here will be the indices of the sorted list
-          of points.
-        - `integral` *(bool, optional, default=True)*: Indicates whether
-          to find an integral basis for the columns of the GLSM charge matrix.
-          (i.e. so that remaining columns can be written as an integer linear
-          combination of the basis elements.)
+        - `include_origin` *(bool, optional, default=True)*: Indicates whether
+            to use the origin in the calculation. This corresponds to the
+            inclusion of the canonical divisor.
+        - `include_points_interior_to_facets` *(bool, optional, default=False)*:
+            By default only boundary points not interior to facets are used. If
+            this flag is set to true then points interior to facets are also
+            used.
+        - `points` *(array_like, optional)*: The list of indices of the points
+            that will be used. Note that if this option is used then the
+            parameters `include_origin` and `include_points_interior_to_facets`
+            are ignored. Also, note that the indices returned here will be the
+            indices of the sorted list of points.
+        - `integral` *(bool, optional, default=True)*: Indicates whether to find
+            an integral basis for the columns of the GLSM charge matrix. (i.e.
+            so that remaining columns can be written as an integer linear
+            combination of the basis elements.)
 
         **Returns:**
         *(numpy.ndarray)* A list of column indices that form a basis.
@@ -2113,7 +2116,7 @@ class Polytope:
 
         **Returns:**
         *(numpy.ndarray or int)* The list of indices corresponding to the given
-        points, or the index of the point if only one is given.
+            points, or the index of the point if only one is given.
 
         **Example:**
         We construct a polytope and find the indices of some of its points.
@@ -2140,13 +2143,13 @@ class Polytope:
 
         **Arguments:**
         - `affine_transform` *(bool, optional, default=False)*: Flag that
-          determines whether to only use $SL^{\pm}(d,\mathbb{Z})$
-          transformations or also allow translations.
-        - `backend` *(str, optional, default="palp")*: Selects which
-          backend to use. Options are "native", which uses native python code,
-          or "palp", which uses PALP for the computation. There is a different
-          convention for affine normal forms between the native algorithm and
-          PALP, and PALP generally works better.
+            determines whether to only use $SL^{\pm}(d,\mathbb{Z})$
+            transformations or also allow translations.
+        - `backend` *(str, optional, default="palp")*: Selects which backend to
+            use. Options are "native", which uses native python code, or "palp",
+            which uses PALP for the computation. There is a different convention
+            for affine normal forms between the native algorithm and PALP, and
+            PALP generally works better.
 
         **Returns:**
         *(numpy.ndarray)* The list of vertices in normal form.
@@ -2172,9 +2175,11 @@ class Polytope:
         # This function is based on code by Andrey Novoseltsev, Samuel Gonshaw,
         # Jan Keitel, and others, and is redistributed under the GNU General
         # Public License version 2+.
+        #
         # The original code can be found at:
         # https://github.com/sagemath/sage/blob/develop/src/sage/geometry/lattice_polytope.py
         # https://trac.sagemath.org/ticket/13525
+
         if backend not in ("native", "palp"):
             raise ValueError("Error: options for backend are \"native\" and "
                              "\"palp\".")
@@ -2435,23 +2440,24 @@ class Polytope:
         right.
 
         **Arguments:**
-        - `square_to_one` *(bool, optional, default=False)*: Flag that
-          restricts to only matrices that square to the identity.
+        - `square_to_one` *(bool, optional, default=False)*: Flag that restricts
+            to only matrices that square to the identity.
         - `action` *(str, optional, default="right")*: Flag that specifies
-          whether the returned matrices act on the left or the right. This
-          option is ignored when `as_dictionary` is set to True.
+            whether the returned matrices act on the left or the right. This
+            option is ignored when `as_dictionary` is set to True.
         - `as_dictionary` *(bool, optional, default=False)*: Return each
-          automphism as a dictionary that describes the action on the
-          indices of the points.
+            automphism as a dictionary that describes the action on the indices
+            of the points.
 
         **Returns:**
-        *(numpy.ndarray or dict)* A list of automorphism matrices or dictionaries.
+        *(numpy.ndarray or dict)* A list of automorphism matrices or
+            dictionaries.
 
         **Example:**
         We construct a polytope, and find its automorphisms. We also check that
         one of the non-trivial automorphisms is indeed an automorphism by
-        checking that it acts as a permutation on the vertices. We also show
-        how to get matrices that act on the left, which are simply the transpose
+        checking that it acts as a permutation on the vertices. We also show how
+        to get matrices that act on the left, which are simply the transpose
         matrices, and we show how to get dictionaries that describe how the
         indices of the points transform.
         ```python {2,20,31,37}
@@ -2632,8 +2638,7 @@ class Polytope:
         Returns the Minkowski sum of the two polytopes.
 
         **Arguments:**
-        - `other` *(Polytope)*: The other polytope used for the Minkowski
-          sum.
+        - `other` *(Polytope)*: The other polytope used for the Minkowski sum.
 
         **Returns:**
         *(Polytope)* The Minkowski sum.
@@ -2667,28 +2672,28 @@ class Polytope:
         :::
 
         **Arguments:**
-        - `keep_symmetric` *(bool, optional, default=False)*: Keep
-          symmetric partitions related by lattice automorphisms.
-        - `keep_products` *(bool, optional, default=False)*: Keep
-          product partitions corresponding to complete intersections being
-          direct products.
-        - `keep_projections` *(bool, optional, default=False)*: Keep
-          projection partitions, i.e. partitions where one of the parts
-          consists of a single vertex.
+        - `keep_symmetric` *(bool, optional, default=False)*: Keep symmetric
+            partitions related by lattice automorphisms.
+        - `keep_products` *(bool, optional, default=False)*: Keep product
+            partitions corresponding to complete intersections being direct
+            products.
+        - `keep_projections` *(bool, optional, default=False)*: Keep projection
+            partitions, i.e. partitions where one of the parts consists of a
+            single vertex.
         - `codim` *(int, optional, default=2)*: The number of parts in the
-          partition or, equivalently, the codimension of the complete
-          intersection Calabi-Yau.
-        - `compute_hodge_numbers` *(bool, optional, default=True)*:
-          Indicates whether Hodge numbers of the CICY are computed.
-        - `return_hodge_numbers` *(bool, optional, default=True)*:
-          Indicates whether to return the Hodge numbers along with the nef
-          partitions. They are returned in a separate tuple and they are
-          ordered as in the Hodge diamond from top to bottom and left to right.
+            partition or, equivalently, the codimension of the complete
+            intersection Calabi-Yau.
+        - `compute_hodge_numbers` *(bool, optional, default=True)*: Indicates
+            whether Hodge numbers of the CICY are computed.
+        - `return_hodge_numbers` *(bool, optional, default=True)*: Indicates
+            whether to return the Hodge numbers along with the nef partitions.
+            They are returned in a separate tuple and they are ordered as in the
+            Hodge diamond from top to bottom and left to right.
 
         **Returns:**
-        *(tuple)* The nef partitions of the polytope. If return_hodge_numbers
-        is set to True then two tuples are returned, one with the nef
-        partitions and one with the corresponding Hodge numbers.
+        *(tuple)* The nef partitions of the polytope. If return_hodge_numbers is
+        set to True then two tuples are returned, one with the nef partitions
+        and one with the corresponding Hodge numbers.
 
         **Example:**
         We construct a tesseract and find the 2- and 3-part nef partitions.
@@ -2797,22 +2802,22 @@ class Polytope:
         triangulation.
 
         :::note
-        Typically this function should not be called by the user. Instead, it
-        is called by various other functions in the Polytope class.
+        Typically this function should not be called by the user. Instead, it is
+        called by various other functions in the Polytope class.
         :::
 
         **Arguments:**
-        - `include_points_interior_to_facets` *(bool, optional)*: Whether
-          to include points interior to facets from the triangulation. If not
-          specified, it is set to False for reflexive polytopes and True
-          otherwise.
-        - `points` *(array_like, optional)*: The list of indices of the
-          points that will be used. Note that if this option is used then the
-          parameter `include_points_interior_to_facets` is ignored.
+        - `include_points_interior_to_facets` *(bool, optional)*: Whether to
+            include points interior to facets from the triangulation. If not
+            specified, it is set to False for reflexive polytopes and True
+            otherwise.
+        - `points` *(array_like, optional)*: The list of indices of the points
+            that will be used. Note that if this option is used then the
+            parameter `include_points_interior_to_facets` is ignored.
 
         **Returns:**
         *(tuple)* A tuple of the indices of the points that will be included in
-        a triangulation
+            a triangulation
 
         **Example:**
         We construct triangulations in various ways. We use the
@@ -2822,13 +2827,16 @@ class Polytope:
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
         t1 = p.triangulate()
         print(t1)
-        # A fine, regular, star triangulation of a 4-dimensional point configuration with 7 points in ZZ^4
+        # A fine, regular, star triangulation of a 4-dimensional point
+        # configuration with 7 points in ZZ^4
         t2 = p.triangulate(include_points_interior_to_facets=True)
         print(t2)
-        # A fine, regular, star triangulation of a 4-dimensional point configuration with 10 points in ZZ^4
+        # A fine, regular, star triangulation of a 4-dimensional point
+        # configuration with 10 points in ZZ^4
         t3 = p.triangulate(points=[1,2,3,4,5])
         print(t3)
-        # A fine, regular, non-star triangulation of a 4-dimensional point configuration with 5 points in ZZ^4
+        # A fine, regular, non-star triangulation of a 4-dimensional point
+        # configuration with 5 points in ZZ^4
         ```
         """
         if points is not None:
@@ -2859,60 +2867,65 @@ class Polytope:
         :::
 
         **Arguments:**
-        - `heights` *(array_like, optional)*: A list of heights specifying
-          the regular triangulation. When not specified, it will return the
-          Delaunay triangulation when using CGAL, a triangulation obtained from
-          random heights near the Delaunay when using QHull, or the placing
-          triangulation when using TOPCOM. Heights can only be specified when
-          using CGAL or QHull as the backend.
-        - `make_star` *(bool, optional)*: Indicates whether to
-          turn the triangulation into a star triangulation by deleting
-          internal lines and connecting all points to the origin, or
-          equivalently by decreasing the height of the origin to be much lower
-          than the rest. By default, this flag is set to true if the polytope
-          is reflexive and neither heights or simplices are inputted.
-          Otherwise, it is set to False.
-        - `include_points_interior_to_facets` *(bool, optional)*: Whether
-          to include points interior to facets from the triangulation. If not
-          specified, it is set to False for reflexive polytopes and True
-          otherwise.
-        - `points` *(array_like, optional)*: The list of indices of the
-          points that will be used. Note that if this option is used then the
-          parameter `include_points_interior_to_facets` is ignored.
-        - `simplices` *(array_like, optional)*: A list of simplices
-          specifying the triangulation. This is useful when a triangulation was
-          previously computed and it needs to be used again. Note that the
-          order of the points needs to be consistent with the order that the
-          `Polytope` class uses.
-        - `check_input_simplices` *(bool, optional, default=True)*: Flag
-          that specifies whether to check if the input simplices define a valid
-          triangulation.
-        - `backend` *(str, optional, default="cgal")*: Specifies the
-          backend used to compute the triangulation. The available options are
-          "qhull", "cgal", and "topcom". CGAL is the default one as it is very
-          fast and robust.
+        - `heights` *(array_like, optional)*: A list of heights specifying the
+            regular triangulation. When not specified, it will return the
+            Delaunay triangulation when using CGAL, a triangulation obtained
+            from random heights near the Delaunay when using QHull, or the
+            placing triangulation when using TOPCOM. Heights can only be
+            specified when using CGAL or QHull as the backend.
+        - `make_star` *(bool, optional)*: Indicates whether to turn the
+            triangulation into a star triangulation by deleting internal lines
+            and connecting all points to the origin, or equivalently by
+            decreasing the height of the origin to be much lower than the rest.
+            By default, this flag is set to true if the polytope is reflexive
+            and neither heights or simplices are inputted. Otherwise, it is set
+            to False.
+        - `include_points_interior_to_facets` *(bool, optional)*: Whether to
+            include points interior to facets from the triangulation. If not
+            specified, it is set to False for reflexive polytopes and True
+            otherwise.
+        - `points` *(array_like, optional)*: The list of indices of the points
+            that will be used. Note that if this option is used then the
+            parameter `include_points_interior_to_facets` is ignored.
+        - `simplices` *(array_like, optional)*: A list of simplices specifying
+            the triangulation. This is useful when a triangulation was
+            previously computed and it needs to be used again. Note that the
+            order of the points needs to be consistent with the order that the
+            `Polytope` class uses.
+        - `check_input_simplices` *(bool, optional, default=True)*: Flag that
+            specifies whether to check if the input simplices define a valid
+            triangulation.
+        - `backend` *(str, optional, default="cgal")*: Specifies the backend
+            used to compute the triangulation. The available options are
+            "qhull", "cgal", and "topcom". CGAL is the default one as it is very
+            fast and robust.
 
         **Returns:**
-        *(Triangulation)* A [`Triangulation`](./triangulation) object
-        describing a triangulation of the polytope.
+        *(Triangulation)* A [`Triangulation`](./triangulation) object describing
+            a triangulation of the polytope.
 
         **Example:**
         We construct a triangulation of a reflexive polytope and check that by
         default it is a fine, regular, star triangulation. We also try
-        constructing triangulations with heights, input simplices, and using
-        the other backends.
+        constructing triangulations with heights, input simplices, and using the
+        other backends.
         ```python {2,4,6,8,10}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-2,-1,-1],[-2,-1,-1,-1]])
         p.triangulate()
-        # A fine, regular, star triangulation of a 4-dimensional polytope in ZZ^4
+        # A fine, regular, star triangulation of a 4-dimensional polytope in
+        # ZZ^4
         p.triangulate(heights=[-30,5,5,24,-19,-14,29])
-        # A fine, regular, star triangulation of a 4-dimensional polytope in ZZ^4
+        # A fine, regular, star triangulation of a 4-dimensional polytope in
+        # ZZ^4
         p.triangulate(simplices=[[0,1,2,3,4],[0,1,2,3,5],[0,1,2,4,6],[0,1,2,5,6],[0,1,3,4,5],[0,1,4,5,6],[0,2,3,4,5],[0,2,4,5,6]])
-        # A fine, regular, star triangulation of a 4-dimensional polytope in ZZ^4
+        # A fine, regular, star triangulation of a 4-dimensional polytope in
+        # ZZ^4
         p.triangulate(backend="qhull")
-        # A fine, regular, star triangulation of a 4-dimensional polytope in ZZ^4
+        # A fine, regular, star triangulation of a 4-dimensional polytope in
+        # ZZ^4
         p.triangulate(backend="topcom")
-        # A fine, regular, star triangulation of a 4-dimensional polytope in ZZ^4
+        # A fine, regular, star triangulation of a 4-dimensional polytope in
+        # ZZ^4
         ```
         """
         pts_ind = self._triang_pt_inds(include_points_interior_to_facets, points)
@@ -2952,56 +2965,56 @@ class Polytope:
         :::
 
         **Arguments:**
-        - `N` *(int, optional)*: Number of desired unique triangulations.
-          If not specified, it will generate as many triangulations as it can
-          find until it has to retry more than `max_retries` times to
-          obtain a new triangulation. This parameter is required when setting
-          `as_list` to True.
-        - `c` *(float, optional, default=0.2)*: A contant used as the
-          standard deviation of the Gaussian distribution used to pick the
-          heights. A larger `c` results in a wider range of possible
-          triangulations, but with a larger fraction of them being non-fine,
-          which slows down the process when `only_fine` is set to True.
+        - `N` *(int, optional)*: Number of desired unique triangulations. If not
+            specified, it will generate as many triangulations as it can find
+            until it has to retry more than `max_retries` times to obtain a new
+            triangulation. This parameter is required when setting `as_list` to
+            True.
+        - `c` *(float, optional, default=0.2)*: A contant used as the standard
+            deviation of the Gaussian distribution used to pick the heights. A
+            larger `c` results in a wider range of possible triangulations, but
+            with a larger fraction of them being non-fine, which slows down the
+            process when `only_fine` is set to True.
         - `max_retries` *(int, optional, default=50)*: Maximum number of
-          attempts to obtain a new triangulation before the process is
-          terminated.
-        - `make_star` *(bool, optional)*: Converts the obtained
-          triangulations into star triangulations. If not specified, defaults
-          to True for reflexive polytopes, and False for other polytopes.
+            attempts to obtain a new triangulation before the process is
+            terminated.
+        - `make_star` *(bool, optional)*: Converts the obtained triangulations
+            into star triangulations. If not specified, defaults to True for
+            reflexive polytopes, and False for other polytopes.
         - `only_fine` *(bool, optional, default=True)*: Restricts to fine
-          triangulations.
-        - `include_points_interior_to_facets` *(bool, optional)*: Whether
-          to include points interior to facets from the triangulation. If not
-          specified, it is set to False for reflexive polytopes and True
-          otherwise.
-        - `points` *(array_like, optional)*: The list of indices of the
-          points that will be used. Note that if this option is used then the
-          parameter `include_points_interior_to_facets` is ignored.
-        - `backend` *(str, optional, default="cgal")*: Specifies the
-          backend used to compute the triangulation. The available options are
-          "cgal" and "qhull".
-        - `as_list` *(bool, optional, default=False)*: By default this
-          function returns a generator object, which is usually desired for
-          efficiency. However, this flag can be set to True so that it returns
-          the full list of triangulations at once.
-        - `progress_bar` *(bool, optional, default=True)*: Shows the number
-          of triangulations obtained and progress bar. Note that this option is
-          only available when returning a list instead of a generator.
-        - `seed` *(int, optional)*: A seed for the random number generator.
-          This can be used to obtain reproducible results.
+            triangulations.
+        - `include_points_interior_to_facets` *(bool, optional)*: Whether to
+            include points interior to facets from the triangulation. If not
+            specified, it is set to False for reflexive polytopes and True
+            otherwise.
+        - `points` *(array_like, optional)*: The list of indices of the points
+            that will be used. Note that if this option is used then the
+            parameter `include_points_interior_to_facets` is ignored.
+        - `backend` *(str, optional, default="cgal")*: Specifies the backend
+            used to compute the triangulation. The available options are "cgal"
+            and "qhull".
+        - `as_list` *(bool, optional, default=False)*: By default this function
+            returns a generator object, which is usually desired for efficiency.
+            However, this flag can be set to True so that it returns the full
+            list of triangulations at once.
+        - `progress_bar` *(bool, optional, default=True)*: Shows the number of
+            triangulations obtained and progress bar. Note that this option is
+            only available when returning a list instead of a generator.
+        - `seed` *(int, optional)*: A seed for the random number generator. This
+            can be used to obtain reproducible results.
 
         **Returns:**
         *(generator or list)* A generator of
-        [`Triangulation`](./triangulation) objects, or a list of
-        [`Triangulation`](./triangulation) objects if `as_list` is set
-        to True.
+            [`Triangulation`](./triangulation) objects, or a list of
+            [`Triangulation`](./triangulation) objects if `as_list` is set to
+            True.
 
         **Example:**
         We construct a polytope and find some random triangulations. The
         triangulations are obtained very quicly, but they are not a fair sample
         of the space of triangulations. For a fair sample, the
-        [`random_triangulations_fair`](#random_triangulations_fair)
-        function should be used.
+        [`random_triangulations_fair`](#random_triangulations_fair) function
+        should be used.
         ```python {2,7}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]]).dual()
         g = p.random_triangulations_fast()
@@ -3052,101 +3065,101 @@ class Polytope:
                                    progress_bar=True, seed=None):
         """
         **Description:**
-        Constructs pseudorandom regular (optionally star)
-        triangulations of a given point set. Implements Algorithm \#3 from the
-        paper
-        *Bounding the Kreuzer-Skarke Landscape*
-        by Mehmet Demirtas, Liam McAllister, and Andres Rios-Tascon.
+        Constructs pseudorandom regular (optionally star) triangulations of a
+        given point set. Implements Algorithm \#3 from the paper
+        *Bounding the Kreuzer-Skarke Landscape* by Mehmet Demirtas, Liam
+        McAllister, and Andres Rios-Tascon.
         [arXiv:2008.01730](https://arxiv.org/abs/2008.01730)
 
-        This is a Markov chain Monte Carlo algorithm that involves taking
-        random walks inside the subset of the secondary fan corresponding to
-        fine triangulations and performing random flips. For details, please
-        see Section 4.1 in the paper.
+        This is a Markov chain Monte Carlo algorithm that involves taking random
+        walks inside the subset of the secondary fan corresponding to fine
+        triangulations and performing random flips. For details, please see
+        Section 4.1 in the paper.
 
         :::note notes
         - By default this function tries to guess reasonable parameters for the
-          polytope that is being used. However, it may take some
-          trial-and-error to find optimal parameters that produce a good
-          sampling and prevent the algorithm from getting stuck.
+            polytope that is being used. However, it may take some
+            trial-and-error to find optimal parameters that produce a good
+            sampling and prevent the algorithm from getting stuck.
         - This function is designed mainly for large polytopes where sampling
-          triangulations is challenging. When small polytopes are used it is
-          likely to get stuck or not produce an optimal set.
+            triangulations is challenging. When small polytopes are used it is
+            likely to get stuck or not produce an optimal set.
         :::
 
         **Arguments:**
-        - `N` *(int, optional)*: Number of desired unique triangulations.
-          If not specified, it will generate as many triangulations as it can
-          find until it has to retry more than `max_retries` times to
-          obtain a new triangulation. This parameter is required when setting
-          `as_list` to True.
+        - `N` *(int, optional)*: Number of desired unique triangulations. If not
+            specified, it will generate as many triangulations as it can find
+            until it has to retry more than `max_retries` times to obtain a new
+            triangulation. This parameter is required when setting `as_list` to
+            True.
         - `n_walk` *(int, optional, default=n_points//10+10)*: Number of
-          hit-and-run steps per triangulation.
-        - `n_flip` *(int, optional, default=n_points//10+10)*: Number of
-          random flips performed per triangulation.
+            hit-and-run steps per triangulation.
+        - `n_flip` *(int, optional, default=n_points//10+10)*: Number of random
+            flips performed per triangulation.
         - `initial_walk_steps` *(int, optional, default=2*n_pts//10+10)*:
-          Number of hit-and-run steps to take before starting to record
-          triangulations. Small values may result in a bias towards
-          Delaunay-like triangulations.
-        - `walk_step_size` *(float, optional, default=1e-2)*: Determines
-          the size of random steps taken in the secondary fan. The algorithm
-          may stall if too small.
-        - `max_steps_to_wall` *(int, optional, default=25)*: Maximum
-          number of steps to take towards a wall of the subset of the secondary
-          fan that correspond to fine triangulations. If a wall is not found, a
-          new random direction is selected. Setting this to be very large
-          (>100) reduces performance. If this is set to be too low, the
-          algorithm may stall.
-        - `fine_tune_steps` *(int, optional, default=8)*: Number of steps
-          to determine the location of a wall. Decreasing improves performance,
-          but might result in biased samples.
+            Number of hit-and-run steps to take before starting to record
+            triangulations. Small values may result in a bias towards
+            Delaunay-like triangulations.
+        - `walk_step_size` *(float, optional, default=1e-2)*: Determines the
+            size of random steps taken in the secondary fan. The algorithm may
+            stall if too small.
+        - `max_steps_to_wall` *(int, optional, default=25)*: Maximum number of
+            steps to take towards a wall of the subset of the secondary fan that
+            correspond to fine triangulations. If a wall is not found, a new
+            random direction is selected. Setting this to be very large (>100)
+            reduces performance. If this is set to be too low, the algorithm may
+            stall.
+        - `fine_tune_steps` *(int, optional, default=8)*: Number of steps to
+            determine the location of a wall. Decreasing improves performance,
+            but might result in biased samples.
         - `max_retries` *(int, optional, default=50)*: Maximum number of
-          attempts to obtain a new triangulation before the process is
-          terminated.
-        - `make_star` *(bool, optional)*: Converts the obtained
-          triangulations into star triangulations. If not specified, defaults
-          to True for reflexive polytopes, and False for other polytopes.
-        - `include_points_interior_to_facets` *(bool, optional)*: Whether
-          to include points interior to facets from the triangulation. If not
-          specified, it is set to False for reflexive polytopes and True
-          otherwise.
-        - `points` *(array_like, optional)*: The list of indices of the
-          points that will be used. Note that if this option is used then the
-          parameter `include_points_interior_to_facets` is ignored.
-        - `backend` *(str, optional, default="cgal")*: Specifies the
-          backend used to compute the triangulation. The available options are
-          "cgal" and "qhull".
-        - `as_list` *(bool, optional, default=False)*: By default this
-          function returns a generator object, which is usually desired for
-          efficiency. However, this flag can be set to True so that it returns
-          the full list of triangulations at once.
+            attempts to obtain a new triangulation before the process is
+            terminated.
+        - `make_star` *(bool, optional)*: Converts the obtained triangulations
+            into star triangulations. If not specified, defaults to True for
+            reflexive polytopes, and False for other polytopes.
+        - `include_points_interior_to_facets` *(bool, optional)*: Whether to
+            include points interior to facets from the triangulation. If not
+            specified, it is set to False for reflexive polytopes and True
+            otherwise.
+        - `points` *(array_like, optional)*: The list of indices of the points
+            that will be used. Note that if this option is used then the
+            parameter `include_points_interior_to_facets` is ignored.
+        - `backend` *(str, optional, default="cgal")*: Specifies the backend
+            used to compute the triangulation. The available options are "cgal"
+            and "qhull".
+        - `as_list` *(bool, optional, default=False)*: By default this function
+            returns a generator object, which is usually desired for efficiency.
+            However, this flag can be set to True so that it returns the full
+            list of triangulations at once.
         - `progress_bar` *(bool, optional, default=True)*: Shows number of
-          triangulations obtained and progress bar. Note that this option is
-          only available when returning a list instead of a generator.
-        - `seed` *(int, optional)*: A seed for the random number generator.
-          This can be used to obtain reproducible results.
+            triangulations obtained and progress bar. Note that this option is
+            only available when returning a list instead of a generator.
+        - `seed` *(int, optional)*: A seed for the random number generator. This
+            can be used to obtain reproducible results.
 
         **Returns:**
         *(generator or list)* A generator of
         [`Triangulation`](./triangulation) objects, or a list of
-        [`Triangulation`](./triangulation) objects if `as_list` is set
-        to True.
+        [`Triangulation`](./triangulation) objects if `as_list` is set to True.
 
         **Example:**
         We construct a polytope and find some random triangulations. The
         computation takes considerable time, but they should be a fair sample
         from the full set of triangulations (if the parameters are chosen
-        correctly). For (some) machine learning purposes or when the fairness
-        of the sample is not crucial, the
-        [`random_triangulations_fast`](#random_triangulations_fast)
-        function should be used instead.
+        correctly). For (some) machine learning purposes or when the fairness of
+        the sample is not crucial, the
+        [`random_triangulations_fast`](#random_triangulations_fast) function
+        should be used instead.
         ```python {2,7}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]]).dual()
         g = p.random_triangulations_fast()
         next(g) # Takes a long time (around a minute)
-        # A fine, regular, star triangulation of a 4-dimensional point configuration with 106 points in ZZ^4
+        # A fine, regular, star triangulation of a 4-dimensional point
+        # configuration with 106 points in ZZ^4
         next(g) # Takes slightly shorter (still around a minute)
-        # A fine, regular, star triangulation of a 4-dimensional point configuration with 106 points in ZZ^4
+        # A fine, regular, star triangulation of a 4-dimensional point
+        # configuration with 106 points in ZZ^4
         rand_triangs = p.random_triangulations_fair(N=10, as_list=True) # Produces the list of 10 triangulations, but takes a long time (around 10 minutes)
         ```
         It is worth noting that the time it takes to obtain each triangulation
@@ -3207,47 +3220,44 @@ class Polytope:
 
         :::caution warning
         Polytopes with more than around 15 points usually have too many
-        triangulations, so this function may take too long or run out of
-        memory.
+        triangulations, so this function may take too long or run out of memory.
         :::
 
         **Arguments:**
-        - `only_fine` *(bool, optional, default=True)*: Restricts to only
-          fine triangulations.
-        - `only_regular` *(bool, optional, default=True)*: Restricts to
-          only regular triangulations.
-        - `only_star` *(bool, optional)*: Restricts to only
-            star triangulations. When not specified it defaults to True for
-            reflexive polytopes and False otherwise.
-        - `star_origin` *(int, optional)*: The index of the point that
-          will be used as the star origin. If the polytope is reflexive this
-          is set to 0, but otherwise it must be specified.
-        - `include_points_interior_to_facets` *(bool, optional)*: Whether
-          to include points interior to facets from the triangulation. If not
-          specified, it is set to False for reflexive polytopes and True
-          otherwise.
-        - `points` *(array_like, optional)*: The list of indices of the
-          points that will be used. Note that if this option is used then the
-          parameter `include_points_interior_to_facets` is ignored.
-        - `backend` *(str, optional)*: The optimizer used to check
-          regularity computation. The available options are the backends of the
-          [`is_solid`](./cone#is_solid) function of the
-          [`Cone`](./cone) class. If not specified, it will be picked
-          automatically. Note that TOPCOM is not used to check regularity since
-          it is much slower.
-        - `as_list` *(bool, optional, default=False)*: By default this
-          function returns a generator object, which is usually desired for
-          efficiency. However, this flag can be set to True so that it returns
-          the full list of triangulations at once.
+        - `only_fine` *(bool, optional, default=True)*: Restricts to only fine
+            triangulations.
+        - `only_regular` *(bool, optional, default=True)*: Restricts to only
+            regular triangulations.
+        - `only_star` *(bool, optional)*: Restricts to only star triangulations.
+            When not specified it defaults to True for reflexive polytopes and
+            False otherwise.
+        - `star_origin` *(int, optional)*: The index of the point that will be
+            used as the star origin. If the polytope is reflexive this is set to
+            0, but otherwise it must be specified.
+        - `include_points_interior_to_facets` *(bool, optional)*: Whether to
+            include points interior to facets from the triangulation. If not
+            specified, it is set to False for reflexive polytopes and True
+            otherwise.
+        - `points` *(array_like, optional)*: The list of indices of the points
+            that will be used. Note that if this option is used then the
+            parameter `include_points_interior_to_facets` is ignored.
+        - `backend` *(str, optional)*: The optimizer used to check regularity
+            computation. The available options are the backends of the
+            [`is_solid`](./cone#is_solid) function of the [`Cone`](./cone)
+            class. If not specified, it will be picked automatically. Note that
+            TOPCOM is not used to check regularity since it is much slower.
+        - `as_list` *(bool, optional, default=False)*: By default this function
+            returns a generator object, which is usually desired for efficiency.
+            However, this flag can be set to True so that it returns the full
+            list of triangulations at once.
         - `raw_output` *(bool, optional, default=False)*: Return the
-          triangulations as lists of simplices instead of as Triangulation
-          objects.
+            triangulations as lists of simplices instead of as Triangulation
+            objects.
 
         **Returns:**
         *(generator or list)* A generator of
         [`Triangulation`](./triangulation) objects, or a list of
-        [`Triangulation`](./triangulation) objects if `as_list` is set
-        to True.
+        [`Triangulation`](./triangulation) objects if `as_list` is set to True.
 
         **Example:**
         We construct a polytope and find all of its triangulations. We try
@@ -3257,9 +3267,11 @@ class Polytope:
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-2,-1,-1],[-2,-1,-1,-1]])
         g = p.all_triangulations()
         next(g) # Takes some time while TOPCOM finds all the triangulations
-        # A fine, regular, star triangulation of a 4-dimensional point configuration with 7 points in ZZ^4
+        # A fine, regular, star triangulation of a 4-dimensional point
+        # configuration with 7 points in ZZ^4
         next(g) # Produces the next triangulation immediately
-        # A fine, regular, star triangulation of a 4-dimensional point configuration with 7 points in ZZ^4
+        # A fine, regular, star triangulation of a 4-dimensional point
+        # configuration with 7 points in ZZ^4
         len(p.all_triangulations(as_list=True)) # Number of fine, regular, star triangulations
         # 2
         len(p.all_triangulations(only_regular=False, only_star=False, only_fine=False, as_list=True) )# Number of triangularions, no matter if fine, regular, or star

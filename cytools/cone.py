@@ -1,23 +1,25 @@
+# =============================================================================
 # This file is part of CYTools.
 #
-# CYTools is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# CYTools is free software: you can redistribute it and/or modify it under the
+# terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or (at your option) any later
+# version.
 #
-# CYTools is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
+# CYTools is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+# A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with CYTools.  If not, see <https://www.gnu.org/licenses/>.
+# You should have received a copy of the GNU General Public License along with
+# CYTools. If not, see <https://www.gnu.org/licenses/>.
+# =============================================================================
+#
+# -----------------------------------------------------------------------------
+# Description:  This module contains tools designed to perform cone
+#               computations.
+# -----------------------------------------------------------------------------
 
-"""
-This module contains tools designed to perform cone computations.
-"""
-
-# standard imports
+# 'standard' imports
 from ast import literal_eval
 import math
 from multiprocessing import Process, Queue, cpu_count
@@ -27,7 +29,7 @@ import string
 import subprocess
 import warnings
 
-# third party imports
+# 3rd party imports
 from flint import fmpz_mat, fmpz, fmpq
 import numpy as np
 from ortools.linear_solver import pywraplp
@@ -40,8 +42,6 @@ from scipy.optimize import nnls
 # CYTools imports
 from cytools import config
 from cytools.utils import gcd_list, array_fmpz_to_int, array_fmpq_to_float
-
-
 
 class Cone:
     """
@@ -67,18 +67,17 @@ class Cone:
     [`__init__`](#__init__) function.
 
     **Arguments:**
-    - `rays` *(array_like, optional)*: A list of rays that generates
-      the cone. If it is not specified then the hyperplane normals must be
-      specified.
+    - `rays` *(array_like, optional)*: A list of rays that generates the cone.
+        If it is not specified then the hyperplane normals must be specified.
     - `hyperplanes` *(array_like, optional)*: A list of inward-pointing
-      hyperplane normals that define the cone. If it is not specified then the
-      generating rays must be specified.
+        hyperplane normals that define the cone. If it is not specified then the
+        generating rays must be specified.
     - `check` *(bool, optional, default=True)*: Whether to check the input.
-      Recommended if constructing a cone directly.
+        Recommended if constructing a cone directly.
 
     :::note
-    Exactly one of `rays` or `hyperplanes` must be specified. Otherwise
-    an exception is raised.
+    Exactly one of `rays` or `hyperplanes` must be specified. Otherwise an
+    exception is raised.
     :::
 
     **Example:**
@@ -101,30 +100,30 @@ class Cone:
         Initializes a `Cone` object.
 
         **Arguments:**
-        - `rays` *(array_like, optional)*: A list of rays that generates
-          the cone. If it is not specified then the hyperplane normals must be
-          specified.
+        - `rays` *(array_like, optional)*: A list of rays that generates the
+            cone. If it is not specified then the hyperplane normals must be
+            specified.
         - `hyperplanes` *(array_like, optional)*: A list of inward-pointing
-          hyperplane normals that define the cone. If it is not specified then
-          the generating rays must be specified.
-        - `check` *(bool, optional, default=True)*: Whether to check the
-          input. Recommended if constructing a cone directly.
+            hyperplane normals that define the cone. If it is not specified then
+            the generating rays must be specified.
+        - `check` *(bool, optional, default=True)*: Whether to check the input.
+            Recommended if constructing a cone directly.
         - `copy` *(bool, optional, default=True)*: Whether to ensure we copy
-          the input rays/hyperplanes. Recommended.
+            the input rays/hyperplanes. Recommended.
 
         :::note
-        Exactly one of `rays` or `hyperplanes` must be specified.
-        Otherwise, an exception is raised.
+        Exactly one of `rays` or `hyperplanes` must be specified. Otherwise, an
+        exception is raised.
         :::
 
         **Returns:**
         Nothing.
 
         **Example:**
-        This is the function that is called when creating a new
-        `Cone` object. We construct a cone in two different ways. First
-        from a list of rays then from a list of hyperplane normals. We verify
-        that the two inputs result in the same cone.
+        This is the function that is called when creating a new `Cone` object.
+        We construct a cone in two different ways. First from a list of rays
+        then from a list of hyperplane normals. We verify that the two inputs
+        result in the same cone.
         ```python {2,3}
         from cytools import Cone
         c1 = Cone([[0,1],[1,1]]) # Create a cone using rays. It can also be done with Cone(rays=[[0,1],[1,1]])
@@ -261,8 +260,8 @@ class Cone:
         Nothing.
 
         **Example:**
-        We construct a cone, compute its extremal rays, clear the cache
-        and then compute them again.
+        We construct a cone, compute its extremal rays, clear the cache and
+        then compute them again.
         ```python {5}
         c = Cone([[1,0],[1,1],[0,1]])
         c.extremal_rays()
@@ -427,8 +426,8 @@ class Cone:
                                            for v in self.extremal_rays())))
             return self._hash
         if self.dual().is_pointed():
-            # Note: The minus sign is important because otherwise the dual
-            # cone would have the same hash.
+            # Note: The minus sign is important because otherwise the dual cone
+            # would have the same hash.
             self._hash = -hash(tuple(sorted(tuple(v)
                                         for v in self.dual().extremal_rays())))
             return self._hash
@@ -637,10 +636,10 @@ class Cone:
         :::
 
         **Arguments:**
-        - `tol` *(float, optional, default=1e-4)*: Specifies the tolerance
-          for deciding whether a ray is extremal or not.
+        - `tol` *(float, optional, default=1e-4)*: Specifies the tolerance for
+            deciding whether a ray is extremal or not.
         - verbose *(bool, optional, default=False)*: When set to True it show
-          the progress while finding the extremal rays.
+            the progress while finding the extremal rays.
 
         **Returns:**
         *(numpy.ndarray)* The list of extremal rays of the cone.
@@ -745,40 +744,40 @@ class Cone:
                               constraint_error_tol=5e-2):
         """
         **Description:**
-        Finds the tip of the stretched cone. The stretched cone is defined
-        as the convex polyhedral region inside the cone that is at least a
+        Finds the tip of the stretched cone. The stretched cone is defined as
+        the convex polyhedral region inside the cone that is at least a
         distance `c` from any of its defining hyperplanes. Its tip is defined
         as the point in this region with the smallest norm.
 
         :::note
-        This is a problem that requires quadratic programming since the norm
-        of a vector is being minimized. For dimensions up to around 50, this
-        can easily be done with open-source solvers like OSQP or CVXOPT,
-        however for higher dimensions this becomes a difficult task that only
-        the Mosek optimizer is able to handle. However, Mosek is closed-source
-        and requires a license. For this reason we preferentially use ORTools,
+        This is a problem that requires quadratic programming since the norm of
+        a vector is being minimized. For dimensions up to around 50, this can
+        easily be done with open-source solvers like OSQP or CVXOPT, however
+        for higher dimensions this becomes a difficult task that only the Mosek
+        optimizer is able to handle. However, Mosek is closed-source and
+        requires a license. For this reason we preferentially use ORTools,
         which is open-source, to solve a linear problem and find a good
-        approximation of the tip. Nevertheless, if Mosek is activated then
-        it uses Mosek as it is faster and more accurate.
+        approximation of the tip. Nevertheless, if Mosek is activated then it
+        uses Mosek as it is faster and more accurate.
         :::
 
         **Arguments:**
-        - `c` *(float)*: A real positive number specifying the stretching
-          of the cone (i.e. the minimum distance to the defining hyperplanes).
-        - `backend` *(str, optional, default=None)*: String that
-          specifies the optimizer to use. Options are "mosek", "osqp",
-          "cvxopt", and "glop". If it is not specified then for $d<50$
-          it uses "osqp" by default. For $d\geq50$ it uses "mosek" if it is
-          activated, or "glop" otherwise.
-        - `check` *(bool, optional, default=True)*: Flag that specifies
-          whether to check if the output of the optimizer is consistent and
-          satisfies `constraint_error_tol`.
+        - `c` *(float)*: A real positive number specifying the stretching of
+            the cone (i.e. the minimum distance to the defining hyperplanes).
+        - `backend` *(str, optional, default=None)*: String that specifies the
+            optimizer to use. Options are "mosek", "osqp", "cvxopt", and
+            "glop". If it is not specified then for $d<50$ it uses "osqp" by
+            default. For $d\geq50$ it uses "mosek" if it is activated, or
+            "glop" otherwise.
+        - `check` *(bool, optional, default=True)*: Flag that specifies whether
+            to check if the output of the optimizer is consistent and satisfies
+            `constraint_error_tol`.
         - `constraint_error_tol` *(float, optional, default=1e-2)*: Error
-          tolerance for the linear constraints.
+            tolerance for the linear constraints.
 
         **Returns:**
         *(numpy.ndarray)* The vector specifying the location of the tip. If it
-        could not be found then None is returned.
+            could not be found then None is returned.
 
         **Example:**
         We construct two cones and find the locations of the tips of the
@@ -840,18 +839,18 @@ class Cone:
         **Description:**
         Finds a grading vector for the cone, i.e. a vector $\mathbf{v}$ such
         that any non-zero point in the cone $\mathbf{p}$ has a positive dot
-        product $\mathbf{v}\cdot\mathbf{p}>0$. Thus, the grading vector must
-        be strictly interior to the dual cone, so it is only defined for
-        pointed cones. This function returns an integer grading vector.
+        product $\mathbf{v}\cdot\mathbf{p}>0$. Thus, the grading vector must be
+        strictly interior to the dual cone, so it is only defined for pointed
+        cones. This function returns an integer grading vector.
 
         **Arguments:**
-        - `backend` *(str, optional, default=None)*: String that
-          specifies the optimizer to use. The options are the same as for the
-          [`find_interior_point`](#find_interior_point) function.
+        - `backend` *(str, optional, default=None)*: String that specifies the
+            optimizer to use. The options are the same as for the
+            [`find_interior_point`](#find_interior_point) function.
 
         **Returns:**
-        *(numpy.ndarray)* A grading vector. If it could not be found then
-        None is returned.
+        *(numpy.ndarray)* A grading vector. If it could not be found then None
+            is returned.
 
         **Example:**
         We construct a cone and find a grading vector.
@@ -874,18 +873,18 @@ class Cone:
 
         **Arguments:**
         - `c` *(float, optional, default=1)*: A real positive number specifying
-          the stretching of the cone (i.e. the minimum distance to the defining
-          hyperplanes).
-        - `backend` *(str, optional, default=None)*: String that
-          specifies the optimizer to use. Options are "glop", "scip", "cpsat",
-          "mosek", "osqp", and "cvxopt". If it is not specified then "glop" is
-          used by default. For $d\geq50$ it uses "mosek" if it is activated.
+            the stretching of the cone (i.e. the minimum distance to the
+            defining hyperplanes).
+        - `backend` *(str, optional, default=None)*: String that specifies the
+            optimizer to use. Options are "glop", "scip", "cpsat", "mosek",
+            "osqp", and "cvxopt". If it is not specified then "glop" is used by
+            default. For $d\geq50$ it uses "mosek" if it is activated.
         - `integral` *(bool, optional, default=False)*: A flag that specifies
-          whether the point should have integral coordinates.
+            whether the point should have integral coordinates.
 
         **Returns:**
         *(numpy.ndarray)* A point in the strict interior of the cone. If no
-        point is found then None is returned.
+            point is found then None is returned.
 
         **Example:**
         We construct a cone and find some interior points.
@@ -1036,25 +1035,25 @@ class Cone:
         preferred grading vector it is possible to specify the maximum degree.
 
         **Arguments:**
-        - `min_point` *(int, optional)*: Specifies the minimum number of
-          points to find. The degree will be increased until this minimum
-          number is achieved.
-        - `max_deg` *(int, optional)*: The maximum degree of the points to
-          find. This is useful when working with a preferred grading.
+        - `min_point` *(int, optional)*: Specifies the minimum number of points
+            to find. The degree will be increased until this minimum number is
+            achieved.
+        - `max_deg` *(int, optional)*: The maximum degree of the points to 
+            find. This is useful when working with a preferred grading.
         - `grading_vector` *(array_like, optional)*: The grading vector that
-          will be used. If it is not specified then it is computed.
-        - `max_coord` *(int, optional, default=1000)*: The maximum magnitude
-          of the coordinates of the points.
+            will be used. If it is not specified then it is computed.
+        - `max_coord` *(int, optional, default=1000)*: The maximum magnitude of
+            the coordinates of the points.
         - `deg_window` *(int, optional)*: If using min_points, search for
-            lattice points with degrees in range
-            [n*(deg_window+1), n*(deg_window+1)+deg_window] for 0<=n
+            lattice points with degrees in range [n*(deg_window+1),
+            n*(deg_window+1)+deg_window] for 0<=n
         - `filter_function` *(function, optional)*: A function to use as a
-          filter of the points that will be kept. It should return a boolean
-          indicating whether to keep the point. Note that `min_points` does
-          not take the filtering into account.
+            filter of the points that will be kept. It should return a boolean
+            indicating whether to keep the point. Note that `min_points` does
+            not take the filtering into account.
         - `process_function` *(function, optional)*: A function to process the
-          points as they are found. This is useful to avoid first constructing
-          a large list of points and then processing it.
+            points as they are found. This is useful to avoid first constructing
+            a large list of points and then processing it.
         - `verbose` *(boolean, optional)*: Whether to print extra diagnostic
             information (True) or not (False).
 
@@ -1127,13 +1126,13 @@ class Cone:
                 self._process_function = process_function
                 self._n_sol = 0
 
-        # We now define various versions of the on_solution_callback method
-        # for the different scenarios. The reason for having multiple
-        # functions instead of having various if statements in a single
-        # function is that, since it will be run many times, it is very
-        # inefficient to keep checking the conditions even though they will
-        # never change. This first method is for when we want to check that it
-        # is a pointed cone with a good grading vector
+        # We now define various versions of the on_solution_callback method for
+        # the different scenarios. The reason for having multiple functions
+        # instead of having various if statements in a single function is that,
+        # since it will be run many times, it is very inefficient to keep
+        # checking the conditions even though they will never change. This
+        # first method is for when we want to check that it is a pointed cone
+        # with a good grading vector
         class MoreThanOneSolution(Exception):
             pass
 
@@ -1251,21 +1250,21 @@ class Cone:
         :::note
         If the generating rays are known then this can simply be checked by
         computing the dimension of the linear space that they span. However,
-        when only the hyperplane inequalities are known this can be a
-        difficult problem. When using PPL as the backend, the convex hull is
-        explicitly constructed and checked. The other backends try to find a
-        point in the strict interior of the cone, which fails if the cone
-        is not solid. The latter approach is much faster, but there could be
-        extremely narrow cones where the optimization fails and this function
-        returns a false negative.
+        when only the hyperplane inequalities are known this can be a difficult
+        problem. When using PPL as the backend, the convex hull is explicitly
+        constructed and checked. The other backends try to find a point in the
+        strict interior of the cone, which fails if the cone is not solid. The
+        latter approach is much faster, but there could be extremely narrow
+        cones where the optimization fails and this function returns a false
+        negative.
         :::
 
         **Arguments:**
-        - `backend` *(str, optional)*: Specifies which backend to use.
-          Available options are "ppl", and any backends available
-          for the [`find_interior_point`](#find_interior_point)
-          function. If not specified, it uses the default backend of
-          the [`find_interior_point`](#find_interior_point) function.
+        - `backend` *(str, optional)*: Specifies which backend to use. Available
+            options are "ppl", and any backends available for the
+            [`find_interior_point`](#find_interior_point) function. If not
+            specified, it uses the default backend of the
+            [`find_interior_point`](#find_interior_point) function.
 
         **Returns:**
         *(bool)* The truth value of the cone being solid.
@@ -1325,19 +1324,19 @@ class Cone:
 
         :::note
         There are two available methods to perform the computation. Using NNLS
-        it directly checks if it can find a linear subspace. Alternatively,
-        it can check if the dual cone is solid. For extremely wide cones the
-        second approach is more reliable, so that is the default one.
+        it directly checks if it can find a linear subspace. Alternatively, it
+        can check if the dual cone is solid. For extremely wide cones the second
+        approach is more reliable, so that is the default one.
         :::
 
         **Arguments:**
         - `backend` *(str, optional)*: Specifies which backend to use.
-          Available options are "nnls", and any backends available for the
-          [`is_solid`](#is_solid) function. If not specified, it uses
-          the default backend for the [`is_solid`](#is_solid) function.
+            Available options are "nnls", and any backends available for the
+            [`is_solid`](#is_solid) function. If not specified, it uses the
+            default backend for the [`is_solid`](#is_solid) function.
         - `tol` *(float, optional, default=1e-7)*: The tolerance for
-          determining when a linear subspace is found. This is only used for
-          the NNLS backend.
+            determining when a linear subspace is found. This is only used for
+            the NNLS backend.
 
         **Returns:**
         *(bool)* The truth value of the cone being pointed.
@@ -1402,8 +1401,8 @@ class Cone:
     def is_smooth(self):
         """
         **Description:**
-        Returns True if the cone is smooth, i.e. its extremal rays either form
-        a basis of the ambient lattice, or they can be extended into one.
+        Returns True if the cone is smooth, i.e. its extremal rays either form a
+        basis of the ambient lattice, or they can be extended into one.
 
         **Arguments:**
         None.
@@ -1519,7 +1518,7 @@ class Cone:
 
         **Arguments:**
         - `other` *(Cone or array_like)*: The other cone that is being
-          intersected, or a list of cones to intersect with.
+            intersected, or a list of cones to intersect with.
 
         **Returns:**
         *(Cone)* The cone that results from the intersection.
@@ -1558,19 +1557,18 @@ def is_extremal(A, b, i=None, q=None, tol=1e-4):
     parameters that are used when parallelizing.
 
     **Arguments:**
-    - `A` *(array_like)*: A matrix where the columns are rays (excluding
-      b).
-    - `b` *(array_like)*: The vector that will be checked if it can be
-      expressed as a positive linear combination of the columns of A.
+    - `A` *(array_like)*: A matrix where the columns are rays (excluding b).
+    - `b` *(array_like)*: The vector that will be checked if it can be expressed
+        as a positive linear combination of the columns of A.
     - `i` *(int, optional)*: An id number that is used when parallelizing.
     - `q` *(multiprocessing.Queue, optional)*: A queue that is used when
-      parallelizing.
-    - `tol` *(float, optional, default=1e-4)*: The tolerance for
-      determining whether a ray is extremal.
+        parallelizing.
+    - `tol` *(float, optional, default=1e-4)*: The tolerance for determining
+        whether a ray is extremal.
 
     **Returns:**
     *(bool or None)* The truth value of the ray being extremal. If the process
-    fails then it returns nothing.
+        fails then it returns nothing.
 
     **Example:**
     This function is not meant to be directly used by the end user. Instead it

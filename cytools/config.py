@@ -1,28 +1,30 @@
+# =============================================================================
 # This file is part of CYTools.
 #
-# CYTools is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# CYTools is free software: you can redistribute it and/or modify it under the
+# terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or (at your option) any later
+# version.
 #
-# CYTools is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
+# CYTools is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+# A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with CYTools.  If not, see <https://www.gnu.org/licenses/>.
+# You should have received a copy of the GNU General Public License along with
+# CYTools. If not, see <https://www.gnu.org/licenses/>.
+# =============================================================================
+#
+# -----------------------------------------------------------------------------
+# Description:  This module contains various configuration variables for
+#               experimental features and custom installations.
+# -----------------------------------------------------------------------------
 
-"""
-This module contains various configuration variables for experimental features
-and custom installations.
-"""
-
+# 'standard' imports
 import warnings
 import os
 
-# The number of CPU threads to use in some computations, such as finding the extremal rays of a cone.
-# When set to None, then it uses all available threads.
+# The number of CPU threads to use in some computations, such as finding the
+# extremal rays of a cone. When set to None, then it uses all available threads.
 n_threads = None
 
 # Paths to external software in the Docker image. These can be modified when
@@ -52,7 +54,8 @@ def check_mosek_license(silent=False):
     ```python {2}
     import cytools
     cytools.config.check_mosek_license()
-    # It will print an error if it is not working, and if nothing is printed then it is working correctly
+    # It will print an error if it is not working, and if nothing is printed
+    # then it is working correctly
     ```
     """
     global _mosek_license
@@ -94,7 +97,7 @@ def set_mosek_path(path):
 
     **Arguments:**
     - `path` *(str)*: The path to the Mosek license. Note that the mounted
-      directory on the Docker container is `/home/cytools/mounted_volume/`.
+        directory on the Docker container is `/home/cytools/mounted_volume/`.
 
     **Returns:**
     Nothing.

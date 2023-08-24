@@ -1,26 +1,30 @@
+# =============================================================================
 # This file is part of CYTools.
 #
-# CYTools is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# CYTools is free software: you can redistribute it and/or modify it under the
+# terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or (at your option) any later
+# version.
 #
-# CYTools is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
+# CYTools is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+# A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with CYTools.  If not, see <https://www.gnu.org/licenses/>.
+# You should have received a copy of the GNU General Public License along with
+# CYTools. If not, see <https://www.gnu.org/licenses/>.
+# =============================================================================
+#
+# -----------------------------------------------------------------------------
+# Description:  This module contains tools designed to perform polytope face
+#               computations.
+# -----------------------------------------------------------------------------
 
-"""
-This module contains tools designed to perform polytope face computations.
-"""
-
-# Standard imports
+# 'standard' imports
 import copy
-# Third party imports
+
+# 3rd party imports
 import numpy as np
+
 # CYTools imports
 from cytools.triangulation import Triangulation
 
@@ -39,23 +43,21 @@ class PolytopeFace:
     ### `cytools.polytopeface.PolytopeFace`
 
     **Description:**
-    Constructs a `PolytopeFace` object describing a face of a lattice
-    polytope. This is handled by the hidden [`__init__`](#__init__)
-    function.
+    Constructs a `PolytopeFace` object describing a face of a lattice polytope.
+    This is handled by the hidden [`__init__`](#__init__) function.
 
     **Arguments:**
     - `ambient_poly` *(Polytope)*: The ambient polytope.
     - `vertices` *(array_like)*: The list of vertices.
-    - `saturated_ineqs` *(frozenset)*: A frozenset containing the indices
-      of the inequalities that this face saturates.
-    - `dim` *(int, optional)*: The dimension of the face. If it is not
-      given then it is computed.
+    - `saturated_ineqs` *(frozenset)*: A frozenset containing the indices of the
+        inequalities that this face saturates.
+    - `dim` *(int, optional)*: The dimension of the face. If it is not given
+        then it is computed.
 
     **Example:**
     Since objects of this class should not be directly created by the end user,
     we demostrate how to construct these objects using the
-    [`faces`](./polytope#faces) function of the
-    [`Polytope`](./polytope) class.
+    [`faces`](./polytope#faces) function of the [`Polytope`](./polytope) class.
     ```python {3}
     from cytools import Polytope
     p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
@@ -73,10 +75,10 @@ class PolytopeFace:
         **Arguments:**
         - `ambient_poly` *(Polytope)*: The ambient polytope.
         - `vertices` *(array_like)*: The list of vertices.
-        - `saturated_ineqs` *(frozenset)*: A frozenset containing the
-          indices of the inequalities that this face saturates.
-        - `dim` *(int, optional)*: The dimension of the face. If it is
-          not given then it is computed.
+        - `saturated_ineqs` *(frozenset)*: A frozenset containing the indices of
+            the inequalities that this face saturates.
+        - `dim` *(int, optional)*: The dimension of the face. If it is not given
+            then it is computed.
 
         **Returns:**
         Nothing.
@@ -125,8 +127,8 @@ class PolytopeFace:
         Nothing.
 
         **Example:**
-        We construct a face object and find its lattice points, then we
-        clear the cache and compute the points again.
+        We construct a face object and find its lattice points, then we clear
+        the cache and compute the points again.
         ```python {4}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
         f = p.faces(3)[0] # Pick one of the 3-faces
@@ -155,8 +157,8 @@ class PolytopeFace:
         *(str)* A string describing the face.
 
         **Example:**
-        This function can be used to convert the face to a string or to
-        print information about the face.
+        This function can be used to convert the face to a string or to print
+        information about the face.
         ```python {3,4}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
         f = p.faces(3)[0]
@@ -171,15 +173,15 @@ class PolytopeFace:
     def _points_saturated(self):
         """
         **Description:**
-        Computes the lattice points of the face along with the indices of
-        the hyperplane inequalities that they saturate.
+        Computes the lattice points of the face along with the indices of the
+        hyperplane inequalities that they saturate.
 
         :::note notes
         - Points are sorted in the same way as for the
-          [`_points_saturated`](./polytope#_points_saturated) function of the
-          [`Polytope`](./polytope) class.
+            [`_points_saturated`](./polytope#_points_saturated) function of the
+            [`Polytope`](./polytope) class.
         - Typically this function should not be called by the user. Instead, it
-          is called by various other functions in the PolytopeFace class.
+            is called by various other functions in the PolytopeFace class.
         :::
 
         **Arguments:**
@@ -187,8 +189,8 @@ class PolytopeFace:
 
         **Returns:**
         *(list)* A list of tuples. The first component of each tuple is the list
-        of coordinates of the point and the second component is a
-        `frozenset` of the hyperplane inequalities that it saturates.
+            of coordinates of the point and the second component is a
+            `frozenset` of the hyperplane inequalities that it saturates.
 
         **Example:**
         We construct a face and compute the lattice points along with the
@@ -219,8 +221,8 @@ class PolytopeFace:
         Returns the lattice points of the face.
 
         **Arguments:**
-        - `as_indices` *(bool)*: Return the points as indices of the full
-          list of points of the polytope.
+        - `as_indices` *(bool)*: Return the points as indices of the full list
+            of points of the polytope.
 
         **Returns:**
         *(numpy.ndarray)* The list of lattice points of the face.
@@ -254,8 +256,8 @@ class PolytopeFace:
         Returns the interior lattice points of the face.
 
         **Arguments:**
-        - `as_indices` *(bool)*: Return the points as indices of the full
-          list of points of the polytope.
+        - `as_indices` *(bool)*: Return the points as indices of the full list
+            of points of the polytope.
 
         **Returns:**
         *(numpy.ndarray)* The list of interior lattice points of the face.
@@ -289,8 +291,8 @@ class PolytopeFace:
         Returns the boundary lattice points of the face.
 
         **Arguments:**
-        - `as_indices` *(bool)*: Return the points as indices of the full
-          list of points of the polytope.
+        - `as_indices` *(bool)*: Return the points as indices of the full list
+        of points of the polytope.
 
         **Returns:**
         *(numpy.ndarray)* The list of boundary lattice points of the face.
@@ -329,8 +331,7 @@ class PolytopeFace:
         None.
 
         **Returns:**
-        *(Polytope)* The [`Polytope`](./polytope) corresponding to the
-        face.
+        *(Polytope)* The [`Polytope`](./polytope) corresponding to the face.
 
         **Example:**
         We construct a face object and then convert it into a
@@ -395,8 +396,8 @@ class PolytopeFace:
         `dual`.
 
         **Example:**
-        We construct a face object from a polytope, then find the dual face
-        in the dual polytope.
+        We construct a face object from a polytope, then find the dual face in
+        the dual polytope.
         ```python {3}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
         f = p.faces(2)[0] # Pick one of the 2-faces
@@ -453,14 +454,14 @@ class PolytopeFace:
         Computes the faces of the face.
 
         **Arguments:**
-        - `d` *(int, optional)*: Optional parameter that specifies the
-          dimension of the desired faces.
+        - `d` *(int, optional)*: Optional parameter that specifies the dimension
+            of the desired faces.
 
         **Returns:**
         *(tuple)* A tuple of [`PolytopeFace`](./polytopeface) objects of
-        dimension d, if specified. Otherwise, a tuple of tuples of
-        [`PolytopeFace`](./polytopeface) objects organized in ascending
-        dimension.
+            dimension d, if specified. Otherwise, a tuple of tuples of
+            [`PolytopeFace`](./polytopeface) objects organized in ascending
+            dimension.
 
         **Example:**
         We construct a face from a polytope and find its vertices.
@@ -547,28 +548,28 @@ class PolytopeFace:
         Also see Polytope.triangulate
 
         **Arguments:**
-        - `heights` *(array_like, optional)*: A list of heights specifying
-          the regular triangulation. When not specified, it will return the
-          Delaunay triangulation when using CGAL, a triangulation obtained from
-          random heights near the Delaunay when using QHull, or the placing
-          triangulation when using TOPCOM. Heights can only be specified when
-          using CGAL or QHull as the backend.
-        - `simplices` *(array_like, optional)*: A list of simplices
-          specifying the triangulation. This is useful when a triangulation was
-          previously computed and it needs to be used again. Note that the
-          order of the points needs to be consistent with the order that the
-          `Polytope` class uses.
-        - `check_input_simplices` *(bool, optional, default=True)*: Flag
-          that specifies whether to check if the input simplices define a valid
-          triangulation.
-        - `backend` *(str, optional, default="cgal")*: Specifies the
-          backend used to compute the triangulation. The available options are
-          "qhull", "cgal", and "topcom". CGAL is the default one as it is very
-          fast and robust.
+        - `heights` *(array_like, optional)*: A list of heights specifying the
+            regular triangulation. When not specified, it will return the
+            Delaunay triangulation when using CGAL, a triangulation obtained
+            from random heights near the Delaunay when using QHull, or the
+            placing triangulation when using TOPCOM. Heights can only be
+            specified when using CGAL or QHull as the backend.
+        - `simplices` *(array_like, optional)*: A list of simplices specifying
+            the triangulation. This is useful when a triangulation was
+            previously computed and it needs to be used again. Note that the
+            order of the points needs to be consistent with the order that the
+            `Polytope` class uses.
+        - `check_input_simplices` *(bool, optional, default=True)*: Flag that
+            specifies whether to check if the input simplices define a valid
+            triangulation.
+        - `backend` *(str, optional, default="cgal")*: Specifies the backend
+            used to compute the triangulation. The available options are
+            "qhull", "cgal", and "topcom". CGAL is the default one as it is very
+            fast and robust.
 
         **Returns:**
-        *(Triangulation)* A [`Triangulation`](./triangulation) object
-        describing a triangulation of the polytope.
+        *(Triangulation)* A [`Triangulation`](./triangulation) object describing
+            a triangulation of the polytope.
         """
         # check if we're just grabbing the Delaunay triangulation
         if (simplices is None) and (heights is None):
