@@ -19,17 +19,18 @@
 # -----------------------------------------------------------------------------
 
 # 'standard' imports
-from ast import literal_eval
+import ast
 import copy
-from itertools import combinations
+import itertools
 import math
 import re
 import subprocess
 import warnings
 
 # 3rd party imports
-from flint import fmpz_mat
+import flint
 import numpy as np
+from numpy.typing import ArrayLike
 from scipy.spatial import ConvexHull
 
 # CYTools imports
@@ -41,8 +42,8 @@ from cytools.utils import gcd_list
 class Triangulation:
     """
     This class handles triangulations of lattice polytopes. It can compute
-    various properties of the triangulation, as well as construct a ToricVariety
-    or CalabiYau object if the triangulation is suitable.
+    various properties of the triangulation, as well as construct a
+    ToricVariety or CalabiYau object if the triangulation is suitable.
 
     :::important
     Generally, objects of this class should not be constructed directly by the
@@ -61,11 +62,11 @@ class Triangulation:
     :::note
     If you construct a triangulation object directly by inputting a list of
     points they may be reordered to match the ordering of the points from the
-    [`Polytope`](./polytope) class. This is to ensure that computations of toric
-    varieties and Calabi-Yau manifolds are correct. To avoid this subtlety we
-    discourage users from constructing Triangulation objects directly, and
-    instead use the triangulation functions in the [`Polytope`](./polytope)
-    class.
+    [`Polytope`](./polytope) class. This is to ensure that computations of
+    toric varieties and Calabi-Yau manifolds are correct. To avoid this
+    subtlety we discourage users from constructing Triangulation objects
+    directly, and instead use the triangulation functions in the
+    [`Polytope`](./polytope) class.
     :::
 
     **Arguments:**
@@ -112,39 +113,41 @@ class Triangulation:
     ```
     """
 
-    def __init__(self, triang_pts, poly=None, heights=None, make_star=False,
-                 simplices=None, check_input_simplices=True, backend="cgal"):
+    def __init__(self,
+                 triang_pts: ArrayLike,
+                 poly: "Polytope" = None,
+                 heights: list = None,
+                 make_star: bool = False,
+                 simplices: ArrayLike = None,
+                 check_input_simplices: bool = True,
+                 backend: str = "cgal"):
         """
         **Description:**
         Initializes a `Triangulation` object.
 
         **Arguments:**
-        - `triang_pts` *(array_like)*: The list of points to be triangulated.
-        - `poly` *(Polytope, optional)*: The ambient polytope of the points to
-            be triangulated. If not specified, it is constructed as the convex
-            hull of the given points.
-        - `heights` *(array_like, optional)*: A list of heights specifying the
-            regular triangulation. When not specified, it will return the
-            Delaunay triangulation when using CGAL, a triangulation obtained
-            from random heights near the Delaunay when using QHull, or the
-            placing triangulation when using TOPCOM. Heights can only be
-            specified when using CGAL or QHull as the backend.
-        - `make_star` *(bool, optional, default=False)*: Indicates whether to
-            turn the triangulation into a star triangulation by deleting
-            internal lines and connecting all points to the origin, or
-            equivalently, by decreasing the height of the origin until it is
-            much lower than all other heights.
-        - `simplices` *(array_like, optional)*: A list of simplices specifying
-            the triangulation. Each simplex is a list of point indices. This is
-            useful when a triangulation was previously computed and it needs to
-            be used again. Note that the ordering of the points needs to be
-            consistent.
-        - `check_input_simplices` *(bool, optional, default=True)*: Flag that
-            specifies whether to check if the input simplices define a valid
-            triangulation.
-        - `backend` *(str, optional, default="cgal")*: Specifies the backend
-            used to compute the triangulation.  The available options are
-            "qhull", "cgal", and "topcom". CGAL is the default one as it is very
+        - `triang_pts`: The list of points to be triangulated.
+        - `poly`: The ambient polytope of the points to be triangulated. If not
+            specified, it's constructed as the convex hull of the given points.
+        - `heights`: The heights specifying the regular triangulation. When not
+            specified, construct based off of the backend:
+                - (CGAL) Delaunay triangulation,
+                - (QHULL) triangulation from random heights near Delaunay, or
+                - (TOPCOM) placing triangulation.
+            Heights can only be specified when using CGAL or QHull as the
+            backend.
+        - `make_star`: Whether to turn the triangulation into a star
+            triangulation by deleting internal lines and connecting all points
+            to the origin, or equivalently, by decreasing the height of the
+            origin until it is much lower than all other heights.
+        - `simplices`: Array-like of simplices specifying the triangulation.
+            Each simplex is a list of point indices. This is useful when a
+            triangulation was previously computed and it needs to be used
+            again. Note that the ordering of the points needs to be consistent.
+        - `check_input_simplices`: Whether to check if the input simplices
+            define a valid triangulation.
+        - `backend`: The backend used to compute the triangulation. Options are
+            "qhull", "cgal", and "topcom". CGAL is the default as it is very
             fast and robust.
 
         **Returns:**
@@ -165,122 +168,160 @@ class Triangulation:
         # configuration with 7 points in ZZ^4
         ```
         """
-        tmp_triang_pts = {tuple(pt) for pt in np.array(triang_pts, dtype=int)}
-        if len(tmp_triang_pts) == 0:
-            raise ValueError("List of points cannot be empty.")
+        # initialize hidden attributes
+        self.clear_cache(clear_simplices=False)
+
+        # Grab inputs
+        # -----------
+        self._backend = backend
         heights = copy.deepcopy(heights)
+
+        # points
+        tmp_triang_pts = {tuple(pt) for pt in np.array(triang_pts, dtype=int)}
+        if len(tmp_triang_pts) == 0: raise ValueError("Need at least 1 point.")
+        
+        # polytope
         if poly is None:
             from cytools.polytope import Polytope
             self._poly = Polytope(list(tmp_triang_pts))
         else:
             self._poly = poly
-        # Now we reorder the points to make sure they match the ordering of
-        # the Polytope class
+
+        # simplices
+        if simplices is not None:
+            self._simplices = sorted([sorted(s) for s in simplices])
+            self._simplices = np.asarray(self._simplices, dtype=int)
+        else:
+            self._simplices = None
+
+        # Parse points
+        # ------------
+        # reorder to match Polytope class ordering
         poly_pts = [tuple(pt) for pt in self._poly.points()]
-        self._triang_pts = np.array([pt for pt in poly_pts if pt in tmp_triang_pts])
+
+        self._triang_pts = [pt for pt in poly_pts if pt in tmp_triang_pts]
+        self._triang_pts = np.asarray(self._triang_pts)
+
         triang_pts_tup = [tuple(pt) for pt in self._triang_pts]
-        # If the point configuration is not full-dimensional we find an better representation of the points
+
+        # if point config isn't full-dim, find better representation of points
         self._dim = np.linalg.matrix_rank([pt+(1,) for pt in tmp_triang_pts])-1
-        if self._dim == len(next(iter(tmp_triang_pts))):
-            self._is_fulldim = True
+        self._is_fulldim = (self._dim == len(next(iter(tmp_triang_pts))))
+
+        if self._is_fulldim:
             self._optimal_pts = self._triang_pts
         else:
-            self._is_fulldim = False
-            optimal_pts = np.array([pt - self._triang_pts[0] for pt in self._triang_pts])
-            optimal_pts = np.array(fmpz_mat(optimal_pts.T.tolist()).lll().transpose().tolist(), dtype=int)[:,-self._dim:]
+            optimal_pts = np.array([pt-self._triang_pts[0] for pt in self._triang_pts])
+            optimal_pts = np.array(flint.fmpz_mat(optimal_pts.T.tolist()).lll().transpose().tolist(), dtype=int)[:,-self._dim:]
             self._optimal_pts = optimal_pts
-        # Try to find the index of the origin.
+
+        # find index of origin
         try:
             self._origin_index = triang_pts_tup.index((0,)*self._poly.dim())
         except:
             self._origin_index = -1
             make_star = False
+
+        # maps pt->triang_idx; triang_idx->poly_idx
         self._pts_dict = {ii:i for i,ii in enumerate(triang_pts_tup)}
-        self._pts_triang_to_poly = {i:self._poly.points_to_indices(ii) for i,ii in enumerate(self._triang_pts)}
-        self._backend = backend
-        # Initialize hidden attributes
-        self._hash = None
-        self._is_regular = None
-        self._is_valid = None
-        self._is_fine = None
-        self._is_star = None
-        self._gkz_phi = None
-        self._sr_ideal = None
-        self._secondary_cone = [None]*2
-        self._toricvariety = None
-        self._automorphism_orbit = dict()
-        # Now save input triangulation or construct it
-        if simplices is not None:
-            self._simplices = np.array(sorted([sorted(s) for s in simplices]),dtype=int)
+        self._pts_triang_to_poly = {i:self._poly.points_to_indices(ii) for\
+                                        i, ii in enumerate(self._triang_pts)}
+
+        # Save input triangulation, or construct it
+        # -----------------------------------------
+        if self._simplices is not None:
+            self._heights = None
+
+            # check dimension
             if self._simplices.shape[1] != self._dim+1:
                 raise ValueError("Input simplices have wrong dimension.")
-            self._heights = None
+
+            # convert simplices to star
             if make_star:
-                facets_ind = [[self._pts_dict[tuple(pt)] for pt in f.boundary_points()]
-                              for f in self._poly.facets()]
-                self._simplices = convert_to_star(self._simplices, facets_ind, self._origin_index)
+                facets_ind = [[self._pts_dict[tuple(pt)]\
+                                                for pt in f.boundary_points()]\
+                                                for f in self._poly.facets()]
+                self._simplices = convert_to_star(self._simplices, facets_ind,\
+                                                            self._origin_index)
+
+            # ensure simplices define valid triangulation
             if check_input_simplices and not self.is_valid():
-                raise ValueError("Input simplices do not form a valid "
-                                 "triangulation.")
+                raise ValueError("Simplices don't form valid triangulation.")
         else:
+            # construct simplices from heights
             backends = ["qhull", "cgal", "topcom", None]
+
             self._is_regular = (None if backend == "qhull" else True)
             self._is_valid = True
+
             if heights is None:
+                if backend is None:
+                    raise ValueError("Simplices must be specified when working"
+                                     "without a backend")
+
                 # Heights need to be perturbed around the Delaunay heights for
                 # QHull or the triangulation might not be regular. If using
                 # CGAL then they are not perturbed.
-                if backend is None:
-                    raise ValueError("The simplices of the triangulation must "
-                                     "be specified when working without a "
-                                     "backend")
                 if backend == "qhull":
-                    heights = [np.dot(p,p) + np.random.normal(0,0.05) for p in self._triang_pts]
+                    heights = [np.dot(p,p) + np.random.normal(0,0.05)\
+                                                    for p in self._triang_pts]
                 elif backend == "cgal":
                     heights = [np.dot(p,p) for p in self._triang_pts]
                 elif backend == "topcom":
                     heights = None
                 else:
-                    raise ValueError("Invalid backend. "
-                                     f"Options are: {backends}.")
+                    raise ValueError(f"Invalid backend. Options: {backends}.")
             else:
                 if len(heights) != len(triang_pts):
-                    raise ValueError("Lists of heights and points must have the"
-                                     " same number of elements.")
+                    raise ValueError("Need same number of heights as points.")
+
             self._heights = np.asarray(heights)
+
             # Now run the appropriate triangulation function
             if backend == "qhull":
                 self._simplices = qhull_triangulate(self._optimal_pts, heights)
+
+                # convert to star
                 if make_star:
-                    facets_ind = [[self._pts_dict[tuple(pt)] for pt in f.boundary_points()]
-                                  for f in self._poly.facets()]
-                    self._simplices = convert_to_star(self._simplices, facets_ind, self._origin_index)
-            # With CGAL we can obtain a star triangulation more quickly by
-            # setting the height of the origin to be much lower than the
-            # others. In theory this can also be done with QHull, but one
-            # sometimes runs into errors.
+                    facets_ind = [[self._pts_dict[tuple(pt)]\
+                                                for pt in f.boundary_points()]\
+                                                for f in self._poly.facets()]
+                    self._simplices = convert_to_star(self._simplices,\
+                                             facets_ind, self._origin_index)
+
             elif backend == "cgal":
                 self._simplices = cgal_triangulate(self._optimal_pts, heights)
                 
+                # can obtain star more quickly than in QHull by setting height
+                # of origin to be much lower than others
+                # (can't do this in QHull since it sometimes causes errors...)
                 if make_star:
                     assert self._origin_index == 0
-                    min_other_heights, max_other_heights = min(heights[1:]), max(heights[1:])
-                    origin_height_step = (max_other_heights-min_other_heights)
+
+                    origin_height_step = (max(heights[1:])-min(heights[1:]))
                     
                     while self._simplices[:,0].any():
                         heights[0] -= origin_height_step
-                        self._simplices = cgal_triangulate(self._optimal_pts, heights)
+                        self._simplices = cgal_triangulate(self._optimal_pts,\
+                                                                    heights)
             else: # Use TOPCOM
                 self._simplices = topcom_triangulate(self._optimal_pts)
+
+                # convert to star
                 if make_star:
-                    facets_ind = [[self._pts_dict[tuple(pt)] for pt in f.boundary_points()]
-                                  for f in self._poly.facets()]
-                    self._simplices = convert_to_star(self._simplices, facets_ind, self._origin_index)
+                    facets_ind = [[self._pts_dict[tuple(pt)]\
+                                                for pt in f.boundary_points()]\
+                                                for f in self._poly.facets()]
+                    self._simplices = convert_to_star(self._simplices,\
+                                                facets_ind, self._origin_index)
+
         # Make sure that the simplices are sorted
-        self._simplices = np.array(sorted([sorted(s) for s in self._simplices]))
+        self._simplices = sorted([sorted(s) for s in self._simplices])
+        self._simplices = np.array(self._simplices)
+
         self._restricted_simplices = [None]*self._simplices.shape[1]
 
-    def clear_cache(self, recursive=False):
+    def clear_cache(self, recursive=False, clear_simplices=True):
         """
         **Description:**
         Clears the cached results of any previous computation.
@@ -313,7 +354,8 @@ class Triangulation:
         self._secondary_cone = [None]*2
         self._toricvariety = None
         self._automorphism_orbit = dict()
-        self._restricted_simplices = [None]*self._simplices.shape[1]
+        if clear_simplices:
+            self._restricted_simplices = [None]*self._simplices.shape[1]
         if recursive:
             self._poly.clear_cache()
 
@@ -1199,7 +1241,7 @@ class Triangulation:
         topcom_res = topcom.communicate(input=topcom_input)[0]
         if len(topcom_res)==0:
             return []
-        triangs_list = [literal_eval(r) for r in topcom_res.strip().split("\n")]
+        triangs_list = [ast.literal_eval(r) for r in topcom_res.strip().split("\n")]
         triangs = []
         for t in triangs_list:
             if not all (len(s)==self.dim()+1 for s in t):
@@ -1242,7 +1284,7 @@ class Triangulation:
             raise NotImplementedError("SR ideals can only be computed for full-dimensional star triangulations.")
         points = (frozenset(range(len(self._triang_pts))) - frozenset([self._origin_index]))
         simplices = [[i for i in s if i != self._origin_index] for s in self.simplices()]
-        simplex_tuples = tuple(frozenset(frozenset(ss) for s in simplices for ss in combinations(s, dd)) for dd in range(1,self.dim()+1))
+        simplex_tuples = tuple(frozenset(frozenset(ss) for s in simplices for ss in itertools.combinations(s, dd)) for dd in range(1,self.dim()+1))
         SR_ideal = set()
         checked = set()
         for i in range(len(simplex_tuples)-1):
@@ -1254,7 +1296,7 @@ class Triangulation:
                     checked.add(k)
                     in_SR = False
                     for order in range(1, i+1):
-                        for t in combinations(tup, order):
+                        for t in itertools.combinations(tup, order):
                             if frozenset(t+(j,)) in SR_ideal:
                                 in_SR = True
                     if k not in simplex_tuples[i+1] and not in_SR:
@@ -1326,7 +1368,7 @@ class Triangulation:
                         m[:,j] = pts_ext[pt]
                     for j,pt in enumerate(comm_pts):
                         m[:,j+2] = pts_ext[pt]
-                    v = np.array(fmpz_mat(m.tolist()).nullspace()[0].transpose().tolist()[0], dtype=int)
+                    v = np.array(flint.fmpz_mat(m.tolist()).nullspace()[0].transpose().tolist()[0], dtype=int)
                     if v[0] < 0:
                         v *= -1
                     # Reduce the vector
@@ -1555,7 +1597,7 @@ def cgal_triangulate(points, heights):
     if cgal_err != "":
         raise RuntimeError(f"CGAL error: {cgal_err}")
     try:
-        simp = literal_eval(cgal_res)
+        simp = ast.literal_eval(cgal_res)
     except:
         raise RuntimeError("Error: Failed to parse CGAL output.")
     return np.array(sorted([sorted(s) for s in simp]))
@@ -1595,7 +1637,7 @@ def topcom_triangulate(points):
     pts_str = str([list(pt)+[1] for pt in points])
     topcom_res, topcom_err = topcom.communicate(input=pts_str+"[]")
     try:
-        simp = literal_eval(topcom_res.replace("{", "[").replace("}", "]"))
+        simp = ast.literal_eval(topcom_res.replace("{", "[").replace("}", "]"))
     except:
         raise RuntimeError("Error: Failed to parse TOPCOM output. "
                            f"\nstdout: {topcom_res} \nstderr: {topcom_err}")
@@ -1687,7 +1729,7 @@ def all_triangulations(points, only_fine=False, only_regular=False,
         optimal_pts = points
     else:
         optimal_pts = np.array([pt - points[0] for pt in points])
-        optimal_pts = np.array(fmpz_mat(optimal_pts.T.tolist()).lll().transpose().tolist(), dtype=int)[:,-dim:]
+        optimal_pts = np.array(flint.fmpz_mat(optimal_pts.T.tolist()).lll().transpose().tolist(), dtype=int)[:,-dim:]
     topcom_bin = (config.topcom_path
                   + ("topcom-points2allfinetriangs" if only_fine
                      else "topcom-points2alltriangs"))
@@ -1697,7 +1739,7 @@ def all_triangulations(points, only_fine=False, only_regular=False,
     pts_str = str([list(pt)+[1] for pt in optimal_pts])
     topcom_res, topcom_err = topcom.communicate(input=pts_str+"[]")
     try:
-        triangs = [literal_eval("["+ t.replace("{","[").replace("}","]") + "]")
+        triangs = [ast.literal_eval("["+ t.replace("{","[").replace("}","]") + "]")
                     for t in re.findall(r"\{([^\:]*)\}", topcom_res)]
     except:
         raise RuntimeError("Error: Failed to parse TOPCOM output. "
