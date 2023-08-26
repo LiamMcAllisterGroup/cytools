@@ -26,15 +26,17 @@ from functools import reduce
 from itertools import permutations
 import requests
 import subprocess
+from typing import Generator
 
 # 3rd party imports
-from flint import fmpz_mat, fmpq, fmpz
+import flint
 import numpy as np
 from numpy.typing import ArrayLike
 import scipy.sparse as sp
 
 # CYTools imports
 from cytools import config
+from cytools import Polytope
 
 # basic math
 # ----------
@@ -60,7 +62,8 @@ def gcd_float(a: float,
     standard gcd functions raise an error for non-integer values.
     ```python {2}
     from cytools.utils import gcd_float
-    gcd_float(0.2, 0.5) # Should be 0.1, but there are small rounding errors
+    gcd_float(0.2, 0.5)
+    # Should be 0.1, but there are small rounding errors
     # 0.09999999999999998
     ```
     """
@@ -87,7 +90,8 @@ def gcd_list(arr: list[float]) -> float:
     standard gcd functions raise an error for non-integer values.
     ```python {2}
     from cytools.utils import gcd_list
-    gcd_list([0.2, 0.5, 1.4, 6.05, 3.45]) # Should be 0.05, but there are small rounding errors
+    gcd_list([0.2, 0.5, 1.4, 6.05, 3.45])
+    # Should be 0.05, but there are small rounding errors
     # 0.04999999999999882
     ```
     """
@@ -115,7 +119,7 @@ def float_to_fmpq(c: float) -> flint.fmpq:
     ```
     """
     f = Fraction(c).limit_denominator()
-    return fmpq(f.numerator, f.denominator)
+    return flint.fmpq(f.numerator, f.denominator)
 
 
 def fmpq_to_float(c: flint.fmpq) -> float:
@@ -134,7 +138,8 @@ def fmpq_to_float(c: flint.fmpq) -> float:
     ```python {3}
     from cytools.utils import fmpq_to_float
     from flint import fmpq
-    fmpq_to_float(fmpq(1,2)), fmpq_to_float(fmpq(1,3)), fmpq_to_float(fmpq(49,20))
+    fmpq_to_float(fmpq(1,2)), fmpq_to_float(fmpq(1,3)),\
+                                                    fmpq_to_float(fmpq(49,20))
     # (0.5, 0.3333333333333333, 2.45)
     ```
     """
@@ -166,7 +171,7 @@ def array_int_to_fmpz(arr: ArrayLike) -> np.ndarray:
     out_arr = np.empty(in_arr.shape, dtype=object)
 
     for i in range(len(in_arr.flat)):
-        out_arr.flat[i] = fmpz(int(in_arr.flat[i]))
+        out_arr.flat[i] = flint.fmpz(int(in_arr.flat[i]))
 
     return out_arr
 
@@ -254,8 +259,8 @@ def array_fmpq_to_float(arr: ArrayLike) -> np.ndarray:
 
 # sparse conversions
 # ------------------
-def to_sparse(rule_arr_in: dict | list,
-              sparse_type: str = "dok") -> sp.dok_matrix | sp.csr_matrix:
+def to_sparse(rule_arr_in: "dict | list",
+              sparse_type: str = "dok") -> "sp.dok_matrix | sp.csr_matrix":
     """
     **Description:**
     Converts a (manually implemented) sparse matrix of the form
@@ -545,7 +550,7 @@ def solve_linear_system(M: sp.csr_matrix,
 
 # set algebraic geometric bases
 # -----------------------------
-def set_divisor_basis(tv_or_cy: ToricVariety | CalabiYau,
+def set_divisor_basis(tv_or_cy: "ToricVariety | CalabiYau",
                       basis: ArrayLike,
                       include_origin: bool = True):
     """
@@ -637,14 +642,14 @@ def set_divisor_basis(tv_or_cy: ToricVariety | CalabiYau,
         linrels_tmp = np.empty(linrels.shape, dtype=int)
         linrels_tmp[:,:len(nobasis)] = linrels[:,nobasis]
         linrels_tmp[:,len(nobasis):] = linrels[:,b]
-        linrels_tmp = fmpz_mat(linrels_tmp.tolist()).hnf()
+        linrels_tmp = flint.fmpz_mat(linrels_tmp.tolist()).hnf()
         linrels_tmp = np.array(linrels_tmp.tolist(), dtype=int)
         linrels_new = np.empty(linrels.shape, dtype=int)
         linrels_new[:,nobasis] = linrels_tmp[:,:len(nobasis)]
         linrels_new[:,b] = linrels_tmp[:,len(nobasis):]
         self._curve_basis_mat = np.zeros(glsm_cm.shape, dtype=int)
         self._curve_basis_mat[:,b] = np.eye(len(b),dtype=int)
-        sublat_ind =  int(round(np.linalg.det(np.array(fmpz_mat(linrels.tolist()).snf().tolist(), dtype=int)[:,:linrels.shape[0]])))
+        sublat_ind =  int(round(np.linalg.det(np.array(flint.fmpz_mat(linrels.tolist()).snf().tolist(), dtype=int)[:,:linrels.shape[0]])))
         for nb in nobasis[::-1]:
             tup = [(k,kk) for k,kk in enumerate(linrels_new[:,nb]) if kk]
             if sublat_ind % tup[-1][1] != 0:
@@ -674,7 +679,7 @@ def set_divisor_basis(tv_or_cy: ToricVariety | CalabiYau,
         new_glsm_cm = new_b.dot(glsm_cm.T).T
         if np.linalg.matrix_rank(new_glsm_cm) != glsm_rnk:
             raise ValueError("Input divisors do not form a basis.")
-        if abs(int(round(np.linalg.det(np.array(fmpz_mat(new_glsm_cm.tolist()).snf().tolist(),dtype=int)[:glsm_rnk,:glsm_rnk])))) != 1:
+        if abs(int(round(np.linalg.det(np.array(flint.fmpz_mat(new_glsm_cm.tolist()).snf().tolist(),dtype=int)[:glsm_rnk,:glsm_rnk])))) != 1:
             raise ValueError("Input divisors do not form an integral basis.")
         self._divisor_basis = np.array(new_b)
         # Now we store a more convenient form of the matrix where we use the
@@ -689,7 +694,7 @@ def set_divisor_basis(tv_or_cy: ToricVariety | CalabiYau,
                                 points=self.prime_toric_divisors())
         self._divisor_basis_mat = np.array(new_b)
         nobasis = np.array([i for i in range(glsm_cm.shape[1]) if i not in standard_basis])
-        sublat_ind =  int(round(np.linalg.det(np.array(fmpz_mat(linrels.tolist()).snf().tolist(), dtype=int)[:,:linrels.shape[0]])))
+        sublat_ind =  int(round(np.linalg.det(np.array(flint.fmpz_mat(linrels.tolist()).snf().tolist(), dtype=int)[:,:linrels.shape[0]])))
         for nb in nobasis[::-1]:
             tup = [(k,kk) for k,kk in enumerate(linrels[:,nb]) if kk]
             if sublat_ind % tup[-1][1] != 0:
@@ -700,7 +705,7 @@ def set_divisor_basis(tv_or_cy: ToricVariety | CalabiYau,
         # Finally, we invert the matrix and construct the dual curve basis
         if abs(int(round(np.linalg.det(self._divisor_basis_mat[:,standard_basis])))) != 1:
             raise ValueError("Input divisors do not form an integral basis.")
-        inv_mat = fmpz_mat(self._divisor_basis_mat[:,standard_basis].tolist()).inv(integer=True)
+        inv_mat = flint.fmpz_mat(self._divisor_basis_mat[:,standard_basis].tolist()).inv(integer=True)
         inv_mat = np.array(inv_mat.tolist(), dtype=int)
         # flint sometimes returns the negative inverse
         if inv_mat.dot(self._divisor_basis_mat[:,standard_basis])[0,0] == -1:
@@ -720,7 +725,7 @@ def set_divisor_basis(tv_or_cy: ToricVariety | CalabiYau,
     self.clear_cache(recursive=False, only_in_basis=True)
 
 
-def set_curve_basis(tv_or_cy: ToricVariety | CalabiYau,
+def set_curve_basis(tv_or_cy: "ToricVariety | CalabiYau",
                     basis: ArrayLike,
                     include_origin: bool = True):
     """
@@ -817,7 +822,7 @@ def set_curve_basis(tv_or_cy: ToricVariety | CalabiYau,
     pts = [tuple(pt)+(1,) for pt in self.polytope().points()[[0]+list(self.prime_toric_divisors())]]
     if any(new_b.dot(pts).flat):
         raise ValueError("Input curves do not form a valid basis.")
-    if abs(int(round(np.linalg.det(np.array(fmpz_mat(new_b.tolist()).snf().tolist(),dtype=int)[:glsm_rnk,:glsm_rnk])))) != 1:
+    if abs(int(round(np.linalg.det(np.array(flint.fmpz_mat(new_b.tolist()).snf().tolist(),dtype=int)[:glsm_rnk,:glsm_rnk])))) != 1:
         raise ValueError("Input divisors do not form an integral basis.")
     standard_basis = self.polytope().glsm_basis(
                             integral=True,
@@ -825,7 +830,7 @@ def set_curve_basis(tv_or_cy: ToricVariety | CalabiYau,
                             points=self.prime_toric_divisors())
     if abs(int(round(np.linalg.det(new_b[:,standard_basis])))) != 1:
         raise ValueError("Input divisors do not form an integral basis.")
-    inv_mat = fmpz_mat(new_b[:,standard_basis].tolist()).inv(integer=True)
+    inv_mat = flint.fmpz_mat(new_b[:,standard_basis].tolist()).inv(integer=True)
     inv_mat = np.array(inv_mat.tolist(), dtype=int)
     # flint sometimes returns the negative inverse
     if inv_mat.dot(new_b[:,standard_basis])[0,0] == -1:
@@ -847,7 +852,7 @@ def polytope_generator(input: str,
                        dualize: bool = False,
                        favorable: bool = None,
                        lattice: str = None,
-                       limit: int = None) -> generator[Polytope]:
+                       limit: int = None) -> Generator[Polytope, None, None]:
     """
     **Description:**
     Reads polytopes from a file or a string. The polytopes can be specified with
@@ -898,8 +903,6 @@ def polytope_generator(input: str,
     # [A 4-dimensional reflexive lattice polytope in ZZ^4]
     ```
     """
-    from cytools import Polytope
-
     # input checking
     if favorable is not None and lattice is None:
         raise ValueError('Lattice must be specified. Options are "M" and "N".')
@@ -1007,7 +1010,8 @@ def read_polytopes(input: str,
                    dualize: bool = False,
                    favorable: bool = None,
                    lattice: str = None,
-                   limit: int = None) -> generator[Polytope] | list[Polytope]:
+                   limit: int = None) -> 'Generator[Polytope, None, None] | \
+                                                            list[Polytope]':
     """
     **Description:**
     Reads polytopes from a file or a string. The polytopes can be specified
@@ -1076,8 +1080,8 @@ def fetch_polytopes(h11: int = None, h12: int = None,
                     as_list: bool = False,
                     backend: str = None,
                     dualize: bool = False,
-                    favorable: bool = None) -> generator[Polytope] | 
-                                                                list[Polytope]:
+                    favorable: bool = None) ->\
+                            'Generator[Polytope, None, None] | list[Polytope]':
     """
     **Description:**
     Fetches reflexive polytopes from the Kreuzer-Skarke database or from the
@@ -1255,7 +1259,7 @@ def find_new_affinely_independent_points(points: ArrayLike) -> np.ndarray:
         if basis_dim == dim:
             break
     basis_pts = np.array(basis_pts)
-    k, n_k = fmpz_mat(basis_pts.tolist()).nullspace()
+    k, n_k = flint.fmpz_mat(basis_pts.tolist()).nullspace()
     new_pts = np.array(k.transpose().tolist(), dtype=int)[:n_k,:]
     if len(pts) == 1:
         new_pts = np.array(new_pts.tolist() + [[1]+[0]*(pts.shape[1]-1)])
