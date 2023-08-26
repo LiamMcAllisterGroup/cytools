@@ -1368,7 +1368,7 @@ class ToricVariety:
             # be solved using via a Cholesky decomposition.
             solution = solve_linear_system(Mat, C, backend=backend, check=check,
                                            backend_error_tol=backend_error_tol,
-                                           verbose=verbose)
+                                           verbosity=verbose)
             if solution is None:
                 raise RuntimeError("Linear system solution failed.")
             if exact_arithmetic:

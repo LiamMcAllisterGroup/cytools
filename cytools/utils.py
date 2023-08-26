@@ -30,48 +30,54 @@ import subprocess
 # 3rd party imports
 from flint import fmpz_mat, fmpq, fmpz
 import numpy as np
-from scipy.sparse import dok_matrix, csr_matrix
+import scipy.sparse as sp
 
 # CYTools imports
 from cytools import config
 
-def gcd_float(a, b, tol=1e-5):
+def gcd_float(a: float,
+              b: float,
+              tol: float = 1e-5) -> float:
     """
     **Description:**
     Compute the greatest common (floating-point) divisor of a and b.
 
+    This is simply the largest floating point number that divides a and b.
+
     **Arguments:**
-    - `a` *(float)*: The first number.
-    - `b` *(float)*: The second number.
-    - `tol` *(float, optional, default=1e-5)*: The tolerance for rounding.
+    - `a`: The first number.
+    - `b`: The second number.
+    - `tol`: The tolerance for rounding.
 
     **Returns:**
-    *(float)* The gcd of a and b.
+    The gcd of a and b.
 
     **Example:**
-    We compute the gcd of two floats. This function is useful since the standard
-    gcd functions raise an error for non-integer values.
+    We compute the gcd of two floats. This function is useful since the
+    standard gcd functions raise an error for non-integer values.
     ```python {2}
     from cytools.utils import gcd_float
     gcd_float(0.2, 0.5) # Should be 0.1, but there are small rounding errors
     # 0.09999999999999998
     ```
     """
-    if abs(b) < tol:
-        return abs(a)
+    if abs(b) < tol: return abs(a)
     return gcd_float(b,a%b,tol)
 
 
-def gcd_list(arr):
+def gcd_list(arr: list[float]) -> float:
     """
     **Description:**
     Compute the greatest common divisor of the elements in an array.
 
+    This is simply the largest floating point number that divides all elements
+    in the list.
+
     **Arguments:**
-    - `arr` *(array_like)*: A list of floating-point numbers.
+    - `arr`: A list of floating-point numbers.
 
     **Returns:**
-    *(float)* The gcd of all the elements in the input list.
+    The gcd of all the elements in the input list.
 
     **Example:**
     We compute the gcd of a list of floats This function is useful since the
@@ -82,24 +88,25 @@ def gcd_list(arr):
     # 0.04999999999999882
     ```
     """
-    return reduce(gcd_float,arr)
+    return reduce(gcd_float, arr)
 
 
-def to_sparse(rule_arr_in, sparse_type="dok"):
+def to_sparse(rule_arr_in: dict | list,
+              sparse_type: str = "dok") -> sp.dok_matrix | sp.csr_matrix:
     """
     **Description:**
-    Converts an matrix of the form [[a,b,M_ab],...] or a dictionary of the form
-    [(a,b):M_ab, ...] to a dok_matrix or to a csr_matrix.
+    Converts a (manually implemented) sparse matrix of the form
+    [[a,b,M_ab], ...] or a dictionary of the form [(a,b):M_ab, ...] to a
+    formal dok_matrix or to a csr_matrix.
 
     **Arguments:**
-    - `rule_arr_in` *(dict or array_like)*: A list of the form [[a,b,M_ab],...]
-        or a dictionary of the form [(a,b):M_ab,...].
-    - `sparse_type` *(str, optional, default="dok")*: The type of sparse matrix
-        to return. The options are "dok" and "csr".
+    - `rule_arr_in`: A list of the form [[a,b,M_ab],...] or a dictionary of the
+        form [(a,b):M_ab,...].
+    - `sparse_type`: The type of sparse matrix to return. The options are "dok"
+        and "csr".
 
     **Returns:**
-    *(scipy.sparse.dok_matrix or scipy.sparse.csr_matrix)* The sparse matrix in
-        dok_matrix or csr_matrix format.
+    The sparse matrix in dok_matrix or csr_matrix format.
 
     **Example:**
     We convert the 5x5 identity matrix into a sparse matrix.
@@ -114,38 +121,46 @@ def to_sparse(rule_arr_in, sparse_type="dok"):
     #        with 5 stored elements in Compressed Sparse Row format>
     ```
     """
+    #  input sanitzation
+    if sparse_type not in ("dok", "csr"):
+        raise ValueError("sparse_type must be either \"dok\" or \"csr\".")
+
+    # map all inputs to list case; map to numpy array
     if isinstance(rule_arr_in, dict):
         rule_arr_in = [list(ii)+[rule_arr_in[ii]] for ii in rule_arr_in]
     rule_arr = np.array(rule_arr_in)
-    if sparse_type not in ("dok", "csr"):
-        raise ValueError("sparse_type must be either \"dok\" or \"csr\".")
-    dim_0 = max(rule_arr[:,0]+1)
-    dim_1 = max(rule_arr[:,1]+1)
-    sp_mat = dok_matrix((dim_0,dim_1))
+
+    # form emptry sparse matrix with appropriate dimensions
+    sp_mat = sp.dok_matrix((max(rule_arr[:,0]+1), max(rule_arr[:,1]+1)))
+
+    # fill in matrix
     for r in rule_arr:
         sp_mat[r[0],r[1]] = r[2]
-    return (sp_mat if sparse_type == "dok" else csr_matrix(sp_mat))
+
+    # return in appropriate format
+    return (sp_mat if sparse_type == "dok" else sp.csr_matrix(sp_mat))
 
 
-def solve_linear_system(M, C, backend="all", check=True,
-                        backend_error_tol=1e-4, verbose=0):
+def solve_linear_system(M: sp.csr_matrix,
+                        C: list[float],
+                        backend: str = "all",
+                        check: bool = True,
+                        backend_error_tol: float = 1e-4,
+                        verbosity: int = 0):
     """
     **Description:**
-    Solves the sparse linear system M*x+C=0.
+    Solves the sparse linear system M*x + C = 0.
 
     **Arguments:**
-    - `M` *(scipy.sparse.csr_matrix)*: A scipy csr_matrix.
-    - `C` *(array_like)*: A vector of floats.
-    - `backend` *(str, optional, default="all")*: The sparse linear solver to
-        use. Options are "all", "sksparse" and "scipy". When set to "all" it
-        tries all available backends.
-    - `check` *(bool, optional, default=True)*: Whether to explicitly check the
-        solution to the linear system.
-    - `backend_error_tol` *(float, optional, default=1e-4)*: Error tolerance for
-        the solution of the linear system.
-    - `verbose` *(int, optional, default=0)*: The verbosity level.
-        - verbose = 0: Do not print anything.
-        - verbose = 1: Print warnings when backends fail.
+    - `M`: The matrix.
+    - `C`: The constant term.
+    - `backend`: The solver to use. Options are "all", "sksparse" and "scipy".
+        When set to "all" it tries all available backends.
+    - `check`: Whether to explicitly check the solution to the linear system.
+    - `backend_error_tol`: Error tolerance for the solution.
+    - `verbosity`: The verbosity level.
+        - verbosity = 0: Do not print anything.
+        - verbosity = 1: Print warnings when backends fail.
 
     **Returns:**
     *(numpy.ndarray)* Floating-point solution to the linear system.
@@ -161,48 +176,47 @@ def solve_linear_system(M, C, backend="all", check=True,
     # array([-1., -1., -1., -1., -1.])
     ```
     """
+    # input sanitization
     backends = ["all", "sksparse", "scipy"]
     if backend not in backends:
-        raise ValueError("Invalid linear system backend. "
-                         f"The options are: {backends}.")
+        raise ValueError(f"Invalid backend... options are {backends}.")
+
+    # solve the system
     system_solved = False
     if backend == "all":
         for s in backends[1:]:
             solution = solve_linear_system(M, C, backend=s, check=check,
                                            backend_error_tol=backend_error_tol,
-                                           verbose=verbose)
-            if solution is not None:
-                return solution
+                                           verbosity=verbosity)
+            if solution is not None: return solution
+
     elif backend == "sksparse":
         try:
             from sksparse.cholmod import cholesky_AAt
             factor = cholesky_AAt(M.transpose())
-            CC = -M.transpose()*C
-            solution = factor(CC)
+            solution = factor(-M.transpose()*C)
             system_solved = True
         except:
-            if verbose >= 1:
-                print("Linear backend error: sksparse failed.")
-            system_solved = False
+            if verbosity >= 1: print("Linear backend error: sksparse failed.")
+
     elif backend == "scipy":
         try:
-            from scipy.sparse.linalg import spsolve
             MM = M.transpose()*M
             CC = -M.transpose()*C
-            solution = spsolve(MM, CC).tolist()
+            solution = sp.linalg.spsolve(MM, CC).tolist()
             system_solved = True
         except:
-            if verbose >= 1:
-                print("Linear backend error: scipy failed.")
+            if verbosity >= 1: print("Linear backend error: scipy failed.")
             system_solved = False
-    if system_solved and check:
-        res = M.dot(solution) + C
-        max_error = max(abs(s) for s in res.flat)
-        if max_error > backend_error_tol:
-            system_solved = False
-            if verbose >= 1:
-                print("Linear backend error: Large numerical error.")
+
     if system_solved:
+        if check:
+            res = M.dot(solution) + C
+            max_error = max(abs(s) for s in res.flat)
+            if max_error > backend_error_tol:
+                system_solved = False
+                if verbosity >= 1: print("Linear backend error: "
+                                            "Large numerical error.")
         return solution
     else:
         return None
@@ -527,17 +541,17 @@ def set_divisor_basis(tv_or_cy, basis, include_origin=True):
 
     :::note
     Only integral bases are supported by CYTools, meaning that all prime toric
-    divisors must be able to be written as an integral linear combination of the
-    basis divisors.
+    divisors must be able to be written as an integral linear combination of
+    the basis divisors.
     :::
 
     **Arguments:**
     - `tv_or_cy` *(ToricVariety or CalabiYau)*: The toric variety or Calabi-Yau
         whose basis will be set.
-    - `basis` *(array_like)*: Vector or matrix specifying a basis. When a vector
-        is used, the entries will be taken as the indices of points of the
-        polytope or prime divisors of the toric variety. When a matrix is used,
-        the rows are taken as linear combinations of the aforementioned
+    - `basis` *(array_like)*: Vector or matrix specifying a basis. When a
+        vector is used, the entries will be taken as the indices of points of
+        the polytope or prime divisors of the toric variety. When a matrix is
+        used, the rows are taken as linear combinations of the aforementioned
         divisors.
     - `include_origin` *(bool, optional, default=True)*: Whether to interpret
     the indexing specified by the input vector as including the origin.
