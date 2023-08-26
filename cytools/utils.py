@@ -200,7 +200,6 @@ def array_float_to_fmpq(arr: ArrayLike) -> np.ndarray:
 
     return out_arr
 
-
 def array_fmpz_to_int(arr: ArrayLike) -> np.ndarray:
     """
     **Description:**
@@ -414,8 +413,56 @@ def symmetric_dense_to_sparse(tensor: ArrayLike,
             break
     return sparse_tensor
 
-# matrix/tensor operations
-# ------------------------
+# other tensor operations
+# -----------------------
+def filter_tensor_indices(tensor: dict,
+                          indices: list[int]) -> dict:
+    """
+    **Description:**
+    Selects a specific subset of indices from a tensor.
+
+    The tensor is reindexed so that indices are in the range 0..len(indices)
+    with the ordering specified by the input indices. This function can be used
+    to convert the tensor of intersection numbers to a given basis.
+
+    **Arguments:**
+    - `tensor`: The input symmetric sparse tensor of the form of a dictionary
+        {(a,b,...,c):M_ab...c, ...}.
+    - `indices`: The list of indices that will be preserved.
+
+    **Returns:**
+    A dictionary describing a tensor in the same format as the input, but only with the desired indices.
+
+    **Example:**
+    We construct a simple tensor and then filter some of the indices. We also
+    give a concrete example of when this is used for intersection numbers.
+    ```python {3,10}
+    from cytools.utils import filter_tensor_indices
+    tensor = {(0,1):0, (1,1):1, (1,2):2, (1,3):3, (2,3):4}
+    filter_tensor_indices(tensor, [1,3])
+    # {(0, 0): 1, (0, 1): 3}
+    p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+    t = p.triangulate()
+    v = t.get_toric_variety()
+    intnums_nobasis = v.intersection_numbers(in_basis=False)
+    intnums_inbasis = v.intersection_numbers(in_basis=True)
+    intnums_inbasis == filter_tensor_indices(intnums_nobasis, v.divisor_basis())
+    # True
+    ```
+    """
+    # map from index to its count in indices object
+    indices_dict = {ind:i for i,ind in enumerate(indices)}
+
+    # only keep entries whose indices match those in indices
+    tensor_filtered = {k:tensor[k] for k in tensor if\
+                                                all(c in indices for c in k)}
+
+    # return reindexed tensor (order defined by indices input)
+    return {tuple(sorted(indices_dict[c] for c in k)):\
+                                tensor_filtered[k] for k in tensor_filtered}
+
+# solve systems
+# -------------
 def solve_linear_system(M: sp.csr_matrix,
                         C: list[float],
                         backend: str = "all",
@@ -496,55 +543,11 @@ def solve_linear_system(M: sp.csr_matrix,
 
     return solution
 
-
-def filter_tensor_indices(tensor: dict,
-                          indices: list[int]) -> dict:
-    """
-    **Description:**
-    Selects a specific subset of indices from a tensor.
-
-    The tensor is reindexed so that indices are in the range 0..len(indices)
-    with the ordering specified by the input indices. This function can be used
-    to convert the tensor of intersection numbers to a given basis.
-
-    **Arguments:**
-    - `tensor`: The input symmetric sparse tensor of the form of a dictionary
-        {(a,b,...,c):M_ab...c, ...}.
-    - `indices`: The list of indices that will be preserved.
-
-    **Returns:**
-    A dictionary describing a tensor in the same format as the input, but only with the desired indices.
-
-    **Example:**
-    We construct a simple tensor and then filter some of the indices. We also
-    give a concrete example of when this is used for intersection numbers.
-    ```python {3,10}
-    from cytools.utils import filter_tensor_indices
-    tensor = {(0,1):0, (1,1):1, (1,2):2, (1,3):3, (2,3):4}
-    filter_tensor_indices(tensor, [1,3])
-    # {(0, 0): 1, (0, 1): 3}
-    p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-    t = p.triangulate()
-    v = t.get_toric_variety()
-    intnums_nobasis = v.intersection_numbers(in_basis=False)
-    intnums_inbasis = v.intersection_numbers(in_basis=True)
-    intnums_inbasis == filter_tensor_indices(intnums_nobasis, v.divisor_basis())
-    # True
-    ```
-    """
-    # map from index to its count in indices object
-    indices_dict = {ind:i for i,ind in enumerate(indices)}
-
-    # only keep entries whose indices match those in indices
-    tensor_filtered = {k:tensor[k] for k in tensor if\
-                                                all(c in indices for c in k)}
-
-    # return reindexed tensor (order defined by indices input)
-    return {tuple(sorted(indices_dict[c] for c in k)):\
-                                tensor_filtered[k] for k in tensor_filtered}
-
-
-def set_divisor_basis(tv_or_cy, basis, include_origin=True):
+# set algebraic geometric bases
+# -----------------------------
+def set_divisor_basis(tv_or_cy: ToricVariety | CalabiYau,
+                      basis: ArrayLike,
+                      include_origin: bool = True):
     """
     **Description:**
     Specifies a basis of divisors for the toric variety or Calabi-Yau manifold,
@@ -567,15 +570,13 @@ def set_divisor_basis(tv_or_cy, basis, include_origin=True):
     :::
 
     **Arguments:**
-    - `tv_or_cy` *(ToricVariety or CalabiYau)*: The toric variety or Calabi-Yau
-        whose basis will be set.
-    - `basis` *(array_like)*: Vector or matrix specifying a basis. When a
-        vector is used, the entries will be taken as the indices of points of
-        the polytope or prime divisors of the toric variety. When a matrix is
-        used, the rows are taken as linear combinations of the aforementioned
-        divisors.
-    - `include_origin` *(bool, optional, default=True)*: Whether to interpret
-    the indexing specified by the input vector as including the origin.
+    - `tv_or_cy`: The toric variety or Calabi-Yau whose basis will be set.
+    - `basis`: Vector or matrix specifying a basis. When a vector is used, the
+        entries will be taken as the indices of points of the polytope or prime
+        divisors of the toric variety. When a matrix is used, the rows are
+        taken as linear combinations of the aforementioned divisors.
+    - `include_origin`: Whether to interpret the indexing specified by the
+        input vector as including the origin.
 
     **Returns:**
     Nothing.
@@ -602,26 +603,33 @@ def set_divisor_basis(tv_or_cy, basis, include_origin=True):
     [experimental features](./experimental) section.
     """
     self = tv_or_cy # More conveninent to work with
-    b = np.array(basis, dtype=int) # It must be an array of integers or they will be truncated
+
+    # grab GLSM information
     glsm_cm = self.glsm_charge_matrix(include_origin=True)
     glsm_rnk = np.linalg.matrix_rank(glsm_cm)
-    # Check if the input is a vector
+
+    # grab basis information
+    b = np.array(basis, dtype=int) # only integer bases are supported
     if len(b.shape) == 1:
-        b = np.array(sorted(basis))
-        if not include_origin:
-            b += 1
+        # input is a vector
+        b = np.array(sorted(basis)) + (not include_origin)
+
         # Check if it is a valid basis
         if min(b) < 0 or max(b) >= glsm_cm.shape[1]:
             raise ValueError("Indices are not in appropriate range.")
+
         if (glsm_rnk != np.linalg.matrix_rank(glsm_cm[:,b])
-                or glsm_rnk != len(b)):
+                                                        or glsm_rnk != len(b)):
             raise ValueError("Input divisors do not form a basis.")
+
         if abs(int(round(np.linalg.det(glsm_cm[:,b])))) != 1:
             raise ValueError("Only integer bases are supported.")
+
         # Save divisor basis
         self._divisor_basis = b
         self._divisor_basis_mat = np.zeros(glsm_cm.shape, dtype=int)
         self._divisor_basis_mat[:,b] = np.eye(glsm_rnk, dtype=int)
+
         # Construct dual basis of curves
         self._curve_basis = b
         nobasis = np.array([i for i in range(glsm_cm.shape[1]) if i not in b])
@@ -643,14 +651,17 @@ def set_divisor_basis(tv_or_cy, basis, include_origin=True):
                 raise RuntimeError("Problem with linear relations")
             i,ii = tup[-1]
             self._curve_basis_mat[:,nb] = -self._curve_basis_mat.dot(linrels_new[i])//ii
-    # Else if input is a matrix
+
     elif len(b.shape) == 2:
+        # input is a matrix
         if not config._exp_features_enabled:
             raise Exception("The experimental features must be enabled to "
                             "use generic bases.")
+
         # We start by checking if the input matrix looks right
         if np.linalg.matrix_rank(b) != glsm_rnk:
             raise ValueError("Input matrix has incorrect rank.")
+
         if b.shape == (glsm_rnk, glsm_cm.shape[1]):
             new_b = b
         elif b.shape == (glsm_rnk, glsm_cm.shape[1]-1):
@@ -659,6 +670,7 @@ def set_divisor_basis(tv_or_cy, basis, include_origin=True):
             new_b[:,0] = 0
         else:
             raise ValueError("Input matrix has incorrect shape.")
+
         new_glsm_cm = new_b.dot(glsm_cm.T).T
         if np.linalg.matrix_rank(new_glsm_cm) != glsm_rnk:
             raise ValueError("Input divisors do not form a basis.")
@@ -708,7 +720,9 @@ def set_divisor_basis(tv_or_cy, basis, include_origin=True):
     self.clear_cache(recursive=False, only_in_basis=True)
 
 
-def set_curve_basis(tv_or_cy, basis, include_origin=True):
+def set_curve_basis(tv_or_cy: ToricVariety | CalabiYau,
+                    basis: ArrayLike,
+                    include_origin: bool = True):
     """
     **Description:**
     Specifies a basis of curves of the toric variety, which in turn specifies a
@@ -734,15 +748,13 @@ def set_curve_basis(tv_or_cy, basis, include_origin=True):
     :::
 
     **Arguments:**
-    - `tv_or_cy` *(ToricVariety or CalabiYau)*: The toric variety or Calabi-Yau
-        whose basis will be set.
-    - `basis` *(array_like)*: Vector or matrix specifying a basis. When a vector
-        is used, the entries will be taken as indices of the standard basis of
-        the dual to the lattice of prime toric divisors. When a matrix is used,
-        the rows are taken as linear combinations of the aforementioned
-        elements.
-    - `include_origin` *(bool, optional, default=True)*: Whether to interpret
-        the indexing specified by the input vector as including the origin.
+    - `tv_or_cy`: The toric variety or Calabi-Yau whose basis will be set.
+    - `basis`: Vector or matrix specifying a basis. When a vector is used, the
+        entries will be taken as indices of the standard basis of the dual to
+        the lattice of prime toric divisors. When a matrix is used, the rows
+        are taken as linear combinations of the aforementioned elements.
+    - `include_origin`: Whether to interpret the indexing specified by the
+        input vector as including the origin.
 
     **Returns:**
     Nothing.
@@ -771,19 +783,27 @@ def set_curve_basis(tv_or_cy, basis, include_origin=True):
     example can be found in the [experimental features](./experimental) section.
     """
     self = tv_or_cy # More conveninent to work with
+
+    # parse basis
     b = np.array(basis, dtype=int)
-    # Check if the input is a vector
+
     if len(b.shape) == 1:
+        # input is a vector
         set_divisor_basis(self, b, include_origin=include_origin)
         return
+
     if len(b.shape) != 2:
         raise ValueError("Input must be either a vector or a matrix.")
+    
     # Else input is a matrix
     if not config._exp_features_enabled:
         raise Exception("The experimental features must be enabled to "
                         "use generic bases.")
+
+    # grab GLSM information
     glsm_cm = self.glsm_charge_matrix(include_origin=True)
     glsm_rnk = np.linalg.matrix_rank(glsm_cm)
+
     if np.linalg.matrix_rank(b) != glsm_rnk:
         raise ValueError("Input matrix has incorrect rank.")
     if b.shape == (glsm_rnk, glsm_cm.shape[1]):
@@ -818,10 +838,16 @@ def set_curve_basis(tv_or_cy, basis, include_origin=True):
     # Clear the cache of all in-basis computations
     self.clear_cache(recursive=False, only_in_basis=True)
 
-
-def polytope_generator(input, input_type="file", format="ks", backend=None,
-                       dualize=False, favorable=None, lattice=None,
-                       limit=None):
+# polytope grabbing
+# -----------------
+def polytope_generator(input: str,
+                       input_type: str = "file",
+                       format: str = "ks",
+                       backend: str = None,
+                       dualize: bool = False,
+                       favorable: bool = None,
+                       lattice: str = None,
+                       limit: int = None) -> generator[Polytope]:
     """
     **Description:**
     Reads polytopes from a file or a string. The polytopes can be specified with
@@ -835,27 +861,26 @@ def polytope_generator(input, input_type="file", format="ks", backend=None,
     :::
 
     **Arguments:**
-    - `input` *(str)*: Specifies the name of the file to read or the string
-        containing the polytopes.
-    - `input_type` *(str, optional, default="file")*: Specifies whether to read
-        from a file or from the input string. Options are "file" or "str".
-    - `format` *(str, optional, default="ks")*: Specifies the format to read.
-        The options are "ks", which is the format used in the KS database, and
-        "ws", if the polytopes should be constructed from weight systems.
-    - `backend` *(str, optional)*: A string that specifies the backend used for
-        the [`Polytope`](./polytope) class.
-    - `dualize` *(bool, optional, default=False)*: Flag that indicates whether
-        to dualize all the polytopes before yielding them.
-    - `favorable` *(bool, optional)*: Yield only polytopes that are favorable
-        when set to True, or non-favorable when set to False. If not specified
-        then it yields both favorable and non-favorable polytopes.
-    - `lattice` *(str, optional)*: The lattice to use when checking
-        favorability. This parameter is only required when `favorable` is
-        specified. Options are "M" and "N".
-    - `limit` *(int, optional)*: Sets a maximum numbers of polytopes to yield.
+    - `input`: Specifies the name of the file to read or the string containing
+        the polytopes.
+    - `input_type`: Specifies whether to read from a file or from the input
+        string. Options are "file" or "str".
+    - `format`: Specifies the format to read. The options are "ks", which is
+        the format used in the KS database, and "ws", if the polytopes should
+        be constructed from weight systems.
+    - `backend`: A string that specifies the backend used for the
+        [`Polytope`](./polytope) class.
+    - `dualize`: Flag that indicates whether to dualize all the polytopes
+        before yielding them.
+    - `favorable`: Yield only polytopes that are favorable when set to True, or
+        non-favorable when set to False. If not specified then it yields both
+        favorable and non-favorable polytopes.
+    - `lattice`: The lattice to use when checking favorability. This parameter
+        is only required when `favorable` is set. Options are "M" and "N".
+    - `limit`: Sets a maximum numbers of polytopes to yield.
 
     **Returns:**
-    *(generator)* A generator of [`Polytope`](./polytope) objects.
+    A generator of [`Polytope`](./polytope) objects.
 
     **Example:**
     Since this function should not be used directly, we show an example of it
@@ -874,10 +899,15 @@ def polytope_generator(input, input_type="file", format="ks", backend=None,
     ```
     """
     from cytools import Polytope
+
+    # input checking
     if favorable is not None and lattice is None:
-        raise ValueError("Lattice must be specified. Options are \"M\" and \"N\".")
+        raise ValueError('Lattice must be specified. Options are "M" and "N".')
+
     if input_type not in ["file", "str"]:
         raise ValueError("\"input_type\" must be either \"file\" or \"str\"")
+
+    # read data
     if input_type == "file":
         in_file = open(input, "r")
         l = in_file.readline()
@@ -969,41 +999,44 @@ def polytope_generator(input, input_type="file", format="ks", backend=None,
             else:
                 break
 
-
-def read_polytopes(input, input_type="file", format="ks", backend=None,
-                   as_list=False, dualize=False, favorable=None, lattice=None,
-                   limit=None):
+def read_polytopes(input: str,
+                   input_type: str = "file",
+                   format: str = "ks",
+                   backend: str = None,
+                   as_list: bool = False,
+                   dualize: bool = False,
+                   favorable: bool = None,
+                   lattice: str = None,
+                   limit: int = None) -> generator[Polytope] | list[Polytope]:
     """
     **Description:**
-    Reads polytopes from a file or a string. The polytopes can be specified with
-    their vertices, as used in the Kreuzer-Skarke database, or from a weight
-    system.
+    Reads polytopes from a file or a string. The polytopes can be specified
+    with their vertices, as used in the Kreuzer-Skarke database, or from a
+    weight system.
 
     **Arguments:**
-    - `input` *(str)*: Specifies the name of the file to read or the string
-        containing the polytopes.
-    - `input_type` *(str, optional, default="file")*: Specifies whether to read
-        from a file or from the input string. Options are "file" or "str".
-    - `format` *(str, optional, default="ks")*: Specifies the format to read.
-        The options are "ks", which is the format used in the KS database, and
-        "ws", if the polytopes should be constructed from weight systems.
-    - `backend` *(str, optional)*: A string that specifies the backend used for
-        the [`Polytope`](./polytope) class.
-    - `as_list` *(bool, optional, default=False)*: Return the list of polytopes
-        instead of a generator.
-    - `dualize` *(bool, optional, default=False)*: Flag that indicates whether
-        to dualize all the polytopes before yielding them.
-    - `favorable` *(bool, optional)*: Yield or return only polytopes that are
-        favorable when set to True, or non-favorable when set to False. If not
-        specified then it yields both favorable and non-favorable polytopes.
-    - `lattice` *(str, optional)*: The lattice to use when checking
-        favorability. This parameter is only required when `favorable` is
-        specified. Options are "M" and "N".
-    - `limit` *(int, optional)*: Sets a maximum numbers of polytopes to yield.
+    - `input`: Specifies the name of the file to read or the string containing
+        the polytopes.
+    - `input_type`: Specifies whether to read from a file or from the input
+        string. Options are "file" or "str".
+    - `format`: Specifies the format to read. The options are "ks", which is
+        the format used in the KS database, and "ws", if the polytopes should
+        be constructed from weight systems.
+    - `backend`: A string that specifies the backend used for the
+        [`Polytope`](./polytope) class.
+    - `as_list`: Return the list of polytopes instead of a generator.
+    - `dualize`: Flag that indicates whether to dualize all the polytopes
+        before yielding them.
+    - `favorable`: Yield or return only polytopes that are favorable when set
+        to True, or non-favorable when set to False. If not specified then it
+        yields both favorable and non-favorable polytopes.
+    - `lattice`: The lattice to use when checking favorability. This parameter
+        is only required when `favorable` is set. Options are "M" and "N".
+    - `limit`: Sets a maximum numbers of polytopes to yield.
 
     **Returns:**
-    *(generator or list)* A generator of [`Polytope`](./polytope) objects, or
-        the full list when `as_list` is set to True.
+    A generator of [`Polytope`](./polytope) objects, or the full list when
+    `as_list` is set to True.
 
     **Example:**
     We take a string obtained from the KS database and read the polytope it
@@ -1023,16 +1056,28 @@ def read_polytopes(input, input_type="file", format="ks", backend=None,
     g = polytope_generator(input, input_type=input_type, format=format,
                            backend=backend, dualize=dualize,
                            favorable=favorable, lattice=lattice, limit=limit)
-    if as_list:
-        return list(g)
-    return g
+
+    if as_list: return list(g)
+    else:       return g
 
 
-def fetch_polytopes(h11=None, h12=None, h13=None, h21=None, h22=None, h31=None,
-                    chi=None, lattice=None, dim=4, n_points=None,
-                    n_vertices=None, n_dual_points=None, n_facets=None,
-                    limit=1000, timeout=60, as_list=False, backend=None,
-                    dualize=False, favorable=None):
+def fetch_polytopes(h11: int = None, h12: int = None,
+                    h13: int = None, h21: int = None,
+                    h22: int = None, h31: int = None,
+                    chi: int = None,
+                    lattice: str = None,
+                    dim: int = 4,
+                    n_points: int = None,
+                    n_vertices: int = None,
+                    n_dual_points: int = None,
+                    n_facets: int = None,
+                    limit: int = 1000,
+                    timeout: int = 60,
+                    as_list: bool = False,
+                    backend: str = None,
+                    dualize: bool = False,
+                    favorable: bool = None) -> generator[Polytope] | 
+                                                                list[Polytope]:
     """
     **Description:**
     Fetches reflexive polytopes from the Kreuzer-Skarke database or from the
@@ -1051,50 +1096,38 @@ def fetch_polytopes(h11=None, h12=None, h13=None, h21=None, h22=None, h31=None,
     :::
 
     **Arguments:**
-    - `h11` *(int, optional)*: Specifies the Hodge number $h^{1,1}$ of the
-        Calabi-Yau hypersurface.
-    - `h12` *(int, optional)*: Specifies the Hodge number $h^{1,2}$ of the
-        Calabi-Yau hypersurface.
-    - `h13` *(int, optional)*: Specifies the Hodge number $h^{1,3}$ of the
-        Calabi-Yau hypersurface.
-    - `h21` *(int, optional)*: Specifies the Hodge number $h^{2,1}$ of the
-        Calabi-Yau hypersurface. This is equivalent to the h12 parameter.
-    - `h22` *(int, optional)*: Specifies the Hodge number $h^{2,2}$ of the
-        Calabi-Yau hypersurface.
-    - `h31` *(int, optional)*: Specifies the Hodge number $h^{3,1}$ of the
-        Calabi-Yau hypersurface. This is equivalent to the h13 parameter.
-    - `chi` *(int, optional)*: Specifies the Euler characteristic of the
-        Calabi-Yau hypersurface.
-    - `lattice` *(str, optional)*: Specifies the lattice on which the polytope
-        is defined. Options are "N" and "M". Has to be specified if the Hodge
-        numbers or the Euler characteristic is specified.
-    - `dim` *(int, optional, default=4)*: The dimension of the polytope. The
-        only available options are 4 and 5.
-    - `n_points` *(int, optional)*: Specifies the number of lattice points of
-        the desired polytopes.
-    - `n_vertices` *(int, optional)*: Specifies the number of vertices of the
+    - `h11`: The Hodge number $h^{1,1}$ of the Calabi-Yau hypersurface.
+    - `h12`: The Hodge number $h^{1,2}$ of the Calabi-Yau hypersurface.
+    - `h13`: The Hodge number $h^{1,3}$ of the Calabi-Yau hypersurface.
+    - `h21`: The Hodge number $h^{2,1}$ of the Calabi-Yau hypersurface. This is
+        equivalent to the h12 parameter.
+    - `h22`: The Hodge number $h^{2,2}$ of the Calabi-Yau hypersurface.
+    - `h31`: The Hodge number $h^{3,1}$ of the Calabi-Yau hypersurface. This is
+        equivalent to the h13 parameter.
+    - `chi`: The Euler characteristic of the Calabi-Yau hypersurface.
+    - `lattice`: The lattice on which the polytope is defined. Options are "N"
+        and "M". Has to be specified if the Hodge numbers or the Euler
+        characteristic is specified.
+    - `dim`: The dimension of the polytope. Only available options are 4 and 5.
+    - `n_points`: The number of lattice points of the desired polytopes.
+    - `n_vertices`: The number of vertices of the desired polytopes.
+    - `n_dual_points`: The number of points of the dual polytopes of the
         desired polytopes.
-    - `n_dual_points` *(int, optional)*: Specifies the number of points of the
-        dual polytopes of the desired polytopes.
-    - `n_facets` *(int, optional)*: Specifies the number of facets of the
-        desired polytopes.
-    - `limit` *(int, optional, default=1000)*: Specifies the maximum number of
-        fetched polytopes.
-    - `timeout` *(int, optional, default=60)*: Specifies the maximum number of
-        seconds to wait for the server to return the data.
-    - `as_list` *(bool, optional, default=False)*: Return the list of polytopes
-        instead of a generator.
-    - `backend` *(str, optional)*: A string that specifies the backend used for
-        the [`Polytope`](./polytope) class.
-    - `dualize` *(bool, optional, default=False)*: Flag that indicates whether
-        to dualize all the polytopes before yielding them.
-    - `favorable` *(bool, optional)*: Yield or return only polytopes that are
-        favorable when set to True, or non-favorable when set to False. If not
-        specified then it yields both favorable and non-favorable polytopes.
+    - `n_facets`: The number of facets of the desired polytopes.
+    - `limit`: The maximum number of fetched polytopes.
+    - `timeout`: The maximum number of seconds to wait for the server to return
+        the data.
+    - `as_list`: Return the list of polytopes instead of a generator.
+    - `backend`: A string that specifies the backend used for the
+        [`Polytope`](./polytope) class.
+    - `dualize`: Flag that indicates whether to dualize all the polytopes
+        before yielding them.
+    - `favorable`: Yield or return only polytopes that are favorable when set
+        to True, or non-favorable when set to False. If not specified then it
+        yields both favorable and non-favorable polytopes.
 
     **Returns:**
-    *(generator or list)* A generator of [`Polytope`](./polytope) objects, or
-        the full list when `as_list` is set to True.
+    A generator of [`Polytope`](./polytope) objects, or the full list when `as_list` is set to True.
 
     **Example:**
     We fetch polytopes from the Kreuzer-Skarke and Schöller-Skarke databases
@@ -1177,21 +1210,22 @@ def fetch_polytopes(h11=None, h12=None, h13=None, h21=None, h22=None, h31=None,
         return list(g)
     return g
 
-
-def find_new_affinely_independent_points(points):
+# misc
+# ----
+def find_new_affinely_independent_points(points: ArrayLike) -> np.ndarray:
     """
     **Description:**
     Finds new points that are affinely independent to the input list of points.
+    
     This is useful when one wants to turn a polytope that is not
     full-dimensional into one that is, without affecting the structure of the
     triangulations.
 
     **Arguments:**
-    - `points` *(array_like)*: A list of points.
+    - `points`: A list of points.
 
     **Returns:**
-    *(numpy.ndarray)* A list of affinely independent points with respect to the
-        ones inputted.
+    A list of affinely independent points with respect to the ones inputted.
 
     **Example:**
     We construct a list of points and then find a set of affinely independent
@@ -1202,8 +1236,10 @@ def find_new_affinely_independent_points(points):
     array([[1, 0, 2]])
     ```
     """
+    # input checking
     if len(points) == 0:
         raise ValueError("List of points cannot be empty.")
+
     pts = np.array(points)
     pts_trans = np.array([pt-pts[0] for pt in pts])
     if len(pts) == 1:
@@ -1224,4 +1260,5 @@ def find_new_affinely_independent_points(points):
     if len(pts) == 1:
         new_pts = np.array(new_pts.tolist() + [[1]+[0]*(pts.shape[1]-1)])
     new_pts = np.array([pt+pts[0] for pt in new_pts])
+
     return new_pts
