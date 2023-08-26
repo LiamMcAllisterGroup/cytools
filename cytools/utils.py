@@ -20,10 +20,10 @@
 # -----------------------------------------------------------------------------
 
 # 'standard' imports
-from ast import literal_eval
-from fractions import Fraction
-from functools import reduce
-from itertools import permutations
+import ast
+import fractions
+import functools
+import itertools
 import requests
 import subprocess
 from typing import Generator
@@ -94,7 +94,7 @@ def gcd_list(arr: list[float]) -> float:
     # 0.04999999999999882
     ```
     """
-    return reduce(gcd_float, arr)
+    return functools.reduce(gcd_float, arr)
 
 # flint conversion
 # ----------------
@@ -117,7 +117,7 @@ def float_to_fmpq(c: float) -> flint.fmpq:
     # (1/10, 1/3, 49/20)
     ```
     """
-    f = Fraction(c).limit_denominator()
+    f = fractions.Fraction(c).limit_denominator()
     return flint.fmpq(f.numerator, f.denominator)
 
 
@@ -343,7 +343,7 @@ def symmetric_sparse_to_dense(tensor: dict,
     dense_tensor = np.zeros((l,)*(len(list(tensor.items())[0][0])),
                             dtype=type(list(tensor.items())[0][1]))
     for ii in tensor:
-        for c in permutations(ii):
+        for c in itertools.permutations(ii):
             dense_tensor[c] = tensor[ii]
     dense_result = np.array(dense_tensor)
 
@@ -382,39 +382,52 @@ def symmetric_dense_to_sparse(tensor: ArrayLike,
     # {(0, 0): 1, (0, 1): 2, (1, 1): 3}
     ```
     """
+    sparse_tensor = dict()
+
+    # grab dense tensor
     dense_tensor = np.array(tensor)
+    s = set(dense_tensor.shape)
+    d = len(dense_tensor.shape)
+    if len(s) != 1: raise ValueError("All dimensions must have the same length")
+    s = list(s)[0]
+
+    # apply basis transformation
     if basis is not None:
         for i in list(range(len(list(tensor.items())[0][0])))[::-1]:
             dense_result = np.tensordot(dense_result, basis, axes=[[i],[1]])
-    sparse_tensor = dict()
-    s = set(dense_tensor.shape)
-    d = len(dense_tensor.shape)
-    if len(s) != 1:
-        raise ValueError("All dimensions must have the same length")
-    s = list(s)[0]
+
+    # fill sparse tensor
     ind = [0]*d
-    inc = d-1
+
     while True:
-        if dense_tensor[tuple(ind)] != 0:
-            sparse_tensor[tuple(ind)] = dense_tensor[tuple(ind)]
+        # add entry to sparse tensor
+        ind_tup = tuple(ind)
+        if dense_tensor[ind_tup] != 0:
+            sparse_tensor[ind_tup] = dense_tensor[ind_tup]
+
+        # check for 1x1 matrix... could be done smarter...
+        if d == 1: break
+
+        # update index lexicographically
         inc = d-1
-        if d == 1:
-            break
-        break_loop = False
         while True:
-            if ind[inc] == s-1:
-                ind[inc] = 0
-                inc -= 1
-                if inc == -1:
-                    break_loop = True
-                    break
-            else:
+            if ind[inc] < s-1:
+                # increase the index ind[inc]
                 ind[inc] += 1
+
                 for inc2 in range(inc+1,d):
                     ind[inc2] = ind[inc]
                 break
-        if break_loop:
-            break
+            else:
+                # reset index at inc
+                ind[inc] = 0
+                
+                # move inc to next lowest index
+                if inc == 0:
+                    return sparse_tensor
+                else:
+                    inc -= 1
+
     return sparse_tensor
 
 # other tensor operations
@@ -933,7 +946,7 @@ def polytope_generator(input: str,
             i = 0
             while i < len(palp_res):
                 if "Vertices" in palp_res[i]:
-                    for j in range(literal_eval(palp_res[i].split()[0])):
+                    for j in range(ast.literal_eval(palp_res[i].split()[0])):
                         i += 1
                         vert.append([int(c) for c in palp_res[i].split()])
                 i += 1
