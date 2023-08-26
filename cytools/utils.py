@@ -30,6 +30,7 @@ import subprocess
 # 3rd party imports
 from flint import fmpz_mat, fmpq, fmpz
 import numpy as np
+from numpy.typing import ArrayLike
 import scipy.sparse as sp
 
 # CYTools imports
@@ -96,8 +97,8 @@ def to_sparse(rule_arr_in: dict | list,
     """
     **Description:**
     Converts a (manually implemented) sparse matrix of the form
-    [[a,b,M_ab], ...] or a dictionary of the form [(a,b):M_ab, ...] to a
-    formal dok_matrix or to a csr_matrix.
+    [[a,b,M_ab], ...] or a dictionary of the form [(a,b):M_ab, ...] to a formal
+    dok_matrix or to a csr_matrix.
 
     **Arguments:**
     - `rule_arr_in`: A list of the form [[a,b,M_ab],...] or a dictionary of the
@@ -146,7 +147,7 @@ def solve_linear_system(M: sp.csr_matrix,
                         backend: str = "all",
                         check: bool = True,
                         backend_error_tol: float = 1e-4,
-                        verbosity: int = 0):
+                        verbosity: int = 0) -> np.ndarray:
     """
     **Description:**
     Solves the sparse linear system M*x + C = 0.
@@ -163,7 +164,7 @@ def solve_linear_system(M: sp.csr_matrix,
         - verbosity = 1: Print warnings when backends fail.
 
     **Returns:**
-    *(numpy.ndarray)* Floating-point solution to the linear system.
+    Floating-point solution to the linear system.
 
     **Example:**
     We solve a very simple linear equation.
@@ -182,7 +183,8 @@ def solve_linear_system(M: sp.csr_matrix,
         raise ValueError(f"Invalid backend... options are {backends}.")
 
     # solve the system
-    system_solved = False
+    solution = None
+
     if backend == "all":
         for s in backends[1:]:
             solution = solve_linear_system(M, C, backend=s, check=check,
@@ -195,49 +197,49 @@ def solve_linear_system(M: sp.csr_matrix,
             from sksparse.cholmod import cholesky_AAt
             factor = cholesky_AAt(M.transpose())
             solution = factor(-M.transpose()*C)
-            system_solved = True
         except:
             if verbosity >= 1: print("Linear backend error: sksparse failed.")
 
     elif backend == "scipy":
         try:
-            MM = M.transpose()*M
+            MM =  M.transpose()*M
             CC = -M.transpose()*C
             solution = sp.linalg.spsolve(MM, CC).tolist()
-            system_solved = True
         except:
             if verbosity >= 1: print("Linear backend error: scipy failed.")
-            system_solved = False
 
-    if system_solved:
-        if check:
-            res = M.dot(solution) + C
-            max_error = max(abs(s) for s in res.flat)
-            if max_error > backend_error_tol:
-                system_solved = False
-                if verbosity >= 1: print("Linear backend error: "
-                                            "Large numerical error.")
-        return solution
-    else:
+    # return solution
+    if solution is None:
         return None
 
+    if check:
+        res = M.dot(solution) + C
+        max_error = max(abs(s) for s in res.flat)
 
-def filter_tensor_indices(tensor, indices):
+        if max_error > backend_error_tol:
+            if verbosity >= 1: print("Linear backend error: numerical error.")
+            solution = None
+
+    return solution
+
+
+def filter_tensor_indices(tensor: dict,
+                          indices: list[int]) -> dict:
     """
     **Description:**
-    Selects a specific subset of indices from a tensor. The tensor is reindexed
-    so that indices are in the range 0..len(indices) with the ordering specified
-    by the input indices. This function can be used to convert the tensor of
-    intersection numbers to a given basis.
+    Selects a specific subset of indices from a tensor.
+
+    The tensor is reindexed so that indices are in the range 0..len(indices)
+    with the ordering specified by the input indices. This function can be used
+    to convert the tensor of intersection numbers to a given basis.
 
     **Arguments:**
-    - `tensor` *(dict)*: The input symmetric sparse tensor of the form of a
-        dictionary {(a,b,...,c):M_ab...c, ...}.
-    - `indices` *(array_like)*: The list of indices that will be preserved.
+    - `tensor`: The input symmetric sparse tensor of the form of a dictionary
+        {(a,b,...,c):M_ab...c, ...}.
+    - `indices`: The list of indices that will be preserved.
 
     **Returns:**
-    *(dict)* A dictionary describing a tensor in the same format as the input,
-        but only with the desired indices.
+    A dictionary describing a tensor in the same format as the input, but only with the desired indices.
 
     **Example:**
     We construct a simple tensor and then filter some of the indices. We also
@@ -256,26 +258,31 @@ def filter_tensor_indices(tensor, indices):
     # True
     ```
     """
-    tensor_filtered = {k:tensor[k] for k in tensor if all(c in indices for c in k)}
-    indices_dict = {vv:v for v,vv in enumerate(indices)}
-    tensor_reindexed = {tuple(sorted(indices_dict[c] for c in k)):tensor_filtered[k] for k in tensor_filtered}
-    return tensor_reindexed
+    # map from index to its count in indices object
+    indices_dict = {ind:i for i,ind in enumerate(indices)}
+
+    # only keep entries whose indices match those in indices
+    tensor_filtered = {k:tensor[k] for k in tensor if\
+                                                all(c in indices for c in k)}
+
+    # return reindexed tensor (order defined by indices input)
+    return {tuple(sorted(indices_dict[c] for c in k)):\
+                                tensor_filtered[k] for k in tensor_filtered}
 
 
-def symmetric_sparse_to_dense(tensor, basis=None):
+def symmetric_sparse_to_dense(tensor: dict,
+                              basis: ArrayLike = None) -> np.ndarray:
     """
     **Description:**
-    Converts a symmetric sparse tensor of the form {(a,b,...,c):M_ab...c, ...}
+    Converts a symmetric sparse tensor of the form {(a,b,...,c): M_ab...c, ...}
     to a dense tensor. Optionally, it then applies a basis transformation.
 
     **Arguments:**
-    - `tensor` *(dict)*: A sparse tensor of the form
-        {(a,b,...,c):M_ab...c, ...}.
-    - `basis` *(array_like, optional)*: A matrix where the rows are the basis
-    elements.
+    - `tensor`: A sparse tensor of the form {(a,b,...,c):M_ab...c, ...}.
+    - `basis`: A matrix where the rows are the basis elements.
 
     **Returns:**
-    *(numpy.ndarray)* A dense tensor.
+    A dense tensor.
 
     **Example:**
     We construct a simple tensor and then convert it to a dense array. We
