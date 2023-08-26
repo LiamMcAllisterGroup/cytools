@@ -36,7 +36,6 @@ import scipy.sparse as sp
 
 # CYTools imports
 from cytools import config
-from cytools import Polytope
 
 # basic math
 # ----------
@@ -852,7 +851,7 @@ def polytope_generator(input: str,
                        dualize: bool = False,
                        favorable: bool = None,
                        lattice: str = None,
-                       limit: int = None) -> Generator[Polytope, None, None]:
+                       limit: int = None) -> Generator["Polytope", None, None]:
     """
     **Description:**
     Reads polytopes from a file or a string. The polytopes can be specified with
@@ -903,6 +902,8 @@ def polytope_generator(input: str,
     # [A 4-dimensional reflexive lattice polytope in ZZ^4]
     ```
     """
+    from cytools.polytope import Polytope
+
     # input checking
     if favorable is not None and lattice is None:
         raise ValueError('Lattice must be specified. Options are "M" and "N".')
@@ -1010,8 +1011,8 @@ def read_polytopes(input: str,
                    dualize: bool = False,
                    favorable: bool = None,
                    lattice: str = None,
-                   limit: int = None) -> 'Generator[Polytope, None, None] | \
-                                                            list[Polytope]':
+                   limit: int = None) -> 'Generator["Polytope", None, None] | \
+                                                            list["Polytope"]':
     """
     **Description:**
     Reads polytopes from a file or a string. The polytopes can be specified
@@ -1081,7 +1082,7 @@ def fetch_polytopes(h11: int = None, h12: int = None,
                     backend: str = None,
                     dualize: bool = False,
                     favorable: bool = None) ->\
-                            'Generator[Polytope, None, None] | list[Polytope]':
+                        'Generator["Polytope", None, None] | list["Polytope"]':
     """
     **Description:**
     Fetches reflexive polytopes from the Kreuzer-Skarke database or from the
