@@ -36,6 +36,8 @@ import scipy.sparse as sp
 # CYTools imports
 from cytools import config
 
+# basic math
+# ----------
 def gcd_float(a: float,
               b: float,
               tol: float = 1e-5) -> float:
@@ -91,7 +93,168 @@ def gcd_list(arr: list[float]) -> float:
     """
     return reduce(gcd_float, arr)
 
+# flint conversion
+# ----------------
+def float_to_fmpq(c: float) -> flint.fmpq:
+    """
+    **Description:**
+    Converts a float to an fmpq.
 
+    **Arguments:**
+    - `c`: The input number.
+
+    **Returns:**
+    The rational number that most reasonably approximates the input.
+
+    **Example:**
+    We convert a few floats to rational numbers.
+    ```python {2}
+    from cytools.utils import float_to_fmpq
+    float_to_fmpq(0.1), float_to_fmpq(0.333333333333), float_to_fmpq(2.45)
+    # (1/10, 1/3, 49/20)
+    ```
+    """
+    f = Fraction(c).limit_denominator()
+    return fmpq(f.numerator, f.denominator)
+
+
+def fmpq_to_float(c: flint.fmpq) -> float:
+    """
+    **Description:**
+    Converts an fmpq to a float.
+
+    **Arguments:**
+    - `c`: The input rational number.
+
+    **Returns:**
+    The number as a float.
+
+    **Example:**
+    We convert a few rational numbers to floats.
+    ```python {3}
+    from cytools.utils import fmpq_to_float
+    from flint import fmpq
+    fmpq_to_float(fmpq(1,2)), fmpq_to_float(fmpq(1,3)), fmpq_to_float(fmpq(49,20))
+    # (0.5, 0.3333333333333333, 2.45)
+    ```
+    """
+    return int(c.p)/int(c.q)
+
+def array_int_to_fmpz(arr: ArrayLike) -> np.ndarray:
+    """
+    **Description:**
+    Converts a numpy array with 64-bit integer entries to fmpz entries.
+
+    **Arguments:**
+    - `arr`: A numpy array with 64-bit integer entries.
+
+    **Returns:**
+    A numpy array with fmpz entries.
+
+    **Example:**
+    We convert an integer array to an fmpz array.
+    ```python {3}
+    from cytools.utils import array_int_to_fmpz
+    arr = [[1,0,0],[0,2,0],[0,0,3]]
+    array_int_to_fmpz(arr)
+    # array([[1, 0, 0],
+    #        [0, 2, 0],
+    #        [0, 0, 3]], dtype=object)
+    ```
+    """
+    in_arr = np.array(arr, dtype=int)
+    out_arr = np.empty(in_arr.shape, dtype=object)
+
+    for i in range(len(in_arr.flat)):
+        out_arr.flat[i] = fmpz(int(in_arr.flat[i]))
+
+    return out_arr
+
+def array_float_to_fmpq(arr: ArrayLike) -> np.ndarray:
+    """
+    **Description:**
+    Converts a numpy array with floating-point entries to fmpq entries.
+
+    **Arguments:**
+    - `arr`: A numpy array with floating-point entries.
+
+    **Returns:**
+    A numpy array with fmpq entries.
+
+    **Example:**
+    We convert an float array to an fmpz array.
+    ```python {3}
+    from cytools.utils import array_float_to_fmpq
+    arr = [[1.1,0,0],[0,0.5,0],[0,0,0.3333333333]]
+    array_float_to_fmpq(arr)
+    # array([[11/10, 0, 0],
+    #        [0, 1/2, 0],
+    #        [0, 0, 1/3]], dtype=object)
+    ```
+    """
+    in_arr = np.array(arr, dtype=float)
+    out_arr = np.empty(in_arr.shape, dtype=object)
+
+    for i in range(len(in_arr.flat)):
+        out_arr.flat[i] = float_to_fmpq(in_arr.flat[i])
+
+    return out_arr
+
+
+def array_fmpz_to_int(arr: ArrayLike) -> np.ndarray:
+    """
+    **Description:**
+    Converts a numpy array with fmpz entries to 64-bit integer entries.
+
+    **Arguments:**
+    - `arr`: A numpy array with fmpz entries.
+
+    **Returns:**
+    A numpy array with 64-bit integer entries.
+
+    **Example:**
+    We convert an fmpz array to an int array.
+    ```python {4}
+    from cytools.utils import array_fmpz_to_int
+    from flint import fmpz
+    arr = [fmpz(1), fmpz(2), fmpz(3)]
+    array_fmpz_to_int(arr)
+    # array([1, 2, 3])
+    ```
+    """
+    return np.array(arr, dtype=int)
+
+def array_fmpq_to_float(arr: ArrayLike) -> np.ndarray:
+    """
+    **Description:**
+    Converts a numpy array with fmpq entries to floating-point entries.
+
+    **Arguments:**
+    - `arr`: A numpy array with fmpq entries.
+
+    **Returns:**
+    A numpy array with floating-point entries.
+
+    **Example:**
+    We convert an fmpq array to a float array.
+    ```python {4}
+    from cytools.utils import array_fmpq_to_float
+    from flint import fmpq
+    arr = [fmpq(1,2), fmpq(2,5), fmpq(1,3)]
+    array_fmpq_to_float(arr)
+    # array([0.5       , 0.4       , 0.33333333])
+    ```
+    """
+    in_arr = np.array(arr, dtype=object)
+    out_arr = np.empty(in_arr.shape, dtype=float)
+
+    for i in range(len(in_arr.flat)):
+        out_arr.flat[i] = fmpq_to_float(in_arr.flat[i])
+
+    return out_arr
+
+# sparse conversions
+# ------------------
 def to_sparse(rule_arr_in: dict | list,
               sparse_type: str = "dok") -> sp.dok_matrix | sp.csr_matrix:
     """
@@ -141,7 +304,118 @@ def to_sparse(rule_arr_in: dict | list,
     # return in appropriate format
     return (sp_mat if sparse_type == "dok" else sp.csr_matrix(sp_mat))
 
+def symmetric_sparse_to_dense(tensor: dict,
+                              basis: ArrayLike = None) -> np.ndarray:
+    """
+    **Description:**
+    Converts a symmetric sparse tensor of the form {(a,b,...,c): M_ab...c, ...}
+    to a dense tensor.
 
+    Optionally, it then applies a basis transformation.
+
+    **Arguments:**
+    - `tensor`: A sparse tensor of the form {(a,b,...,c):M_ab...c, ...}.
+    - `basis`: A matrix where the rows are the basis elements.
+
+    **Returns:**
+    A dense tensor.
+
+    **Example:**
+    We construct a simple tensor and then convert it to a dense array. We
+    consider the same example as for the
+    [`filter_tensor_indices`](#filter_tensor_indices) function, but now we have
+    to specify the basis in matrix form.
+    ```python {4}
+    from cytools.utils import symmetric_sparse_to_dense_in_basis
+    tensor = {(0,1):0, (1,1):1, (1,2):2, (1,3):3, (2,3):4}
+    basis = [[0,1,0,0],[0,0,0,1]]
+    symmetric_sparse_to_dense(tensor, basis)
+    # array([[1, 3],
+    #        [3, 0]])
+    ```
+    """
+    l = (np.array(basis).shape[1] if basis is not None else
+            max(set.union(*[set(ii) for ii in tensor.keys()]))+1)
+
+    dense_tensor = np.zeros((l,)*(len(list(tensor.items())[0][0])),
+                            dtype=type(list(tensor.items())[0][1]))
+    for ii in tensor:
+        for c in permutations(ii):
+            dense_tensor[c] = tensor[ii]
+    dense_result = np.array(dense_tensor)
+
+    if basis is not None:
+        for i in list(range(len(list(tensor.items())[0][0])))[::-1]:
+            dense_result = np.tensordot(dense_result, basis, axes=[[i],[1]])
+
+    return dense_result
+
+
+def symmetric_dense_to_sparse(tensor: ArrayLike,
+                              basis: ArrayLike = None) -> dict:
+    """
+    **Description:**
+    Converts a dense symmetric tensor to a sparse tensor of the form
+    {(a,b,...,c):M_ab...c, ...}.
+
+    Optionally, it applies a basis transformation.
+
+    **Arguments:**
+    - `tensor`: A dense symmetric tensor.
+    - `basis`: A matrix where the rows are the basis elements.
+
+    **Returns:**
+    A sparse tensor of the form {(a,b,...,c):M_ab...c, ...}.
+
+    **Example:**
+    We construct a simple tensor and then convert it to a dense array. We
+    consider the same example as for the
+    [`filter_tensor_indices`](#filter_tensor_indices) function, but now we have
+    to specify the basis in matrix form.
+    ```python {3}
+    from cytools.utils import symmetric_dense_to_sparse
+    tensor = [[1,2],[2,3]]
+    symmetric_dense_to_sparse(tensor)
+    # {(0, 0): 1, (0, 1): 2, (1, 1): 3}
+    ```
+    """
+    dense_tensor = np.array(tensor)
+    if basis is not None:
+        for i in list(range(len(list(tensor.items())[0][0])))[::-1]:
+            dense_result = np.tensordot(dense_result, basis, axes=[[i],[1]])
+    sparse_tensor = dict()
+    s = set(dense_tensor.shape)
+    d = len(dense_tensor.shape)
+    if len(s) != 1:
+        raise ValueError("All dimensions must have the same length")
+    s = list(s)[0]
+    ind = [0]*d
+    inc = d-1
+    while True:
+        if dense_tensor[tuple(ind)] != 0:
+            sparse_tensor[tuple(ind)] = dense_tensor[tuple(ind)]
+        inc = d-1
+        if d == 1:
+            break
+        break_loop = False
+        while True:
+            if ind[inc] == s-1:
+                ind[inc] = 0
+                inc -= 1
+                if inc == -1:
+                    break_loop = True
+                    break
+            else:
+                ind[inc] += 1
+                for inc2 in range(inc+1,d):
+                    ind[inc2] = ind[inc]
+                break
+        if break_loop:
+            break
+    return sparse_tensor
+
+# matrix/tensor operations
+# ------------------------
 def solve_linear_system(M: sp.csr_matrix,
                         C: list[float],
                         backend: str = "all",
@@ -269,266 +543,6 @@ def filter_tensor_indices(tensor: dict,
     return {tuple(sorted(indices_dict[c] for c in k)):\
                                 tensor_filtered[k] for k in tensor_filtered}
 
-
-def symmetric_sparse_to_dense(tensor: dict,
-                              basis: ArrayLike = None) -> np.ndarray:
-    """
-    **Description:**
-    Converts a symmetric sparse tensor of the form {(a,b,...,c): M_ab...c, ...}
-    to a dense tensor. Optionally, it then applies a basis transformation.
-
-    **Arguments:**
-    - `tensor`: A sparse tensor of the form {(a,b,...,c):M_ab...c, ...}.
-    - `basis`: A matrix where the rows are the basis elements.
-
-    **Returns:**
-    A dense tensor.
-
-    **Example:**
-    We construct a simple tensor and then convert it to a dense array. We
-    consider the same example as for the
-    [`filter_tensor_indices`](#filter_tensor_indices) function, but now we have
-    to specify the basis in matrix form.
-    ```python {4}
-    from cytools.utils import symmetric_sparse_to_dense_in_basis
-    tensor = {(0,1):0, (1,1):1, (1,2):2, (1,3):3, (2,3):4}
-    basis = [[0,1,0,0],[0,0,0,1]]
-    symmetric_sparse_to_dense(tensor, basis)
-    # array([[1, 3],
-    #        [3, 0]])
-    ```
-    """
-    l = (np.array(basis).shape[1] if basis is not None else
-            max(set.union(*[set(ii) for ii in tensor.keys()]))+1)
-    dense_tensor = np.zeros((l,)*(len(list(tensor.items())[0][0])),
-                            dtype=type(list(tensor.items())[0][1]))
-    for ii in tensor:
-        for c in permutations(ii):
-            dense_tensor[c] = tensor[ii]
-    dense_result = np.array(dense_tensor)
-    if basis is not None:
-        for i in list(range(len(list(tensor.items())[0][0])))[::-1]:
-            dense_result = np.tensordot(dense_result, basis, axes=[[i],[1]])
-    return dense_result
-
-
-def symmetric_dense_to_sparse(tensor, basis=None):
-    """
-    **Description:**
-    Converts a dense symmetric tensor to a sparse tensor of the form
-    {(a,b,...,c):M_ab...c,...}. Optionally, it applies a basis transformation.
-
-    **Arguments:**
-    - `tensor` *(array_like)*: A dense symmetric tensor.
-    - `basis` *(array_like, optional)*: A matrix where the rows are the basis
-        elements.
-
-    **Returns:**
-    *(dict)* A sparse tensor of the form {(a,b,...,c):M_ab...c,...}.
-
-    **Example:**
-    We construct a simple tensor and then convert it to a dense array. We
-    consider the same example as for the
-    [`filter_tensor_indices`](#filter_tensor_indices) function, but now we have
-    to specify the basis in matrix form.
-    ```python {3}
-    from cytools.utils import symmetric_dense_to_sparse
-    tensor = [[1,2],[2,3]]
-    symmetric_dense_to_sparse(tensor)
-    # {(0, 0): 1, (0, 1): 2, (1, 1): 3}
-    ```
-    """
-    dense_tensor = np.array(tensor)
-    if basis is not None:
-        for i in list(range(len(list(tensor.items())[0][0])))[::-1]:
-            dense_result = np.tensordot(dense_result, basis, axes=[[i],[1]])
-    sparse_tensor = dict()
-    s = set(dense_tensor.shape)
-    d = len(dense_tensor.shape)
-    if len(s) != 1:
-        raise ValueError("All dimensions must have the same length")
-    s = list(s)[0]
-    ind = [0]*d
-    inc = d-1
-    while True:
-        if dense_tensor[tuple(ind)] != 0:
-            sparse_tensor[tuple(ind)] = dense_tensor[tuple(ind)]
-        inc = d-1
-        if d == 1:
-            break
-        break_loop = False
-        while True:
-            if ind[inc] == s-1:
-                ind[inc] = 0
-                inc -= 1
-                if inc == -1:
-                    break_loop = True
-                    break
-            else:
-                ind[inc] += 1
-                for inc2 in range(inc+1,d):
-                    ind[inc2] = ind[inc]
-                break
-        if break_loop:
-            break
-    return sparse_tensor
-
-
-def float_to_fmpq(c):
-    """
-    **Description:**
-    Converts a float to an fmpq.
-
-    **Arguments:**
-    - `c` *(float)*: The input number.
-
-    **Returns:**
-    *(flint.fmpq)* The rational number that most reasonably approximates the
-        input.
-
-    **Example:**
-    We convert a few floats to rational numbers.
-    ```python {2}
-    from cytools.utils import float_to_fmpq
-    float_to_fmpq(0.1), float_to_fmpq(0.333333333333), float_to_fmpq(2.45)
-    # (1/10, 1/3, 49/20)
-    ```
-    """
-    f = Fraction(c).limit_denominator()
-    return fmpq(f.numerator, f.denominator)
-
-
-def fmpq_to_float(c):
-    """
-    **Description:**
-    Converts an fmpq to a float.
-
-    **Arguments:**
-    - `c` *(flint.fmpq)*: The input rational number.
-
-    **Returns:**
-    *(float)* The number as a float.
-
-    **Example:**
-    We convert a few rational numbers to floats.
-    ```python {3}
-    from cytools.utils import fmpq_to_float
-    from flint import fmpq
-    fmpq_to_float(fmpq(1,2)), fmpq_to_float(fmpq(1,3)), fmpq_to_float(fmpq(49,20))
-    # (0.5, 0.3333333333333333, 2.45)
-    ```
-    """
-    return int(c.p)/int(c.q)
-
-
-def array_int_to_fmpz(arr):
-    """
-    **Description:**
-    Converts a numpy array with 64-bit integer entries to fmpz entries.
-
-    **Arguments:**
-    - `arr` *(array_like)*: A numpy array with 64-bit integer entries.
-
-    **Returns:**
-    *(numpy.ndarray)* A numpy array with fmpz entries.
-
-    **Example:**
-    We convert an integer array to an fmpz array.
-    ```python {3}
-    from cytools.utils import array_int_to_fmpz
-    arr = [[1,0,0],[0,2,0],[0,0,3]]
-    array_int_to_fmpz(arr)
-    # array([[1, 0, 0],
-    #        [0, 2, 0],
-    #        [0, 0, 3]], dtype=object)
-    ```
-    """
-    in_arr = np.array(arr, dtype=int)
-    out_arr = np.empty(in_arr.shape, dtype=object)
-    for i in range(len(in_arr.flat)):
-        out_arr.flat[i] = fmpz(int(in_arr.flat[i]))
-    return out_arr
-
-
-def array_float_to_fmpq(arr):
-    """
-    **Description:**
-    Converts a numpy array with floating-point entries to fmpq entries.
-
-    **Arguments:**
-    - `arr` *(array_like)*: A numpy array with floating-point entries.
-
-    **Returns:**
-    *(numpy.ndarray)* A numpy array with fmpq entries.
-
-    **Example:**
-    We convert an float array to an fmpz array.
-    ```python {3}
-    from cytools.utils import array_float_to_fmpq
-    arr = [[1.1,0,0],[0,0.5,0],[0,0,0.3333333333]]
-    array_float_to_fmpq(arr)
-    # array([[11/10, 0, 0],
-    #        [0, 1/2, 0],
-    #        [0, 0, 1/3]], dtype=object)
-    ```
-    """
-    in_arr = np.array(arr, dtype=float)
-    out_arr = np.empty(in_arr.shape, dtype=object)
-    for i in range(len(in_arr.flat)):
-        out_arr.flat[i] = float_to_fmpq(in_arr.flat[i])
-    return out_arr
-
-
-def array_fmpz_to_int(arr):
-    """
-    **Description:**
-    Converts a numpy array with fmpz entries to 64-bit integer entries.
-
-    **Arguments:**
-    - `arr` *(array_like)*: A numpy array with fmpz entries.
-
-    **Returns:**
-    *(numpy.ndarray)* A numpy array with 64-bit integer entries.
-
-    **Example:**
-    We convert an fmpz array to an int array.
-    ```python {4}
-    from cytools.utils import array_fmpz_to_int
-    from flint import fmpz
-    arr = [fmpz(1), fmpz(2), fmpz(3)]
-    array_fmpz_to_int(arr)
-    # array([1, 2, 3])
-    ```
-    """
-    return np.array(arr, dtype=int)
-
-
-def array_fmpq_to_float(arr):
-    """
-    **Description:**
-    Converts a numpy array with fmpq entries to floating-point entries.
-
-    **Arguments:**
-    - `arr` *(array_like)*: A numpy array with fmpq entries.
-
-    **Returns:**
-    *(numpy.ndarray)* A numpy array with floating-point entries.
-
-    **Example:**
-    We convert an fmpq array to a float array.
-    ```python {4}
-    from cytools.utils import array_fmpq_to_float
-    from flint import fmpq
-    arr = [fmpq(1,2), fmpq(2,5), fmpq(1,3)]
-    array_fmpq_to_float(arr)
-    # array([0.5       , 0.4       , 0.33333333])
-    ```
-    """
-    in_arr = np.array(arr, dtype=object)
-    out_arr = np.empty(in_arr.shape, dtype=float)
-    for i in range(len(in_arr.flat)):
-        out_arr.flat[i] = fmpq_to_float(in_arr.flat[i])
-    return out_arr
 
 def set_divisor_basis(tv_or_cy, basis, include_origin=True):
     """
