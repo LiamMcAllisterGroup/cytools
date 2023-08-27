@@ -35,8 +35,7 @@ from scipy.sparse import csr_matrix
 from cytools import config
 from cytools.cone import Cone
 from cytools.utils import (gcd_list, array_fmpz_to_int,
-                           array_int_to_fmpz, array_float_to_fmpq,
-                           array_fmpq_to_float, filter_tensor_indices,
+                           filter_tensor_indices,
                            symmetric_sparse_to_dense, float_to_fmpq,
                            symmetric_dense_to_sparse, fmpq_to_float,
                            set_divisor_basis, set_curve_basis)

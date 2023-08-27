@@ -142,16 +142,19 @@ def fmpq_to_float(c: flint.fmpq) -> float:
     """
     return int(c.p)/int(c.q)
 
-def array_int_to_fmpz(arr: ArrayLike) -> np.ndarray:
+def array_to_flint(arr: ArrayLike) -> np.ndarray:
     """
     **Description:**
-    Converts a numpy array with 64-bit integer entries to fmpz entries.
+    Converts a numpy array with either:
+        1) 64-bit integer entries or
+        2) float entries
+    to flint type (fmpz or fmpq, respectively).
 
     **Arguments:**
-    - `arr`: A numpy array with 64-bit integer entries.
+    - `arr`: A numpy array with either 64-bit integer or float entries.
 
     **Returns:**
-    A numpy array with fmpz entries.
+    A numpy array with either fmpz or fmpq entries.
 
     **Example:**
     We convert an integer array to an fmpz array.
@@ -164,43 +167,24 @@ def array_int_to_fmpz(arr: ArrayLike) -> np.ndarray:
     #        [0, 0, 3]], dtype=object)
     ```
     """
-    in_arr = np.array(arr, dtype=int)
-    out_arr = np.empty(in_arr.shape, dtype=object)
+    # type conversion function
+    if arr.dtype == 'int64':
+        f = lambda n: flint.fmpz(int(n))
+    else:
+        f = float_to_fmpq
 
-    for i in range(len(in_arr.flat)):
-        out_arr.flat[i] = flint.fmpz(int(in_arr.flat[i]))
+    # build the converted array
+    out_arr = np.empty(arr.shape, dtype=object)
 
-    return out_arr
-
-def array_float_to_fmpq(arr: ArrayLike) -> np.ndarray:
-    """
-    **Description:**
-    Converts a numpy array with floating-point entries to fmpq entries.
-
-    **Arguments:**
-    - `arr`: A numpy array with floating-point entries.
-
-    **Returns:**
-    A numpy array with fmpq entries.
-
-    **Example:**
-    We convert an float array to an fmpz array.
-    ```python {3}
-    from cytools.utils import array_float_to_fmpq
-    arr = [[1.1,0,0],[0,0.5,0],[0,0,0.3333333333]]
-    array_float_to_fmpq(arr)
-    # array([[11/10, 0, 0],
-    #        [0, 1/2, 0],
-    #        [0, 0, 1/3]], dtype=object)
-    ```
-    """
-    in_arr = np.array(arr, dtype=float)
-    out_arr = np.empty(in_arr.shape, dtype=object)
-
-    for i in range(len(in_arr.flat)):
-        out_arr.flat[i] = float_to_fmpq(in_arr.flat[i])
+    for i,ele in enumerate(arr.flat):
+        out_arr.flat[i] = f(ele)
 
     return out_arr
+
+# define primary functions from this
+# (the casting of arr is likely unecessary...)
+array_int_to_fmpz   = lambda arr: array_to_flint(arr.astype(int))
+array_float_to_fmpq = lambda arr: array_to_flint(arr.astype(float))
 
 def array_fmpz_to_int(arr: ArrayLike) -> np.ndarray:
     """
