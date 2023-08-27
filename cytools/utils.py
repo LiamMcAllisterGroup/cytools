@@ -69,7 +69,6 @@ def gcd_float(a: float,
     if abs(b) < tol: return abs(a)
     return gcd_float(b,a%b,tol)
 
-
 def gcd_list(arr: list[float]) -> float:
     """
     **Description:**
@@ -119,7 +118,6 @@ def float_to_fmpq(c: float) -> flint.fmpq:
     """
     f = fractions.Fraction(c).limit_denominator()
     return flint.fmpq(f.numerator, f.denominator)
-
 
 def fmpq_to_float(c: flint.fmpq) -> float:
     """
@@ -337,22 +335,25 @@ def symmetric_sparse_to_dense(tensor: dict,
     #        [3, 0]])
     ```
     """
+    # build empty output object
     l = (np.array(basis).shape[1] if basis is not None else
             max(set.union(*[set(ii) for ii in tensor.keys()]))+1)
 
-    dense_tensor = np.zeros((l,)*(len(list(tensor.items())[0][0])),
+    out = np.zeros((l,)*(len(list(tensor.items())[0][0])),
                             dtype=type(list(tensor.items())[0][1]))
+
+    # fill dense tensor
     for ii in tensor:
         for c in itertools.permutations(ii):
-            dense_tensor[c] = tensor[ii]
-    dense_result = np.array(dense_tensor)
+            out[c] = tensor[ii]
+    out = np.asarray(out)
 
+    # apply basis transformation
     if basis is not None:
         for i in list(range(len(list(tensor.items())[0][0])))[::-1]:
-            dense_result = np.tensordot(dense_result, basis, axes=[[i],[1]])
+            out = np.tensordot(out, basis, axes=[[i],[1]])
 
-    return dense_result
-
+    return out
 
 def symmetric_dense_to_sparse(tensor: ArrayLike,
                               basis: ArrayLike = None) -> dict:
@@ -423,10 +424,8 @@ def symmetric_dense_to_sparse(tensor: ArrayLike,
                 ind[inc] = 0
                 
                 # move inc to next lowest index
-                if inc == 0:
-                    return sparse_tensor
-                else:
-                    inc -= 1
+                if inc == 0:    return sparse_tensor
+                else:           inc -= 1
 
     return sparse_tensor
 
@@ -627,16 +626,17 @@ def set_divisor_basis(tv_or_cy: "ToricVariety | CalabiYau",
 
     # grab basis information
     b = np.array(basis, dtype=int) # only integer bases are supported
+
     if len(b.shape) == 1:
         # input is a vector
         b = np.array(sorted(basis)) + (not include_origin)
 
-        # Check if it is a valid basis
+        # check that it is valid
         if min(b) < 0 or max(b) >= glsm_cm.shape[1]:
             raise ValueError("Indices are not in appropriate range.")
 
-        if (glsm_rnk != np.linalg.matrix_rank(glsm_cm[:,b])
-                                                        or glsm_rnk != len(b)):
+        if (glsm_rnk != np.linalg.matrix_rank(glsm_cm[:,b])) or\
+                                                        (glsm_rnk != len(b)):
             raise ValueError("Input divisors do not form a basis.")
 
         if abs(int(round(np.linalg.det(glsm_cm[:,b])))) != 1:
@@ -925,6 +925,8 @@ def polytope_generator(input: str,
         raise ValueError("\"input_type\" must be either \"file\" or \"str\"")
 
     # read data
+    n_yielded = 0
+
     if input_type == "file":
         in_file = open(input, "r")
         l = in_file.readline()
@@ -932,9 +934,10 @@ def polytope_generator(input: str,
         in_string = input.split("\n")
         l = in_string[0]
         in_string.pop(0)
-    n_yielded = 0
+    
     if format == "ws":
         while limit is None or n_yielded < limit:
+            # pass line to PALP
             palp = subprocess.Popen((config.palp_path + "/poly.x", "-v"),
                                     stdin=subprocess.PIPE,
                                     stdout=subprocess.PIPE,
@@ -942,6 +945,8 @@ def polytope_generator(input: str,
                                     universal_newlines=True)
             palp_res, palp_err = palp.communicate(input=l+"\n")
             palp_res = palp_res.split("\n")
+
+            # add vertices
             vert = []
             i = 0
             while i < len(palp_res):
@@ -951,14 +956,20 @@ def polytope_generator(input: str,
                         vert.append([int(c) for c in palp_res[i].split()])
                 i += 1
             vert = np.array(vert)
-            if len(vert.shape) == 0:
-                break
-            if vert.shape[0] < vert.shape[1]:
-                vert = vert.T
+
+            # ensure reasonable shape
+            if len(vert.shape) == 0:            break
+            if vert.shape[0] < vert.shape[1]:   vert = vert.T
+
+            # build the Polytope
             p = Polytope(vert, backend=backend)
-            if favorable is None or p.is_favorable(lattice=lattice) == favorable:
+
+            if (favorable is None) or\
+                                (p.is_favorable(lattice=lattice) == favorable):
                 n_yielded += 1
                 yield (p.dual() if dualize else p)
+
+            # get next line
             if input_type == "file":
                 l = in_file.readline()
                 reached_end = True
@@ -976,12 +987,17 @@ def polytope_generator(input: str,
                     in_string.pop(0)
                 else:
                     break
+
     elif format != "ks":
         raise ValueError("Unsupported format. Options are \"ks\" and \"ws\".")
+
+    # format is "ws"
     while limit is None or n_yielded < limit:
         if "M:" in l:
             h = l.split()
             n, m = int(h[0]), int(h[1])
+
+            # add vertices
             vert = []
             for i in range(n):
                 if input_type == "file":
@@ -990,14 +1006,21 @@ def polytope_generator(input: str,
                     vert.append([int(c) for c in in_string[0].split()])
                     in_string.pop(0)
             vert = np.array(vert)
+
+            # ensure reasonable shape
             if vert.shape != (n, m):
                 raise ValueError("Dimensions of array do not match")
             if m > n:
                 vert = vert.T
+
+            # build the Polytope
             p = Polytope(vert, backend=backend)
-            if favorable is None or p.is_favorable(lattice=lattice) == favorable:
+            if (favorable is None) or\
+                                (p.is_favorable(lattice=lattice) == favorable):
                 n_yielded += 1
                 yield (p.dual() if dualize else p)
+
+        # get next line
         if input_type == "file":
             l = in_file.readline()
             reached_end = True
@@ -1145,7 +1168,8 @@ def fetch_polytopes(h11: int = None, h12: int = None,
         yields both favorable and non-favorable polytopes.
 
     **Returns:**
-    A generator of [`Polytope`](./polytope) objects, or the full list when `as_list` is set to True.
+    A generator of [`Polytope`](./polytope) objects, or the full list when
+    `as_list` is set to True.
 
     **Example:**
     We fetch polytopes from the Kreuzer-Skarke and Schöller-Skarke databases
@@ -1163,70 +1187,95 @@ def fetch_polytopes(h11: int = None, h12: int = None,
     # A 5-dimensional reflexive lattice polytope in ZZ^5
     ```
     """
+    # input checking
+    # --------------
     if dim not in (4,5):
         raise ValueError("Only polytopes of dimension 4 or 5 are available.")
+
     if lattice not in ("N", "M", None):
         raise ValueError("Options for lattice are 'N' and 'M'.")
-    if favorable is not None and lattice is None:
-        raise ValueError("Lattice must be specified when checking favorability.")
-    if h12 is not None and h21 is not None and h12 != h21:
-        raise ValueError("Only one of h12 or h21 should be specified.")
-    if h12 is None and h21 is not None:
-        h12 = h21
-    if h13 is not None and h31 is not None and h13 != h31:
-        raise ValueError("Only one of h13 or h31 should be specified.")
-    if h13 is None and h31 is not None:
-        h13 = h31
-    fetch_limit = limit
-    # if favorable is set to True or False we fetch extra polytopes
+
     if favorable is not None:
-         fetch_limit = (5 if favorable else 10)*fetch_limit + 100
+        if lattice is None:
+            raise ValueError("Must specify lattice when checking favorability.")
+
+        fetch_limit = (5 if favorable else 10)*limit + 100
+    else:
+        fetch_limit = limit
+
+    # hodge numbers
+    if (h12 is not None) and (h21 is not None) and (h12 != h21):
+        raise ValueError("Only one of h12 or h21 should be specified.")
+
+    if (h13 is not None) and (h31 is not None) and (h13 != h31):
+        raise ValueError("Only one of h13 or h31 should be specified.")
+
+    if (h12 is None) and (h21 is not None): h12 = h21
+    if (h13 is None) and (h31 is not None): h13 = h31
+
+    # grab the polytopes
+    # ------------------
     if dim == 4:
+        # further input checking...
         if h13 is not None or h22 is not None:
             print("Ignoring inputs for h13 and h22.")
-        if (lattice is None
-                and (h11 is not None or h12 is not None or chi is not None)):
+
+        if (lattice is None) and \
+                ((h11 is not None) or (h12 is not None) or (chi is not None)):
             raise ValueError("Lattice must be specified when Hodge numbers "
                              "or Euler characteristic are given.")
         if lattice == "N":
             h11, h12 = h12, h11
             chi = (-chi if chi is not None else None)
-        if (chi is not None and h11 is not None and h12 is not None
-                and chi != 2*(h11-h21)):
+
+        if (chi is not None) and (h11 is not None) and (h12 is not None) and\
+                                                        (chi != 2*(h11-h21)):
             raise ValueError("Inconsistent Euler characteristic input.")
+
+        # build/send a request
         variables = [h11, h12, n_points, n_vertices, n_dual_points, n_facets,
                      chi, fetch_limit]
         names = ["h11", "h12", "M", "V", "N", "F", "chi", "L"]
-        parameters = {n:str(v) for n, v in zip(names, variables)
-                        if v is not None}
+
+        parameters = {n:str(v) for n, v in zip(names, variables)\
+                                                            if v is not None}
+
         r = requests.get("http://quark.itp.tuwien.ac.at/cgi-bin/cy/cydata.cgi",
                          params=parameters, timeout=timeout)
     else:
-        if lattice is None and (h11 is not None or h13 is not None):
+        # further input checking...
+        if (lattice is None) and ((h11 is not None) or (h13 is not None)):
             raise ValueError("Lattice must be specified when h11 or h13 "
                              "are given.")
-        if lattice == "N":
-            h11, h13 = h13, h11
-        if (chi is not None and h11 is not None and h12 is not None
-                and h13 is not None and chi != 48+6*(h11-h12+h13)):
+        
+        if lattice == "N": h11, h13 = h13, h11
+
+        if (chi is not None) and (h11 is not None) and (h12 is not None) and\
+                            (h13 is not None) and (chi != 48+6*(h11-h12+h13)):
             raise ValueError("Inconsistent Euler characteristic input.")
-        if (h22 is not None and h11 is not None and h12 is not None
-                and h13 is not None and h22 != 44+6*h11-2*h12+4*h13):
+
+        if (h22 is not None) and (h11 is not None) and (h12 is not None) and\
+                            (h13 is not None) and (h22 != 44+6*h11-2*h12+4*h13):
             raise ValueError("Inconsistent h22 input.")
+
+        # build/send a request
         variables = [h11, h12, h13, h22, chi, fetch_limit]
         names = ["h11", "h12", "h13", "h22", "chi", "limit"]
+
         url = "http://rgc.itp.tuwien.ac.at/fourfolds/db/5d_reflexive"
         for i,vr in enumerate(variables):
-            if vr is not None:
-                url += f",{names[i]}={vr}"
+            if vr is not None: url += f",{names[i]}={vr}"
         url += ".txt"
+
         r = requests.get(url, timeout=timeout)
+
+    # return the generator based off of output of request
     g = polytope_generator(r.text, input_type="str", dualize=dualize,
                            format=("ks" if dim==4 else "ws"), backend=backend,
                            favorable=favorable, lattice=lattice, limit=limit)
-    if as_list:
-        return list(g)
-    return g
+
+    if as_list: return list(g)
+    else:       return g
 
 # misc
 # ----
