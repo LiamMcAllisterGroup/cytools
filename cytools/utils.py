@@ -270,7 +270,7 @@ def to_sparse(rule_arr_in: "dict | list",
     #        with 5 stored elements in Compressed Sparse Row format>
     ```
     """
-    #  input sanitzation
+    #  input checking
     if sparse_type not in ("dok", "csr"):
         raise ValueError("sparse_type must be either \"dok\" or \"csr\".")
 
@@ -498,7 +498,7 @@ def solve_linear_system(M: sp.csr_matrix,
     # array([-1., -1., -1., -1., -1.])
     ```
     """
-    # input sanitization
+    # input checking
     backends = ["all", "sksparse", "scipy"]
     if backend not in backends:
         raise ValueError(f"Invalid backend... options are {backends}.")
