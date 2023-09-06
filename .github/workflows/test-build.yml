@@ -12,7 +12,7 @@ defaults:
 
 jobs:
   deploy:
-    name: Deploy to GitHub Pages
+    name: Test deploy to GitHub Pages
     runs-on: ubuntu-latest
     steps:
       - name: Checkout website branch
