@@ -69,7 +69,7 @@ def main(in_dir, out_dir):
                 docstring = ""
                 has_docstring = False
                 while True:
-                    if "):" in ll:
+                    if "):" in ll or ll[-2:] == ":\n":
                         break
                     l += 1
                     ll = lines[l]
