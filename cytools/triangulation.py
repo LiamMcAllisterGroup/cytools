@@ -298,7 +298,7 @@ class Triangulation:
                 if make_star:
                     assert self._origin_index == 0
 
-                    origin_height_step = (max(heights[1:])-min(heights[1:]))
+                    origin_height_step = max(100, (max(heights[1:])-min(heights[1:])))
                     
                     while self._simplices[:,0].any():
                         heights[0] -= origin_height_step
