@@ -570,6 +570,15 @@ class PolytopeFace:
         **Returns:**
         *(Triangulation)* A [`Triangulation`](./triangulation) object describing
             a triangulation of the polytope.
+
+        **Example:**
+        We construct a face from a polytope and triangulate it.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        f = p.faces(3)[0] # Pick one of the 3-faces
+        f.triangulate()
+        # A fine, regular triangulation of a 3-dimensional point configuration with 4 points in ZZ^4
+        ```
         """
         # check if we're just grabbing the Delaunay triangulation
         if (simplices is None) and (heights is None):
