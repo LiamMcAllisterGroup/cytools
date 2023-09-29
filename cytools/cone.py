@@ -145,7 +145,7 @@ class Cone:
                 self._rays = None
                 data = hyperplanes
             else:
-                raise NotImplementedError("Currently, parse_input is required "
+                raise NotImplementedError("Currently, parse_inputs is required "
                                                         "if rays are input...")
 
             # initialize other variables
