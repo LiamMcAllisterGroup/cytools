@@ -907,7 +907,7 @@ class Cone:
                 return None
 
             point = self._rays.sum(axis=0)
-   
+
             if max(abs(point))>1e-3:
                 point //= gcd_list(point)
             else:
@@ -932,7 +932,11 @@ class Cone:
             else:
                 backend = "glop"
 
-        hp = self.hyperplanes().tolist()
+        if isinstance(self._hyperplanes, (list, np.ndarray)):
+            hp_iter = enumerate
+        else:
+            hp_iter = lambda hp:hp.items()
+
         if backend in ("glop", "scip"):
             solver = pywraplp.Solver.CreateSolver(backend.upper())
 
@@ -947,8 +951,8 @@ class Cone:
             cons_list = []
             for v in self._hyperplanes:
                 cons_list.append(solver.Constraint(c, solver.infinity()))
-                for i,ii in enumerate(v):
-                    cons_list[-1].SetCoefficient(var[i], float(ii))
+                for ind,val in hp_iter(v):
+                    cons_list[-1].SetCoefficient(var[ind], float(val))
 
             # define objective
             obj = solver.Objective()
@@ -957,7 +961,7 @@ class Cone:
             obj_vec = self._hyperplanes.sum(axis=0)/len(self._hyperplanes)
             for i in range(self._ambient_dim):
                 obj.SetCoefficient(var[i], obj_vec[i])
-            
+
             # solve and parse solution
             status = solver.Solve()
             if status in (solver.FEASIBLE, solver.OPTIMAL):
@@ -993,13 +997,13 @@ class Cone:
             # define objective
             obj_vec = self._hyperplanes.sum(axis=0)
             obj_vec //= gcd_list(obj_vec)
-            
+
             obj = 0
             for i in range(self._ambient_dim):
                 obj += var[i]*obj_vec[i]
 
             model.Minimize(obj)
-            
+
             # solve and parse solution
             status = solver.Solve(model)
             if status in (cp_model.FEASIBLE, cp_model.OPTIMAL):
@@ -1015,7 +1019,7 @@ class Cone:
                 return None
 
         # Make sure that the solution is valid
-        if check and any(v.dot(solution) <= 0 for v in self._hyperplanes):
+        if check and any(sum([val*solution[ind] for ind,val in hp_iter(v)]) <= 0 for v in self._hyperplanes):
             warnings.warn("The solution that was found is invalid.")
             return None
 
