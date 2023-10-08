@@ -149,7 +149,7 @@ def fmpq_to_float(c: flint.fmpq) -> float:
     """
     return int(c.p)/int(c.q)
 
-def array_to_flint(arr: np.ndarray) -> np.ndarray:
+def array_to_flint(arr: np.ndarray, t: "int | float" = None) -> np.ndarray:
     """
     **Description:**
     Converts a numpy array with either:
@@ -178,17 +178,17 @@ def array_to_flint(arr: np.ndarray) -> np.ndarray:
     ```
     """
     # type conversion function
-    if arr.dtype == 'int64':
-        f = lambda n: flint.fmpz(int(n))
-    else:
-        f = float_to_fmpq
+    if t is None:   t = arr.dtype
+
+    if t == int:    f = lambda n: flint.fmpz(int(n))
+    else:           f = float_to_fmpq
 
     return np.vectorize(f)(arr).astype(object)
 
 # define primary functions from this
 # (the casting of arr is likely unecessary...)
-array_int_to_fmpz   = lambda arr: array_to_flint(arr.astype(int))
-array_float_to_fmpq = lambda arr: array_to_flint(arr.astype(float))
+array_int_to_fmpz   = lambda arr: array_to_flint(arr, t=int)
+array_float_to_fmpq = lambda arr: array_to_flint(arr, t=float)
 
 def array_fmpz_to_int(arr: ArrayLike) -> np.ndarray:
     """
