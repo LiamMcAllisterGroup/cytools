@@ -44,9 +44,14 @@ def gcd_float(a: float,
               tol: float = 1e-5) -> float:
     """
     **Description:**
-    Compute the greatest common (floating-point) divisor of a and b.
+    Compute the greatest common (floating-point) divisor of a and b. This is
+    simply the largest floating point number that divides a and b. Uses the
+    Euclidean algorithm.
 
-    This is simply the largest floating point number that divides a and b.
+    Warning - unexpected/buggy behavior can occur if b starts tiny. E.g.,
+    gcd_float(100,0.1,0.2) returns 100.
+
+    This only seems to be a risk if b *starts* below tol.
 
     **Arguments:**
     - `a`: The first number.
@@ -67,15 +72,13 @@ def gcd_float(a: float,
     ```
     """
     if abs(b) < tol: return abs(a)
-    return gcd_float(b,a%b,tol)
+    return gcd_float(b, a%b, tol)
 
 def gcd_list(arr: list[float]) -> float:
     """
     **Description:**
-    Compute the greatest common divisor of the elements in an array.
-
-    This is simply the largest floating point number that divides all elements
-    in the list.
+    Compute the greatest common divisor of the elements in an array. This is
+    the largest floating point number that divides all of the elements.
 
     **Arguments:**
     - `arr`: A list of floating-point numbers.
@@ -100,7 +103,9 @@ def gcd_list(arr: list[float]) -> float:
 def float_to_fmpq(c: float) -> flint.fmpq:
     """
     **Description:**
-    Converts a float to an fmpq.
+    Converts a float to an fmpq (Flint's rational number class).
+
+    See https://flintlib.org/doc/fmpq.html
 
     **Arguments:**
     - `c`: The input number.
@@ -122,7 +127,9 @@ def float_to_fmpq(c: float) -> flint.fmpq:
 def fmpq_to_float(c: flint.fmpq) -> float:
     """
     **Description:**
-    Converts an fmpq to a float.
+    Converts an fmpq (Flint's rational number class) to a float.
+
+    See https://flintlib.org/doc/fmpq.html
 
     **Arguments:**
     - `c`: The input rational number.
@@ -142,13 +149,16 @@ def fmpq_to_float(c: flint.fmpq) -> float:
     """
     return int(c.p)/int(c.q)
 
-def array_to_flint(arr: ArrayLike) -> np.ndarray:
+def array_to_flint(arr: np.ndarray) -> np.ndarray:
     """
     **Description:**
     Converts a numpy array with either:
         1) 64-bit integer entries or
         2) float entries
-    to flint type (fmpz or fmpq, respectively).
+    to Flint type (fmpz or fmpq for integer or rational numbers, respectively).
+
+    See https://flintlib.org/doc/fmpz.html and
+        https://flintlib.org/doc/fmpq.html
 
     **Arguments:**
     - `arr`: A numpy array with either 64-bit integer or float entries.
@@ -189,7 +199,10 @@ array_float_to_fmpq = lambda arr: array_to_flint(arr.astype(float))
 def array_fmpz_to_int(arr: ArrayLike) -> np.ndarray:
     """
     **Description:**
-    Converts a numpy array with fmpz entries to 64-bit integer entries.
+    Converts a numpy array with fmpz (Flint's integer number class) entries to
+    64-bit integer entries.
+
+    See https://flintlib.org/doc/fmpz.html
 
     **Arguments:**
     - `arr`: A numpy array with fmpz entries.
@@ -230,26 +243,26 @@ def array_fmpq_to_float(arr: ArrayLike) -> np.ndarray:
     # array([0.5       , 0.4       , 0.33333333])
     ```
     """
-    in_arr = np.array(arr, dtype=object)
-    out_arr = np.empty(in_arr.shape, dtype=float)
+    arr = np.asarray(arr, dtype=object)
+    out = np.empty(arr.shape, dtype=float)
 
-    for i in range(len(in_arr.flat)):
-        out_arr.flat[i] = fmpq_to_float(in_arr.flat[i])
+    for i in range(len(arr.flat)):
+        out.flat[i] = fmpq_to_float(arr.flat[i])
 
-    return out_arr
+    return out
 
 # sparse conversions
 # ------------------
-def to_sparse(rule_arr_in: "dict | list",
+def to_sparse(arr: "dict | list",
               sparse_type: str = "dok") -> "sp.dok_matrix | sp.csr_matrix":
     """
     **Description:**
     Converts a (manually implemented) sparse matrix of the form
-    [[a,b,M_ab], ...] or a dictionary of the form [(a,b):M_ab, ...] to a formal
+    [[a,b,M_ab], ...] or a dictionary of the form {(a,b):M_ab, ...} to a formal
     dok_matrix or to a csr_matrix.
 
     **Arguments:**
-    - `rule_arr_in`: A list of the form [[a,b,M_ab],...] or a dictionary of the
+    - `arr`: A list of the form [[a,b,M_ab],...] or a dictionary of the
         form [(a,b):M_ab,...].
     - `sparse_type`: The type of sparse matrix to return. The options are "dok"
         and "csr".
@@ -274,17 +287,19 @@ def to_sparse(rule_arr_in: "dict | list",
     if sparse_type not in ("dok", "csr"):
         raise ValueError("sparse_type must be either \"dok\" or \"csr\".")
 
-    # map all inputs to list case; map to numpy array
-    if isinstance(rule_arr_in, dict):
-        rule_arr_in = [list(ii)+[rule_arr_in[ii]] for ii in rule_arr_in]
-    rule_arr = np.array(rule_arr_in)
+    # map all inputs to list case
+    if isinstance(arr, dict):
+        arr = [list(ind)+[val] for ind, val in arr.items()]
+
+    # map to numpy array
+    arr = np.asarray(arr)
 
     # form emptry sparse matrix with appropriate dimensions
-    sp_mat = sp.dok_matrix((max(rule_arr[:,0]+1), max(rule_arr[:,1]+1)))
+    sp_mat = sp.dok_matrix( tuple(1+arr.max(axis=0)[:2]) )
 
     # fill in matrix
-    for r in rule_arr:
-        sp_mat[r[0],r[1]] = r[2]
+    for r in arr:
+        sp_mat[r[0], r[1]] = r[2]
 
     # return in appropriate format
     return (sp_mat if sparse_type == "dok" else sp.csr_matrix(sp_mat))
@@ -320,21 +335,22 @@ def symmetric_sparse_to_dense(tensor: dict,
     ```
     """
     # build empty output object
-    l = (np.array(basis).shape[1] if basis is not None else
-            max(set.union(*[set(ii) for ii in tensor.keys()]))+1)
+    if basis is not None:
+        l = np.array(basis).shape[1]
+    else:
+        l = 1 + max( set.union(*[set(inds) for inds in tensor.keys()]) )
 
-    out = np.zeros((l,)*(len(list(tensor.items())[0][0])),
-                            dtype=type(list(tensor.items())[0][1]))
+    rank =  len( next(iter(tensor.keys())) )
+    out = np.zeros((l,)*rank, dtype=type( next(iter(tensor.values())) ))
 
     # fill dense tensor
-    for ii in tensor:
-        for c in itertools.permutations(ii):
-            out[c] = tensor[ii]
-    out = np.asarray(out)
+    for inds, val in tensor.items():
+        for c in itertools.permutations(inds):
+            out[c] = val
 
     # apply basis transformation
     if basis is not None:
-        for i in list(range(len(list(tensor.items())[0][0])))[::-1]:
+        for i in reversed(range(rank)):
             out = np.tensordot(out, basis, axes=[[i],[1]])
 
     return out
@@ -345,6 +361,8 @@ def symmetric_dense_to_sparse(tensor: ArrayLike,
     **Description:**
     Converts a dense symmetric tensor to a sparse tensor of the form
     {(a,b,...,c):M_ab...c, ...}.
+
+    The upper triangular indices are used. That is, a<=b<=...<=c.
 
     Optionally, it applies a basis transformation.
 
@@ -367,40 +385,39 @@ def symmetric_dense_to_sparse(tensor: ArrayLike,
     # {(0, 0): 1, (0, 1): 2, (1, 1): 3}
     ```
     """
-    sparse_tensor = dict()
+    out = dict()
 
     # grab dense tensor
-    dense_tensor = np.array(tensor)
-    s = set(dense_tensor.shape)
-    d = len(dense_tensor.shape)
-    if len(s) != 1: raise ValueError("All dimensions must have the same length")
-    s = list(s)[0]
+    tensor = np.array(tensor)
+
+    rank = len(tensor.shape)
+    dim = set(tensor.shape)
+    if len(dim) != 1:
+        raise ValueError("All dimensions must have the same length")
+    dim = next(iter(dim))
 
     # apply basis transformation
     if basis is not None:
-        for i in list(range(len(list(tensor.items())[0][0])))[::-1]:
-            dense_result = np.tensordot(dense_result, basis, axes=[[i],[1]])
+        for i in reversed(range(rank)):
+            tensor = np.tensordot(tensor, basis, axes=[[i],[1]])
 
     # fill sparse tensor
-    ind = [0]*d
+    ind = [0]*rank
 
     while True:
         # add entry to sparse tensor
         ind_tup = tuple(ind)
-        if dense_tensor[ind_tup] != 0:
-            sparse_tensor[ind_tup] = dense_tensor[ind_tup]
-
-        # check for 1x1 matrix... could be done smarter...
-        if d == 1: break
+        if tensor[ind_tup] != 0:
+            out[ind_tup] = tensor[ind_tup]
 
         # update index lexicographically
-        inc = d-1
+        inc = rank-1
         while True:
-            if ind[inc] < s-1:
+            if ind[inc] < dim-1:
                 # increase the index ind[inc]
                 ind[inc] += 1
 
-                for inc2 in range(inc+1,d):
+                for inc2 in range(inc+1,rank):
                     ind[inc2] = ind[inc]
                 break
             else:
@@ -408,10 +425,10 @@ def symmetric_dense_to_sparse(tensor: ArrayLike,
                 ind[inc] = 0
                 
                 # move inc to next lowest index
-                if inc == 0:    return sparse_tensor
+                if inc == 0:    return out
                 else:           inc -= 1
 
-    return sparse_tensor
+    return out
 
 # other tensor operations
 # -----------------------
