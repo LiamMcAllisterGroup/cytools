@@ -183,13 +183,7 @@ def array_to_flint(arr: np.ndarray) -> np.ndarray:
     else:
         f = float_to_fmpq
 
-    # build the converted array
-    out_arr = np.empty(arr.shape, dtype=object)
-
-    for i,ele in enumerate(arr.flat):
-        out_arr.flat[i] = f(ele)
-
-    return out_arr
+    return np.vectorize(f)(arr).astype(object)
 
 # define primary functions from this
 # (the casting of arr is likely unecessary...)
@@ -243,13 +237,7 @@ def array_fmpq_to_float(arr: ArrayLike) -> np.ndarray:
     # array([0.5       , 0.4       , 0.33333333])
     ```
     """
-    arr = np.asarray(arr, dtype=object)
-    out = np.empty(arr.shape, dtype=float)
-
-    for i in range(len(arr.flat)):
-        out.flat[i] = fmpq_to_float(arr.flat[i])
-
-    return out
+    return np.vectorize(fmpq_to_float)(arr).astype(float)
 
 # sparse conversions
 # ------------------
@@ -336,12 +324,13 @@ def symmetric_sparse_to_dense(tensor: dict,
     """
     # build empty output object
     if basis is not None:
-        l = np.array(basis).shape[1]
+        l = np.asarray(basis).shape[1]
     else:
-        l = 1 + max( set.union(*[set(inds) for inds in tensor.keys()]) )
+        l = 1 + max( set.union( map(lambda k:set(k), tensor.keys()) ) )
 
-    rank =  len( next(iter(tensor.keys())) )
-    out = np.zeros((l,)*rank, dtype=type( next(iter(tensor.values())) ))
+    rank =   len( next(iter(tensor.keys())) )
+    t =     type( next(iter(tensor.values())) )
+    out = np.zeros((l,)*rank, dtype=t)
 
     # fill dense tensor
     for inds, val in tensor.items():
@@ -390,8 +379,7 @@ def symmetric_dense_to_sparse(tensor: ArrayLike,
     # grab dense tensor
     tensor = np.array(tensor)
 
-    rank = len(tensor.shape)
-    dim = set(tensor.shape)
+    rank = len(tensor.shape); dim = set(tensor.shape)
     if len(dim) != 1:
         raise ValueError("All dimensions must have the same length")
     dim = next(iter(dim))
@@ -538,9 +526,8 @@ def solve_linear_system(M: sp.csr_matrix,
 
     elif backend == "scipy":
         try:
-            MM =  M.transpose()*M
-            CC = -M.transpose()*C
-            solution = sp.linalg.spsolve(MM, CC).tolist()
+            solution = sp.linalg.spsolve(M+M.transpose(),\
+                                         C-M.transpose()).tolist()
         except:
             if verbosity >= 1: print("Linear backend error: scipy failed.")
 
@@ -871,9 +858,9 @@ def polytope_generator(input: str,
                        limit: int = None) -> Generator["Polytope", None, None]:
     """
     **Description:**
-    Reads polytopes from a file or a string. The polytopes can be specified with
-    their vertices, as used in the Kreuzer-Skarke database, or from a weight
-    system.
+    Reads polytopes from a file or a string. The polytopes can be specified
+    with their vertices, as used in the Kreuzer-Skarke database, or from a
+    weight system.
 
     :::note
     This function is not intended to be called by the end user. Instead, it is
@@ -926,7 +913,7 @@ def polytope_generator(input: str,
         raise ValueError('Lattice must be specified. Options are "M" and "N".')
 
     if input_type not in ["file", "str"]:
-        raise ValueError("\"input_type\" must be either \"file\" or \"str\"")
+        raise ValueError('"input_type" must be either "file" or "str"')
 
     # read data
     n_yielded = 0
@@ -936,8 +923,7 @@ def polytope_generator(input: str,
         l = in_file.readline()
     else:
         in_string = input.split("\n")
-        l = in_string[0]
-        in_string.pop(0)
+        l = in_string.pop(0)
     
     if format == "ws":
         while limit is None or n_yielded < limit:
@@ -976,24 +962,20 @@ def polytope_generator(input: str,
             # get next line
             if input_type == "file":
                 l = in_file.readline()
-                reached_end = True
+
                 for i in range(5):
-                    if l != "":
-                        reached_end = False
-                        break
+                    if l != "": break
                     l = in_file.readline()
-                if reached_end:
-                    in_file.close()
-                    break
+                else:
+                    in_file.close(); break
             else:
                 if len(in_string) > 0:
-                    l = in_string[0]
-                    in_string.pop(0)
+                    l = in_string.pop(0)
                 else:
                     break
 
     elif format != "ks":
-        raise ValueError("Unsupported format. Options are \"ks\" and \"ws\".")
+        raise ValueError('Unsupported format. Options are "ks" and "ws".')
 
     # format is "ws"
     while limit is None or n_yielded < limit:
@@ -1007,9 +989,9 @@ def polytope_generator(input: str,
                 if input_type == "file":
                     vert.append([int(c) for c in in_file.readline().split()])
                 else:
-                    vert.append([int(c) for c in in_string[0].split()])
-                    in_string.pop(0)
-            vert = np.array(vert)
+                    vert.append([int(c) for c in in_string.pop(0).split()])
+
+            vert = np.asarray(vert)
 
             # ensure reasonable shape
             if vert.shape != (n, m):
@@ -1027,19 +1009,15 @@ def polytope_generator(input: str,
         # get next line
         if input_type == "file":
             l = in_file.readline()
-            reached_end = True
+
             for i in range(5):
-                if l != "":
-                    reached_end = False
-                    break
+                if l != "": break
                 l = in_file.readline()
-            if reached_end:
-                in_file.close()
-                break
+            else:
+                in_file.close(); break
         else:
             if len(in_string) > 0:
-                l = in_string[0]
-                in_string.pop(0)
+                l = in_string.pop(0)
             else:
                 break
 
@@ -1201,7 +1179,8 @@ def fetch_polytopes(h11: int = None, h12: int = None,
 
     if favorable is not None:
         if lattice is None:
-            raise ValueError("Must specify lattice when checking favorability.")
+            raise ValueError("Must specify lattice when checking "
+                             "favorability.")
 
         fetch_limit = (5 if favorable else 10)*limit + 100
     else:
@@ -1241,8 +1220,8 @@ def fetch_polytopes(h11: int = None, h12: int = None,
                      chi, fetch_limit]
         names = ["h11", "h12", "M", "V", "N", "F", "chi", "L"]
 
-        parameters = {n:str(v) for n, v in zip(names, variables)\
-                                                            if v is not None}
+        parameters = {name:str(var) for name,var in zip(names, variables)\
+                                                            if var is not None}
 
         r = requests.get("http://quark.itp.tuwien.ac.at/cgi-bin/cy/cydata.cgi",
                          params=parameters, timeout=timeout)
@@ -1283,7 +1262,7 @@ def fetch_polytopes(h11: int = None, h12: int = None,
 
 # misc
 # ----
-def find_new_affinely_independent_points(points: ArrayLike) -> np.ndarray:
+def find_new_affinely_independent_points(pts: ArrayLike) -> np.ndarray:
     """
     **Description:**
     Finds new points that are affinely independent to the input list of points.
@@ -1293,7 +1272,7 @@ def find_new_affinely_independent_points(points: ArrayLike) -> np.ndarray:
     triangulations.
 
     **Arguments:**
-    - `points`: A list of points.
+    - `pts`: A list of points.
 
     **Returns:**
     A list of affinely independent points with respect to the ones inputted.
@@ -1308,28 +1287,40 @@ def find_new_affinely_independent_points(points: ArrayLike) -> np.ndarray:
     ```
     """
     # input checking
-    if len(points) == 0:
+    if len(pts) == 0:
         raise ValueError("List of points cannot be empty.")
 
-    pts = np.array(points)
-    pts_trans = np.array([pt-pts[0] for pt in pts])
-    if len(pts) == 1:
-        pts_trans = np.array(pts_trans.tolist()+[[1]+[0]*(pts.shape[1]-1)])
-    dim = np.linalg.matrix_rank(pts_trans)
-    basis_dim = 0
-    basis_pts = []
-    for pt in pts_trans:
-        new_rank = np.linalg.matrix_rank(basis_pts+[pt])
-        if new_rank > basis_dim:
-            basis_pts.append(pt)
-            basis_dim = new_rank
-        if basis_dim == dim:
-            break
-    basis_pts = np.array(basis_pts)
-    k, n_k = flint.fmpz_mat(basis_pts.tolist()).nullspace()
-    new_pts = np.array(k.transpose().tolist(), dtype=int)[:n_k,:]
-    if len(pts) == 1:
-        new_pts = np.array(new_pts.tolist() + [[1]+[0]*(pts.shape[1]-1)])
-    new_pts = np.array([pt+pts[0] for pt in new_pts])
+    # cast to numpy array
+    pts = np.asarray(pts)
+    shape = pts.shape
 
-    return new_pts
+    # translate, append unit vector
+    translation = pts[0].copy()
+    pts -= translation
+
+    if shape[0]==1:
+        pts = np.append(pts_trans, [[1]+[0]*(shape[1]-1)], axis=0)
+        
+    dim = np.linalg.matrix_rank(pts)
+    
+    # make basis of points
+    basis = []; basis_dim = 0
+
+    for pt in pts:
+        basis.append(pt.tolist())
+        
+        new_rank = np.linalg.matrix_rank(basis)        
+        if basis_dim < new_rank:
+            basis_dim = new_rank
+        else:
+            basis.pop()
+
+        if basis_dim == dim: break
+
+    # find independent points
+    k, n_k = flint.fmpz_mat(basis).nullspace()
+    new_pts = np.array(k.transpose().tolist(), dtype=int)[:n_k,:]
+    if shape[0] == 1:
+        new_pts = np.append(new_pts, [[1]+[0]*(shape[1]-1)], axis=0)
+
+    return (new_pts + translation)
