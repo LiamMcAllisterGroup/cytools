@@ -428,8 +428,6 @@ def symmetric_dense_to_sparse(tensor: ArrayLike,
                 if inc == 0:    return out
                 else:           inc -= 1
 
-    return out
-
 # other tensor operations
 # -----------------------
 def filter_tensor_indices(tensor: dict,
@@ -468,15 +466,15 @@ def filter_tensor_indices(tensor: dict,
     ```
     """
     # map from index to its count in indices object
-    indices_dict = {ind:i for i,ind in enumerate(indices)}
+    reindex = {ind:i for i,ind in enumerate(indices)}
 
     # only keep entries whose indices match those in indices
-    tensor_filtered = {k:tensor[k] for k in tensor if\
-                                                all(c in indices for c in k)}
+    filtered = {key:val for key,val in tensor.items() if\
+                                                all(c in indices for c in key)}
 
     # return reindexed tensor (order defined by indices input)
-    return {tuple(sorted(indices_dict[c] for c in k)):\
-                                tensor_filtered[k] for k in tensor_filtered}
+    return {tuple(sorted(reindex[c] for c in key)):val for key,val in\
+                                                            filtered.items()}
 
 # solve systems
 # -------------
@@ -619,14 +617,14 @@ def set_divisor_basis(tv_or_cy: "ToricVariety | CalabiYau",
     An example for more generic basis choices can be found in the
     [experimental features](./experimental) section.
     """
-    self = tv_or_cy # More conveninent to work with
+    self = tv_or_cy
 
     # grab GLSM information
     glsm_cm = self.glsm_charge_matrix(include_origin=True)
     glsm_rnk = np.linalg.matrix_rank(glsm_cm)
 
     # grab basis information
-    b = np.array(basis, dtype=int) # only integer bases are supported
+    b = np.array(basis, dtype=int) # (only integer bases are supported)
 
     if len(b.shape) == 1:
         # input is a vector
@@ -651,15 +649,20 @@ def set_divisor_basis(tv_or_cy: "ToricVariety | CalabiYau",
         # Construct dual basis of curves
         self._curve_basis = b
         nobasis = np.array([i for i in range(glsm_cm.shape[1]) if i not in b])
+
         linrels = self.glsm_linear_relations()
+
         linrels_tmp = np.empty(linrels.shape, dtype=int)
         linrels_tmp[:,:len(nobasis)] = linrels[:,nobasis]
         linrels_tmp[:,len(nobasis):] = linrels[:,b]
+
         linrels_tmp = flint.fmpz_mat(linrels_tmp.tolist()).hnf()
         linrels_tmp = np.array(linrels_tmp.tolist(), dtype=int)
+        
         linrels_new = np.empty(linrels.shape, dtype=int)
         linrels_new[:,nobasis] = linrels_tmp[:,:len(nobasis)]
         linrels_new[:,b] = linrels_tmp[:,len(nobasis):]
+
         self._curve_basis_mat = np.zeros(glsm_cm.shape, dtype=int)
         self._curve_basis_mat[:,b] = np.eye(len(b),dtype=int)
         sublat_ind =  int(round(np.linalg.det(np.array(flint.fmpz_mat(linrels.tolist()).snf().tolist(), dtype=int)[:,:linrels.shape[0]])))
