@@ -933,9 +933,12 @@ class Cone:
                 backend = "glop"
 
         if isinstance(self._hyperplanes, (list, np.ndarray)):
+            self._hyperplanes = np.asarray(self._hyperplanes)
             hp_iter = enumerate
+            dot = lambda hp,x: hp.dot(x)
         else:
             hp_iter = lambda hp:hp.items()
+            dot = lambda hp,x: sum([val*x[ind] for ind,val in hp_iter(hp)])
 
         if backend in ("glop", "scip"):
             solver = pywraplp.Solver.CreateSolver(backend.upper())
@@ -1019,7 +1022,7 @@ class Cone:
                 return None
 
         # Make sure that the solution is valid
-        if check and any(sum([val*solution[ind] for ind,val in hp_iter(v)]) <= 0 for v in self._hyperplanes):
+        if check and any(dot(v,solution) <= 0 for v in self._hyperplanes):
             warnings.warn("The solution that was found is invalid.")
             return None
 
@@ -1028,7 +1031,7 @@ class Cone:
             n_tries = 1000
             for i in range(1,n_tries):
                 int_sol = np.array([int(round(x)) for x in i*solution])
-                if all(int_sol.dot(v) > 0 for v in self._hyperplanes):
+                if all(dot(v,int_sol) > 0 for v in self._hyperplanes):
                     break
                 if i == n_tries-1:
                     return None
