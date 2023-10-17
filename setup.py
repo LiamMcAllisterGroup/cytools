@@ -5,7 +5,7 @@ with open("README.md", "r") as f:
 
 setuptools.setup(
     name="cytools",
-    version="1.0.9",
+    version="1.0.10",
     author="Liam McAllister Group",
     author_email="",
     description="A software package for analyzing Calabi-Yau hypersurfaces in toric varieties.",
