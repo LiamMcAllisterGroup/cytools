@@ -326,7 +326,7 @@ def symmetric_sparse_to_dense(tensor: dict,
     if basis is not None:
         l = np.asarray(basis).shape[1]
     else:
-        l = 1 + max( set.union( map(lambda k:set(k), tensor.keys()) ) )
+        l = 1 + max( set.union(*[set(inds) for inds in tensor.keys()]) )
 
     rank =   len( next(iter(tensor.keys())) )
     t =     type( next(iter(tensor.values())) )
