@@ -526,8 +526,8 @@ def solve_linear_system(M: sp.csr_matrix,
 
     elif backend == "scipy":
         try:
-            solution = sp.linalg.spsolve(M+M.transpose(),\
-                                         C-M.transpose()).tolist()
+            solution = sp.linalg.spsolve(M.transpose()*M,\
+                                         -M.transpose()*C).tolist()
         except:
             if verbosity >= 1: print("Linear backend error: scipy failed.")
 
