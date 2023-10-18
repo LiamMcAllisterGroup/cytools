@@ -12,14 +12,17 @@ import styles from './index.module.css';
 
 :::tip note
 This tutorial is available as a Jupyter notebook that you can download at the link below so that you can follow along. In the web version, we show the output of the code as comments at the bottom, so that it can be copied and pasted without annoying extra characters. Additionally, every code block on the website (not just the tutorial) has a button at the top right corner to copy the entire content of the block.
-<div className={styles.buttons}>
-  <centered>
-    <Link
-    className="button button--primary"
-    to="/files/tutorial.ipynb">
-    Download tutorial notebook
-    </Link>
-  </centered>
+<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+    <button className="button button--primary" onClick={() => {
+       const link = document.createElement('a');
+       link.href = '/files/tutorial.ipynb';
+       link.download = 'tutorial.ipynb';
+       document.body.appendChild(link);
+       link.click();
+       document.body.removeChild(link);
+    }}>
+       Download tutorial notebook
+    </button>
 </div>
 :::
 
