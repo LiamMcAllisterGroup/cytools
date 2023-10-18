@@ -211,9 +211,11 @@ class Triangulation:
         if self._is_fulldim:
             self._optimal_pts = self._triang_pts
         else:
-            optimal_pts = np.array([pt-self._triang_pts[0] for pt in self._triang_pts])
-            optimal_pts = np.array(flint.fmpz_mat(optimal_pts.T.tolist()).lll().transpose().tolist(), dtype=int)[:,-self._dim:]
-            self._optimal_pts = optimal_pts
+            shift = self._triang_pts[0]
+            optimal_pts = np.array([pt-shift for pt in self._triang_pts])
+            optimal_pts = flint.fmpz_mat(optimal_pts.T.tolist())
+            optimal_pts = optimal_ptsoptimal_pts.lll().transpose().tolist()
+            self._optimal_pts = np.array(optimal_pts, dtype=int)[:,-self._dim:]
 
         # find index of origin
         try:
@@ -298,10 +300,10 @@ class Triangulation:
                 if make_star:
                     assert self._origin_index == 0
 
-                    origin_height_step = max(100, (max(heights[1:])-min(heights[1:])))
+                    origin_step = max(100, (max(heights[1:])-min(heights[1:])))
                     
                     while self._simplices[:,0].any():
-                        heights[0] -= origin_height_step
+                        heights[0] -= origin_step
                         self._simplices = cgal_triangulate(self._optimal_pts,\
                                                                     heights)
             else: # Use TOPCOM
@@ -321,7 +323,9 @@ class Triangulation:
 
         self._restricted_simplices = [None]*self._simplices.shape[1]
 
-    def clear_cache(self, recursive=False, clear_simplices=True):
+    def clear_cache(self,
+                    recursive: bool = False,
+                    clear_simplices: bool = True):
         """
         **Description:**
         Clears the cached results of any previous computation.
@@ -344,18 +348,20 @@ class Triangulation:
         gkz_phi = t.gkz_phi() # The GKZ vector is recomputed
         ```
         """
+        self._automorphism_orbit = dict()
+        self._gkz_phi = None
         self._hash = None
         self._is_fine = None
         self._is_regular = None
         self._is_star = None
         self._is_valid = None
-        self._gkz_phi = None
-        self._sr_ideal = None
         self._secondary_cone = [None]*2
+        self._sr_ideal = None
         self._toricvariety = None
-        self._automorphism_orbit = dict()
+
         if clear_simplices:
             self._restricted_simplices = [None]*self._simplices.shape[1]
+
         if recursive:
             self._poly.clear_cache()
 
@@ -381,10 +387,11 @@ class Triangulation:
         # A fine, regular, star triangulation of a 4-dimensional point configuration with 7 points in ZZ^4
         ```
         """
-        return (f"A {('fine' if self.is_fine() else 'non-fine')}"
-                + (f", {('regular' if self._is_regular else 'irregular')}"
-                    if self._is_regular is not None else "") +
-                (f", {('star' if self.is_star() else 'non-star')}" if self.polytope().is_reflexive() else "") +
+        return (f"A {('fine' if self.is_fine() else 'non-fine')}" +\
+                (f", {('regular' if self._is_regular else 'irregular')}"
+                        if self._is_regular is not None else "") +\
+                (f", {('star' if self.is_star() else 'non-star')}"
+                        if self.polytope().is_reflexive() else "") +\
                 f" triangulation of a {self.dim()}-dimensional "
                 f"point configuration with {len(self._triang_pts)} points "
                 f"in ZZ^{self.ambient_dim()}")
@@ -413,8 +420,11 @@ class Triangulation:
         """
         if not isinstance(other, Triangulation):
             return NotImplemented
+
+        our_simps = sorted(self.simplices().tolist())
+        other_simps = sorted(other.simplices().tolist())
         return (self.polytope() == other.polytope() and
-                sorted(self.simplices().tolist()) == sorted(other.simplices().tolist()))
+                                                    our_simps == other_simps)
 
     def __ne__(self, other):
         """
@@ -440,8 +450,8 @@ class Triangulation:
         """
         if not isinstance(other, Triangulation):
             return NotImplemented
-        return not (self.polytope() == other.polytope() and
-                    sorted(self.simplices().tolist()) == sorted(other.simplices().tolist()))
+
+        return(not self.__eq__(other))
 
     def __hash__(self):
         """
