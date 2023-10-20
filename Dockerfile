@@ -11,6 +11,7 @@ ARG ALLOW_ROOT_ARG
 ARG PORT_ARG
 ENV ALLOW_ROOT=$ALLOW_ROOT_ARG
 ENV PORT=$PORT_ARG
+ARG OPTIONAL_PKGS=0
 
 # Install dependencies
 RUN apt-get -yqq update
@@ -48,6 +49,23 @@ RUN PIP_CONSTRAINT=c.txt pip3 install -r requirements.txt
 RUN pip3 install python-flint==0.3.0
 RUN pip3 install -f https://download.mosek.com/stable/wheel/index.html Mosek
 ENV MOSEKLM_LICENSE_FILE=/home/$USERNAME/mounted_volume/mosek/mosek.lic
+
+# Install optional packages
+USER $USERNAME
+RUN if [ "$OPTIONAL_PKGS" = "1" ]; then \
+        export NODE_VERSION=v18.13.0 && \
+        export NVM_DIR=/home/$USERNAME/.nvm && \
+        mkdir -p $NVM_DIR && \
+        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash && \
+        . "$NVM_DIR/nvm.sh" && nvm install ${NODE_VERSION} && \
+        . "$NVM_DIR/nvm.sh" && nvm use ${NODE_VERSION} && \
+        . "$NVM_DIR/nvm.sh" && nvm alias default ${NODE_VERSION} && \
+        echo "export PATH=\"$NVM_DIR/versions/node/${NODE_VERSION}/bin/:$PATH\"" >> /home/$USERNAME/.bashrc && \
+        . /home/$USERNAME/.bashrc && \
+        pip3 install sympy==1.11.1 galois==0.3.3 plotly==5.13.1 plotly_express==0.4.1 ipywidgets==7.7.1 jupyterlab-widgets==1.1.1 networkx==3.0 && \
+        jupyter lab build; \
+    fi
+
 
 # Fix cvxopt bug
 USER root

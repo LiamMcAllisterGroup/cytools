@@ -21,6 +21,9 @@ endif
 USERID=$(shell id -u)
 USERIDN=$(shell id -u -n)
 
+# argument to install optional packages
+OPTIONAL_PKGS?=0
+
 .PHONY: all build install uninstall run test build-with-root-user
 
 all:
@@ -45,7 +48,7 @@ build:
 	sudo docker build --no-cache --force-rm -t cytools:uid-$(USERID) --build-arg USERNAME=cytools\
 	     --build-arg USERID=$(USERID) --build-arg ARCH=$(arch) --build-arg AARCH=$(aarch)\
 			 --build-arg VIRTUAL_ENV=/home/cytools/cytools-venv/ --build-arg ALLOW_ROOT_ARG=" "\
-			 --build-arg PORT_ARG=$$(( $(USERID) + 2875 )) .
+			 --build-arg OPTIONAL_PKGS=$(OPTIONAL_PKGS) --build-arg PORT_ARG=$$(( $(USERID) + 2875 )) .
 	@ echo "Successfully built CYTools image for user $(USERIDN)"
 	@ if [ "$(machine)" = "Mac" ]; then \
 		osascript -e "display notification \"The CYTools image was successfully built!\" with title \"CYTools\"" || echo ""; \
@@ -70,7 +73,7 @@ build-fast:
 	sudo docker build -t cytools:uid-$(USERID) --build-arg USERNAME=cytools\
 	     --build-arg USERID=$(USERID) --build-arg ARCH=$(arch) --build-arg AARCH=$(aarch)\
 			 --build-arg VIRTUAL_ENV=/home/cytools/cytools-venv/ --build-arg ALLOW_ROOT_ARG=" "\
-			 --build-arg PORT_ARG=$$(( $(USERID) + 2875 )) .
+			 --build-arg OPTIONAL_PKGS=$(OPTIONAL_PKGS) --build-arg PORT_ARG=$$(( $(USERID) + 2875 )) .
 	@ echo "Successfully built CYTools image for user $(USERIDN)"
 	@ if [ "$(machine)" = "Mac" ]; then \
 		osascript -e "display notification \"The CYTools image was successfully built!\" with title \"CYTools\"" || echo ""; \
@@ -152,5 +155,5 @@ build-with-root-user:
 	sudo docker build -t cytools:root --build-arg USERNAME=root\
 	     --build-arg USERID=0 --build-arg ARCH=$(arch) --build-arg AARCH=$(aarch)\
 			 --build-arg VIRTUAL_ENV=/opt/cytools/cytools-venv/ --build-arg ALLOW_ROOT_ARG="--allow-root"\
-			 --build-arg PORT_ARG=2875 .
+			 --build-arg OPTIONAL_PKGS=$(OPTIONAL_PKGS) --build-arg PORT_ARG=2875 .
 	@ echo "Successfully built CYTools image with root user."
