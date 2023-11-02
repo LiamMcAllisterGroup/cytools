@@ -214,7 +214,7 @@ class Triangulation:
             shift = self._triang_pts[0]
             optimal_pts = np.array([pt-shift for pt in self._triang_pts])
             optimal_pts = flint.fmpz_mat(optimal_pts.T.tolist())
-            optimal_pts = optimal_ptsoptimal_pts.lll().transpose().tolist()
+            optimal_pts = optimal_pts.lll().transpose().tolist()
             self._optimal_pts = np.array(optimal_pts, dtype=int)[:,-self._dim:]
 
         # find index of origin
