@@ -281,7 +281,8 @@ class Triangulation:
 
             # Now run the appropriate triangulation function
             if backend == "qhull":
-                self._simplices = qhull_triangulate(self._optimal_pts, heights)
+                self._simplices = qhull_triangulate(self._optimal_pts,\
+                                                    self._heights)
 
                 # convert to star
                 if make_star:
@@ -292,7 +293,8 @@ class Triangulation:
                                              facets_ind, self._origin_index)
 
             elif backend == "cgal":
-                self._simplices = cgal_triangulate(self._optimal_pts, heights)
+                self._simplices = cgal_triangulate(self._optimal_pts,\
+                                                   self._heights)
                 
                 # can obtain star more quickly than in QHull by setting height
                 # of origin to be much lower than others
@@ -300,12 +302,13 @@ class Triangulation:
                 if make_star:
                     assert self._origin_index == 0
 
-                    origin_step = max(100, (max(heights[1:])-min(heights[1:])))
+                    origin_step = max(100, (max(self._heights[1:]) -\
+                                                    min(self._heights[1:])))
                     
                     while self._simplices[:,0].any():
-                        heights[0] -= origin_step
+                        self._heights[0] -= origin_step
                         self._simplices = cgal_triangulate(self._optimal_pts,\
-                                                                    heights)
+                                                           self._heights)
             else: # Use TOPCOM
                 self._simplices = topcom_triangulate(self._optimal_pts)
 
