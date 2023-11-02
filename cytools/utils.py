@@ -37,11 +37,9 @@ import scipy.sparse as sp
 # CYTools imports
 from cytools import config
 
-# basic math
-# ----------
-def gcd_float(a: float,
-              b: float,
-              tol: float = 1e-5) -> float:
+# basic math (GCD)
+# ----------------
+def gcd_float(a: float, b: float, tol: float = 1e-5) -> float:
     """
     **Description:**
     Compute the greatest common (floating-point) divisor of a and b. This is
@@ -190,7 +188,7 @@ def array_to_flint(arr: np.ndarray, t: "int | float" = None) -> np.ndarray:
 array_int_to_fmpz   = lambda arr: array_to_flint(arr, t=int)
 array_float_to_fmpq = lambda arr: array_to_flint(arr, t=float)
 
-def array_fmpz_to_int(arr: ArrayLike) -> np.ndarray:
+def array_fmpz_to_int(arr: np.ndarray) -> np.ndarray:
     """
     **Description:**
     Converts a numpy array with fmpz (Flint's integer number class) entries to
@@ -216,7 +214,7 @@ def array_fmpz_to_int(arr: ArrayLike) -> np.ndarray:
     """
     return np.array(arr, dtype=int)
 
-def array_fmpq_to_float(arr: ArrayLike) -> np.ndarray:
+def array_fmpq_to_float(arr: np.ndarray) -> np.ndarray:
     """
     **Description:**
     Converts a numpy array with fmpq entries to floating-point entries.
@@ -287,10 +285,11 @@ def to_sparse(arr: "dict | list",
 
     # fill in matrix
     for r in arr:
-        sp_mat[r[0], r[1]] = r[2]
+        sp_mat[r[0],r[1]] = r[2]
 
     # return in appropriate format
-    return (sp_mat if sparse_type == "dok" else sp.csr_matrix(sp_mat))
+    if sparse_type=="dok":  return sp_mat
+    else:                   return sp.csr_matrix(sp_mat)
 
 def symmetric_sparse_to_dense(tensor: dict,
                               basis: ArrayLike = None) -> np.ndarray:
@@ -379,7 +378,8 @@ def symmetric_dense_to_sparse(tensor: ArrayLike,
     # grab dense tensor
     tensor = np.array(tensor)
 
-    rank = len(tensor.shape); dim = set(tensor.shape)
+    rank = len(tensor.shape)
+    dim  = set(tensor.shape)
     if len(dim) != 1:
         raise ValueError("All dimensions must have the same length")
     dim = next(iter(dim))
@@ -531,7 +531,7 @@ def solve_linear_system(M: sp.csr_matrix,
         except:
             if verbosity >= 1: print("Linear backend error: scipy failed.")
 
-    # return solution
+    # check/return solution
     if solution is None:
         return None
 
@@ -973,7 +973,6 @@ def polytope_generator(input: str,
                     l = in_string.pop(0)
                 else:
                     break
-
     elif format != "ks":
         raise ValueError('Unsupported format. Options are "ks" and "ws".')
 
@@ -1082,7 +1081,6 @@ def read_polytopes(input: str,
 
     if as_list: return list(g)
     else:       return g
-
 
 def fetch_polytopes(h11: int = None, h12: int = None,
                     h13: int = None, h21: int = None,
