@@ -30,6 +30,7 @@ import warnings
 # 3rd party imports
 from flint import fmpz_mat, fmpq_mat
 import numpy as np
+from numpy.typing import ArrayLike
 import ppl
 from scipy.spatial import ConvexHull
 from tqdm import tqdm
@@ -355,7 +356,7 @@ class Polytope:
                 f"{('reflexive ' if self.is_reflexive() else '')}"
                 f"lattice polytope in ZZ^{self._ambient_dim}")
 
-    def __eq__(self, other: Polytope) -> bool:
+    def __eq__(self, other: "Polytope") -> bool:
         """
         **Description:**
         Implements comparison of polytopes with ==.
@@ -379,7 +380,7 @@ class Polytope:
             return NotImplemented
         return sorted(self.vertices().tolist()) == sorted(other.vertices().tolist())
 
-    def __ne__(self, other: Polytope) -> bool:
+    def __ne__(self, other: "Polytope") -> bool:
         """
         **Description:**
         Implements comparison of polytopes with !=.
@@ -428,7 +429,7 @@ class Polytope:
             self._hash = hash(tuple(sorted(tuple(v) for v in self.vertices())))
         return self._hash
 
-    def __add__(self, other: Polytope) -> Polytope:
+    def __add__(self, other: "Polytope") -> "Polytope":
         """
         **Description:**
         Implements addition of polytopes with the
@@ -453,8 +454,8 @@ class Polytope:
             return NotImplemented
         return self.minkowski_sum(other)
 
-    def is_linearly_equivalent(self, other: Polytope, backend: str = "palp")
-                                                                    -> bool:
+    def is_linearly_equivalent(self, other: "Polytope",
+                                     backend: str = "palp") -> bool:
         """
         **Description:**
         Returns True if the polytopes can be transformed into each other by an
@@ -481,8 +482,8 @@ class Polytope:
         return (self.normal_form(affine_transform=False, backend=backend).tolist()
                 == other.normal_form(affine_transform=False, backend=backend).tolist())
 
-    def is_affinely_equivalent(self, other: Polytope, backend: str = "palp")
-                                                                    -> bool:
+    def is_affinely_equivalent(self, other: "Polytope",
+                                     backend: str = "palp") -> bool:
         """
         **Description:**
         Returns True if the polytopes can be transformed into each other by an
@@ -896,8 +897,8 @@ class Polytope:
     # aliases
     boundary_pts = boundary_points
 
-    def points_interior_to_facets(self, as_indices: bool = False)
-                                                                -> np.ndarray:
+    def points_interior_to_facets(self,
+                                        as_indices: bool = False) -> np.ndarray:
         """
         **Description:**
         Returns the lattice points interior to facets.
@@ -931,8 +932,8 @@ class Polytope:
     # aliases
     pts_interior_to_facets = points_interior_to_facets
 
-    def boundary_points_not_interior_to_facets(self, as_indices: bool = False)
-                                                                -> np.ndarray:
+    def boundary_points_not_interior_to_facets(self,
+                                        as_indices: bool = False) -> np.ndarray:
         """
         **Description:**
         Returns the boundary lattice points not interior to facets.
@@ -971,8 +972,8 @@ class Polytope:
     # aliases
     boundary_pts_not_interior_to_facets = boundary_points_not_interior_to_facets
 
-    def points_not_interior_to_facets(self, as_indices: bool = False)
-                                                                -> np.ndarray:
+    def points_not_interior_to_facets(self,
+                                        as_indices: bool = False) -> np.ndarray:
         """
         **Description:**
         Returns the lattice points not interior to facets.
