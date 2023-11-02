@@ -31,8 +31,8 @@ import warnings
 from flint import fmpz_mat, fmpq_mat
 import numpy as np
 import ppl
-from tqdm import tqdm
 from scipy.spatial import ConvexHull
+from tqdm import tqdm
 
 # CYTools imports
 from cytools import config
@@ -85,7 +85,7 @@ class Polytope:
     ```
     """
 
-    def __init__(self, points, backend=None):
+    def __init__(self, points: ArrayLike, backend: str = None) -> None:
         """
         **Description:**
         Initializes a `Polytope` object describing a lattice polytope.
@@ -96,12 +96,12 @@ class Polytope:
         :::
 
         **Arguments:**
-        - `points` *(array_like)*: A list of lattice points defining the
-            polytope as their convex hull.
-        - `backend` *(string, optional)*: A string that specifies the backend
-            used to construct the convex hull. The available options are "ppl",
-            "qhull", or "palp". When not specified, it uses PPL for dimensions
-            up to four, and palp otherwise.
+        - `points`: A list of lattice points defining the polytope as their
+            convex hull.
+        - `backend`: A string that specifies the backend used to construct the
+            convex hull. The available options are "ppl", "qhull", or "palp".
+            When not specified, it uses PPL for dimensions up to four, and palp
+            otherwise.
 
         **Returns:**
         Nothing.
@@ -282,7 +282,7 @@ class Polytope:
         self._glsm_linrels = dict()
         self._glsm_basis = dict()
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """
         **Description:**
         Clears the cached results of any previous computation.
@@ -330,7 +330,7 @@ class Polytope:
         self._glsm_linrels = dict()
         self._glsm_basis = dict()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """
         **Description:**
         Returns a string describing the polytope.
@@ -339,7 +339,7 @@ class Polytope:
         None.
 
         **Returns:**
-        *(str)* A string describing the polytope.
+        A string describing the polytope.
 
         **Example:**
         This function can be used to convert the polytope to a string or to
@@ -355,16 +355,16 @@ class Polytope:
                 f"{('reflexive ' if self.is_reflexive() else '')}"
                 f"lattice polytope in ZZ^{self._ambient_dim}")
 
-    def __eq__(self, other):
+    def __eq__(self, other: Polytope) -> bool:
         """
         **Description:**
         Implements comparison of polytopes with ==.
 
         **Arguments:**
-        - `other` *(Polytope)*: The other polytope that is being compared.
+        - `other`: The other polytope that is being compared.
 
         **Returns:**
-        *(bool)* The truth value of the polytopes being equal.
+        The truth value of the polytopes being equal.
 
         **Example:**
         We construct two polytopes and compare them.
@@ -379,16 +379,16 @@ class Polytope:
             return NotImplemented
         return sorted(self.vertices().tolist()) == sorted(other.vertices().tolist())
 
-    def __ne__(self, other):
+    def __ne__(self, other: Polytope) -> bool:
         """
         **Description:**
         Implements comparison of polytopes with !=.
 
         **Arguments:**
-        - `other` *(Polytope)*: The other polytope that is being compared.
+        - `other`: The other polytope that is being compared.
 
         **Returns:**
-        *(bool)* The truth value of the polytopes being different.
+        The truth value of the polytopes being different.
 
         **Example:**
         We construct two polytopes and compare them.
@@ -403,7 +403,7 @@ class Polytope:
             return NotImplemented
         return not sorted(self.vertices().tolist()) == sorted(other.vertices().tolist())
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         """
         **Description:**
         Implements the ability to obtain hash values from polytopes.
@@ -412,7 +412,7 @@ class Polytope:
         None.
 
         **Returns:**
-        *(int)* The hash value of the polytope.
+        The hash value of the polytope.
 
         **Example:**
         We compute the hash value of a polytope. Also, we construct a set and a
@@ -428,17 +428,17 @@ class Polytope:
             self._hash = hash(tuple(sorted(tuple(v) for v in self.vertices())))
         return self._hash
 
-    def __add__(self, other):
+    def __add__(self, other: Polytope) -> Polytope:
         """
         **Description:**
         Implements addition of polytopes with the
         [`minkowski_sum`](#minkowski_sum) function.
 
         **Arguments:**
-        - `other` *(Polytope)*: The other polytope used for the Minkowski sum.
+        - `other`: The other polytope used for the Minkowski sum.
 
         **Returns:**
-        *(Polytope)* The Minkowski sum.
+        The Minkowski sum.
 
         **Example:**
         We construct two polytops and compute their Minkowski sum.
@@ -453,20 +453,21 @@ class Polytope:
             return NotImplemented
         return self.minkowski_sum(other)
 
-    def is_linearly_equivalent(self, other, backend="palp"):
+    def is_linearly_equivalent(self, other: Polytope, backend: str = "palp")
+                                                                    -> bool:
         """
         **Description:**
         Returns True if the polytopes can be transformed into each other by an
         $SL^{\pm}(d,\mathbb{Z})$ transformation.
 
         **Arguments:**
-        - `other` *(Polytope)*: The other polytope being compared.
-        - `backend` *(string, optional, default="palp")*: Selects which backend
-            to use to compute the normal form. Options are "native", which uses
-            native python code, or "palp", which uses PALP for the computation.
+        - `other`: The other polytope being compared.
+        - `backend`: Selects which backend to use to compute the normal form.
+            Options are "native", which uses native python code, or "palp",
+            which uses PALP for the computation.
 
         **Returns:**
-        *(bool)* The truth value of the polytopes being linearly equivalent.
+        The truth value of the polytopes being linearly equivalent.
 
         **Example:**
         We construct two polytopes and check if they are linearly equivalent.
@@ -480,20 +481,21 @@ class Polytope:
         return (self.normal_form(affine_transform=False, backend=backend).tolist()
                 == other.normal_form(affine_transform=False, backend=backend).tolist())
 
-    def is_affinely_equivalent(self, other, backend="palp"):
+    def is_affinely_equivalent(self, other: Polytope, backend: str = "palp")
+                                                                    -> bool:
         """
         **Description:**
         Returns True if the polytopes can be transformed into each other by an
         integral affine transformation.
 
         **Arguments:**
-        - `other` *(Polytope)*: The other polytope being compared.
-        - `backend` *(string, optional, default="palp")*: Selects which backend
-            to use to compute the normal form. Options are "native", which uses
-            native python code, or "palp", which uses PALP for the computation.
+        - `other`: The other polytope being compared.
+        - `backend`: Selects which backend to use to compute the normal form.
+            Options are "native", which uses native python code, or "palp",
+            which uses PALP for the computation.
 
         **Returns:**
-        *(bool)* The truth value of the polytopes being affinely equivalent.
+        The truth value of the polytopes being affinely equivalent.
 
         **Example:**
         We construct two polytopes and check if they are affinely equivalent.
@@ -507,7 +509,7 @@ class Polytope:
         return (self.normal_form(affine_transform=True, backend=backend).tolist()
                 == other.normal_form(affine_transform=True, backend=backend).tolist())
 
-    def ambient_dimension(self):
+    def ambient_dimension(self) -> int:
         """
         **Description:**
         Returns the dimension of the ambient lattice.
@@ -516,7 +518,7 @@ class Polytope:
         None.
 
         **Returns:**
-        *(int)* The dimension of the ambient lattice.
+        The dimension of the ambient lattice.
 
         **Aliases:**
         `ambient_dim`.
@@ -533,7 +535,7 @@ class Polytope:
     # aliases
     ambient_dim = ambient_dimension
 
-    def dimension(self):
+    def dimension(self) -> int:
         """
         **Description:**
         Returns the dimension of the polytope.
@@ -542,7 +544,7 @@ class Polytope:
         None.
 
         **Returns:**
-        *(int)* The dimension of the polytope.
+        The dimension of the polytope.
 
         **Aliases:**
         `dim`.
@@ -559,7 +561,7 @@ class Polytope:
     # aliases
     dim = dimension
 
-    def is_solid(self):
+    def is_solid(self) -> bool:
         """
         **Description:**
         Returns True if the polytope is solid (i.e. full-dimensional) and False
@@ -569,7 +571,7 @@ class Polytope:
         None.
 
         **Returns:**
-        *(bool)* The truth value of the polytope being full-dimensional.
+        The truth value of the polytope being full-dimensional.
 
         **Example:**
         We construct a polytope and check if it is solid.
@@ -579,9 +581,9 @@ class Polytope:
         # False
         ```
         """
-        return self._ambient_dim == self._dim
+        return(self._ambient_dim == self._dim)
 
-    def inequalities(self):
+    def inequalities(self) -> np.ndarray:
         """
         **Description:**
         Returns the inequalities giving the hyperplane representation of the
@@ -595,7 +597,7 @@ class Polytope:
         None.
 
         **Returns:**
-        *(numpy.ndarray)* The inequalities defining the polytope.
+        The inequalities defining the polytope.
 
         **Example:**
         We construct a polytope and find the defining inequalities.
@@ -611,18 +613,18 @@ class Polytope:
         """
         return np.array(self._input_ineqs)
 
-    def _points_saturated(self):
+    def _points_saturated(self) -> list[tuple]:
         """
         **Description:**
         Computes the lattice points of the polytope along with the indices of
         the hyperplane inequalities that they saturate.
 
         :::note notes
-        - Points are sorted so that interior points are first, and then the rest
-            are arranged by decreasing number of saturated inequalities and
-            lexicographically. For reflexive polytopes this is useful since the
-            origin will be at index 0 and boundary points interior to facets
-            will be last.
+        - Points are sorted so that interior points are first, and then the
+            rest are arranged by decreasing number of saturated inequalities
+            and lexicographically. For reflexive polytopes this is useful since
+            the origin will be at index 0 and boundary points interior to
+            facets will be last.
         - Typically this function should not be called by the user. Instead, it
             is called by various other functions in the Polytope class.
         :::
@@ -631,9 +633,9 @@ class Polytope:
         None.
 
         **Returns:**
-        *(list)* A list of tuples. The first component of each tuple is the list
-            of coordinates of the point and the second component is a
-            `frozenset` of the hyperplane inequalities that it saturates.
+        A list of tuples. The first component of each tuple is the list of
+        coordinates of the point and the second component is a `frozenset` of
+        the hyperplane inequalities that it saturates.
 
         **Example:**
         We construct a polytope and compute the lattice points along with the
@@ -774,7 +776,7 @@ class Polytope:
         self._pts_dict = {ii[0]:i for i,ii in enumerate(self._points_sat)}
         return copy.copy(self._points_sat)
 
-    def points(self, as_indices=False):
+    def points(self, as_indices: bool = False) -> np.ndarray:
         """
         **Description:**
         Returns the lattice points of the polytope.
@@ -783,16 +785,16 @@ class Polytope:
         Points are sorted so that interior points are first, and then the rest
         are arranged by decreasing number of saturated inequalities and
         lexicographically. For reflexive polytopes this is useful since the
-        origin will be at index 0 and boundary points interior to facets will be
-        last.
+        origin will be at index 0 and boundary points interior to facets will
+        be last.
         :::
 
         **Arguments:**
-        - `as_indices` *(bool)*: Return the points as indices of the full list
-        of points of the polytope.
+        - `as_indices`: Return the points as indices of the full list of points
+        of the polytope.
 
         **Returns:**
-        *(numpy.ndarray)* The list of lattice points of the polytope.
+        The list of lattice points of the polytope.
 
         **Aliases:**
         `pts`.
@@ -824,17 +826,17 @@ class Polytope:
     # aliases
     pts = points
 
-    def interior_points(self, as_indices=False):
+    def interior_points(self, as_indices: bool = False) -> np.ndarray:
         """
         **Description:**
         Returns the interior lattice points of the polytope.
 
         **Arguments:**
-        - `as_indices` *(bool)*: Return the points as indices of the full list
-            of points of the polytope.
+        - `as_indices`: Return the points as indices of the full list of points
+            of the polytope.
 
         **Returns:**
-        *(numpy.ndarray)* The list of interior lattice points of the polytope.
+        The list of interior lattice points of the polytope.
 
         **Aliases:**
         `interior_pts`.
@@ -855,17 +857,17 @@ class Polytope:
     # aliases
     interior_pts = interior_points
 
-    def boundary_points(self, as_indices=False):
+    def boundary_points(self, as_indices: bool = False) -> np.ndarray:
         """
         **Description:**
         Returns the boundary lattice points of the polytope.
 
         **Arguments:**
-        - `as_indices` *(bool)*: Return the points as indices of the full list
-            of points of the polytope.
+        - `as_indices`: Return the points as indices of the full list of points
+            of the polytope.
 
         **Returns:**
-        *(numpy.ndarray)* The list of boundary lattice points of the polytope.
+        The list of boundary lattice points of the polytope.
 
         **Aliases:**
         `boundary_pts`.
@@ -894,18 +896,18 @@ class Polytope:
     # aliases
     boundary_pts = boundary_points
 
-    def points_interior_to_facets(self, as_indices=False):
+    def points_interior_to_facets(self, as_indices: bool = False)
+                                                                -> np.ndarray:
         """
         **Description:**
         Returns the lattice points interior to facets.
 
         **Arguments:**
-        - `as_indices` *(bool)*: Return the points as indices of the full list
-            of points of the polytope.
+        - `as_indices`: Return the points as indices of the full list of points
+            of the polytope.
 
         **Returns:**
-        *(numpy.ndarray)* The list of lattice points interior to facets of the
-            polytope.
+        The list of lattice points interior to facets of the polytope.
 
         **Aliases:**
         `pts_interior_to_facets`.
@@ -929,18 +931,19 @@ class Polytope:
     # aliases
     pts_interior_to_facets = points_interior_to_facets
 
-    def boundary_points_not_interior_to_facets(self, as_indices=False):
+    def boundary_points_not_interior_to_facets(self, as_indices: bool = False)
+                                                                -> np.ndarray:
         """
         **Description:**
         Returns the boundary lattice points not interior to facets.
 
         **Arguments:**
-        - `as_indices` *(bool)*: Return the points as indices of the full list
-            of points of the polytope.
+        - `as_indices`: Return the points as indices of the full list of points
+            of the polytope.
 
         **Returns:**
-        *(numpy.ndarray)* The list of boundary lattice points not interior to
-            facets of the polytope.
+        The list of boundary lattice points not interior to facets of the
+        polytope.
 
         **Aliases:**
         `boundary_pts_not_interior_to_facets`.
@@ -968,18 +971,18 @@ class Polytope:
     # aliases
     boundary_pts_not_interior_to_facets = boundary_points_not_interior_to_facets
 
-    def points_not_interior_to_facets(self, as_indices=False):
+    def points_not_interior_to_facets(self, as_indices: bool = False)
+                                                                -> np.ndarray:
         """
         **Description:**
         Returns the lattice points not interior to facets.
 
         **Arguments:**
-        - `as_indices` *(bool)*: Return the points as indices of the full list
-            of points of the polytope.
+        - `as_indices`: Return the points as indices of the full list of points
+            of the polytope.
 
         **Returns:**
-        *(numpy.ndarray)* The list of lattice points not interior to facets of
-            the polytope.
+        The list of lattice points not interior to facets of the polytope.
 
         **Aliases:**
         `pts_not_interior_to_facets`.
@@ -1007,7 +1010,7 @@ class Polytope:
     # aliases
     pts_not_interior_to_facets = points_not_interior_to_facets
 
-    def is_reflexive(self):
+    def is_reflexive(self) -> bool:
         """
         **Description:**
         Returns True if the polytope is reflexive and False otherwise.
@@ -1016,7 +1019,7 @@ class Polytope:
         None.
 
         **Returns:**
-        *(bool)* The truth value of the polytope being reflexive.
+        The truth value of the polytope being reflexive.
 
         **Example:**
         We construct a polytope and check if it is reflexive.
@@ -1031,7 +1034,7 @@ class Polytope:
         self._is_reflexive = self.is_solid() and all(c == 1 for c in self._input_ineqs[:,-1])
         return self._is_reflexive
 
-    def hpq(self, p, q, lattice):
+    def hpq(self, p: int, q: int, lattice: str) -> int:
         """
         **Description:**
         Returns the Hodge number $h^{p,q}$ of the Calabi-Yau obtained as the
@@ -1048,15 +1051,14 @@ class Polytope:
         :::
 
         **Arguments:**
-        - `p` *(int)*: The holomorphic index of the Dolbeault cohomology of
+        - `p`: The holomorphic index of the Dolbeault cohomology of interest.
+        - `q`: The anti-holomorphic index of the Dolbeault cohomology of
             interest.
-        - `q` *(int)*: The anti-holomorphic index of the Dolbeault cohomology
-            of interest.
-        - `lattice` *(str)*: Specifies the lattice on which the polytope is
-            defined. Options are "N" and "M".
+        - `lattice`: Specifies the lattice on which the polytope is defined.
+            Options are "N" and "M".
 
         **Returns:**
-        *(int)* The Hodge number $h^{p,q}$ of the arising Calabi-Yau manifold.
+        The Hodge number $h^{p,q}$ of the arising Calabi-Yau manifold.
 
         **Example:**
         We construct a polytope and check some Hodge numbers of the associated
@@ -1109,7 +1111,7 @@ class Polytope:
             return hpq
         raise RuntimeError("Error computing Hodge numbers.")
 
-    def h11(self, lattice):
+    def h11(self, lattice: str) -> int:
         """
         **Description:**
         Returns the Hodge number $h^{1,1}$ of the Calabi-Yau obtained as the
@@ -1122,11 +1124,11 @@ class Polytope:
         :::
 
         **Arguments:**
-        - `lattice` *(str)*: Specifies the lattice on which the polytope is
-            defined. Options are "N" and "M".
+        - `lattice`: Specifies the lattice on which the polytope is defined.
+            Options are "N" and "M".
 
         **Returns:**
-        *(int)* The Hodge number $h^{1,1}$ of the arising Calabi-Yau manifold.
+        The Hodge number $h^{1,1}$ of the arising Calabi-Yau manifold.
 
         **Example:**
         We construct a polytope and compute $h^{1,1}$ of the associated
@@ -1148,7 +1150,7 @@ class Polytope:
         raise ValueError("Lattice must be specified. "
                          "Options are: \"N\" or \"M\".")
 
-    def h12(self, lattice):
+    def h12(self, lattice: str) -> int:
         """
         **Description:**
         Returns the Hodge number $h^{1,2}$ of the Calabi-Yau obtained as the
@@ -1161,11 +1163,11 @@ class Polytope:
         :::
 
         **Arguments:**
-        - `lattice` *(str)*: Specifies the lattice on which the polytope is
-            defined. Options are "N" and "M".
+        - `lattice`: Specifies the lattice on which the polytope is defined.
+            Options are "N" and "M".
 
         **Returns:**
-        *(int)* The Hodge number $h^{1,2}$ of the arising Calabi-Yau manifold.
+        The Hodge number $h^{1,2}$ of the arising Calabi-Yau manifold.
 
         **Aliases:**
         `h21`.
@@ -1192,7 +1194,7 @@ class Polytope:
     # aliases
     h21 = h12
 
-    def h13(self, lattice):
+    def h13(self, lattice: str) -> int:
         """
         **Description:**
         Returns the Hodge number $h^{1,3}$ of the Calabi-Yau obtained as the
@@ -1205,11 +1207,11 @@ class Polytope:
         :::
 
         **Arguments:**
-        - `lattice` *(str)*: Specifies the lattice on which the polytope is
-            defined. Options are "N" and "M".
+        - `lattice`: Specifies the lattice on which the polytope is defined.
+            Options are "N" and "M".
 
         **Returns:**
-        *(int)* The Hodge number $h^{1,3}$ of the arising Calabi-Yau manifold.
+        The Hodge number $h^{1,3}$ of the arising Calabi-Yau manifold.
 
         **Aliases:**
         `h31`.
@@ -1236,7 +1238,7 @@ class Polytope:
     # aliases
     h31 = h13
 
-    def h22(self, lattice):
+    def h22(self, lattice: str) -> int:
         """
         **Description:**
         Returns the Hodge number $h^{2,2}$ of the Calabi-Yau obtained as the
@@ -1249,11 +1251,11 @@ class Polytope:
         :::
 
         **Arguments:**
-        - `lattice` *(str)*: Specifies the lattice on which the polytope is
-            defined. Options are "N" and "M".
+        - `lattice`: Specifies the lattice on which the polytope is defined.
+            Options are "N" and "M".
 
         **Returns:**
-        *(int)* The Hodge number $h^{2,2}$ of the arising Calabi-Yau manifold.
+        The Hodge number $h^{2,2}$ of the arising Calabi-Yau manifold.
 
         **Example:**
         We construct a polytope and compute $h^{2,2}$ of the associated
@@ -1273,7 +1275,7 @@ class Polytope:
         raise ValueError("Lattice must be specified. "
                          "Options are: \"N\" or \"M\".")
 
-    def chi(self, lattice):
+    def chi(self, lattice: str) -> int:
         """
         **Description:**
         Computes the Euler characteristic of the Calabi-Yau obtained as the
@@ -1286,11 +1288,11 @@ class Polytope:
         :::
 
         **Arguments:**
-        - `lattice` *(str)*: Specifies the lattice on which the polytope is
-            defined. Options are "N" and "M".
+        - `lattice`: Specifies the lattice on which the polytope is defined.
+            Options are "N" and "M".
 
         **Returns:**
-        *(int)* The Euler characteristic of the arising Calabi-Yau manifold.
+        The Euler characteristic of the arising Calabi-Yau manifold.
 
         **Example:**
         We construct a polytope and compute the Euler characteristic of the
@@ -1321,7 +1323,7 @@ class Polytope:
             self._chi = 48 + 6*(self.h11(lattice=lattice) - self.h12(lattice=lattice) + self.h13(lattice=lattice))
         return self._chi
 
-    def _faces4d(self):
+    def _faces4d(self) -> tuple:
         """
         **Description:**
         Computes the faces of a 4D polytope.
