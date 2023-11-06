@@ -926,7 +926,8 @@ def polytope_generator(input: str,
         l = in_string.pop(0)
     
     if format == "ws":
-        while limit is None or n_yielded < limit:
+        # read the polytopes as weight systems
+        while (limit is None) or (n_yielded < limit):
             # pass line to PALP
             palp = subprocess.Popen((config.palp_path + "/poly.x", "-v"),
                                     stdin=subprocess.PIPE,
@@ -976,7 +977,7 @@ def polytope_generator(input: str,
     elif format != "ks":
         raise ValueError('Unsupported format. Options are "ks" and "ws".')
 
-    # format is "ws"
+    # format is "ks"
     while limit is None or n_yielded < limit:
         if "M:" in l:
             h = l.split()
