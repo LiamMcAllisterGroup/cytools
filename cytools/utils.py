@@ -323,13 +323,13 @@ def symmetric_sparse_to_dense(tensor: dict,
     """
     # build empty output object
     if basis is not None:
-        l = np.asarray(basis).shape[1]
+        dim = np.asarray(basis).shape[1]
     else:
-        l = 1 + max( set.union(*[set(inds) for inds in tensor.keys()]) )
+        dim = 1 + max( set.union(*[set(inds) for inds in tensor.keys()]) )
 
     rank =   len( next(iter(tensor.keys())) )
     t =     type( next(iter(tensor.values())) )
-    out = np.zeros((l,)*rank, dtype=t)
+    out = np.zeros((dim,)*rank, dtype=t)
 
     # fill dense tensor
     for inds, val in tensor.items():
