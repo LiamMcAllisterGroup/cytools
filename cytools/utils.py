@@ -618,7 +618,7 @@ def set_divisor_basis(tv_or_cy: "ToricVariety | CalabiYau",
         b = np.array(sorted(basis)) + (not include_origin)
 
         # check that it is valid
-        if min(b) < 0 or max(b) >= glsm_cm.shape[1]:
+        if (min(b) < 0) or (max(b) >= glsm_cm.shape[1]):
             raise ValueError("Indices are not in appropriate range.")
 
         if (glsm_rnk != np.linalg.matrix_rank(glsm_cm[:,b])) or\
@@ -835,14 +835,17 @@ def set_curve_basis(tv_or_cy: "ToricVariety | CalabiYau",
         raise ValueError("Input divisors do not form an integral basis.")
     inv_mat = flint.fmpz_mat(new_b[:,standard_basis].tolist()).inv(integer=True)
     inv_mat = np.array(inv_mat.tolist(), dtype=int)
+
     # flint sometimes returns the negative inverse
     if inv_mat.dot(new_b[:,standard_basis])[0,0] == -1:
         inv_mat *= -1;
+
     self._divisor_basis_mat = np.zeros(glsm_cm.shape, dtype=int)
     self._divisor_basis_mat[:,standard_basis] = np.array(inv_mat).T
     self._divisor_basis = np.array(self._divisor_basis_mat)
     self._curve_basis = np.array(new_b)
     self._curve_basis_mat = np.array(new_b)
+
     # Clear the cache of all in-basis computations
     self.clear_cache(recursive=False, only_in_basis=True)
 
