@@ -1204,9 +1204,7 @@ class Triangulation:
 
         # append a 1 to each point
         pts = self._optimal_pts
-        pts_ext = np.empty((pts.shape[0], pts.shape[1]+1), dtype=int)
-        pts_ext[:,:-1] = pts
-        pts_ext[:,-1] = 1
+        pts_ext = [list(pt)+[1,] for pt in pts]
 
         # We first check if the volumes add up to the volume of the polytope
         v = 0
@@ -1264,7 +1262,7 @@ class Triangulation:
             return np.array(self._gkz_phi)
 
         # calculate the answer
-        pts_ext = [tuple(pt)+(1,) for pt in self._optimal_pts.tolist()]
+        pts_ext = [list(pt)+[1,] for pt in self._optimal_pts]
         phi = np.zeros(len(pts_ext), dtype=int)
 
         for s in self._simplices:
@@ -1550,7 +1548,7 @@ class Triangulation:
             return self._secondary_cone[args_id]
 
         if backend == "native":
-            pts_ext = [tuple(pt) + (1,) for pt in self._optimal_pts]
+            pts_ext = [list(pt)+[1,] for pt in self._optimal_pts]
             simps = [set(s) for s in self._simplices]
 
             m = np.zeros((self.dim()+1, self.dim()+2), dtype=int)
