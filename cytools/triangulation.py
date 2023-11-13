@@ -430,10 +430,11 @@ class Triangulation:
         # True
         ```
         """
+        # check if other is even a triangulation
         if not isinstance(other, Triangulation):
-            # (NM: why not just False?)
-            return NotImplemented
+            return False
 
+        # check that we have the same polytope and simplices
         our_simps = sorted(self.simplices().tolist())
         other_simps = sorted(other.simplices().tolist())
 
@@ -461,10 +462,6 @@ class Triangulation:
         # False
         ```
         """
-        if not isinstance(other, Triangulation):
-            # (NM: why not just True?)
-            return NotImplemented
-
         return(not self.__eq__(other))
 
     def __hash__(self) -> int:
