@@ -528,6 +528,319 @@ class Polytope:
         """
         return(self._ambient_dim == self._dim)
 
+    def is_reflexive(self) -> bool:
+        """
+        **Description:**
+        Returns True if the polytope is reflexive and False otherwise.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        The truth value of the polytope being reflexive.
+
+        **Example:**
+        We construct a polytope and check if it is reflexive.
+        ```python {2}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        p.is_reflexive()
+        # True
+        ```
+        """
+        if self._is_reflexive is not None:
+            return self._is_reflexive
+        self._is_reflexive = self.is_solid() and all(c == 1 for c in self._input_ineqs[:,-1])
+        return self._is_reflexive
+
+    def hpq(self, p: int, q: int, lattice: str) -> int:
+        """
+        **Description:**
+        Returns the Hodge number $h^{p,q}$ of the Calabi-Yau obtained as the
+        anticanonical hypersurface in the toric variety given by a
+        desingularization of the face or normal fan of the polytope when the
+        lattice is specified as "N" or "M", respectively.
+
+        :::note notes
+        - Only reflexive polytopes of dimension 2-5 are currently supported.
+        - This function always computes Hodge numbers from scratch. The
+            functions [`h11`](#h11), [`h21`](#h21), [`h12`](#h12),
+            [`h13`](#h13), and [`h22`](#h22) cache the results so they
+            offer improved performance.
+        :::
+
+        **Arguments:**
+        - `p`: The holomorphic index of the Dolbeault cohomology of interest.
+        - `q`: The anti-holomorphic index of the Dolbeault cohomology of
+            interest.
+        - `lattice`: Specifies the lattice on which the polytope is defined.
+            Options are "N" and "M".
+
+        **Returns:**
+        The Hodge number $h^{p,q}$ of the arising Calabi-Yau manifold.
+
+        **Example:**
+        We construct a polytope and check some Hodge numbers of the associated
+        hypersurfaces.
+        ```python {2,4,6,8}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        p.hpq(0,0,lattice="N")
+        # 1
+        p.hpq(0,1,lattice="N")
+        # 0
+        p.hpq(1,1,lattice="N")
+        # 2
+        p.hpq(1,2,lattice="N")
+        # 272
+        ```
+        """
+        d = self.dim()
+        if not self.is_reflexive() or d not in (2,3,4,5):
+            raise ValueError("Only reflexive polytopes of dimension 2-5 are "
+                             "currently supported.")
+        if lattice == "M":
+            p = d-p-1
+        elif lattice != "N":
+            raise ValueError("Lattice must be specified. "
+                             "Options are: \"N\" or \"M\".")
+        if p > q:
+            p,q = q,p
+        if p > d-1 or q > d-1 or p < 0 or q < 0 or p+q > d-1:
+            return 0
+        if p in (0,d-1) or q in (0,d-1):
+            if p == q or (p,q) == (0,d-1):
+                return 1
+            return 0
+        if p >= math.ceil((d-1)/2):
+            tmp_p = p
+            p = d-q-1
+            q = d-tmp_p-1
+        hpq = 0
+        if p == 1:
+            faces_cqp1 = self.faces(d-q-1)
+            for f in faces_cqp1:
+                hpq += len(f.interior_points())*len(f.dual().interior_points())
+            if q == 1:
+                hpq += len(self.points_not_interior_to_facets()) - d - 1
+            if q == d-2:
+                hpq += len(self.dual().points_not_interior_to_facets()) - d - 1
+            return hpq
+        if p == 2:
+            hpq = 44 + 4*self.h11(lattice="N") - 2*self.h12(lattice="N") + 4*self.h13(lattice="N")
+            return hpq
+        raise RuntimeError("Error computing Hodge numbers.")
+
+    def h11(self, lattice: str) -> int:
+        """
+        **Description:**
+        Returns the Hodge number $h^{1,1}$ of the Calabi-Yau obtained as the
+        anticanonical hypersurface in the toric variety given by a
+        desingularization of the face or normal fan of the polytope when the
+        lattice is specified as "N" or "M", respectively.
+
+        :::note
+        Only reflexive polytopes of dimension 2-5 are currently supported.
+        :::
+
+        **Arguments:**
+        - `lattice`: Specifies the lattice on which the polytope is defined.
+            Options are "N" and "M".
+
+        **Returns:**
+        The Hodge number $h^{1,1}$ of the arising Calabi-Yau manifold.
+
+        **Example:**
+        We construct a polytope and compute $h^{1,1}$ of the associated
+        hypersurfaces.
+        ```python {2,4}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        p.h11(lattice="N")
+        # 2
+        p.h11(lattice="M")
+        # 272
+        ```
+        """
+        if lattice == "N":
+            if self._h11 is None:
+                self._h11 = self.hpq(1,1,lattice="N")
+            return self._h11
+        if lattice == "M":
+            return self.dual().h11(lattice="N")
+        raise ValueError("Lattice must be specified. "
+                         "Options are: \"N\" or \"M\".")
+
+    def h12(self, lattice: str) -> int:
+        """
+        **Description:**
+        Returns the Hodge number $h^{1,2}$ of the Calabi-Yau obtained as the
+        anticanonical hypersurface in the toric variety given by a
+        desingularization of the face or normal fan of the polytope when the
+        lattice is specified as "N" or "M", respectively.
+
+        :::note
+        Only reflexive polytopes of dimension 2-5 are currently supported.
+        :::
+
+        **Arguments:**
+        - `lattice`: Specifies the lattice on which the polytope is defined.
+            Options are "N" and "M".
+
+        **Returns:**
+        The Hodge number $h^{1,2}$ of the arising Calabi-Yau manifold.
+
+        **Aliases:**
+        `h21`.
+
+        **Example:**
+        We construct a polytope and compute $h^{1,2}$ of the associated
+        hypersurfaces.
+        ```python {2,4}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        p.h12(lattice="N")
+        # 272
+        p.h12(lattice="M")
+        # 2
+        ```
+        """
+        if lattice == "N":
+            if self._h21 is None:
+                self._h21 = self.hpq(1,2,lattice="N")
+            return self._h21
+        if lattice == "M":
+            return self.dual().h12(lattice="N")
+        raise ValueError("Lattice must be specified. "
+                         "Options are: \"N\" or \"M\".")
+    # aliases
+    h21 = h12
+
+    def h13(self, lattice: str) -> int:
+        """
+        **Description:**
+        Returns the Hodge number $h^{1,3}$ of the Calabi-Yau obtained as the
+        anticanonical hypersurface in the toric variety given by a
+        desingularization of the face or normal fan of the polytope when the
+        lattice is specified as "N" or "M", respectively.
+
+        :::note
+        Only reflexive polytopes of dimension 2-5 are currently supported.
+        :::
+
+        **Arguments:**
+        - `lattice`: Specifies the lattice on which the polytope is defined.
+            Options are "N" and "M".
+
+        **Returns:**
+        The Hodge number $h^{1,3}$ of the arising Calabi-Yau manifold.
+
+        **Aliases:**
+        `h31`.
+
+        **Example:**
+        We construct a polytope and compute $h^{1,3}$ of the associated
+        hypersurfaces.
+        ```python {2,4}
+        p = Polytope([[1,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,1],[-1,-1,-6,-9,-18]])
+        p.h13(lattice="N")
+        # 2966
+        p.h13(lattice="M")
+        # 8
+        ```
+        """
+        if lattice == "N":
+            if self._h13 is None:
+                self._h13 = self.hpq(1,3,lattice="N")
+            return self._h13
+        if lattice == "M":
+            return self.dual().h13(lattice="N")
+        raise ValueError("Lattice must be specified. "
+                         "Options are: \"N\" or \"M\".")
+    # aliases
+    h31 = h13
+
+    def h22(self, lattice: str) -> int:
+        """
+        **Description:**
+        Returns the Hodge number $h^{2,2}$ of the Calabi-Yau obtained as the
+        anticanonical hypersurface in the toric variety given by a
+        desingularization of the face or normal fan of the polytope when the
+        lattice is specified as "N" or "M", respectively.
+
+        :::note
+        Only reflexive polytopes of dimension 2-5 are currently supported.
+        :::
+
+        **Arguments:**
+        - `lattice`: Specifies the lattice on which the polytope is defined.
+            Options are "N" and "M".
+
+        **Returns:**
+        The Hodge number $h^{2,2}$ of the arising Calabi-Yau manifold.
+
+        **Example:**
+        We construct a polytope and compute $h^{2,2}$ of the associated
+        hypersurfaces.
+        ```python {2}
+        p = Polytope([[1,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,1],[-1,-1,-6,-9,-18]])
+        p.h22(lattice="N")
+        # 11940
+        ```
+        """
+        if lattice == "N":
+            if self._h22 is None:
+                self._h22 = self.hpq(2,2,lattice="N")
+            return self._h22
+        if lattice == "M":
+            return self.dual().h22(lattice="N")
+        raise ValueError("Lattice must be specified. "
+                         "Options are: \"N\" or \"M\".")
+
+    def chi(self, lattice: str) -> int:
+        """
+        **Description:**
+        Computes the Euler characteristic of the Calabi-Yau obtained as the
+        anticanonical hypersurface in the toric variety given by a
+        desingularization of the face or normal fan of the polytope when the
+        lattice is specified as "N" or "M", respectively.
+
+        :::note
+        Only reflexive polytopes of dimension 2-5 are currently supported.
+        :::
+
+        **Arguments:**
+        - `lattice`: Specifies the lattice on which the polytope is defined.
+            Options are "N" and "M".
+
+        **Returns:**
+        The Euler characteristic of the arising Calabi-Yau manifold.
+
+        **Example:**
+        We construct a polytope and compute the Euler characteristic of the
+        associated hypersurfaces.
+        ```python {2,4}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        p.chi(lattice="N")
+        # -540
+        p.chi(lattice="M")
+        # 540
+        ```
+        """
+        if not self.is_reflexive() or self.dim() not in (2,3,4,5):
+           raise NotImplementedError("Not a reflexive polytope of dimension 2-5.")
+        if lattice not in ("N","M"):
+            raise ValueError("Lattice must be specified. Options are: 'N' or 'M'.")
+        if lattice == "M":
+            return self.dual().chi(lattice="N")
+        if self._chi is not None:
+            return self._chi
+        if self.dim() == 2:
+            self._chi = 0
+        elif self.dim() == 3:
+            self._chi = self.h11(lattice=lattice) + 4
+        elif self.dim() == 4:
+            self._chi = 2*(self.h11(lattice=lattice)-self.h21(lattice=lattice))
+        elif self.dim() == 5:
+            self._chi = 48 + 6*(self.h11(lattice=lattice) - self.h12(lattice=lattice) + self.h13(lattice=lattice))
+        return self._chi
+
     def is_linearly_equivalent(self, other: "Polytope",
                                      backend: str = "palp") -> bool:
         """
@@ -1010,319 +1323,6 @@ class Polytope:
         return np.array(self._points_not_interior_to_facets)
     # aliases
     pts_not_interior_to_facets = points_not_interior_to_facets
-
-    def is_reflexive(self) -> bool:
-        """
-        **Description:**
-        Returns True if the polytope is reflexive and False otherwise.
-
-        **Arguments:**
-        None.
-
-        **Returns:**
-        The truth value of the polytope being reflexive.
-
-        **Example:**
-        We construct a polytope and check if it is reflexive.
-        ```python {2}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        p.is_reflexive()
-        # True
-        ```
-        """
-        if self._is_reflexive is not None:
-            return self._is_reflexive
-        self._is_reflexive = self.is_solid() and all(c == 1 for c in self._input_ineqs[:,-1])
-        return self._is_reflexive
-
-    def hpq(self, p: int, q: int, lattice: str) -> int:
-        """
-        **Description:**
-        Returns the Hodge number $h^{p,q}$ of the Calabi-Yau obtained as the
-        anticanonical hypersurface in the toric variety given by a
-        desingularization of the face or normal fan of the polytope when the
-        lattice is specified as "N" or "M", respectively.
-
-        :::note notes
-        - Only reflexive polytopes of dimension 2-5 are currently supported.
-        - This function always computes Hodge numbers from scratch. The
-            functions [`h11`](#h11), [`h21`](#h21), [`h12`](#h12),
-            [`h13`](#h13), and [`h22`](#h22) cache the results so they
-            offer improved performance.
-        :::
-
-        **Arguments:**
-        - `p`: The holomorphic index of the Dolbeault cohomology of interest.
-        - `q`: The anti-holomorphic index of the Dolbeault cohomology of
-            interest.
-        - `lattice`: Specifies the lattice on which the polytope is defined.
-            Options are "N" and "M".
-
-        **Returns:**
-        The Hodge number $h^{p,q}$ of the arising Calabi-Yau manifold.
-
-        **Example:**
-        We construct a polytope and check some Hodge numbers of the associated
-        hypersurfaces.
-        ```python {2,4,6,8}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        p.hpq(0,0,lattice="N")
-        # 1
-        p.hpq(0,1,lattice="N")
-        # 0
-        p.hpq(1,1,lattice="N")
-        # 2
-        p.hpq(1,2,lattice="N")
-        # 272
-        ```
-        """
-        d = self.dim()
-        if not self.is_reflexive() or d not in (2,3,4,5):
-            raise ValueError("Only reflexive polytopes of dimension 2-5 are "
-                             "currently supported.")
-        if lattice == "M":
-            p = d-p-1
-        elif lattice != "N":
-            raise ValueError("Lattice must be specified. "
-                             "Options are: \"N\" or \"M\".")
-        if p > q:
-            p,q = q,p
-        if p > d-1 or q > d-1 or p < 0 or q < 0 or p+q > d-1:
-            return 0
-        if p in (0,d-1) or q in (0,d-1):
-            if p == q or (p,q) == (0,d-1):
-                return 1
-            return 0
-        if p >= math.ceil((d-1)/2):
-            tmp_p = p
-            p = d-q-1
-            q = d-tmp_p-1
-        hpq = 0
-        if p == 1:
-            faces_cqp1 = self.faces(d-q-1)
-            for f in faces_cqp1:
-                hpq += len(f.interior_points())*len(f.dual().interior_points())
-            if q == 1:
-                hpq += len(self.points_not_interior_to_facets()) - d - 1
-            if q == d-2:
-                hpq += len(self.dual().points_not_interior_to_facets()) - d - 1
-            return hpq
-        if p == 2:
-            hpq = 44 + 4*self.h11(lattice="N") - 2*self.h12(lattice="N") + 4*self.h13(lattice="N")
-            return hpq
-        raise RuntimeError("Error computing Hodge numbers.")
-
-    def h11(self, lattice: str) -> int:
-        """
-        **Description:**
-        Returns the Hodge number $h^{1,1}$ of the Calabi-Yau obtained as the
-        anticanonical hypersurface in the toric variety given by a
-        desingularization of the face or normal fan of the polytope when the
-        lattice is specified as "N" or "M", respectively.
-
-        :::note
-        Only reflexive polytopes of dimension 2-5 are currently supported.
-        :::
-
-        **Arguments:**
-        - `lattice`: Specifies the lattice on which the polytope is defined.
-            Options are "N" and "M".
-
-        **Returns:**
-        The Hodge number $h^{1,1}$ of the arising Calabi-Yau manifold.
-
-        **Example:**
-        We construct a polytope and compute $h^{1,1}$ of the associated
-        hypersurfaces.
-        ```python {2,4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        p.h11(lattice="N")
-        # 2
-        p.h11(lattice="M")
-        # 272
-        ```
-        """
-        if lattice == "N":
-            if self._h11 is None:
-                self._h11 = self.hpq(1,1,lattice="N")
-            return self._h11
-        if lattice == "M":
-            return self.dual().h11(lattice="N")
-        raise ValueError("Lattice must be specified. "
-                         "Options are: \"N\" or \"M\".")
-
-    def h12(self, lattice: str) -> int:
-        """
-        **Description:**
-        Returns the Hodge number $h^{1,2}$ of the Calabi-Yau obtained as the
-        anticanonical hypersurface in the toric variety given by a
-        desingularization of the face or normal fan of the polytope when the
-        lattice is specified as "N" or "M", respectively.
-
-        :::note
-        Only reflexive polytopes of dimension 2-5 are currently supported.
-        :::
-
-        **Arguments:**
-        - `lattice`: Specifies the lattice on which the polytope is defined.
-            Options are "N" and "M".
-
-        **Returns:**
-        The Hodge number $h^{1,2}$ of the arising Calabi-Yau manifold.
-
-        **Aliases:**
-        `h21`.
-
-        **Example:**
-        We construct a polytope and compute $h^{1,2}$ of the associated
-        hypersurfaces.
-        ```python {2,4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        p.h12(lattice="N")
-        # 272
-        p.h12(lattice="M")
-        # 2
-        ```
-        """
-        if lattice == "N":
-            if self._h21 is None:
-                self._h21 = self.hpq(1,2,lattice="N")
-            return self._h21
-        if lattice == "M":
-            return self.dual().h12(lattice="N")
-        raise ValueError("Lattice must be specified. "
-                         "Options are: \"N\" or \"M\".")
-    # aliases
-    h21 = h12
-
-    def h13(self, lattice: str) -> int:
-        """
-        **Description:**
-        Returns the Hodge number $h^{1,3}$ of the Calabi-Yau obtained as the
-        anticanonical hypersurface in the toric variety given by a
-        desingularization of the face or normal fan of the polytope when the
-        lattice is specified as "N" or "M", respectively.
-
-        :::note
-        Only reflexive polytopes of dimension 2-5 are currently supported.
-        :::
-
-        **Arguments:**
-        - `lattice`: Specifies the lattice on which the polytope is defined.
-            Options are "N" and "M".
-
-        **Returns:**
-        The Hodge number $h^{1,3}$ of the arising Calabi-Yau manifold.
-
-        **Aliases:**
-        `h31`.
-
-        **Example:**
-        We construct a polytope and compute $h^{1,3}$ of the associated
-        hypersurfaces.
-        ```python {2,4}
-        p = Polytope([[1,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,1],[-1,-1,-6,-9,-18]])
-        p.h13(lattice="N")
-        # 2966
-        p.h13(lattice="M")
-        # 8
-        ```
-        """
-        if lattice == "N":
-            if self._h13 is None:
-                self._h13 = self.hpq(1,3,lattice="N")
-            return self._h13
-        if lattice == "M":
-            return self.dual().h13(lattice="N")
-        raise ValueError("Lattice must be specified. "
-                         "Options are: \"N\" or \"M\".")
-    # aliases
-    h31 = h13
-
-    def h22(self, lattice: str) -> int:
-        """
-        **Description:**
-        Returns the Hodge number $h^{2,2}$ of the Calabi-Yau obtained as the
-        anticanonical hypersurface in the toric variety given by a
-        desingularization of the face or normal fan of the polytope when the
-        lattice is specified as "N" or "M", respectively.
-
-        :::note
-        Only reflexive polytopes of dimension 2-5 are currently supported.
-        :::
-
-        **Arguments:**
-        - `lattice`: Specifies the lattice on which the polytope is defined.
-            Options are "N" and "M".
-
-        **Returns:**
-        The Hodge number $h^{2,2}$ of the arising Calabi-Yau manifold.
-
-        **Example:**
-        We construct a polytope and compute $h^{2,2}$ of the associated
-        hypersurfaces.
-        ```python {2}
-        p = Polytope([[1,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,1],[-1,-1,-6,-9,-18]])
-        p.h22(lattice="N")
-        # 11940
-        ```
-        """
-        if lattice == "N":
-            if self._h22 is None:
-                self._h22 = self.hpq(2,2,lattice="N")
-            return self._h22
-        if lattice == "M":
-            return self.dual().h22(lattice="N")
-        raise ValueError("Lattice must be specified. "
-                         "Options are: \"N\" or \"M\".")
-
-    def chi(self, lattice: str) -> int:
-        """
-        **Description:**
-        Computes the Euler characteristic of the Calabi-Yau obtained as the
-        anticanonical hypersurface in the toric variety given by a
-        desingularization of the face or normal fan of the polytope when the
-        lattice is specified as "N" or "M", respectively.
-
-        :::note
-        Only reflexive polytopes of dimension 2-5 are currently supported.
-        :::
-
-        **Arguments:**
-        - `lattice`: Specifies the lattice on which the polytope is defined.
-            Options are "N" and "M".
-
-        **Returns:**
-        The Euler characteristic of the arising Calabi-Yau manifold.
-
-        **Example:**
-        We construct a polytope and compute the Euler characteristic of the
-        associated hypersurfaces.
-        ```python {2,4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        p.chi(lattice="N")
-        # -540
-        p.chi(lattice="M")
-        # 540
-        ```
-        """
-        if not self.is_reflexive() or self.dim() not in (2,3,4,5):
-           raise NotImplementedError("Not a reflexive polytope of dimension 2-5.")
-        if lattice not in ("N","M"):
-            raise ValueError("Lattice must be specified. Options are: 'N' or 'M'.")
-        if lattice == "M":
-            return self.dual().chi(lattice="N")
-        if self._chi is not None:
-            return self._chi
-        if self.dim() == 2:
-            self._chi = 0
-        elif self.dim() == 3:
-            self._chi = self.h11(lattice=lattice) + 4
-        elif self.dim() == 4:
-            self._chi = 2*(self.h11(lattice=lattice)-self.h21(lattice=lattice))
-        elif self.dim() == 5:
-            self._chi = 48 + 6*(self.h11(lattice=lattice) - self.h12(lattice=lattice) + self.h13(lattice=lattice))
-        return self._chi
 
     def _faces4d(self) -> tuple:
         """
