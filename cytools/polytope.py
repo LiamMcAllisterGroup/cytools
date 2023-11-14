@@ -454,62 +454,6 @@ class Polytope:
             return NotImplemented
         return self.minkowski_sum(other)
 
-    def is_linearly_equivalent(self, other: "Polytope",
-                                     backend: str = "palp") -> bool:
-        """
-        **Description:**
-        Returns True if the polytopes can be transformed into each other by an
-        $SL^{\pm}(d,\mathbb{Z})$ transformation.
-
-        **Arguments:**
-        - `other`: The other polytope being compared.
-        - `backend`: Selects which backend to use to compute the normal form.
-            Options are "native", which uses native python code, or "palp",
-            which uses PALP for the computation.
-
-        **Returns:**
-        The truth value of the polytopes being linearly equivalent.
-
-        **Example:**
-        We construct two polytopes and check if they are linearly equivalent.
-        ```python {3}
-        p1 = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        p2 = Polytope([[-1,0,0,0],[0,-1,0,0],[0,0,-1,0],[0,0,0,-1],[1,1,1,1]])
-        p1.is_linearly_equivalent(p2)
-        # True
-        ```
-        """
-        return (self.normal_form(affine_transform=False, backend=backend).tolist()
-                == other.normal_form(affine_transform=False, backend=backend).tolist())
-
-    def is_affinely_equivalent(self, other: "Polytope",
-                                     backend: str = "palp") -> bool:
-        """
-        **Description:**
-        Returns True if the polytopes can be transformed into each other by an
-        integral affine transformation.
-
-        **Arguments:**
-        - `other`: The other polytope being compared.
-        - `backend`: Selects which backend to use to compute the normal form.
-            Options are "native", which uses native python code, or "palp",
-            which uses PALP for the computation.
-
-        **Returns:**
-        The truth value of the polytopes being affinely equivalent.
-
-        **Example:**
-        We construct two polytopes and check if they are affinely equivalent.
-        ```python {3}
-        p1 = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        p2 = Polytope([[1,0,0,1],[0,1,0,1],[0,0,1,1],[0,0,0,2],[-1,-1,-1,0]])
-        p1.is_affinely_equivalent(p2)
-        # True
-        ```
-        """
-        return (self.normal_form(affine_transform=True, backend=backend).tolist()
-                == other.normal_form(affine_transform=True, backend=backend).tolist())
-
     def ambient_dimension(self) -> int:
         """
         **Description:**
@@ -583,6 +527,62 @@ class Polytope:
         ```
         """
         return(self._ambient_dim == self._dim)
+
+    def is_linearly_equivalent(self, other: "Polytope",
+                                     backend: str = "palp") -> bool:
+        """
+        **Description:**
+        Returns True if the polytopes can be transformed into each other by an
+        $SL^{\pm}(d,\mathbb{Z})$ transformation.
+
+        **Arguments:**
+        - `other`: The other polytope being compared.
+        - `backend`: Selects which backend to use to compute the normal form.
+            Options are "native", which uses native python code, or "palp",
+            which uses PALP for the computation.
+
+        **Returns:**
+        The truth value of the polytopes being linearly equivalent.
+
+        **Example:**
+        We construct two polytopes and check if they are linearly equivalent.
+        ```python {3}
+        p1 = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        p2 = Polytope([[-1,0,0,0],[0,-1,0,0],[0,0,-1,0],[0,0,0,-1],[1,1,1,1]])
+        p1.is_linearly_equivalent(p2)
+        # True
+        ```
+        """
+        return (self.normal_form(affine_transform=False, backend=backend).tolist()
+                == other.normal_form(affine_transform=False, backend=backend).tolist())
+
+    def is_affinely_equivalent(self, other: "Polytope",
+                                     backend: str = "palp") -> bool:
+        """
+        **Description:**
+        Returns True if the polytopes can be transformed into each other by an
+        integral affine transformation.
+
+        **Arguments:**
+        - `other`: The other polytope being compared.
+        - `backend`: Selects which backend to use to compute the normal form.
+            Options are "native", which uses native python code, or "palp",
+            which uses PALP for the computation.
+
+        **Returns:**
+        The truth value of the polytopes being affinely equivalent.
+
+        **Example:**
+        We construct two polytopes and check if they are affinely equivalent.
+        ```python {3}
+        p1 = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        p2 = Polytope([[1,0,0,1],[0,1,0,1],[0,0,1,1],[0,0,0,2],[-1,-1,-1,0]])
+        p1.is_affinely_equivalent(p2)
+        # True
+        ```
+        """
+        return (self.normal_form(affine_transform=True, backend=backend).tolist()
+                == other.normal_form(affine_transform=True, backend=backend).tolist())
 
     def inequalities(self) -> np.ndarray:
         """
