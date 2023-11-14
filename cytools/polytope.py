@@ -120,19 +120,22 @@ class Polytope:
         # A 3-dimensional lattice polytope in ZZ^4
         ```
         """
-        # Convert points to numpy array and compute dimension
+        # parse input points
         self._input_pts = np.array(points, dtype=int)
-        self._ambient_dim = self._input_pts.shape[1]
         in_pts_shape = self._input_pts.shape
-        pts_ext = np.empty((in_pts_shape[0], in_pts_shape[1]+1), dtype=int)
-        pts_ext[:,:-1] = self._input_pts
-        pts_ext[:,-1] = 1
-        self._dim = np.linalg.matrix_rank(pts_ext) - 1
-        self._dim_diff = self._ambient_dim - self._dim
-        # Select backend for the computation of the convex hull
+
+        # calculate the dimension of the polytope
+        pts_ext = [list(pt)+[1,] for pt in self._input_pts]
+        self._dim = np.linalg.matrix_rank(pts_ext)-1
+
+        self._ambient_dim = self._input_pts.shape[1]
+        self._dim_diff = self._ambient_dim-self._dim
+
+        # select backend for the computation of the convex hull
         backends = ["ppl", "qhull", "palp", None]
         if backend not in backends:
             raise ValueError(f"Invalid backend. Options are {backends}.")
+
         if backend is None:
             if self._dim <= 4:
                 backend = "ppl"
@@ -140,7 +143,9 @@ class Polytope:
                 backend = "palp"
         if self._dim == 0: # 0-dimensional polytopes are finicky
             backend = "palp"
+
         self._backend = backend
+
         # Find the optimal form of the polytope by performing LLL reduction.
         #
         # If the polytope is not full-dimensional it constructs an
@@ -148,140 +153,145 @@ class Polytope:
         #
         # Internally it uses the optimal form for computations, but it outputs
         # everything in the same form as the input
-        if self._dim == self._ambient_dim:
-            pts_mat = fmpz_mat(self._input_pts.T.tolist())
-            optimal_pts, transf_matrix = pts_mat.lll(transform=True)
-            self._optimal_pts = np.array(optimal_pts.tolist(), dtype=int).T
+
+        # translate if not full-dim
+        if self.is_solid():
+            self._transl_vector = np.zeros(in_pts_shape[1], dtype=int)
         else:
             self._transl_vector = self._input_pts[0]
-            tmp_pts = np.array(self._input_pts)
-            for i in range(self._input_pts.shape[0]):
-                tmp_pts[i] -= self._transl_vector
-            pts_mat = fmpz_mat(tmp_pts.T.tolist())
-            optimal_pts, transf_matrix = pts_mat.lll(transform=True)
-            optimal_pts = np.array(optimal_pts.tolist(), dtype=int).T
-            self._optimal_pts = optimal_pts[:, self._dim_diff:]
-        self._transf_matrix = np.array(transf_matrix.tolist(), dtype=int)
-        inv_tranf_matrix = transf_matrix.inv(integer=True)
-        self._inv_transf_matrix = np.array(inv_tranf_matrix.tolist(),dtype=int)
+        tmp_pts = self._input_pts - self._transl_vector
+
+        # lll reduction
+        pts_mat = fmpz_mat(tmp_pts.T.tolist())
+        pts_optimal, transf_mat = pts_mat.lll(transform=True)
+        transf_mat_inv = transf_mat.inv(integer=True)
+
+        # save results
+        self._pts_optimal = np.array(pts_optimal.tolist(), dtype=int).T
+        self._pts_optimal = self._pts_optimal[:, self._dim_diff:]
+
+        self._transf_mat = np.array(transf_mat.tolist(), dtype=int)
+        self._transf_mat_inv = np.array(transf_mat_inv.tolist(),dtype=int)
+
         # Flint sometimes returns an inverse that is missing a factor of -1
-        check_inverse = self._inv_transf_matrix.dot(self._transf_matrix)
+        check_inverse = self._transf_mat_inv.dot(self._transf_mat)
         id_mat = np.eye(self._ambient_dim, dtype=int)
         if all((check_inverse == id_mat).flatten()):
             pass
         elif all((check_inverse == -id_mat).flatten()):
-            self._inv_transf_matrix = -self._inv_transf_matrix
+            self._transf_mat_inv = -self._transf_mat_inv
         else:
             raise RuntimeError("Problem finding inverse matrix")
+
         # Construct convex hull and find the hyperplane representation with the
         # appropriate backend. The equations are in the form
         # c_0 * x_0 + ... + c_{d-1} * x_{d-1} + c_d >= 0
         if backend == "ppl":
             gs = ppl.Generator_System()
             vrs = [ppl.Variable(i) for i in range(self._dim)]
-            for pt in self._optimal_pts:
+
+            # insert points to generator system
+            for pt in self._pts_optimal:
                 ppl_pt = ppl.point(sum(pt[i]*vrs[i] for i in range(self._dim)))
                 gs.insert(ppl_pt)
-            self._optimal_poly = ppl.C_Polyhedron(gs)
-            optimal_ineqs = [list(ineq.coefficients())
+
+            # find hyperplanes
+            self._poly_optimal = ppl.C_Polyhedron(gs)
+            ineqs_optimal = [list(ineq.coefficients())
                              + [ineq.inhomogeneous_term()]
-                             for ineq in self._optimal_poly.minimized_constraints()]
-            self._optimal_ineqs = np.array(optimal_ineqs, dtype=int)
+                             for ineq in self._poly_optimal.minimized_constraints()]
+            self._ineqs_optimal = np.array(ineqs_optimal, dtype=int)
+
         elif backend == "qhull":
-            if self._dim == 0: # qhull cannot handle 0-dimensional polytopes
-                self._optimal_poly = None
-                self._optimal_ineqs = np.array([[0]])
-            elif self._dim == 1: # qhull cannot handle 1-dimensional polytopes
-                self._optimal_poly = None
-                min_pt, max_pt = min(self._optimal_pts), max(self._optimal_pts)
-                self._optimal_ineqs = np.array([[1,-min_pt],[-1,max_pt]])
+            if self._dim == 0:
+                # qhull cannot handle 0-dimensional polytopes
+                self._poly_optimal = None
+                self._ineqs_optimal = np.array([[0]])
+
+            elif self._dim == 1:
+                # qhull cannot handle 1-dimensional polytopes
+                self._poly_optimal = None
+                min_pt, max_pt = min(self._pts_optimal), max(self._pts_optimal)
+                self._ineqs_optimal = np.array([[1,-min_pt],[-1,max_pt]])
+
             else:
-                self._optimal_poly = ConvexHull(self._optimal_pts)
+                self._poly_optimal = ConvexHull(self._pts_optimal)
                 tmp_ineqs = set()
-                for eq in self._optimal_poly.equations:
+                for eq in self._poly_optimal.equations:
                     g = abs(gcd_list(eq))
                     tmp_ineqs.add(tuple(-int(round(i/g)) for i in eq))
-                self._optimal_ineqs = np.array(list(tmp_ineqs), dtype=int)
+                self._ineqs_optimal = np.array(list(tmp_ineqs), dtype=int)
+
         else: # Backend is PALP
-            self._optimal_poly = None
-            if self._dim == 0: # PALP cannot handle 0-dimensional polytopes
-                self._optimal_ineqs = np.array([[0]])
+            self._poly_optimal = None
+            if self._dim == 0:
+                # PALP cannot handle 0-dimensional polytopes
+                self._ineqs_optimal = np.array([[0]])
+
             else:
-                palp = subprocess.Popen((config.palp_path + "poly.x", "-e"),
-                                        stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                        stderr=subprocess.PIPE, universal_newlines=True)
+                # prepare the command
                 pt_list = ""
-                optimal_pts = {tuple(pt) for pt in self._optimal_pts}
-                for pt in optimal_pts:
+                pts_optimal = {tuple(pt) for pt in self._pts_optimal}
+                for pt in pts_optimal:
                     pt_str = str(pt).replace("(","").replace(")","")
                     pt_str = pt_str.replace(","," ")
                     pt_list += pt_str + "\n"
-                palp_in = f"{len(optimal_pts)} {self._dim}\n{pt_list}\n"
+                palp_in = f"{len(pts_optimal)} {self._dim}\n{pt_list}\n"
+
+                # execute it!
+                palp = subprocess.Popen((config.palp_path + "poly.x", "-e"),
+                                                    stdin=subprocess.PIPE,
+                                                    stdout=subprocess.PIPE,
+                                                    stderr=subprocess.PIPE,
+                                                    universal_newlines=True)
                 palp_out = palp.communicate(input=palp_in)[0]
+
                 if "Equations" not in palp_out:
                     raise RuntimeError(f"PALP error. Full output: {palp_out}")
+
+                # parse results
                 palp_out = palp_out.split("\n")
                 for i,line in enumerate(palp_out):
                     if "Equations" not in line:
                         continue
-                    self._is_reflexive = "Vertices" in line
+
+                    self._is_reflexive = ("Vertices" in line)
                     ineqs_shape = [int(c) for c in line.split()[:2]]
                     tmp_ineqs = [[int(c) for c in palp_out[i+j+1].split()]
                                  for j in range(ineqs_shape[0])]
                     break
-                if ineqs_shape[0] < ineqs_shape[1]: # Check if transposed
-                    tmp_ineqs = np.array(tmp_ineqs).T
-                else:
-                    tmp_ineqs = np.array(tmp_ineqs)
+
+                # Check if transposed
+                tmp_ineqs = np.array(tmp_ineqs)
+
+                if ineqs_shape[0] < ineqs_shape[1]:
+                    tmp_ineqs = tmp_ineqs.T
+
                 if self._is_reflexive:
-                    ineqs_shape = tmp_ineqs.shape
-                    tmp_ineqs2 = np.empty((ineqs_shape[0], ineqs_shape[1]+1), dtype=int)
-                    tmp_ineqs2[:,:-1] = tmp_ineqs
-                    tmp_ineqs2[:,-1] = 1
-                    tmp_ineqs = tmp_ineqs2
-                self._optimal_ineqs = tmp_ineqs
+                    col_of_1s = np.ones((tmp_ineqs.shape[0], 1),dtype=int)
+                    tmp_ineqs = np.hstack((tmp_ineqs,col_of_1s))
+
+                self._ineqs_optimal = tmp_ineqs
+
         if self._ambient_dim > self._dim:
-            shape = (self._optimal_ineqs.shape[0],
-                     self._optimal_ineqs.shape[1] + self._dim_diff)
-            self._optimal_ineqs_ext = np.empty(shape, dtype=int)
-            self._optimal_ineqs_ext[:,self._dim_diff:] = self._optimal_ineqs
-            self._optimal_ineqs_ext[:,:self._dim_diff] = 0
+            shape = (self._ineqs_optimal.shape[0],
+                     self._ineqs_optimal.shape[1] + self._dim_diff)
+
+            self._ineqs_optimal_ext = np.zeros(shape, dtype=int)
+            self._ineqs_optimal_ext[:,self._dim_diff:] = self._ineqs_optimal
+
             self._input_ineqs = np.empty(shape, dtype=int)
-            self._input_ineqs[:,:-1] = self._transf_matrix.T.dot(self._optimal_ineqs_ext[:,:-1].T).T
-            self._input_ineqs[:,-1] = [self._optimal_ineqs[i,-1]
+            self._input_ineqs[:,:-1] = self._transf_mat.T.dot(self._ineqs_optimal_ext[:,:-1].T).T
+            self._input_ineqs[:,-1] = [self._ineqs_optimal[i,-1]
                                        - v[:-1].dot(self._transl_vector)
                                        for i,v in enumerate(self._input_ineqs)]
         else:
-            self._input_ineqs = np.empty(self._optimal_ineqs.shape, dtype=int)
-            self._input_ineqs[:,:-1] = self._transf_matrix.T.dot(self._optimal_ineqs[:,:-1].T).T
-            self._input_ineqs[:,-1] = self._optimal_ineqs[:,-1]
+            self._input_ineqs = np.empty(self._ineqs_optimal.shape, dtype=int)
+            self._input_ineqs[:,:-1] = self._transf_mat.T.dot(self._ineqs_optimal[:,:-1].T).T
+            self._input_ineqs[:,-1] = self._ineqs_optimal[:,-1]
+
         # Initialize remaining hidden attributes
-        self._hash = None
-        self._pts_dict = None
-        self._points_sat = None
-        self._points = None
-        self._interior_points = None
-        self._boundary_points = None
-        self._points_interior_to_facets = None
-        self._boundary_points_not_interior_to_facets = None
-        self._points_not_interior_to_facets = None
-        self._is_reflexive = None
-        self._h11 = None
-        self._h21 = None
-        self._h13 = None
-        self._h22 = None
-        self._chi = None
-        self._faces = None
-        self._vertices = None
-        self._dual = None
-        self._is_favorable = None
-        self._volume = None
-        self._normal_form = [None]*3
-        self._autos = [None]*4
-        self._nef_parts = dict()
-        self._glsm_charge_matrix = dict()
-        self._glsm_linrels = dict()
-        self._glsm_basis = dict()
+        self.clear_cache()
 
     def clear_cache(self) -> None:
         """
@@ -377,8 +387,11 @@ class Polytope:
         ```
         """
         if not isinstance(other, Polytope):
-            return NotImplemented
-        return sorted(self.vertices().tolist()) == sorted(other.vertices().tolist())
+            return False
+
+        our_verts = self.vertices().tolist()
+        other_verts = other.vertices().tolist()
+        return(sorted(our_verts) == sorted(other_verts))
 
     def __ne__(self, other: "Polytope") -> bool:
         """
@@ -400,9 +413,7 @@ class Polytope:
         # False
         ```
         """
-        if not isinstance(other, Polytope):
-            return NotImplemented
-        return not sorted(self.vertices().tolist()) == sorted(other.vertices().tolist())
+        return(not self.__eq__(other))
 
     def __hash__(self) -> int:
         """
@@ -427,6 +438,7 @@ class Polytope:
         """
         if self._hash is None:
             self._hash = hash(tuple(sorted(tuple(v) for v in self.vertices())))
+
         return self._hash
 
     def __add__(self, other: "Polytope") -> "Polytope":
@@ -452,7 +464,35 @@ class Polytope:
         """
         if not isinstance(other, Polytope):
             return NotImplemented
+
         return self.minkowski_sum(other)
+
+    def minkowski_sum(self, other: "Polytope") -> "Polytope":
+        """
+        **Description:**
+        Returns the Minkowski sum of the two polytopes.
+
+        **Arguments:**
+        - `other`: The other polytope used for the Minkowski sum.
+
+        **Returns:**
+        The Minkowski sum.
+
+        **Example:**
+        We construct two polytops and compute their Minkowski sum.
+        ```python {3}
+        p1 = Polytope([[1,0,0],[0,1,0],[-1,-1,0]])
+        p2 = Polytope([[0,0,1],[0,0,-1]])
+        p1.minkowski_sum(p2)
+        # A 3-dimensional reflexive lattice polytope in ZZ^3
+        ```
+        """
+        points = []
+        for p1 in self.vertices():
+            for p2 in other.vertices():
+                points.append(p1+p2)
+
+        return Polytope(points)
 
     def ambient_dimension(self) -> int:
         """
@@ -547,9 +587,15 @@ class Polytope:
         # True
         ```
         """
+        # check if we know the answer
         if self._is_reflexive is not None:
             return self._is_reflexive
-        self._is_reflexive = self.is_solid() and all(c == 1 for c in self._input_ineqs[:,-1])
+
+        # calculate the answer
+        self._is_reflexive = self.is_solid() and\
+                                all(c == 1 for c in self._input_ineqs[:,-1])
+
+        # return
         return self._is_reflexive
 
     def hpq(self, p: int, q: int, lattice: str) -> int:
@@ -593,38 +639,49 @@ class Polytope:
         # 272
         ```
         """
+        # check that we support hpq calculations for this polytope
         d = self.dim()
         if not self.is_reflexive() or d not in (2,3,4,5):
             raise ValueError("Only reflexive polytopes of dimension 2-5 are "
                              "currently supported.")
+        
+        # check lattice/configure p accordingly
         if lattice == "M":
             p = d-p-1
         elif lattice != "N":
             raise ValueError("Lattice must be specified. "
                              "Options are: \"N\" or \"M\".")
+
+        # simple checks on p,q
         if p > q:
+            # we assume p,q ordered such that q>p
             p,q = q,p
-        if p > d-1 or q > d-1 or p < 0 or q < 0 or p+q > d-1:
+
+        # easy answers
+        if (p > d-1) or (q > d-1) or (p < 0) or (q < 0) or (p+q > d-1):
             return 0
-        if p in (0,d-1) or q in (0,d-1):
-            if p == q or (p,q) == (0,d-1):
+        elif (p in (0,d-1)) or (q in (0,d-1)):
+            if (p == q) or ((p,q) == (0,d-1)):
                 return 1
             return 0
-        if p >= math.ceil((d-1)/2):
+
+        #
+        if p >= d//2:
             tmp_p = p
             p = d-q-1
             q = d-tmp_p-1
+
+        # calculate hpq
         hpq = 0
         if p == 1:
-            faces_cqp1 = self.faces(d-q-1)
-            for f in faces_cqp1:
+            for f in self.faces(d-q-1):
                 hpq += len(f.interior_points())*len(f.dual().interior_points())
             if q == 1:
                 hpq += len(self.points_not_interior_to_facets()) - d - 1
             if q == d-2:
                 hpq += len(self.dual().points_not_interior_to_facets()) - d - 1
             return hpq
-        if p == 2:
+        elif p == 2:
             hpq = 44 + 4*self.h11(lattice="N") - 2*self.h12(lattice="N") + 4*self.h13(lattice="N")
             return hpq
         raise RuntimeError("Error computing Hodge numbers.")
@@ -980,19 +1037,19 @@ class Polytope:
         # in the polytope.
         if self._backend == "palp":
             if self._dim == 0: # PALP cannot handle 0-dimensional polytopes
-                points = [self._optimal_pts[0]]
+                points = [self._pts_optimal[0]]
                 facet_ind = [frozenset([0])]
             else:
                 palp = subprocess.Popen((config.palp_path + "poly.x", "-p"),
                                         stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                         stderr=subprocess.PIPE, universal_newlines=True)
                 pt_list = ""
-                optimal_pts = {tuple(pt) for pt in self._optimal_pts}
-                for pt in optimal_pts:
+                pts_optimal = {tuple(pt) for pt in self._pts_optimal}
+                for pt in pts_optimal:
                     pt_str = str(pt).replace("(","").replace(")","")
                     pt_str = pt_str.replace(","," ")
                     pt_list += pt_str + "\n"
-                palp_in = f"{len(optimal_pts)} {self._dim}\n{pt_list}\n"
+                palp_in = f"{len(pts_optimal)} {self._dim}\n{pt_list}\n"
                 palp_out = palp.communicate(input=palp_in)[0]
                 if "Points of P" not in palp_out:
                     raise RuntimeError(f"PALP error. Full output: {palp_out}")
@@ -1010,14 +1067,14 @@ class Polytope:
                 else:
                     points = tmp_pts
                 # Now we find which inequialities each point saturates
-                ineqs = self._optimal_ineqs
+                ineqs = self._ineqs_optimal
                 facet_ind = [frozenset(i for i,ii in enumerate(ineqs) if ii[:-1].dot(pt) + ii[-1] == 0)
                              for pt in points]
         # Otherwise we use the algorithm by Volker Braun.
         else:
             # Find bounding box and sort by decreasing dimension size
-            box_min = np.array([min(self._optimal_pts[:,i]) for i in range(d)])
-            box_max = np.array([max(self._optimal_pts[:,i]) for i in range(d)])
+            box_min = np.array([min(self._pts_optimal[:,i]) for i in range(d)])
+            box_max = np.array([max(self._pts_optimal[:,i]) for i in range(d)])
             box_diff = box_max - box_min
             diameter_index = np.argsort(box_diff)[::-1]
             # Construct the inverse permutation
@@ -1027,8 +1084,8 @@ class Polytope:
             box_min = box_min[diameter_index]
             box_max = box_max[diameter_index]
             # Inequalities must also have their coordinates permuted
-            ineqs = np.array(self._optimal_ineqs) # We need a new copy
-            ineqs[:,:-1] = self._optimal_ineqs[:,diameter_index]
+            ineqs = np.array(self._ineqs_optimal) # We need a new copy
+            ineqs[:,:-1] = self._ineqs_optimal[:,diameter_index]
             # Find all lattice points and apply the inverse permutation
             points = []
             facet_ind = []
@@ -1080,7 +1137,7 @@ class Polytope:
             points_mat[:,:self._dim_diff] = 0
         else:
             points_mat = np.array(points, dtype=int)
-        points_mat = self._inv_transf_matrix.dot(points_mat.T).T
+        points_mat = self._transf_mat_inv.dot(points_mat.T).T
         if self._ambient_dim > self._dim:
             for i in range(points_mat.shape[0]):
                 points_mat[i,:] += self._transl_vector
@@ -1560,13 +1617,13 @@ class Polytope:
             self._vertices = np.array([self._input_pts[0]])
         elif self._backend == "ppl":
             points_mat = np.array([tuple(int(i) for i in pt.coefficients())
-                                   for pt in self._optimal_poly.minimized_generators()])
+                                   for pt in self._poly_optimal.minimized_generators()])
             if self._ambient_dim > self._dim:
                 pts_mat_tmp = np.empty((points_mat.shape[0],self._ambient_dim), dtype=int)
                 pts_mat_tmp[:,:self._dim_diff] = 0
                 pts_mat_tmp[:,self._dim_diff:] = points_mat.reshape(-1, self._dim)
                 points_mat = pts_mat_tmp
-            points_mat = self._inv_transf_matrix.dot(points_mat.T).T
+            points_mat = self._transf_mat_inv.dot(points_mat.T).T
             if self._ambient_dim > self._dim:
                 points_mat = [pt + self._transl_vector for pt in points_mat]
             tmp_vert = [tuple(pt) for pt in points_mat]
@@ -1581,16 +1638,16 @@ class Polytope:
                 tmp_vert = [tuple(pt[0]) for pt in self._points_saturated() if len(pt[1]) == 1]
                 self._vertices = np.array([list(pt) for pt in self._input_pts if tuple(pt) in tmp_vert])
             else:
-                self._vertices = self._input_pts[self._optimal_poly.vertices]
+                self._vertices = self._input_pts[self._poly_optimal.vertices]
         else: # Backend is PALP
             palp = subprocess.Popen((config.palp_path + "poly.x", "-v"),
                                     stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE, universal_newlines=True)
             pt_list = ""
-            optimal_pts = {tuple(pt) for pt in self._optimal_pts}
-            for pt in optimal_pts:
+            pts_optimal = {tuple(pt) for pt in self._pts_optimal}
+            for pt in pts_optimal:
                 pt_list += (str(pt).replace("(","").replace(")","").replace(","," ") + "\n")
-            palp_out = palp.communicate(input=f"{len(optimal_pts)} {self._dim}\n" + pt_list + "\n")[0]
+            palp_out = palp.communicate(input=f"{len(pts_optimal)} {self._dim}\n" + pt_list + "\n")[0]
             if "Vertices of P" not in palp_out:
                 raise RuntimeError(f"PALP error. Full output: {palp_out}")
             palp_out = palp_out.split("\n")
@@ -1609,7 +1666,7 @@ class Polytope:
                 points_mat[:,:self._dim_diff] = 0
             else:
                 points_mat = np.array(points, dtype=int)
-            points_mat = self._inv_transf_matrix.dot(points_mat.T).T
+            points_mat = self._transf_mat_inv.dot(points_mat.T).T
             if self._ambient_dim > self._dim:
                 for i in range(points_mat.shape[0]):
                     points_mat[i,:] += self._transl_vector
@@ -2101,9 +2158,9 @@ class Polytope:
         if self._dim == 0:
             self._volume = 0
         elif self._dim == 1:
-            self._volume = max(self._optimal_pts) - min(self._optimal_pts)
+            self._volume = max(self._pts_optimal) - min(self._pts_optimal)
         else:
-            self._volume = int(round(ConvexHull(self._optimal_pts).volume * math.factorial(self._dim)))
+            self._volume = int(round(ConvexHull(self._pts_optimal).volume * math.factorial(self._dim)))
         return self._volume
 
     def points_to_indices(self, points: ArrayLike) -> "np.ndarray | int":
@@ -2200,12 +2257,12 @@ class Polytope:
                                     stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE, universal_newlines=True)
             pt_list = ""
-            optimal_pts = {tuple(pt) for pt in self._optimal_pts}
-            for pt in optimal_pts:
+            pts_optimal = {tuple(pt) for pt in self._pts_optimal}
+            for pt in pts_optimal:
                 pt_str = str(pt).replace("(","").replace(")","")
                 pt_str = pt_str.replace(","," ")
                 pt_list += pt_str + "\n"
-            palp_in = f"{len(optimal_pts)} {self._dim}\n{pt_list}\n"
+            palp_in = f"{len(pts_optimal)} {self._dim}\n{pt_list}\n"
             palp_out = palp.communicate(input=palp_in)[0]
             if "ormal form" not in palp_out:
                 raise RuntimeError(f"PALP error. Full output: {palp_out}")
@@ -2636,32 +2693,6 @@ class Polytope:
             if np.linalg.matrix_rank(list(pts_2d)) == 2:
                 polys_2d.add(tuple(sorted(pts_2d)))
         return [Polytope(pp) for pp in polys_2d]
-
-    def minkowski_sum(self, other: "Polytope") -> "Polytope":
-        """
-        **Description:**
-        Returns the Minkowski sum of the two polytopes.
-
-        **Arguments:**
-        - `other`: The other polytope used for the Minkowski sum.
-
-        **Returns:**
-        The Minkowski sum.
-
-        **Example:**
-        We construct two polytops and compute their Minkowski sum.
-        ```python {3}
-        p1 = Polytope([[1,0,0],[0,1,0],[-1,-1,0]])
-        p2 = Polytope([[0,0,1],[0,0,-1]])
-        p1.minkowski_sum(p2)
-        # A 3-dimensional reflexive lattice polytope in ZZ^3
-        ```
-        """
-        points = []
-        for p1 in self.vertices():
-            for p2 in other.vertices():
-                points.append(p1+p2)
-        return Polytope(points)
 
     def nef_partitions(self,
                        keep_symmetric: bool = False,
