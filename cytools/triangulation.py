@@ -1062,8 +1062,10 @@ class Triangulation:
             return self._is_fine
 
         # calculate the answer
-        self._is_fine = (len(set.union(*[set(s) for s in self._simplices])) == len(self._triang_pts))
+        N_used_pts = len(set.union(*[set(s) for s in self._simplices]))
+        self._is_fine = (N_used_pts == len(self._triang_pts))
 
+        # return
         return self._is_fine
 
     def is_regular(self, backend: str = None) -> bool:
@@ -1228,6 +1230,7 @@ class Triangulation:
                     self._is_valid = False
                     return self._is_valid
 
+        # return
         self._is_valid = True
         return self._is_valid
 
@@ -1267,6 +1270,7 @@ class Triangulation:
             for i in s:
                 phi[i] += simp_vol
 
+        # return
         self._gkz_phi = phi
         return np.array(self._gkz_phi)
 
@@ -1526,6 +1530,7 @@ class Triangulation:
                         # frozenset(t+(j,)) was not in SR_ideal for any order
                         SR_ideal.add(k)
 
+        # return
         self._sr_ideal = [tuple(sorted(s)) for s in SR_ideal]
         self._sr_ideal = tuple(sorted(self._sr_ideal, key=lambda x:(len(x),x)))
         return self._sr_ideal
