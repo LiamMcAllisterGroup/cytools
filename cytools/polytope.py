@@ -325,7 +325,7 @@ class Polytope:
         self._points_not_interior_to_facets = None
         self._is_reflexive = None
         self._h11 = None
-        self._h21 = None
+        self._h12 = None
         self._h13 = None
         self._h22 = None
         self._chi = None
@@ -652,9 +652,8 @@ class Polytope:
             raise ValueError("Lattice must be specified. "
                              "Options are: \"N\" or \"M\".")
 
-        # simple checks on p,q
+        # assume p,q ordered such that q>p
         if p > q:
-            # we assume p,q ordered such that q>p
             p,q = q,p
 
         # easy answers
@@ -682,7 +681,8 @@ class Polytope:
                 hpq += len(self.dual().points_not_interior_to_facets()) - d - 1
             return hpq
         elif p == 2:
-            hpq = 44 + 4*self.h11(lattice="N") - 2*self.h12(lattice="N") + 4*self.h13(lattice="N")
+            hpq = 44 + 4*self.h11(lattice="N") - 2*self.h12(lattice="N") +\
+                                                        4*self.h13(lattice="N")
             return hpq
         raise RuntimeError("Error computing Hodge numbers.")
 
@@ -720,10 +720,11 @@ class Polytope:
             if self._h11 is None:
                 self._h11 = self.hpq(1,1,lattice="N")
             return self._h11
-        if lattice == "M":
+        elif lattice == "M":
             return self.dual().h11(lattice="N")
-        raise ValueError("Lattice must be specified. "
-                         "Options are: \"N\" or \"M\".")
+        else:
+            raise ValueError("Lattice must be specified. "
+                             "Options are: \"N\" or \"M\".")
 
     def h12(self, lattice: str) -> int:
         """
@@ -759,13 +760,14 @@ class Polytope:
         ```
         """
         if lattice == "N":
-            if self._h21 is None:
-                self._h21 = self.hpq(1,2,lattice="N")
-            return self._h21
-        if lattice == "M":
+            if self._h12 is None:
+                self._h12 = self.hpq(1,2,lattice="N")
+            return self._h12
+        elif lattice == "M":
             return self.dual().h12(lattice="N")
-        raise ValueError("Lattice must be specified. "
-                         "Options are: \"N\" or \"M\".")
+        else:
+            raise ValueError("Lattice must be specified. "
+                             "Options are: \"N\" or \"M\".")
     # aliases
     h21 = h12
 
@@ -806,10 +808,11 @@ class Polytope:
             if self._h13 is None:
                 self._h13 = self.hpq(1,3,lattice="N")
             return self._h13
-        if lattice == "M":
+        elif lattice == "M":
             return self.dual().h13(lattice="N")
-        raise ValueError("Lattice must be specified. "
-                         "Options are: \"N\" or \"M\".")
+        else:
+            raise ValueError("Lattice must be specified. "
+                             "Options are: \"N\" or \"M\".")
     # aliases
     h31 = h13
 
@@ -845,10 +848,11 @@ class Polytope:
             if self._h22 is None:
                 self._h22 = self.hpq(2,2,lattice="N")
             return self._h22
-        if lattice == "M":
+        elif lattice == "M":
             return self.dual().h22(lattice="N")
-        raise ValueError("Lattice must be specified. "
-                         "Options are: \"N\" or \"M\".")
+        else:
+            raise ValueError("Lattice must be specified. "
+                             "Options are: \"N\" or \"M\".")
 
     def chi(self, lattice: str) -> int:
         """
