@@ -1221,40 +1221,31 @@ def fetch_polytopes(h11: int = None, h12: int = None,
 # -------------------
 def lll_reduce(pts_in: ArrayLike) -> (np.ndarray, (np.ndarray, np.ndarray)):
     """
-    Affinely transform the input integer points (the rows) such that:
-        1) the 0th point is the origin
-        2) the other points are 'short'
-        3) the other points are 'nearly orthogonal'.
-    This is really just a wrapper for the lll-algorithm.
-
-    The outputs will be pts_opt, A, and Ainv (not used), related by:
-        pts_opt.T = A*(pts.T)
-    The transposes are b/c the input, pts, contains the points as rows, not
-    columns.
+    Apply lll-reduction to the input points (the rows).
 
     **Arguments:**
     - `pts`: A list of points.
 
     **Returns:**
-    The transformed points (as rows).
-    The transformation matrix/inverse (A, Ainv).
+    The reduced points (pts_red; as rows).
+    The transformation matrix/inverse (A, Ainv) s.t. pts_red.T = A*pts_in.T
     """
     pts = np.array(pts_in)
     
     # lll-reduction
     pts = pts.T # map points to columns for lll-algorithm
-    pts_opt, transf = flint.fmpz_mat(pts.tolist()).lll(transform=True)
-    pts_opt = pts_opt.transpose() # map points back to rows
+    pts_red, transf = flint.fmpz_mat(pts.tolist()).lll(transform=True)
+    pts_red = pts_red.transpose() # map points back to rows
 
     # convert to numpy
-    pts_opt = np.array(pts_opt.tolist(), dtype=int)
+    pts_red = np.array(pts_red.tolist(), dtype=int)
     A = np.array(transf.tolist(), dtype=int)
     Ainv = np.array(transf.inv(integer=True).tolist(), dtype=int)
 
     # check
-    #assert np.all(pts_opt.T == np.matmul(A,(pts_in+Ainv_b).T))
+    #assert np.all(pts_red.T == np.matmul(A,(pts_in+Ainv_b).T))
 
-    return pts_opt, (A, Ainv)
+    return pts_red, (A, Ainv)
 
 def find_new_affinely_independent_points(pts: ArrayLike) -> np.ndarray:
     """
