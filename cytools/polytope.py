@@ -41,7 +41,7 @@ from cytools.polytopeface import PolytopeFace
 from cytools.triangulation import (Triangulation, all_triangulations,
                                    random_triangulations_fast_generator,
                                    random_triangulations_fair_generator)
-from cytools.utils import gcd_list
+from cytools.utils import gcd_list, lll_reduce
 
 class Polytope:
     """
@@ -120,32 +120,37 @@ class Polytope:
         # A 3-dimensional lattice polytope in ZZ^4
         ```
         """
-        # parse input points
+        # Grab inputs
+        # -----------
+        # points
         self._input_pts = np.array(points, dtype=int)
-        in_pts_shape = self._input_pts.shape
 
-        # calculate the dimension of the polytope
+        # dimension
         pts_ext = [list(pt)+[1,] for pt in self._input_pts]
         self._dim = np.linalg.matrix_rank(pts_ext)-1
 
         self._ambient_dim = self._input_pts.shape[1]
         self._dim_diff = self._ambient_dim-self._dim
 
-        # select backend for the computation of the convex hull
+        # backend
         backends = ["ppl", "qhull", "palp", None]
         if backend not in backends:
-            raise ValueError(f"Invalid backend. Options are {backends}.")
+            raise ValueError(f"Invalid backend, {backend}."+\
+                                                f" Options are {backends}.")
 
         if backend is None:
             if self._dim <= 4:
                 backend = "ppl"
             else:
                 backend = "palp"
+
         if self._dim == 0: # 0-dimensional polytopes are finicky
             backend = "palp"
 
         self._backend = backend
 
+        # Parse points
+        # ------------
         # Find the optimal form of the polytope by performing LLL reduction.
         #
         # If the polytope is not full-dimensional it constructs an
@@ -154,6 +159,7 @@ class Polytope:
         # Internally it uses the optimal form for computations, but it outputs
         # everything in the same form as the input
 
+        in_pts_shape = self._input_pts.shape
         # translate if not full-dim
         if self.is_solid():
             self._transl_vector = np.zeros(in_pts_shape[1], dtype=int)
@@ -162,19 +168,12 @@ class Polytope:
         tmp_pts = self._input_pts - self._transl_vector
 
         # lll reduction
-        pts_mat = fmpz_mat(tmp_pts.T.tolist())
-        pts_optimal, transf_mat = pts_mat.lll(transform=True)
-        transf_mat_inv = transf_mat.inv(integer=True)
-
-        # save results
-        self._pts_optimal = np.array(pts_optimal.tolist(), dtype=int).T
-        self._pts_optimal = self._pts_optimal[:, self._dim_diff:]
-
-        self._transf_mat = np.array(transf_mat.tolist(), dtype=int)
-        self._transf_mat_inv = np.array(transf_mat_inv.tolist(),dtype=int)
+        self._pts_optimal, transf = lll_reduce(tmp_pts)
+        self._transf_mat, self._transf_mat_inv = transf
 
         # Flint sometimes returns an inverse that is missing a factor of -1
         check_inverse = self._transf_mat_inv.dot(self._transf_mat)
+
         id_mat = np.eye(self._ambient_dim, dtype=int)
         if all((check_inverse == id_mat).flatten()):
             pass
@@ -183,9 +182,13 @@ class Polytope:
         else:
             raise RuntimeError("Problem finding inverse matrix")
 
-        # Construct convex hull and find the hyperplane representation with the
-        # appropriate backend. The equations are in the form
-        # c_0 * x_0 + ... + c_{d-1} * x_{d-1} + c_d >= 0
+        # Construct convex hull
+        # ---------------------
+        # also find the hyperplane representation with the appropriate backend
+        # The equations are in the form
+        #   c_0 * x_0 + ... + c_{d-1} * x_{d-1} + c_d >= 0
+
+        # begin with optimal representation
         if backend == "ppl":
             gs = ppl.Generator_System()
             vrs = [ppl.Variable(i) for i in range(self._dim)]
@@ -216,10 +219,13 @@ class Polytope:
 
             else:
                 self._poly_optimal = ConvexHull(self._pts_optimal)
+
+                # get the ineqs, ensure right sign and gcd
                 tmp_ineqs = set()
                 for eq in self._poly_optimal.equations:
                     g = abs(gcd_list(eq))
                     tmp_ineqs.add(tuple(-int(round(i/g)) for i in eq))
+
                 self._ineqs_optimal = np.array(list(tmp_ineqs), dtype=int)
 
         else: # Backend is PALP
@@ -273,6 +279,7 @@ class Polytope:
 
                 self._ineqs_optimal = tmp_ineqs
 
+        # convert to input representation
         if self._ambient_dim > self._dim:
             shape = (self._ineqs_optimal.shape[0],
                      self._ineqs_optimal.shape[1] + self._dim_diff)
@@ -546,6 +553,36 @@ class Polytope:
     # aliases
     dim = dimension
 
+    def inequalities(self) -> np.ndarray:
+        """
+        **Description:**
+        Returns the inequalities giving the hyperplane representation of the
+        polytope. The inequalities are given in the form
+        
+        $c_0x_0 + \cdots + c_{d-1}x_{d-1} + c_d \geq 0$.
+        
+        Note, however, that equalities are not included.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        The inequalities defining the polytope.
+
+        **Example:**
+        We construct a polytope and find the defining inequalities.
+        ```python {2}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        p.inequalities()
+        # array([[ 4, -1, -1, -1,  1],
+        #        [-1,  4, -1, -1,  1],
+        #        [-1, -1,  4, -1,  1],
+        #        [-1, -1, -1,  4,  1],
+        #        [-1, -1, -1, -1,  1]])
+        ```
+        """
+        return np.array(self._input_ineqs)
+
     def is_solid(self) -> bool:
         """
         **Description:**
@@ -639,7 +676,7 @@ class Polytope:
         # 272
         ```
         """
-        # check that we support hpq calculations for this polytope
+        # check that we support hodge-number calculations for this polytope
         d = self.dim()
         if not self.is_reflexive() or d not in (2,3,4,5):
             raise ValueError("Only reflexive polytopes of dimension 2-5 are "
@@ -884,14 +921,25 @@ class Polytope:
         # 540
         ```
         """
+        # check that we support hodge-number calculations for this polytope
         if not self.is_reflexive() or self.dim() not in (2,3,4,5):
-           raise NotImplementedError("Not a reflexive polytope of dimension 2-5.")
+            raise ValueError("Only reflexive polytopes of dimension 2-5 are "
+                             "currently supported.")
+
+        # input checking
         if lattice not in ("N","M"):
-            raise ValueError("Lattice must be specified. Options are: 'N' or 'M'.")
+            raise ValueError("Lattice must be specified. "
+                             "Options are: \"N\" or \"M\".")
+
+        # punt the answer if lattice "M"
         if lattice == "M":
             return self.dual().chi(lattice="N")
+
+        # check if we know the answer
         if self._chi is not None:
             return self._chi
+
+        # calculate the answer
         if self.dim() == 2:
             self._chi = 0
         elif self.dim() == 3:
@@ -899,7 +947,10 @@ class Polytope:
         elif self.dim() == 4:
             self._chi = 2*(self.h11(lattice=lattice)-self.h21(lattice=lattice))
         elif self.dim() == 5:
-            self._chi = 48 + 6*(self.h11(lattice=lattice) - self.h12(lattice=lattice) + self.h13(lattice=lattice))
+            self._chi = 48 + 6*(self.h11(lattice=lattice) -\
+                        self.h12(lattice=lattice) + self.h13(lattice=lattice))
+
+        # return
         return self._chi
 
     def is_linearly_equivalent(self, other: "Polytope",
@@ -927,8 +978,12 @@ class Polytope:
         # True
         ```
         """
-        return (self.normal_form(affine_transform=False, backend=backend).tolist()
-                == other.normal_form(affine_transform=False, backend=backend).tolist())
+        our_normal_form = self.normal_form(affine_transform=False,\
+                                                    backend=backend).tolist()
+        other_normal_form = other.normal_form(affine_transform=False,\
+                                                    backend=backend).tolist()
+
+        return(our_normal_form == other_normal_form)
 
     def is_affinely_equivalent(self, other: "Polytope",
                                      backend: str = "palp") -> bool:
@@ -955,38 +1010,52 @@ class Polytope:
         # True
         ```
         """
-        return (self.normal_form(affine_transform=True, backend=backend).tolist()
-                == other.normal_form(affine_transform=True, backend=backend).tolist())
+        our_normal_form = self.normal_form(affine_transform=True,\
+                                                    backend=backend).tolist()
+        other_normal_form = other.normal_form(affine_transform=True,\
+                                                    backend=backend).tolist()
 
-    def inequalities(self) -> np.ndarray:
+        return(our_normal_form == other_normal_form)
+
+    def points_to_indices(self, points: ArrayLike) -> "np.ndarray | int":
         """
         **Description:**
-        Returns the inequalities giving the hyperplane representation of the
-        polytope. The inequalities are given in the form
-        
-        $c_0x_0 + \cdots + c_{d-1}x_{d-1} + c_d \geq 0$.
-        
-        Note, however, that equalities are not included.
+        Returns the list of indices corresponding to the given points. It also
+        accepts a single point, in which case it returns the corresponding
+        index.
 
         **Arguments:**
-        None.
+        - `points`: A point or a list of points.
 
         **Returns:**
-        The inequalities defining the polytope.
+        The list of indices corresponding to the given points, or the index of
+        the point if only one is given.
 
         **Example:**
-        We construct a polytope and find the defining inequalities.
-        ```python {2}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        p.inequalities()
-        # array([[ 4, -1, -1, -1,  1],
-        #        [-1,  4, -1, -1,  1],
-        #        [-1, -1,  4, -1,  1],
-        #        [-1, -1, -1,  4,  1],
-        #        [-1, -1, -1, -1,  1]])
+        We construct a polytope and find the indices of some of its points.
+        ```python {2,4}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        p.points_to_indices([-1,-1,-6,-9]) # We input a single point, so a single index is returned
+        # 1
+        p.points_to_indices([[-1,-1,-6,-9],[0,0,0,0],[0,0,1,0]]) # We input a list of points, so a list of indices is returned
+        # array([1, 0, 3])
         ```
         """
-        return np.array(self._input_ineqs)
+         # calculate map from point to index, if not already calculated
+        if self._pts_dict is None:
+            self._points_saturated()
+
+        # map single-point input into list case
+        single_pt = (len(np.array(points).shape) == 1)
+        if single_pt:
+            points = [points]
+        
+        # get/return the indices
+        out = np.array([self._pts_dict[tuple(pt)] for pt in points], dtype=int)
+        if single_pt and len(out):
+            return out[0]   # just return the single index
+        else:
+            return out      # return a list of indices
 
     def _points_saturated(self) -> list[tuple]:
         """
@@ -1034,19 +1103,19 @@ class Polytope:
         # The original code can be found at
         # https://github.com/sagemath/sage/blob/master/src/sage/geometry/integral_points.pyx
 
+        # return answer if known
         if self._points_sat is not None:
             return copy.copy(self._points_sat)
-        d = self._dim
-        # When using PALP as the backend we use it to compute all lattice points
+
+        # When using PALP as the backend, use it to compute all lattice points
         # in the polytope.
         if self._backend == "palp":
-            if self._dim == 0: # PALP cannot handle 0-dimensional polytopes
+            if self._dim == 0:
+                # PALP cannot handle 0-dimensional polytopes
                 points = [self._pts_optimal[0]]
                 facet_ind = [frozenset([0])]
             else:
-                palp = subprocess.Popen((config.palp_path + "poly.x", "-p"),
-                                        stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                        stderr=subprocess.PIPE, universal_newlines=True)
+                # prep PALP input
                 pt_list = ""
                 pts_optimal = {tuple(pt) for pt in self._pts_optimal}
                 for pt in pts_optimal:
@@ -1054,60 +1123,88 @@ class Polytope:
                     pt_str = pt_str.replace(","," ")
                     pt_list += pt_str + "\n"
                 palp_in = f"{len(pts_optimal)} {self._dim}\n{pt_list}\n"
+
+                # prep PALP
+                palp = subprocess.Popen((config.palp_path + "poly.x", "-p"),
+                                                    stdin=subprocess.PIPE,
+                                                    stdout=subprocess.PIPE,
+                                                    stderr=subprocess.PIPE,
+                                                    universal_newlines=True)
+                
+                # do the work and read output
                 palp_out = palp.communicate(input=palp_in)[0]
                 if "Points of P" not in palp_out:
                     raise RuntimeError(f"PALP error. Full output: {palp_out}")
+
+                # parse the outputs
                 palp_out = palp_out.split("\n")
                 for i,line in enumerate(palp_out):
                     if "Points of P" not in line:
                         continue
+
+                    # read the points
                     pts_shape = [int(c) for c in line.split()[:2]]
                     tmp_pts = np.empty(pts_shape, dtype=int)
                     for j in range(pts_shape[0]):
-                        tmp_pts[j,:] = [int(c) for c in palp_out[i+j+1].split()]
+                        tmp_pts[j,:] =[int(c) for c in palp_out[i+j+1].split()]
+
                     break
-                if pts_shape[0] < pts_shape[1]: # Check if transposed
+
+                # Check if transposed
+                if pts_shape[0] < pts_shape[1]:
                     points = tmp_pts.T
                 else:
                     points = tmp_pts
-                # Now we find which inequialities each point saturates
+
+                # find inequialities each point saturates
                 ineqs = self._ineqs_optimal
-                facet_ind = [frozenset(i for i,ii in enumerate(ineqs) if ii[:-1].dot(pt) + ii[-1] == 0)
-                             for pt in points]
+                facet_ind = [frozenset(i for i,ii in enumerate(ineqs) if\
+                            ii[:-1].dot(pt) + ii[-1] == 0) for pt in points]
+
         # Otherwise we use the algorithm by Volker Braun.
         else:
             # Find bounding box and sort by decreasing dimension size
-            box_min = np.array([min(self._pts_optimal[:,i]) for i in range(d)])
-            box_max = np.array([max(self._pts_optimal[:,i]) for i in range(d)])
+            box_min = np.array([min(self._pts_optimal[:,i]) for i in\
+                                                            range(self._dim)])
+            box_max = np.array([max(self._pts_optimal[:,i]) for i in\
+                                                            range(self._dim)])
             box_diff = box_max - box_min
             diameter_index = np.argsort(box_diff)[::-1]
+
             # Construct the inverse permutation
             orig_dict = {j:i for i,j in enumerate(diameter_index)}
-            orig_perm = [orig_dict[i] for i in range(d)]
+            orig_perm = [orig_dict[i] for i in range(self._dim)]
+
             # Sort box bounds
             box_min = box_min[diameter_index]
             box_max = box_max[diameter_index]
+
             # Inequalities must also have their coordinates permuted
             ineqs = np.array(self._ineqs_optimal) # We need a new copy
             ineqs[:,:-1] = self._ineqs_optimal[:,diameter_index]
+
             # Find all lattice points and apply the inverse permutation
             points = []
             facet_ind = []
             p = np.array(box_min)
+
             while True:
                 tmp_v = ineqs[:,1:-1].dot(p[1:]) + ineqs[:,-1]
                 i_min = box_min[0]
                 i_max = box_max[0]
+
                 # Find the lower bound for the allowed region
                 while i_min <= i_max:
-                    if all(i_min*ineqs[i,0] + tmp_v[i] >= 0 for i in range(len(tmp_v))):
+                    if all(i_min*ineqs[i,0] >= -v for i,v in enumerate(tmp_v)):
                         break
                     i_min += 1
+
                 # Find the upper bound for the allowed region
                 while i_min <= i_max:
-                    if all(i_max*ineqs[i,0] + tmp_v[i] >= 0 for i in range(len(tmp_v))):
+                    if all(i_max*ineqs[i,0] >= -v for i,v in enumerate(tmp_v)):
                         break
                     i_max -= 1
+
                 # The points i_min .. i_max are contained in the polytope
                 i = i_min
                 while i <= i_max:
@@ -1117,16 +1214,17 @@ class Polytope:
                     points.append(np.array(p)[orig_perm])
                     facet_ind.append(saturated)
                     i += 1
+
                 # Increment the other entries in p to move on to next loop
                 inc = 1
-                if d == 1:
+                if self._dim == 1:
                     break
                 break_loop = False
                 while True:
                     if p[inc] == box_max[inc]:
                         p[inc] = box_min[inc]
                         inc += 1
-                        if inc == d:
+                        if inc == self._dim:
                             break_loop = True
                             break
                     else:
@@ -1134,6 +1232,7 @@ class Polytope:
                         break
                 if break_loop:
                     break
+
         # The points and saturated inequalities have now been computed.
         if self._ambient_dim > self._dim:
             points_mat = np.empty((len(points), self._ambient_dim), dtype=int)
@@ -1145,10 +1244,12 @@ class Polytope:
         if self._ambient_dim > self._dim:
             for i in range(points_mat.shape[0]):
                 points_mat[i,:] += self._transl_vector
+
         # Organize the points as explained above.
         self._points_sat = sorted([(tuple(points_mat[i]), facet_ind[i]) for i in range(len(points))],
                                   key=(lambda p: (-(len(p[1]) if len(p[1]) > 0 else 1e9),) + tuple(p[0])))
         self._pts_dict = {ii[0]:i for i,ii in enumerate(self._points_sat)}
+
         return copy.copy(self._points_sat)
 
     def points(self, as_indices: bool = False) -> np.ndarray:
@@ -1193,11 +1294,15 @@ class Polytope:
         #        [ 0,  0,  0, -1]])
         ```
         """
+        # calculate the answer if not known
         if self._points is None:
             self._points = np.array([pt[0] for pt in self._points_saturated()])
+
+        # return
         if as_indices:
             return self.points_to_indices(self._points)
-        return np.array(self._points)
+        else:
+            return np.array(self._points)
     # aliases
     pts = points
 
@@ -2166,38 +2271,6 @@ class Polytope:
         else:
             self._volume = int(round(ConvexHull(self._pts_optimal).volume * math.factorial(self._dim)))
         return self._volume
-
-    def points_to_indices(self, points: ArrayLike) -> "np.ndarray | int":
-        """
-        **Description:**
-        Returns the list of indices corresponding to the given points. It also
-        accepts a single point, in which case it returns the corresponding
-        index.
-
-        **Arguments:**
-        - `points`: A point or a list of points.
-
-        **Returns:**
-        The list of indices corresponding to the given points, or the index of
-        the point if only one is given.
-
-        **Example:**
-        We construct a polytope and find the indices of some of its points.
-        ```python {2,4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        p.points_to_indices([-1,-1,-6,-9]) # We input a single point, so a single index is returned
-        # 1
-        p.points_to_indices([[-1,-1,-6,-9],[0,0,0,0],[0,0,1,0]]) # We input a list of points, so a list of indices is returned
-        # array([1, 0, 3])
-        ```
-        """
-        if self._pts_dict is None:
-            self._points_saturated()
-        if len(np.array(points).shape) == 1:
-            if np.array(points).shape[0] == 0:
-                return np.zeros(0, dtype=int)
-            return self._pts_dict[tuple(points)]
-        return np.array([self._pts_dict[tuple(pt)] for pt in points])
 
     def normal_form(self,
                     affine_transform: bool = False,

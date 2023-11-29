@@ -36,7 +36,7 @@ from cytools import config
 from cytools.cone import Cone
 from cytools.utils import (gcd_list, array_fmpz_to_int,
                            filter_tensor_indices,
-                           symmetric_sparse_to_dense, float_to_fmpq,
+                           symmetric_sparse_to_dense,
                            symmetric_dense_to_sparse, fmpq_to_float,
                            set_divisor_basis, set_curve_basis)
 

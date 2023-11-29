@@ -37,7 +37,7 @@ from scipy.spatial import ConvexHull
 from cytools import config
 from cytools.cone import Cone
 from cytools.toricvariety import ToricVariety
-from cytools.utils import gcd_list
+from cytools.utils import gcd_list, lll_reduce
 
 class Triangulation:
     """
@@ -174,11 +174,17 @@ class Triangulation:
 
         # Grab inputs
         # -----------
+        backends = ["qhull", "cgal", "topcom", None]
+        if backend not in backends:
+            raise ValueError(f"Invalid backend, {backend}."+\
+                                                    f" Options: {backends}.")
+
         self._backend = backend
 
         # points
         tmp_triang_pts = {tuple(pt) for pt in np.array(triang_pts, dtype=int)}
-        if len(tmp_triang_pts) == 0: raise ValueError("Need at least 1 point.")
+        if len(tmp_triang_pts) == 0:
+            raise ValueError("Need at least 1 point.")
         
         # polytope
         if poly is None:
@@ -213,11 +219,9 @@ class Triangulation:
         if self._is_fulldim:
             self._optimal_pts = self._triang_pts
         else:
-            shift = self._triang_pts[0]
-            optimal_pts = np.array([pt-shift for pt in self._triang_pts])
-            optimal_pts = flint.fmpz_mat(optimal_pts.T.tolist())
-            optimal_pts = optimal_pts.lll().transpose().tolist()
-            self._optimal_pts = np.array(optimal_pts, dtype=int)[:,-self._dim:]
+            self._optimal_pts = self._triang_pts-self._triang_pts[0]
+            self._optimal_pts, _ = lll_reduce(self._optimal_pts)
+            self._optimal_pts = self._optimal_pts[:,-self._dim:]
 
         # find index of origin
         try:
@@ -226,10 +230,10 @@ class Triangulation:
             self._origin_index = -1
             make_star = False
 
-        # maps pt->triang_idx; triang_idx->poly_idx
-        self._pts_dict = {ii:i for i,ii in enumerate(triang_pts_tup)}
-        self._pts_triang_to_poly = {i:self._poly.points_to_indices(ii) for\
-                                        i, ii in enumerate(self._triang_pts)}
+        # maps pt->triang_idx and triang_idx->poly_idx
+        self._pts_dict = {pt:i for i, pt in enumerate(triang_pts_tup)}
+        self._pts_triang_to_poly = {i:self._poly.points_to_indices(pt) for\
+                                        i, pt in enumerate(self._triang_pts)}
 
         # Save input triangulation, or construct it
         # -----------------------------------------
@@ -254,12 +258,12 @@ class Triangulation:
                 raise ValueError("Simplices don't form valid triangulation.")
         else:
             # construct simplices from heights
-            backends = ["qhull", "cgal", "topcom", None]
 
-            self._is_regular = (None if backend == "qhull" else True)
+            self._is_regular = (None if (backend == "qhull") else True)
             self._is_valid = True
 
             if heights is None:
+                # construct the heights
                 if backend is None:
                     raise ValueError("Simplices must be specified when working"
                                      "without a backend")
@@ -272,11 +276,10 @@ class Triangulation:
                                                     for p in self._triang_pts]
                 elif backend == "cgal":
                     heights = [np.dot(p,p) for p in self._triang_pts]
-                elif backend == "topcom":
+                else: # TOPCOM
                     heights = None
-                else:
-                    raise ValueError(f"Invalid backend. Options: {backends}.")
             else:
+                # check the heights
                 if len(heights) != len(triang_pts):
                     raise ValueError("Need same number of heights as points.")
 
@@ -729,7 +732,7 @@ class Triangulation:
         :::
 
         **Arguments:**
-        - `automorphism`: The index of list of indices of the polytope
+        - `automorphism`: The index or list of indices of the polytope
             automorphisms to use. If not specified it uses all automorphisms.
         - `on_faces_dim`: Restrict the simplices to faces of the polytope of a
             given dimension.

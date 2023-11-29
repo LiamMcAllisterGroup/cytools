@@ -37,8 +37,8 @@ import scipy.sparse as sp
 # CYTools imports
 from cytools import config
 
-# basic math (GCD)
-# ----------------
+# basic math
+# ----------
 def gcd_float(a: float, b: float, tol: float = 1e-5) -> float:
     """
     **Description:**
@@ -71,30 +71,8 @@ def gcd_float(a: float, b: float, tol: float = 1e-5) -> float:
     """
     if abs(b) < tol: return abs(a)
     return gcd_float(b, a%b, tol)
-
-def gcd_list(arr: list[float]) -> float:
-    """
-    **Description:**
-    Compute the greatest common divisor of the elements in an array. This is
-    the largest floating point number that divides all of the elements.
-
-    **Arguments:**
-    - `arr`: A list of floating-point numbers.
-
-    **Returns:**
-    The gcd of all the elements in the input list.
-
-    **Example:**
-    We compute the gcd of a list of floats This function is useful since the
-    standard gcd functions raise an error for non-integer values.
-    ```python {2}
-    from cytools.utils import gcd_list
-    gcd_list([0.2, 0.5, 1.4, 6.05, 3.45])
-    # Should be 0.05, but there are small rounding errors
-    # 0.04999999999999882
-    ```
-    """
-    return functools.reduce(gcd_float, arr)
+# variant that computes gcd over all elements in arr
+gcd_list = lambda arr: functools.reduce(gcd_float, arr)
 
 # flint conversion
 # ----------------
@@ -182,60 +160,37 @@ def array_to_flint(arr: np.ndarray, t: "int | float" = None) -> np.ndarray:
     else:           f = float_to_fmpq
 
     return np.vectorize(f)(arr).astype(object)
-
-# define primary functions from this
-# (the casting of arr is likely unecessary...)
+# some type-specific aliases
 array_int_to_fmpz   = lambda arr: array_to_flint(arr, t=int)
 array_float_to_fmpq = lambda arr: array_to_flint(arr, t=float)
 
-def array_fmpz_to_int(arr: np.ndarray) -> np.ndarray:
+def array_from_flint(arr: np.ndarray, t=None) -> np.ndarray:
     """
     **Description:**
-    Converts a numpy array with fmpz (Flint's integer number class) entries to
-    64-bit integer entries.
-
-    See https://flintlib.org/doc/fmpz.html
+    Converts a numpy array with fmpz/fmpq (Flint's integer/float number class)
+    entries to 64-bit integer/float entries.
 
     **Arguments:**
-    - `arr`: A numpy array with fmpz entries.
+    - `arr`: A numpy array with fmpz/fmpq entries.
 
     **Returns:**
-    A numpy array with 64-bit integer entries.
-
-    **Example:**
-    We convert an fmpz array to an int array.
-    ```python {4}
-    from cytools.utils import array_fmpz_to_int
-    from flint import fmpz
-    arr = [fmpz(1), fmpz(2), fmpz(3)]
-    array_fmpz_to_int(arr)
-    # array([1, 2, 3])
-    ```
+    A numpy array with 64-bit integer/float entries.
     """
-    return np.array(arr, dtype=int)
+    # get the type of arr
+    if t is None:
+        t = type(next(iter(M.flatten())))
 
-def array_fmpq_to_float(arr: np.ndarray) -> np.ndarray:
-    """
-    **Description:**
-    Converts a numpy array with fmpq entries to floating-point entries.
-
-    **Arguments:**
-    - `arr`: A numpy array with fmpq entries.
-
-    **Returns:**
-    A numpy array with floating-point entries.
-
-    **Example:**
-    We convert an fmpq array to a float array.
-    ```python {4}
-    from cytools.utils import array_fmpq_to_float
-    from flint import fmpq
-    arr = [fmpq(1,2), fmpq(2,5), fmpq(1,3)]
-    array_fmpq_to_float(arr)
-    # array([0.5       , 0.4       , 0.33333333])
-    ```
-    """
-    return np.vectorize(fmpq_to_float)(arr).astype(float)
+    # convert
+    if t == flint.fmpz:
+        return np.array(arr, dtype=int)
+    elif t == flint.fmpq:
+        return np.vectorize(fmpq_to_float)(arr).astype(float)
+    else:
+        raise ValueError(f"Input array had element of type {t}!" +\
+                            "This is not a flint type!")
+# some type-specific aliases
+array_fmpz_to_int = lambda arr: array_from_flint(arr,t=flint.fmpz)
+array_fmpq_to_float = lambda arr: array_from_flint(arr,t=flint.fmpq)
 
 # sparse conversions
 # ------------------
@@ -1262,8 +1217,45 @@ def fetch_polytopes(h11: int = None, h12: int = None,
     if as_list: return list(g)
     else:       return g
 
-# misc
-# ----
+# point manipulations
+# -------------------
+def lll_reduce(pts_in: ArrayLike) -> (np.ndarray, (np.ndarray, np.ndarray)):
+    """
+    Affinely transform the input integer points (the rows) such that:
+        1) the 0th point is the origin
+        2) the other points are 'short'
+        3) the other points are 'nearly orthogonal'.
+    This is really just a wrapper for the lll-algorithm.
+
+    The outputs will be pts_opt, A, and Ainv (not used), related by:
+        pts_opt.T = A*(pts.T)
+    The transposes are b/c the input, pts, contains the points as rows, not
+    columns.
+
+    **Arguments:**
+    - `pts`: A list of points.
+
+    **Returns:**
+    The transformed points (as rows).
+    The transformation matrix/inverse (A, Ainv).
+    """
+    pts = np.array(pts_in)
+    
+    # lll-reduction
+    pts = pts.T # map points to columns for lll-algorithm
+    pts_opt, transf = flint.fmpz_mat(pts.tolist()).lll(transform=True)
+    pts_opt = pts_opt.transpose() # map points back to rows
+
+    # convert to numpy
+    pts_opt = np.array(pts_opt.tolist(), dtype=int)
+    A = np.array(transf.tolist(), dtype=int)
+    Ainv = np.array(transf.inv(integer=True).tolist(), dtype=int)
+
+    # check
+    #assert np.all(pts_opt.T == np.matmul(A,(pts_in+Ainv_b).T))
+
+    return pts_opt, (A, Ainv)
+
 def find_new_affinely_independent_points(pts: ArrayLike) -> np.ndarray:
     """
     **Description:**

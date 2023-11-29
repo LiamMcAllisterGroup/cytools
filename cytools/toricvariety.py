@@ -25,7 +25,7 @@ import copy
 from itertools import combinations
 
 # 3rd party imports
-from flint import fmpz_mat, fmpq_mat, fmpz, fmpq
+import flint
 import numpy as np
 from scipy.sparse import csr_matrix
 
@@ -33,7 +33,7 @@ from scipy.sparse import csr_matrix
 from cytools import config
 from cytools.calabiyau import CalabiYau
 from cytools.cone import Cone
-from cytools.utils import (gcd_list, solve_linear_system, array_fmpz_to_int,
+from cytools.utils import (gcd_list, solve_linear_system,
                            array_float_to_fmpq,
                            array_fmpq_to_float, filter_tensor_indices,
                            symmetric_sparse_to_dense, float_to_fmpq,
@@ -1372,13 +1372,13 @@ class ToricVariety:
             if solution is None:
                 raise RuntimeError("Linear system solution failed.")
             if exact_arithmetic:
-                solution_fmpq = fmpq_mat([array_float_to_fmpq(solution).tolist()]).transpose()
+                solution_fmpq = flint.fmpq_mat([array_float_to_fmpq(solution).tolist()]).transpose()
                 if check:
-                    Mat_fmpq = fmpq_mat(Mat.shape[0],Mat.shape[1])
+                    Mat_fmpq = flint.fmpq_mat(Mat.shape[0],Mat.shape[1])
                     Mat_dok = Mat.todok()
                     for k in Mat_dok.keys():
                         Mat_fmpq[k] = float_to_fmpq(Mat_dok[k])
-                    C_fmpq = fmpq_mat([array_float_to_fmpq(C).tolist()]).transpose()
+                    C_fmpq = flint.fmpq_mat([array_float_to_fmpq(C).tolist()]).transpose()
                     res = Mat_fmpq*solution_fmpq + C_fmpq
                     if any(np.array(res.tolist()).flat):
                         raise RuntimeError("Failed to convert to rational numbers.")
