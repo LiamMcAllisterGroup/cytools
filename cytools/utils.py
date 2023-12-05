@@ -282,9 +282,9 @@ def symmetric_sparse_to_dense(tensor: dict,
     else:
         dim = 1 + max( set.union(*[set(inds) for inds in tensor.keys()]) )
 
-    rank =   len( next(iter(tensor.keys())) )
-    t =     type( next(iter(tensor.values())) )
-    out = np.zeros((dim,)*rank, dtype=t)
+    rank =  len( next(iter(tensor.keys())) )
+    t    = type( next(iter(tensor.values())) )
+    out  = np.zeros((dim,)*rank, dtype=t)
 
     # fill dense tensor
     for inds, val in tensor.items():
@@ -344,32 +344,12 @@ def symmetric_dense_to_sparse(tensor: ArrayLike,
         for i in reversed(range(rank)):
             tensor = np.tensordot(tensor, basis, axes=[[i],[1]])
 
-    # fill sparse tensor
-    ind = [0]*rank
-
-    while True:
-        # add entry to sparse tensor
-        ind_tup = tuple(ind)
-        if tensor[ind_tup] != 0:
-            out[ind_tup] = tensor[ind_tup]
-
-        # update index lexicographically
-        inc = rank-1
-        while True:
-            if ind[inc] < dim-1:
-                # increase the index ind[inc]
-                ind[inc] += 1
-
-                for inc2 in range(inc+1,rank):
-                    ind[inc2] = ind[inc]
-                break
-            else:
-                # reset index at inc
-                ind[inc] = 0
-                
-                # move inc to next lowest index
-                if inc == 0:    return out
-                else:           inc -= 1
+    # iterate over increasing indices, filling sparse tensor
+    for ind in itertools.combinations_with_replacement(range(dim), rank):
+        if tensor[ind] != 0:
+            out[ind] = tensor[ind]
+    
+    return out
 
 # other tensor operations
 # -----------------------
