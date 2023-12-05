@@ -449,7 +449,8 @@ def solve_linear_system(M: sp.csr_matrix,
             solution = solve_linear_system(M, C, backend=s, check=check,
                                            backend_error_tol=backend_error_tol,
                                            verbosity=verbosity)
-            if solution is not None: return solution
+            if solution is not None:
+                return solution
 
     elif backend == "sksparse":
         try:
@@ -457,14 +458,16 @@ def solve_linear_system(M: sp.csr_matrix,
             factor = cholesky_AAt(M.transpose())
             solution = factor(-M.transpose()*C)
         except:
-            if verbosity >= 1: print("Linear backend error: sksparse failed.")
+            if verbosity >= 1:
+                print("Linear backend error: sksparse failed.")
 
     elif backend == "scipy":
         try:
             solution = sp.linalg.spsolve(M.transpose()*M,\
                                          -M.transpose()*C).tolist()
         except:
-            if verbosity >= 1: print("Linear backend error: scipy failed.")
+            if verbosity >= 1:
+                print("Linear backend error: scipy failed.")
 
     # check/return solution
     if solution is None:
@@ -475,7 +478,8 @@ def solve_linear_system(M: sp.csr_matrix,
         max_error = max(abs(s) for s in res.flat)
 
         if max_error > backend_error_tol:
-            if verbosity >= 1: print("Linear backend error: numerical error.")
+            if verbosity >= 1:
+                print("Linear backend error: numerical error.")
             solution = None
 
     return solution
