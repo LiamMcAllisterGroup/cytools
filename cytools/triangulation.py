@@ -205,8 +205,9 @@ class Triangulation:
         # reorder to match Polytope class ordering
         poly_pts = [tuple(pt) for pt in self._poly.points()]
 
-        # (NM: when isn't self._triang_pts==self._poly.points() here?)
-        # (i.e., when is set(temp_triang_pts) != set(poly_pts))
+        # (the check `if pt in tmp_triang_pts` is relevant if the
+        #  triangulation is non-fine. Then there could be pt in poly_pts but
+        #  not in tmp_triang_pts)
         self._triang_pts = [pt for pt in poly_pts if pt in tmp_triang_pts]
         self._triang_pts = np.asarray(self._triang_pts)
 
