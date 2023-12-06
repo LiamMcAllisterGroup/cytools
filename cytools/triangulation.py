@@ -580,8 +580,7 @@ class Triangulation:
 
         return np.array([self._pts_dict[tuple(pt)] for pt in points])
 
-    def triangulation_to_polytope_indices(self,
-                                          points: ArrayLike)->"np.ndarray|int":
+    def points_to_poly_indices(self, points: ArrayLike)->"np.ndarray|int":
         """
         **Description:**
         Takes a list of indices of points of the triangulation and it returns
@@ -617,6 +616,8 @@ class Triangulation:
             return self._pts_triang_to_poly[points]
 
         return np.array([self._pts_triang_to_poly[pt] for pt in points])
+    # aliases
+    triangulation_to_polytope_indices = points_to_poly_indices
 
     def simplices(self,
                   on_faces_dim: int = None,
@@ -670,7 +671,7 @@ class Triangulation:
         else:
             faces_dim = self.dim()-on_faces_codim
 
-        if faces_dim < 0 or faces_dim > self.dim():
+        if faces_dim<0 or faces_dim>self.dim():
             raise ValueError("Invalid face dimension.")
 
         # restrict simplices to faces
