@@ -168,7 +168,7 @@ class Polytope:
         tmp_pts = self._input_pts - self._transl_vector
 
         # lll reduction
-        self._pts_optimal, transf = lll_reduce(tmp_pts)
+        self._pts_optimal, transf = lll_reduce(tmp_pts, transform=True)
         self._transf_mat, self._transf_mat_inv = transf
 
         # Flint sometimes returns an inverse that is missing a factor of -1

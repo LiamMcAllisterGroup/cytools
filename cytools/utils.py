@@ -1194,16 +1194,13 @@ def fetch_polytopes(h11: int = None, h12: int = None,
         r = requests.get(url, timeout=timeout)
 
     # return the generator based off of output of request
-    g = polytope_generator(r.text, input_type="str", dualize=dualize,
+    return read_polytopes(r.text, input_type="str", dualize=dualize,
                            format=("ks" if dim==4 else "ws"), backend=backend,
                            favorable=favorable, lattice=lattice, limit=limit)
 
-    if as_list: return list(g)
-    else:       return g
-
 # point manipulations
 # -------------------
-def lll_reduce(pts_in: ArrayLike) -> (np.ndarray, (np.ndarray, np.ndarray)):
+def lll_reduce(pts_in: ArrayLike, transform: bool=False) -> "misc":
     """
     Apply lll-reduction to the input points (the rows).
 
@@ -1211,25 +1208,35 @@ def lll_reduce(pts_in: ArrayLike) -> (np.ndarray, (np.ndarray, np.ndarray)):
     - `pts`: A list of points.
 
     **Returns:**
-    The reduced points (pts_red; as rows).
-    The transformation matrix/inverse (A, Ainv) s.t. pts_red.T = A*pts_in.T
+    The reduced points (pts_red; as rows of a numpy array).
+    If transform==True, also return the transformation matrix/inverse
+        (A, Ainv) s.t. pts_red.T = A*pts_in.T. As numpy arrays.
     """
     pts = np.array(pts_in)
     
     # lll-reduction
     pts = pts.T # map points to columns for lll-algorithm
-    pts_red, transf = flint.fmpz_mat(pts.tolist()).lll(transform=True)
+
+    if transform==True:
+        pts_red, transf = flint.fmpz_mat(pts.tolist()).lll(transform=True)
+    else:
+        pts_red = flint.fmpz_mat(pts.tolist()).lll(transform=False)
+
     pts_red = pts_red.transpose() # map points back to rows
 
     # convert to numpy
     pts_red = np.array(pts_red.tolist(), dtype=int)
-    A = np.array(transf.tolist(), dtype=int)
-    Ainv = np.array(transf.inv(integer=True).tolist(), dtype=int)
 
-    # check
-    #assert np.all(pts_red.T == np.matmul(A,(pts_in+Ainv_b).T))
+    if transform==True:
+        A    = np.array(transf.tolist(), dtype=int)
+        Ainv = np.array(transf.inv(integer=True).tolist(), dtype=int)
 
-    return pts_red, (A, Ainv)
+        # check
+        #assert np.all(pts_red.T == np.matmul(A,(pts_in+Ainv_b).T))
+
+        return pts_red, (A, Ainv)
+    else:
+        return pts_red
 
 def find_new_affinely_independent_points(pts: ArrayLike) -> np.ndarray:
     """
@@ -1273,7 +1280,8 @@ def find_new_affinely_independent_points(pts: ArrayLike) -> np.ndarray:
     dim = np.linalg.matrix_rank(pts)
     
     # make basis of points
-    basis = []; basis_dim = 0
+    basis = []
+    basis_dim = 0
 
     for pt in pts:
         basis.append(pt.tolist())
@@ -1292,4 +1300,4 @@ def find_new_affinely_independent_points(pts: ArrayLike) -> np.ndarray:
     if shape[0] == 1:
         new_pts = np.append(new_pts, [[1]+[0]*(shape[1]-1)], axis=0)
 
-    return (new_pts + translation)
+    return new_pts+translation

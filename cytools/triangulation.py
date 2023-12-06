@@ -2025,10 +2025,7 @@ def all_triangulations(points: ArrayLike,
     if dim == points.shape[1]:
         optimal_pts = points
     else:
-        optimal_pts = np.array([pt - points[0] for pt in points])
-        optimal_pts = flint.fmpz_mat(optimal_pts.T.tolist())
-        optimal_pts = optimal_pts.lll().transpose().tolist()
-        optimal_pts = np.array(optimal_pts, dtype=int)[:,-dim:]
+        optimal_pts = lll_reduce([pt - points[0] for pt in points])[:,-dim:]
 
     # prep for TOPCOM
     topcom_bin = config.topcom_path
