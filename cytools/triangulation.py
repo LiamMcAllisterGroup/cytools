@@ -1752,9 +1752,8 @@ def _to_star(triang: Triangulation) -> np.ndarray:
     assert triang._poly.is_reflexive()
 
     # preliminary
-    facets = [[triang._pts_dict[tuple(pt)] for pt in f.boundary_points()]\
+    facets = [[triang._pts_dict[tuple(pt)] for pt in f.points()]\
                                                 for f in triang._poly.facets()]
-
     dim = len(triang._simplices[0]) - 1
 
     # map the simplices to being star
