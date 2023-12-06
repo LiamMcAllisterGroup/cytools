@@ -213,8 +213,9 @@ class Triangulation:
         triang_pts_tup = [tuple(pt) for pt in self._triang_pts]
 
         # if point config isn't full-dim, find better representation of points
+        self._ambient_dim  = len(next(iter(tmp_triang_pts)))
         self._dim = np.linalg.matrix_rank([pt+(1,) for pt in tmp_triang_pts])-1
-        self._is_fulldim = (self._dim == len(next(iter(tmp_triang_pts))))
+        self._is_fulldim = (self._dim == self._ambient_dim)
 
         if self._is_fulldim:
             self._optimal_pts = self._triang_pts
@@ -247,11 +248,7 @@ class Triangulation:
 
             # convert simplices to star
             if make_star:
-                facets_ind = [[self._pts_dict[tuple(pt)]\
-                                                for pt in f.boundary_points()]\
-                                                for f in self._poly.facets()]
-                self._simplices = _to_star(self._simplices, facets_ind,\
-                                                            self._origin_index)
+                _to_star(self)
 
             # ensure simplices define valid triangulation
             if check_input_simplices and not self.is_valid():
@@ -292,11 +289,7 @@ class Triangulation:
 
                 # convert to star
                 if make_star:
-                    facets_ind = [[self._pts_dict[tuple(pt)]\
-                                                for pt in f.boundary_points()]\
-                                                for f in self._poly.facets()]
-                    self._simplices = _to_star(self._simplices,\
-                                             facets_ind, self._origin_index)
+                    _to_star(self)
 
             elif backend == "cgal":
                 self._simplices = _cgal_triangulate(self._optimal_pts,\
@@ -320,11 +313,7 @@ class Triangulation:
 
                 # convert to star
                 if make_star:
-                    facets_ind = [[self._pts_dict[tuple(pt)]\
-                                                for pt in f.boundary_points()]\
-                                                for f in self._poly.facets()]
-                    self._simplices = _to_star(self._simplices,\
-                                                facets_ind, self._origin_index)
+                    _to_star(self)
 
         # Make sure that the simplices are sorted
         self._simplices = sorted([sorted(s) for s in self._simplices])
@@ -1737,9 +1726,7 @@ class Triangulation:
     compute_cy = get_cy
     cy = get_cy
 
-def _to_star(simplices: ArrayLike,
-             facets: list[list[int]],
-             star_origin: int) -> np.ndarray:
+def _to_star(triang: Triangulation) -> np.ndarray:
     """
     **Description:**
     Turns a triangulation into a star triangulation by deleting internal lines
@@ -1756,38 +1743,28 @@ def _to_star(simplices: ArrayLike,
     :::
 
     **Arguments:**
-    - `simplices`: The list of simplices of the triangulation. Each simplex
-        consists of the list of indices of the points forming its vertices.
-    - `facets`: The list of facets of the polytope. Each facet consists of the
-        indices of the points in the facet.
-    - `star_origin`: The index of the point that is used as the star origin.
+    - `triang`: The triangulation to convert to star.
 
     **Returns:**
-    A list of simplices forming a star triangulation.
-
-    **Example:**
-    This function is not intended to be directly used, but it is used in the
-    following example. We input a triangulation that is not star and ask it to
-    turn it into a star triangulation.
-    ```python {4}
-    p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-    p.triangulate(simplices=[[1,2,3,4,6],[1,2,3,5,6],[2,3,4,5,6]]) # The input triangulation is not star
-    # A non-fine, regular, non-star triangulation of a 4-dimensional point configuration with 7 points in ZZ^4
-    p.triangulate(simplices=[[1,2,3,4,6],[1,2,3,5,6],[2,3,4,5,6]], make_star=True) # We can turn it into a star triangulation
-    # A fine, regular, star triangulation of a 4-dimensional point configuration with 7 points in ZZ^4
-    ```
+    Nothing.
     """
+    # preliminary
+    facets = [[triang._pts_dict[tuple(pt)] for pt in f.boundary_points()]\
+                                                for f in triang._poly.facets()]
+
+    dim = len(triang._simplices[0]) - 1
+
+    # map the simplices to being star
     star_triang = []
 
-    dim = len(simplices[0]) - 1
-
     for facet in facets:
-        for simp in np.array(simplices):
+        for simp in np.array(triang._simplices):
             overlap = simp[np.isin(simp, facet)].tolist()
             if len(overlap) == dim:
-                star_triang.append([star_origin] + overlap)
+                star_triang.append([triang._origin_index] + overlap)
 
-    return np.array(sorted([sorted(s) for s in star_triang]))
+    # update triang
+    triang._simplices = np.array(sorted([sorted(s) for s in star_triang]))
 
 def _qhull_triangulate(points: ArrayLike, heights: ArrayLike) -> np.ndarray:
     """
