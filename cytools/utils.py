@@ -837,7 +837,7 @@ def polytope_generator(input: str,
     being used with the [`read_polytopes`](#read_polytopes) function. We take a
     string obtained from the KS database and read the polytope it specifies.
     ```python {8}
-    from cytools import read_polytopes # Note that it can directly be imported from the root
+    from cytools import read_polytopes # Note - it cannot be imported from root
     poly_data = '''4 5  M:10 5 N:376 5 H:272,2 [540]
                     1    0    0    0   -9
                     0    1    0    0   -6
