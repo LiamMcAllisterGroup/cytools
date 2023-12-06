@@ -1748,6 +1748,9 @@ def _to_star(triang: Triangulation) -> np.ndarray:
     **Returns:**
     Nothing.
     """
+    # reflexivity check
+    assert triang._poly.is_reflexive()
+
     # preliminary
     facets = [[triang._pts_dict[tuple(pt)] for pt in f.boundary_points()]\
                                                 for f in triang._poly.facets()]
