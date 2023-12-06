@@ -176,8 +176,8 @@ class Triangulation:
         # -----------
         backends = ["qhull", "cgal", "topcom", None]
         if backend not in backends:
-            raise ValueError(f"Invalid backend, {backend}."+\
-                                                    f" Options: {backends}.")
+            raise ValueError(f"Invalid backend, {backend}. "+\
+                             f"Options: {backends}.")
 
         self._backend = backend
 
@@ -220,7 +220,7 @@ class Triangulation:
             self._optimal_pts = self._triang_pts
         else:
             self._optimal_pts = self._triang_pts-self._triang_pts[0]
-            self._optimal_pts, _ = lll_reduce(self._optimal_pts)
+            self._optimal_pts = lll_reduce(self._optimal_pts)
             self._optimal_pts = self._optimal_pts[:,-self._dim:]
 
         # find index of origin
