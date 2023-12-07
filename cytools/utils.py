@@ -1194,9 +1194,10 @@ def fetch_polytopes(h11: int = None, h12: int = None,
         r = requests.get(url, timeout=timeout)
 
     # return the generator based off of output of request
-    return read_polytopes(r.text, input_type="str", dualize=dualize,
-                           format=("ks" if dim==4 else "ws"), backend=backend,
-                           favorable=favorable, lattice=lattice, limit=limit)
+    return read_polytopes(r.text, input_type="str",
+                          format=("ks" if dim==4 else "ws"),
+                          backend=backend, as_list=as_list, dualize=dualize,
+                          favorable=favorable, lattice=lattice, limit=limit)
 
 # point manipulations
 # -------------------
