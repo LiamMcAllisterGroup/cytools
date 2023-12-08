@@ -781,12 +781,18 @@ class Triangulation:
         autos = self.polytope().automorphisms(as_dictionary=True)
 
         # We see which automorphisms of the polytope are also automorphisms of
-        # the point configuration
+        # the point configuration. Call them 'good'
         pts = [tuple(pt) for pt in self.polytope().points()]
-        good_autos = [i for i in range(len(autos)) if all(\
-            (pts[i] in self._pts_dict and pts[j] in self._pts_dict) or\
-            (pts[i] not in self._pts_dict and pts[j] not in self._pts_dict)\
-                                                for i,j in autos[i].items())]
+        good_autos = []
+        for i in range(len(autos)):
+            for j,k in autos[i].items():
+                # check if pts[j] and pts[k] are either both in the
+                # triangulation, or both not in it
+                if (pts[j] in self._pts_dict) != (pts[k] in self._pts_dict):
+                    # oops! One pt is in the triangulation while other isn't!
+                    break
+            else:
+                good_autos.append(i)
 
         # Finally, we
         #   1) reindex the good automorphisms so that the indices match the
@@ -1754,7 +1760,8 @@ def _to_star(triang: Triangulation) -> np.ndarray:
     assert triang._poly.is_reflexive()
 
     # preliminary
-    facets = [[triang._pts_dict[tuple(pt)] for pt in f.points()]\
+    # (use boundary pts b/c pts interior to facets aren't normally included)
+    facets = [[triang._pts_dict[tuple(pt)] for pt in f.boundary_points()]\
                                                 for f in triang._poly.facets()]
     dim = len(triang._simplices[0]) - 1
 
