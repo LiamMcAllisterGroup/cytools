@@ -741,7 +741,8 @@ class Cone:
         return self._ext_rays
 
     def tip_of_stretched_cone(self, c, backend=None, check=True,
-                              constraint_error_tol=5e-2):
+                              constraint_error_tol=5e-2, max_iter=10**6,
+                              verbose=False):
         """
         **Description:**
         Finds the tip of the stretched cone. The stretched cone is defined as
@@ -774,6 +775,11 @@ class Cone:
             `constraint_error_tol`.
         - `constraint_error_tol` *(float, optional, default=1e-2)*: Error
             tolerance for the linear constraints.
+        - 'max_iter' *(int, optional, default=10**6)*: The maximum number of
+            iterations allowed for the non-GLOP backends. If this function is
+            returning None, then increasing this parameter (maximum
+            permissible value: 2**31-1) might resolve the issue. For
+            backend=="glop", this does nothing.
 
         **Returns:**
         *(numpy.ndarray)* The vector specifying the location of the tip. If it
@@ -809,7 +815,8 @@ class Cone:
 
         # find the tip of the stretched cone
         if backend == "glop":
-            solution = self.find_interior_point(c, backend="glop")
+            solution = self.find_interior_point(c, backend="glop",
+                                                   verbose=verbose)
             G = -1*sparse.csc_matrix(self.hyperplanes(), dtype=float)
         else:
             hp = self._hyperplanes
@@ -820,9 +827,9 @@ class Cone:
             q = np.zeros(hp.shape[1], dtype=float)
             h = np.full(hp.shape[0], -c, dtype=float)
             G = -1*sparse.csc_matrix(hp, dtype=float)
-            settings_dict = ({"max_iter":100000, "scaling":50, "eps_abs":1e-4, "eps_rel":1e-4, "polish":True} if backend=="osqp"
+            settings_dict = ({"scaling":50, "eps_abs":1e-4, "eps_rel":1e-4, "polish":True} if backend=="osqp"
                                 else dict())
-            solution = qpsolvers.solve_qp(P,q,G,h,solver=backend, **settings_dict)
+            solution = qpsolvers.solve_qp(P,q,G,h, solver=backend, max_iter=max_iter, verbose=verbose, **settings_dict)
 
         # parse solution
         if solution is None:
@@ -865,7 +872,7 @@ class Cone:
                                                                     "cones.")
         return self.dual().find_interior_point(backend=backend, integral=True)
 
-    def find_interior_point(self, c=1, integral=False, backend=None, check=True):
+    def find_interior_point(self, c=1, integral=False, backend=None, check=True, verbose=False):
         """
         **Description:**
         Finds a point in the strict interior of the cone. If no point is found
@@ -970,6 +977,8 @@ class Cone:
             if status in (solver.FEASIBLE, solver.OPTIMAL):
                 solution = np.array([x.solution_value() for x in var])
             elif status == solver.INFEASIBLE:
+                if verbose:
+                    warnings.warn("Solver returned status INFEASIBLE.")
                 return None
             else:
                 status_list = [
@@ -1017,7 +1026,7 @@ class Cone:
                 warnings.warn("Solver returned status "
                                             f"{solver.StatusName(status)}.")
         else:
-            solution = self.tip_of_stretched_cone(c, backend=backend)
+            solution = self.tip_of_stretched_cone(c, backend=backend, verbose=verbose)
             if solution is None:
                 return None
 
