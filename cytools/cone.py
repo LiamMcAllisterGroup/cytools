@@ -834,7 +834,8 @@ class Cone:
         # parse solution
         if solution is None:
             print("Calculated 'solution' was None...")
-            print(f"Likely indicates that max_iter={max_iter} was too low...")
+            print(f"Maybe max_iter={max_iter} was too low?")
+            print("Maybe re-run with verbose=True?")
             return
         if check:
             res = max(G.dot(solution)) + c
@@ -951,6 +952,10 @@ class Cone:
 
         if backend in ("glop", "scip"):
             solver = pywraplp.Solver.CreateSolver(backend.upper())
+
+            if verbose:
+                # enable solver to print output
+                solver.EnableOutput()
 
             # define variables
             var = []
