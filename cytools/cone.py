@@ -838,14 +838,17 @@ class Cone:
 
         # parse solution
         if solution is None:
-            print("Calculated 'solution' was None...")
-            print("Some potential reasons why:")
+            print("Calculated 'solution' was None...", end=' ')
+            print("some potential reasons why:")
+
             if backend != "glop":
                 print(f"-) maybe max_iter={max_iter} was too low?")
+
             if (self.ambient_dim()>=25) and (backend!="mosek"):
-                print(f"-) given the high dimension, {self.ambient_dim()}")
-                print(f"   and backend={backend}, this could be a numerical")
-                print( "   issue. Try Mosek...")
+                print(f"-) given the high dimension, {self.ambient_dim()}", end=' ')
+                print(f"and backend={backend}, this could be a numerical", end=' ')
+                print( "issue. Try Mosek...")
+
             print("For more info, re-run with verbose=True")
             return
         if check:
