@@ -833,6 +833,8 @@ class Cone:
 
         # parse solution
         if solution is None:
+            print("Calculated 'solution' was None...")
+            print(f"Likely indicates that max_iter={max_iter} was too low...")
             return
         if check:
             res = max(G.dot(solution)) + c
