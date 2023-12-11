@@ -813,6 +813,11 @@ class Cone:
             raise Exception("Mosek is not activated. See the advanced usage "
                             "page on our website to see how to activate it.")
 
+        # check backend
+        if (self.ambient_dim()>=25) and (backend!="mosek") and verbose:
+            print(f"The backend {backend} may not work given the large ")
+            print(f"dimension ({self.ambient_dim()}) of the problem...")
+
         # find the tip of the stretched cone
         if backend == "glop":
             solution = self.find_interior_point(c, backend="glop",
@@ -834,9 +839,14 @@ class Cone:
         # parse solution
         if solution is None:
             print("Calculated 'solution' was None...")
+            print("Some potential reasons why:")
             if backend != "glop":
-                print(f"Maybe max_iter={max_iter} was too low?")
-            print("Maybe re-run with verbose=True?")
+                print(f"-) maybe max_iter={max_iter} was too low?")
+            if (self.ambient_dim()>=25) and (backend!="mosek"):
+                print(f"-) given the high dimension, {self.ambient_dim()}")
+                print(f"   and backend={backend}, this could be a numerical")
+                print( "   issue. Try Mosek...")
+            print("For more info, re-run with verbose=True")
             return
         if check:
             res = max(G.dot(solution)) + c
