@@ -834,7 +834,8 @@ class Cone:
         # parse solution
         if solution is None:
             print("Calculated 'solution' was None...")
-            print(f"Maybe max_iter={max_iter} was too low?")
+            if backend != "glop":
+                print(f"Maybe max_iter={max_iter} was too low?")
             print("Maybe re-run with verbose=True?")
             return
         if check:
