@@ -841,13 +841,20 @@ class Cone:
             print("Calculated 'solution' was None...", end=' ')
             print("some potential reasons why:")
 
+            # max_iter
             if backend != "glop":
                 print(f"-) maybe max_iter={max_iter} was too low?")
 
+            # bad solver
             if (self.ambient_dim()>=25) and (backend!="mosek"):
                 print(f"-) given the high dimension, {self.ambient_dim()}", end=' ')
                 print(f"and backend={backend}, this could be a numerical", end=' ')
                 print( "issue. Try Mosek...")
+
+            # scaling
+            print(f"-) if the cone is narrow, try decreasing c from {c}", end=' ')
+            print("(you can then scale up the tip to hit the desired stretching...)")
+
 
             print("For more info, re-run with verbose=True")
             return
