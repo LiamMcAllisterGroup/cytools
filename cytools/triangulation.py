@@ -1598,16 +1598,25 @@ class Triangulation:
 
         if backend == "native":
             pts_ext = [list(pt)+[1,] for pt in self._optimal_pts]
-            simps = [set(s) for s in self._simplices]
 
             m = np.zeros((self.dim()+1, self.dim()+2), dtype=int)
+            full_v = np.zeros(len(pts_ext), dtype=int)
+
+            if self.is_star():
+                # star triangulations all share 0th point, the origin
+                simps = [set(s) for s in self._simplices[:,1:]]
+                dim = self.dim()-1
+                m[:,-1] = pts_ext[0]
+            else:
+                simps = [set(s) for s in self._simplices]
+                dim = self.dim()
 
             null_vecs = set()
             for i,s1 in enumerate(simps):
                 for s2 in simps[i+1:]:
-                    # eunsre that the simps have a large enough intersection
+                    # ensure that the simps have a large enough intersection
                     comm_pts = s1 & s2
-                    if len(comm_pts) != self.dim():
+                    if len(comm_pts) != dim:
                         continue
 
                     diff_pts = list(s1 ^ s2)
@@ -1629,14 +1638,18 @@ class Triangulation:
                         v //= g
 
                     # Construct the full vector (including all points)
-                    full_v = np.zeros(len(pts_ext), dtype=int)
-
+                    # (could get some more performance by allowing sparse vectors as Cone argument...)
                     for i,pt in enumerate(diff_pts):    full_v[pt] = v[i]
                     for i,pt in enumerate(comm_pts):    full_v[pt] = v[i+2]
+                    if self.is_star():
+                        full_v[0] = v[-1]
 
-                    full_v = tuple(full_v)
-                    if full_v not in null_vecs:
-                        null_vecs.add(full_v)
+                    null_vecs.add(tuple(full_v))
+                    
+                    for i,pt in enumerate(diff_pts):    full_v[pt] = 0
+                    for i,pt in enumerate(comm_pts):    full_v[pt] = 0
+                    if self.is_star():
+                        full_v[0] = v[-1]
 
             self._secondary_cone[args_id] = Cone(hyperplanes=list(null_vecs),\
                                                  check=False)
