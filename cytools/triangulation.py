@@ -621,7 +621,9 @@ class Triangulation:
 
     def simplices(self,
                   on_faces_dim: int = None,
-                  on_faces_codim: int = None) -> np.ndarray:
+                  on_faces_codim: int = None,
+                  split_by_face: bool = False,
+                  as_np_array: bool = True) -> "set | np.ndarray":
         """
         **Description:**
         Returns the simplices of the triangulation. It also has the option of
@@ -665,7 +667,10 @@ class Triangulation:
         """
         # input parsing
         if (on_faces_dim is None) and (on_faces_codim is None):
-            return np.array(self._simplices)
+            if as_np_array:
+                return np.array(self._simplices)
+            else:
+                return set(frozenset(simp) for simp in self._simplices)
         elif on_faces_dim is not None:
             faces_dim = on_faces_dim
         else:
@@ -687,18 +692,27 @@ class Triangulation:
                                                                 in faces_pts]
 
             # actually restrict            
-            restricted = set()
+            restricted = []
             for f in faces_inds:
+                restricted.append(set())
                 for s in full_simp:
                     inters = f & s
                     if len(inters) == faces_dim+1:
-                        restricted.add(inters)
+                        restricted[-1].add(inters)
 
-            restricted = np.array(sorted(sorted(s) for s in restricted))
             self._restricted_simplices[faces_dim] = restricted
 
         # return
-        return np.array(self._restricted_simplices[faces_dim])
+        if split_by_face:
+            out = self._restricted_simplices[faces_dim]
+            if as_np_array:
+                out = [np.array(sorted(sorted(s) for s in face)) for face in out]
+        else:
+            out = set().union(*self._restricted_simplices[faces_dim])
+            if as_np_array:
+                return np.array(sorted(sorted(s) for s in out))
+        
+        return out
     # aliases
     simps = simplices
 
