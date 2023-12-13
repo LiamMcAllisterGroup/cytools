@@ -169,6 +169,7 @@ class Polytope:
 
         # lll reduction
         self._pts_optimal, transf = lll_reduce(tmp_pts, transform=True)
+        self._pts_optimal = self._pts_optimal[:, self._dim_diff:]
         self._transf_mat, self._transf_mat_inv = transf
 
         # Flint sometimes returns an inverse that is missing a factor of -1
