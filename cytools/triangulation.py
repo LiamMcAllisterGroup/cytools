@@ -1618,9 +1618,10 @@ class Triangulation:
 
             if self.is_star():
                 # star triangulations all share 0th point, the origin
-                simps = [set(s) for s in self._simplices[:,1:]]
+                star_origin = self.points_to_indices([0]*self.dim())
+                simps = [set(s)-{star_origin} for s in self._simplices]
                 dim = self.dim()-1
-                m[:,-1] = pts_ext[0]
+                m[:,-1] = pts_ext[star_origin]
             else:
                 simps = [set(s) for s in self._simplices]
                 dim = self.dim()
@@ -1656,14 +1657,14 @@ class Triangulation:
                     for i,pt in enumerate(diff_pts):    full_v[pt] = v[i]
                     for i,pt in enumerate(comm_pts):    full_v[pt] = v[i+2]
                     if self.is_star():
-                        full_v[0] = v[-1]
+                        full_v[star_origin] = v[-1]
 
                     null_vecs.add(tuple(full_v))
                     
                     for i,pt in enumerate(diff_pts):    full_v[pt] = 0
                     for i,pt in enumerate(comm_pts):    full_v[pt] = 0
                     if self.is_star():
-                        full_v[0] = v[-1]
+                        full_v[star_origin] = v[-1]
 
             self._secondary_cone[args_id] = Cone(hyperplanes=list(null_vecs),\
                                                  check=False)
