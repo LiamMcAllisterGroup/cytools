@@ -245,7 +245,18 @@ class Triangulation:
 
             # check dimension
             if self._simplices.shape[1] != self._dim+1:
-                raise ValueError("Input simplices have wrong dimension.")
+                simp_dim = self._simplices.shape[1]-1
+                error_msg = f"Dimension of simplices, ({simp_dim}), " +\
+                            f"doesn't match polytope dimension, {self._dim}..."
+                raise ValueError(error_msg)
+
+            # Check if the indices are in a sensible range (i.e., [0,npts-1])
+            if set(self._simplices.flatten()) != {*range(len(self.points()))}:
+                simp_inds = sorted(set(self._simplices.flatten()))
+                npts = len(self.points())
+                error_msg = f"Indices in simplices, {simp_inds}, " +\
+                            f"don't span range(len(self.points())={npts})..."
+                raise ValueError(error_msg)
 
             # convert simplices to star
             if make_star:
@@ -1193,16 +1204,6 @@ class Triangulation:
         if simps.shape[0] == 1:
             # triangulation is trivial
             self._is_valid = True
-            return self._is_valid
-
-        # Check if the indices are in a sensible range (i.e., [0,npts-1])
-        if set(simps.flatten()) != {*range(len(self.points()))}:
-            self._is_valid = False
-            return self._is_valid
-
-        # Check if the dimensions of the simplices and polytope match up
-        if simps.shape[1] != self.dim()+1:
-            self._is_valid = False
             return self._is_valid
 
         # If the triangulation is presumably regular, then we can check if
