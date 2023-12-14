@@ -1195,6 +1195,11 @@ class Triangulation:
             self._is_valid = True
             return self._is_valid
 
+        # Check if the indices are in a sensible range (i.e., [0,npts-1])
+        if set(simps.flatten()) != {*range(len(self.points()))}:
+            self._is_valid = False
+            return self._is_valid
+
         # Check if the dimensions of the simplices and polytope match up
         if simps.shape[1] != self.dim()+1:
             self._is_valid = False
