@@ -2956,16 +2956,19 @@ class Polytope:
         """
         if points is not None:
             pts_ind = tuple(set(points))
+
+            # check bounds
             if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
                 raise ValueError("An index is out of the allowed range.")
-        elif include_points_interior_to_facets is None:
-            pts_ind = (tuple(self.points_not_interior_to_facets(as_indices=True))
-                        if self.is_reflexive()
-                        else tuple(self.points(as_indices=True)))
         else:
-            pts_ind = (tuple(self.points(as_indices=True))
-                        if include_points_interior_to_facets
-                        else tuple(self.points_not_interior_to_facets(as_indices=True)))
+            if include_points_interior_to_facets is None:
+                include_points_interior_to_facets = self.is_reflexive()
+
+            if include_points_interior_to_facets:
+                pts_ind = tuple(self.points(as_indices=True))
+            else:
+                pts_ind = tuple(self.points_not_interior_to_facets(as_indices=True))
+
         pts_ind = tuple(sorted(pts_ind))
         return pts_ind
 
@@ -3043,19 +3046,53 @@ class Polytope:
         # ZZ^4
         ```
         """
-        pts_ind = self._triang_pt_inds(include_points_interior_to_facets, points)
+        # set include_points_interior_to_facets
+        if include_points_interior_to_facets is None:
+            use_pts_in_facets = self.is_reflexive()
+        else:
+            use_pts_in_facets = include_points_interior_to_facets
+
+        # get indices of relevant points
+        pts_ind = self._triang_pt_inds(use_pts_in_facets, points)
+
+        # if simplices are provided, check if they span the relevant points
+        if simplices is not None:
+            simp_ind = tuple(sorted({i for simp in simplices for i in simp}))
+
+            # index mismatch... Raise error
+            if simp_ind != pts_ind:
+                error_msg = f"Simplices spanned {simp_ind}, which differs " +\
+                            f"from indices of relevant points, {pts_ind}. " +\
+                             "Check include_points_interior_to_facets... it "+\
+                            f"was set to {include_points_interior_to_facets}"
+
+                if include_points_interior_to_facets is None:
+                    error_msg += f" and then to {use_pts_in_facets} b/c " +\
+                                  "the polytope is " +\
+                                  ("" if self.is_reflexive() else "not ") +\
+                                  "reflexive."
+                raise ValueError(error_msg)
+
+        # get relevant points
         triang_pts = self.points()[list(pts_ind)]
+
+        # if heights are provided for all points, trim them
         if (heights is not None) and (len(heights) == len(self.points())):
             triang_heights = np.array(heights)[list(pts_ind)]
         else:
             triang_heights = heights
+
+        # set make_star
         if make_star is None:
             if heights is None and simplices is None:
                 make_star = self.is_reflexive()
             else:
                 make_star = False
+
         if not self.is_reflexive() and (0,)*self._dim not in [tuple(pt) for pt in triang_pts]:
             make_star = False
+
+        # return triangulation
         return Triangulation(triang_pts, poly=self, heights=triang_heights,
                              make_star=make_star, simplices=simplices,
                              check_input_simplices=check_input_simplices,
