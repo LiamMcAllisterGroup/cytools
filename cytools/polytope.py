@@ -3048,7 +3048,7 @@ class Polytope:
         """
         # set include_points_interior_to_facets
         if include_points_interior_to_facets is None:
-            use_pts_in_facets = self.is_reflexive()
+            use_pts_in_facets = not self.is_reflexive()
         else:
             use_pts_in_facets = include_points_interior_to_facets
 
