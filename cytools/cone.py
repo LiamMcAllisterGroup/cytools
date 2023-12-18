@@ -762,7 +762,7 @@ class Cone:
 
     def tip_of_stretched_cone(self, c, backend=None, check=True,
                               constraint_error_tol=5e-2, max_iter=10**6,
-                              verbose=False):
+                              mute_hints=False, verbose=False):
         """
         **Description:**
         Finds the tip of the stretched cone. The stretched cone is defined as
@@ -795,11 +795,14 @@ class Cone:
             `constraint_error_tol`.
         - `constraint_error_tol` *(float, optional, default=1e-2)*: Error
             tolerance for the linear constraints.
-        - 'max_iter' *(int, optional, default=10**6)*: The maximum number of
+        - `max_iter` *(int, optional, default=10**6)*: The maximum number of
             iterations allowed for the non-GLOP backends. If this function is
             returning None, then increasing this parameter (maximum
             permissible value: 2**31-1) might resolve the issue. For
             backend=="glop", this does nothing.
+        - `mute_hints`: Whether to mute hints about odd backend behavior.
+        - `verbose` *(boolean, optional)*: Whether to print extra diagnostic
+            information (True) or not (False).
 
         **Returns:**
         *(numpy.ndarray)* The vector specifying the location of the tip. If it
@@ -858,25 +861,26 @@ class Cone:
 
         # parse solution
         if solution is None:
-            print("Calculated 'solution' was None...", end=' ')
-            print("some potential reasons why:")
+            if not mute_hints:
+                print("Calculated 'solution' was None...", end=' ')
+                print("some potential reasons why:")
 
-            # max_iter
-            if backend != "glop":
-                print(f"-) maybe max_iter={max_iter} was too low?")
+                # max_iter
+                if backend != "glop":
+                    print(f"-) maybe max_iter={max_iter} was too low?")
 
-            # bad solver
-            if (self.ambient_dim()>=25) and (backend!="mosek"):
-                print(f"-) given the high dimension, {self.ambient_dim()}", end=' ')
-                print(f"and backend={backend}, this could be a numerical", end=' ')
-                print( "issue. Try Mosek...")
+                # bad solver
+                if (self.ambient_dim()>=25) and (backend!="mosek"):
+                    print(f"-) given the high dimension, {self.ambient_dim()}", end=' ')
+                    print(f"and backend={backend}, this could be a numerical", end=' ')
+                    print( "issue. Try Mosek...")
 
-            # scaling
-            print(f"-) if the cone is narrow, try decreasing c from {c}", end=' ')
-            print("(you can then scale up the tip to hit the desired stretching...)")
+                # scaling
+                print(f"-) if the cone is narrow, try decreasing c from {c}", end=' ')
+                print("(you can then scale up the tip to hit the desired stretching...)")
 
 
-            print("For more info, re-run with verbose=True")
+                print("For more info, re-run with verbose=True")
             return
         if check:
             res = max(G.dot(solution)) + c
