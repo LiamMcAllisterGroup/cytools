@@ -1445,8 +1445,7 @@ class CalabiYau:
             self.intersection_numbers() # The variable is set while computing intersection numbers
         return self._is_smooth
 
-    def toric_mori_cone(self, in_basis=False, include_origin=True,
-                          from_intersection_numbers=False):
+    def toric_mori_cone(self, in_basis=False, include_origin=True):
         """
         **Description:**
         Returns the Mori cone inferred from toric geometry.
@@ -1458,10 +1457,6 @@ class CalabiYau:
         - `include_origin` *(bool, optional, default=True)*: Includes the
             origin of the polytope in the computation, which corresponds to the
             canonical divisor.
-        - `from_intersection_numbers` *(bool, optional, default=False)*:
-            Compute the rays of the Mori cone using the intersection numbers of
-            the variety. This can be faster if they are already computed. The
-            set of rays may be different, but they define the same cone.
 
         **Returns:**
         *(Cone)* The Mori cone inferred from toric geometry.
