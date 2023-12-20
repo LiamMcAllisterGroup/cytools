@@ -255,11 +255,11 @@ class Triangulation:
                 simp_inds = set(self._simplices.flatten())
                 if min(simp_inds)<0:
                     error_msg = f"A simplex had index, {min(simp_inds)}, " +\
-                                f"out of range [0,{len(self.points())-1}"
+                                f"out of range [0,{len(self.points())-1}]"
                     raise ValueError(error_msg)
                 elif max(simp_inds)>=len(self.points()):
                     error_msg = f"A simplex had index, {max(simp_inds)}, " +\
-                                f"out of range [0,{len(self.points())-1}"
+                                f"out of range [0,{len(self.points())-1}]"
                     raise ValueError(error_msg)
 
                 # Check if the indices are in a sensible range
