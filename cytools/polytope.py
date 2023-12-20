@@ -1046,6 +1046,10 @@ class Polytope:
         if self._pts_dict is None:
             self._points_saturated()
 
+        # check for empty input
+        if len(points)==0:
+            return np.asarray([],dtype=int)
+
         # map single-point input into list case
         single_pt = (len(np.array(points).shape) == 1)
         if single_pt:
@@ -1378,7 +1382,7 @@ class Polytope:
     boundary_pts = boundary_points
 
     def points_interior_to_facets(self,
-                                        as_indices: bool = False) -> np.ndarray:
+                                    as_indices: bool = False) -> np.ndarray:
         """
         **Description:**
         Returns the lattice points interior to facets.
