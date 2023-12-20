@@ -250,13 +250,27 @@ class Triangulation:
                             f"doesn't match polytope dimension, {self._dim}..."
                 raise ValueError(error_msg)
 
-            # Check if the indices are in a sensible range (i.e., [0,npts-1])
-            if set(self._simplices.flatten()) != {*range(len(self.points()))}:
-                simp_inds = sorted(set(self._simplices.flatten()))
-                npts = len(self.points())
-                error_msg = f"Indices in simplices, {simp_inds}, " +\
-                            f"don't span range(len(self.points())={npts})..."
-                raise ValueError(error_msg)
+            if check_input_simplices:
+                # only basic checks here
+                simp_inds = set(self._simplices.flatten())
+                if min(simp_inds)<0:
+                    error_msg = f"A simplex had index, {min(simp_inds)}, " +\
+                                f"out of range [0,{len(self.points())-1}"
+                    raise ValueError(error_msg)
+                elif max(simp_inds)>=len(self.points()):
+                    error_msg = f"A simplex had index, {max(simp_inds)}, " +\
+                                f"out of range [0,{len(self.points())-1}"
+                    raise ValueError(error_msg)
+
+                # Check if the indices are in a sensible range
+                # (i.e., [0,npts-1])
+                # (this check is only sensical for fine triangulations)
+                #if set(self._simplices.flatten()) != {*range(len(self.points()))}:
+                #    simp_inds = sorted(set(self._simplices.flatten()))
+                #    npts = len(self.points())
+                #    error_msg = f"Indices in simplices, {simp_inds}, " +\
+                #                f"don't span range(len(self.points())={npts})..."
+                #    raise ValueError(error_msg)
 
             # convert simplices to star
             if make_star:
