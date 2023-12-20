@@ -920,7 +920,8 @@ class Cone:
                                                                     "cones.")
         return self.dual().find_interior_point(backend=backend, integral=True)
 
-    def find_interior_point(self, c=1, integral=False, backend=None, check=True, verbose=False):
+    def find_interior_point(self, c=1, integral=False, backend=None,
+                            check=True, mute_hints=False, verbose=False):
         """
         **Description:**
         Finds a point in the strict interior of the cone. If no point is found
@@ -930,12 +931,12 @@ class Cone:
         - `c` *(float, optional, default=1)*: A real positive number specifying
             the stretching of the cone (i.e. the minimum distance to the
             defining hyperplanes).
+        - `integral` *(bool, optional, default=False)*: A flag that specifies
+            whether the point should have integral coordinates.
         - `backend` *(str, optional, default=None)*: String that specifies the
             optimizer to use. Options are "glop", "scip", "cpsat", "mosek",
             "osqp", and "cvxopt". If it is not specified then "glop" is used by
             default. For $d\geq50$ it uses "mosek" if it is activated.
-        - `integral` *(bool, optional, default=False)*: A flag that specifies
-            whether the point should have integral coordinates.
 
         **Returns:**
         *(numpy.ndarray)* A point in the strict interior of the cone. If no
@@ -1078,7 +1079,7 @@ class Cone:
                 warnings.warn("Solver returned status "
                                             f"{solver.StatusName(status)}.")
         else:
-            solution = self.tip_of_stretched_cone(c, backend=backend, verbose=verbose)
+            solution = self.tip_of_stretched_cone(c, backend=backend, mute_hints=mute_hints, verbose=verbose)
             if solution is None:
                 return None
 
