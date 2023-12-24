@@ -762,7 +762,7 @@ class Cone:
 
     def tip_of_stretched_cone(self, c, backend=None, check=True,
                               constraint_error_tol=5e-2, max_iter=10**6,
-                              mute_hints=False, verbose=False):
+                              show_hints=True, verbose=False):
         """
         **Description:**
         Finds the tip of the stretched cone. The stretched cone is defined as
@@ -800,7 +800,7 @@ class Cone:
             returning None, then increasing this parameter (maximum
             permissible value: 2**31-1) might resolve the issue. For
             backend=="glop", this does nothing.
-        - `mute_hints`: Whether to mute hints about odd backend behavior.
+        - `show_hints`: Whether to show hints about odd backend behavior.
         - `verbose` *(boolean, optional)*: Whether to print extra diagnostic
             information (True) or not (False).
 
@@ -861,7 +861,7 @@ class Cone:
 
         # parse solution
         if solution is None:
-            if not mute_hints:
+            if show_hints:
                 print("Calculated 'solution' was None...", end=' ')
                 print("some potential reasons why:")
 
@@ -921,7 +921,7 @@ class Cone:
         return self.dual().find_interior_point(backend=backend, integral=True)
 
     def find_interior_point(self, c=1, integral=False, backend=None,
-                            check=True, mute_hints=False, verbose=False):
+                            check=True, show_hints=False, verbose=False):
         """
         **Description:**
         Finds a point in the strict interior of the cone. If no point is found
@@ -937,6 +937,7 @@ class Cone:
             optimizer to use. Options are "glop", "scip", "cpsat", "mosek",
             "osqp", and "cvxopt". If it is not specified then "glop" is used by
             default. For $d\geq50$ it uses "mosek" if it is activated.
+        - `show_hints`: Whether to show hints about odd backend behavior.
 
         **Returns:**
         *(numpy.ndarray)* A point in the strict interior of the cone. If no
@@ -1079,7 +1080,7 @@ class Cone:
                 warnings.warn("Solver returned status "
                                             f"{solver.StatusName(status)}.")
         else:
-            solution = self.tip_of_stretched_cone(c, backend=backend, mute_hints=mute_hints, verbose=verbose)
+            solution = self.tip_of_stretched_cone(c, backend=backend, show_hints=show_hints, verbose=verbose)
             if solution is None:
                 return None
 
@@ -1389,7 +1390,7 @@ class Cone:
             self._is_solid = cone.affine_dimension() == self._ambient_dim
         else:
             # Otherwise we check this by trying to find an interior point
-            interior_point = self.find_interior_point(backend=backend)
+            interior_point = self.find_interior_point(show_hints=False, backend=backend)
             self._is_solid = interior_point is not None
         
         return self._is_solid
