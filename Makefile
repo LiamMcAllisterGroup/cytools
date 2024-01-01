@@ -44,7 +44,7 @@ build:
 	else \
 		notify-send "CYTools" "The CYTools image has started building. We'll notify you once it's done :)" || echo ""; \
 	fi
-	sudo docker pull debian:bullseye
+	sudo docker pull python:3.11-bullseye
 	sudo docker build --no-cache --force-rm -t cytools:uid-$(USERID) --build-arg USERNAME=cytools\
 	     --build-arg USERID=$(USERID) --build-arg ARCH=$(arch) --build-arg AARCH=$(aarch)\
 			 --build-arg VIRTUAL_ENV=/home/cytools/cytools-venv/ --build-arg ALLOW_ROOT_ARG=" "\
@@ -69,7 +69,7 @@ build-fast:
 	else \
 		notify-send "CYTools" "The CYTools image has started building. We'll notify you once it's done :)" || echo ""; \
 	fi
-	sudo docker pull debian:bullseye
+	sudo docker pull python:3.11-bullseye
 	sudo docker build -t cytools:uid-$(USERID) --build-arg USERNAME=cytools\
 	     --build-arg USERID=$(USERID) --build-arg ARCH=$(arch) --build-arg AARCH=$(aarch)\
 			 --build-arg VIRTUAL_ENV=/home/cytools/cytools-venv/ --build-arg ALLOW_ROOT_ARG=" "\
@@ -151,7 +151,7 @@ build-with-root-user:
 	@ echo "Deleting old CYTools image..."
 	sudo docker rmi cytools:root | echo "Old CYTools image does not exist or cannot be deleted"
 	@ echo "Building CYTools image for root user..."
-	sudo docker pull debian:bullseye
+	sudo docker pull python:3.11-bullseye
 	sudo docker build -t cytools:root --build-arg USERNAME=root\
 	     --build-arg USERID=0 --build-arg ARCH=$(arch) --build-arg AARCH=$(aarch)\
 			 --build-arg VIRTUAL_ENV=/opt/cytools/cytools-venv/ --build-arg ALLOW_ROOT_ARG="--allow-root"\

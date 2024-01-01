@@ -1,5 +1,5 @@
 # Start from Debian Bullseye
-FROM debian:bullseye
+FROM python:3.11-bullseye
 
 # Define build arguments
 ARG USERNAME
@@ -19,8 +19,8 @@ RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get -y install tzdata
 RUN apt-get -yqq install autoconf build-essential nano cmake libgmp-dev libcgal-dev\
                          libmpc-dev libsuitesparse-dev libppl-dev libeigen3-dev\
                          libc6 libcdd0d libgmp10 libgmpxx4ldbl libstdc++6 palp\
-                         libflint-dev libflint-arb-dev python3 python3-pip curl\
-                         wget libmath-libm-perl python3-venv normaliz libqsopt-ex2
+                         libflint-dev libflint-arb-dev curl\
+                         wget libmath-libm-perl normaliz libqsopt-ex2
 
 # Make a soft link to the arb library and flint headers so that python-flint can install
 RUN ln -s /usr/lib/${AARCH}-linux-gnu/libflint-arb.so /usr/lib/${AARCH}-linux-gnu/libarb.so
@@ -69,7 +69,7 @@ RUN if [ "$OPTIONAL_PKGS" = "1" ]; then \
 
 # Fix cvxopt bug
 USER root
-RUN sed -i -e 's/mosek.solsta.near_optimal/ /g' $VIRTUAL_ENV/lib/python3.9/site-packages/cvxopt/coneprog.py
+RUN sed -i -e 's/mosek.solsta.near_optimal/ /g' $VIRTUAL_ENV/lib/python3.11/site-packages/cvxopt/coneprog.py
 
 # Install TOPCOM
 WORKDIR /opt/cytools/external/topcom-mod
