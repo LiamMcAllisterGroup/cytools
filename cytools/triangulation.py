@@ -70,31 +70,28 @@ class Triangulation:
     :::
 
     **Arguments:**
-    - `triang_pts` *(array_like)*: The list of points to be triangulated.
-    - `poly` *(Polytope, optional)*: The ambient polytope of the points to be
-        triangulated. If not specified, it is constructed as the convex hull of
-        the given points.
-    - `heights` *(array_like, optional)*: A list of heights specifying the
-        regular triangulation. When not specified, it will return the Delaunay
-        triangulation when using CGAL, a triangulation obtained from random
-        heights near the Delaunay when using QHull, or the placing
-        triangulation when using TOPCOM. Heights can only be specified when
-        using CGAL or QHull as the backend.
-    - `make_star` *(bool, optional, default=False)*: Indicates whether to turn
-        the triangulation into a star triangulation by deleting internal lines
-        and connecting all points to the origin, or equivalently, by decreasing
-        the height of the origin until it is much lower than all other heights.
-    - `simplices` *(array_like, optional)*: A list of simplices specifying the
-        triangulation. Each simplex is a list of point indices. This is useful
-        when a triangulation was previously computed and it needs to be used
-        again. Note that the ordering of the points needs to be consistent.
-    - `check_input_simplices` *(bool, optional, default=True)*: Flag that
-        specifies whether to check if the input simplices define a valid
-        triangulation.
-    - `backend` *(str, optional, default="cgal")*: Specifies the backend used
-        to compute the triangulation.  The available options are "qhull",
-        "cgal", and "topcom". CGAL is the default one as it is very fast and
-        robust.
+    - `triang_pts`: The list of points to be triangulated.
+    - `poly`: The ambient polytope of the points to be triangulated. If not
+        specified, it's constructed as the convex hull of the given points.
+    - `heights`: The heights specifying the regular triangulation. When not
+        specified, construct based off of the backend:
+            - (CGAL) Delaunay triangulation,
+            - (QHULL) triangulation from random heights near Delaunay, or
+            - (TOPCOM) placing triangulation.
+        Heights can only be specified when using CGAL or QHull as the backend.
+    - `make_star`: Whether to turn the triangulation into a star triangulation
+        by deleting internal lines and connecting all points to the origin, or
+        equivalently, by decreasing the height of the origin until it is much
+        lower than all other heights.
+    - `simplices`: Array-like of simplices specifying the triangulation. Each
+        simplex is a list of point indices. This is useful when a triangulation
+        was previously computed and it needs to be used again. Note that the
+        ordering of the points needs to be consistent.
+    - `check_input_simplices`: Whether to check if the input simplices define a
+        valid triangulation.
+    - `backend`: The backend used to compute the triangulation. Options are
+        "qhull", "cgal", and "topcom". CGAL is the default as it is very
+        fast and robust.
 
     **Example:**
     We construct a triangulation of a polytope. Since this class is not
@@ -121,7 +118,9 @@ class Triangulation:
                  make_star: bool = False,
                  simplices: ArrayLike = None,
                  check_input_simplices: bool = True,
-                 backend: str = "cgal") -> None:
+                 check_heights: bool = True,
+                 backend: str = "cgal",
+                 verbosity: int = 1) -> None:
         """
         **Description:**
         Initializes a `Triangulation` object.
@@ -147,6 +146,8 @@ class Triangulation:
             again. Note that the ordering of the points needs to be consistent.
         - `check_input_simplices`: Whether to check if the input simplices
             define a valid triangulation.
+        - `check_heights`: Whether to check if the input/default heights define
+            a valid/unique triangulation.
         - `backend`: The backend used to compute the triangulation. Options are
             "qhull", "cgal", and "topcom". CGAL is the default as it is very
             fast and robust.
@@ -174,15 +175,16 @@ class Triangulation:
 
         # Grab inputs
         # -----------
-        backends = ["qhull", "cgal", "topcom", None]
-        if backend not in backends:
+        # backend
+        backend = backend.lower()
+        if backend not in ['qhull', 'cgal', 'topcom', None]:
             raise ValueError(f"Invalid backend, {backend}. "+\
-                             f"Options: {backends}.")
-
+                             f"Options: {['qhull', 'cgal', 'topcom', None]}.")
         self._backend = backend
 
-        # points
-        tmp_triang_pts = {tuple(pt) for pt in np.array(triang_pts, dtype=int)}
+        # points (keep as temporary object for now)
+        tmp_triang_pts = np.array(triang_pts, dtype=int)        # cast to int
+        tmp_triang_pts = {tuple(pt) for pt in tmp_triang_pts}   # keep unique
         if len(tmp_triang_pts) == 0:
             raise ValueError("Need at least 1 point.")
         
@@ -203,21 +205,21 @@ class Triangulation:
         # Parse points
         # ------------
         # reorder to match Polytope class ordering
-        poly_pts = [tuple(pt) for pt in self._poly.points()]
-
         # (the check `if pt in tmp_triang_pts` is relevant if the
         #  triangulation is non-fine. Then there could be pt in poly_pts but
         #  not in tmp_triang_pts)
+        poly_pts = [tuple(pt) for pt in self._poly.points()]
         self._triang_pts = [pt for pt in poly_pts if pt in tmp_triang_pts]
         self._triang_pts = np.asarray(self._triang_pts)
 
         triang_pts_tup = [tuple(pt) for pt in self._triang_pts]
 
-        # if point config isn't full-dim, find better representation of points
-        self._ambient_dim  = len(next(iter(tmp_triang_pts)))
+        # grab dimension info
+        self._ambient_dim  = len( next(iter(tmp_triang_pts)) )
         self._dim = np.linalg.matrix_rank([pt+(1,) for pt in tmp_triang_pts])-1
         self._is_fulldim = (self._dim == self._ambient_dim)
 
+        # if point config isn't full-dim, find better representation of points
         if self._is_fulldim:
             self._optimal_pts = self._triang_pts
         else:
@@ -228,12 +230,15 @@ class Triangulation:
         # find index of origin
         try:
             self._origin_index = triang_pts_tup.index((0,)*self._poly.dim())
-        except:
+        except ValueError:
+            # origin wasn't in triang_pts_tup
             self._origin_index = -1
             make_star = False
 
-        # maps pt->triang_idx and triang_idx->poly_idx
+        # map pt->triang_idx
         self._pts_dict = {pt:i for i, pt in enumerate(triang_pts_tup)}
+
+        # map triang_idx->poly_idx
         self._pts_triang_to_poly = {i:self._poly.points_to_indices(pt) for\
                                         i, pt in enumerate(self._triang_pts)}
 
@@ -247,11 +252,14 @@ class Triangulation:
             if self._simplices.shape[1] != self._dim+1:
                 simp_dim = self._simplices.shape[1]-1
                 error_msg = f"Dimension of simplices, ({simp_dim}), " +\
-                            f"doesn't match polytope dimension, {self._dim}..."
+                             "doesn't match polytope dimension (+1), "+\
+                            f"{self._dim} (+1)..."
                 raise ValueError(error_msg)
 
             if check_input_simplices:
-                # only basic checks here
+                # only basic checks here. Most are in self.is_valid()
+                # (do some checks here b/c otherwise self.is_valid() hits
+                # errors)
                 simp_inds = set(self._simplices.flatten())
                 if min(simp_inds)<0:
                     error_msg = f"A simplex had index, {min(simp_inds)}, " +\
@@ -280,7 +288,7 @@ class Triangulation:
             if check_input_simplices and not self.is_valid():
                 raise ValueError("Simplices don't form valid triangulation.")
         else:
-            # construct simplices from heights
+            # self._simplices==None... construct simplices from heights
 
             self._is_regular = (None if (backend == "qhull") else True)
             self._is_valid = True
@@ -340,6 +348,26 @@ class Triangulation:
                 # convert to star
                 if make_star:
                     _to_star(self)
+
+            # check that the heights uniquely define this triangulation
+            if check_heights:
+                # check if we're on a wall of our secondary cone
+                # in this case, the triangulation may not be uniquely defined
+                eps = 1e-6
+                hyp_dist = np.matmul(self.secondary_cone().hyperplanes(),\
+                                     self._heights)
+                not_interior = hyp_dist<eps
+
+                if not_interior.any():
+                    if verbosity>0:
+                        print(f"Triangulation: height-vector is within {eps}"+\
+                               " of a wall of the secondary cone... heights "+\
+                               "likely don't define a unique triangulation " +\
+                               "(common for Delaunay)...")
+                        print("Will recalculate more appropriate heights " +\
+                              "for the (semi-arbitrarily chosen) " +\
+                              "triangulation...")
+                    self._heights = None
 
         # Make sure that the simplices are sorted
         self._simplices = sorted([sorted(s) for s in self._simplices])
