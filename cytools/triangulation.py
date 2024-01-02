@@ -423,8 +423,8 @@ class Triangulation:
         A string describing the triangulation.
 
         **Example:**
-        This function can be used to convert the triangulation to a string or to
-        print information about the triangulation.
+        This function can be used to convert the triangulation to a string or
+        to print information about the triangulation.
         ```python {3,4}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
         t = p.triangulate()
