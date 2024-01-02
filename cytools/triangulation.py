@@ -293,7 +293,8 @@ class Triangulation:
             self._is_regular = (None if (backend == "qhull") else True)
             self._is_valid = True
 
-            if heights is None:
+            default_triang = heights is None
+            if default_triang:
                 # construct the heights
                 if backend is None:
                     raise ValueError("Simplices must be specified when working"
@@ -359,7 +360,9 @@ class Triangulation:
                 not_interior = hyp_dist<eps
 
                 if not_interior.any():
-                    if verbosity>0:
+                    self._heights = None
+
+                    if (verbosity>1) or (verbosity==1 and not default_triang):
                         print(f"Triangulation: height-vector is within {eps}"+\
                                " of a wall of the secondary cone... heights "+\
                                "likely don't define a unique triangulation " +\
@@ -367,7 +370,6 @@ class Triangulation:
                         print("Will recalculate more appropriate heights " +\
                               "for the (semi-arbitrarily chosen) " +\
                               "triangulation...")
-                    self._heights = None
 
         # Make sure that the simplices are sorted
         self._simplices = sorted([sorted(s) for s in self._simplices])
@@ -776,15 +778,16 @@ class Triangulation:
         """
         **Description:**
         Returns all of the triangulations of the polytope that can be obtained
-        by applying one or more polytope automorphisms to the triangulation. It
-        also has the option of restricting the simplices to faces of the
+        by applying one or more polytope automorphisms to the triangulation.
+
+        It also has the option of restricting the simplices to faces of the
         polytope of a particular dimension or codimension. This restriction is
         useful for checking CY equivalences from different triangulations.
 
         :::note
         Depending on how the point configuration was constructed, it may be the
-        case that the automorphism group of the point configuration is larger or
-        smaller than the one from the polytope. This function only uses the
+        case that the automorphism group of the point configuration is larger
+        or smaller than the one from the polytope. This function only uses the
         subset of automorphisms of the polytope that are also automorphisms of
         the point configuration.
         :::
@@ -847,8 +850,8 @@ class Triangulation:
         simps = self.simplices(on_faces_dim=faces_dim)
         autos = self.polytope().automorphisms(as_dictionary=True)
 
-        # We see which automorphisms of the polytope are also automorphisms of
-        # the point configuration. Call them 'good'
+        # collect automorphisms of polytope that are also automorphisms of
+        # the triangulation point configuration
         pts = [tuple(pt) for pt in self.polytope().points()]
         good_autos = []
         for i in range(len(autos)):
@@ -862,11 +865,10 @@ class Triangulation:
                 good_autos.append(i)
 
         # Finally, we
-        #   1) reindex the good automorphisms so that the indices match the
+        #   1) reindex the 'good' automorphisms so that the indices match the
         #      indices of the point configuration and
         #   2) remove the bad automorphisms to make sure they are not used (we
-        #      just replace them with None so that the indexing still matches
-        #      the list of automorphisms of the polytope).
+        #      just replace them with None
         for i in range(len(autos)):
             # check if it is a 'bad' automorphism
             if i not in good_autos:
@@ -889,6 +891,7 @@ class Triangulation:
             for j,a in enumerate(autos):
                 # check if it is a 'bad' automorphism
                 if j not in good_autos:
+                    print(a)
                     continue
 
                 # it's a 'good' automorphism
