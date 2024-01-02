@@ -889,9 +889,8 @@ class Triangulation:
         if automorphism is None:
             orbit = set()
             for j,a in enumerate(autos):
-                # check if it is a 'bad' automorphism
-                if j not in good_autos:
-                    print(a)
+                # skip if it is a 'bad' automorphism
+                if a is None:
                     continue
 
                 # it's a 'good' automorphism
