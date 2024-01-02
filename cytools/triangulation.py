@@ -622,10 +622,13 @@ class Triangulation:
         """
         if len(np.array(points).shape) == 1:
             if np.array(points).shape[0] == 0:
+                # 0 points
                 return np.zeros(0, dtype=int)
+            else:
+                # 1 point
+                return self._pts_dict[tuple(points)]
 
-            return self._pts_dict[tuple(points)]
-
+        # >1 points
         return np.array([self._pts_dict[tuple(pt)] for pt in points])
 
     def points_to_poly_indices(self, points: ArrayLike)->"np.ndarray|int":
@@ -661,8 +664,10 @@ class Triangulation:
         ```
         """
         if len(np.array(points).shape) == 0:
+            # <= 1 point
             return self._pts_triang_to_poly[points]
 
+        # >1 points
         return np.array([self._pts_triang_to_poly[pt] for pt in points])
     # aliases
     triangulation_to_polytope_indices = points_to_poly_indices
