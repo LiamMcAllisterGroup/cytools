@@ -315,7 +315,10 @@ class Triangulation:
                 if len(heights) != len(triang_pts):
                     raise ValueError("Need same number of heights as points.")
 
-            self._heights = np.asarray(heights)
+            if heights is None:
+                self._heights = None
+            else:
+                self._heights = np.asarray(heights)
 
             # Now run the appropriate triangulation function
             if backend == "qhull":
@@ -351,7 +354,7 @@ class Triangulation:
                     _to_star(self)
 
             # check that the heights uniquely define this triangulation
-            if check_heights:
+            if check_heights and (self._heights is not None):
                 # check if we're on a wall of our secondary cone
                 # in this case, the triangulation may not be uniquely defined
                 eps = 1e-6
@@ -856,6 +859,12 @@ class Triangulation:
         good_autos = []
         for i in range(len(autos)):
             for j,k in autos[i].items():
+                # user-input 'allowed' automorphims
+                if (orbit_id[0] is not None) and (i>0)\
+                                             and (i not in orbit_id[0]):
+                    # non-trivial automorphism that isn't specifically allowed
+                    break
+
                 # check if pts[j] and pts[k] are either both in the
                 # triangulation, or both not in it
                 if (pts[j] in self._pts_dict) != (pts[k] in self._pts_dict):
@@ -886,27 +895,17 @@ class Triangulation:
         apply_auto = lambda auto: tuple(sorted(\
                     tuple(sorted( [auto[i] for i in s] )) for s in simps ))
 
-        if automorphism is None:
-            orbit = set()
-            for j,a in enumerate(autos):
-                # skip if it is a 'bad' automorphism
-                if a is None:
-                    continue
+        # apply the automorphisms
+        orbit = set()
+        for j,a in enumerate(autos):
+            # skip if it is a 'bad' automorphism
+            if a is None:   continue
 
-                # it's a 'good' automorphism
-                orbit.add(apply_auto(a))
-        else:
-            if any(i not in range(len(autos)) for i in orbit_id[0]):
-                raise ValueError("Automorphism index is out of range.")
+            # it's a 'good' automorphism
+            orbit.add(apply_auto(a))
 
-            # First apply all the automorphisms in the list to the starting
-            # triangulation
-            orbit = set()
-            for a in [autos[j] for j in (0,)+orbit_id[0] if j in good_autos]:
-                orbit.add(apply_auto(a))
-
-            # Then we keep applying them until we stop getting new
-            # triangulations
+        if automorphism is not None:
+            # keep applying autos until we stop getting new triangulations
             while True:
                 new_triangs = []
 
@@ -2139,7 +2138,8 @@ def random_triangulations_fast_generator(triang_pts: ArrayLike,
                                          only_fine: bool = True,
                                          backend: str = "cgal",
                                          poly: "Polytope" = None,
-                                         seed: int =None) -> "generator[Triangulation]":
+                                         seed: int = None,
+                                         verbosity: int = 0) -> "generator[Triangulation]":
     """
     Constructs pseudorandom regular (optionally fine and star) triangulations
     of a given point set. This is done by picking random heights around the
@@ -2178,6 +2178,7 @@ def random_triangulations_fast_generator(triang_pts: ArrayLike,
     - `poly`: The ambient polytope. It is constructed if not specified.
     - `seed`: A seed for the random number generator. This can be used to
         obtain reproducible results.
+    - `verbosity`: The verbosity level.
 
     **Returns:**
     A generator of [`Triangulation`](./triangulation) objects with the
@@ -2213,8 +2214,12 @@ def random_triangulations_fast_generator(triang_pts: ArrayLike,
     n_retries = 0
     while True:
         if n_retries >= max_retries:
+            if verbosity>0:
+                print("random_triangulations_fast_generator: Hit max_retries... returning")
             return
         if (N is not None) and (len(triang_hashes) >= N):
+            if verbosity>1:
+                print("random_triangulations_fast_generator: Generated enough triangulations... returning")
             return
 
         # generate random heights, make the triangulation
@@ -2380,7 +2385,8 @@ def random_triangulations_fair_generator(triang_pts: ArrayLike,
             for __ in range(max_steps_to_wall):
                 new_pt = in_pt + random_dir*step_size
                 temp_tri = Triangulation(triang_pts, poly=poly, heights=new_pt,
-                                            make_star=False, backend=backend)
+                                            make_star=False, backend=backend,
+                                            verbosity=0)
 
                 # check triang
                 if temp_tri.is_fine():
@@ -2404,7 +2410,8 @@ def random_triangulations_fair_generator(triang_pts: ArrayLike,
         while (fine_tune_ctr<fine_tune_steps) or (not in_pt_found):
             new_pt = (in_pt+out_pt)/2
             temp_tri = Triangulation(triang_pts, poly=poly, heights=new_pt,
-                                            make_star=False, backend=backend)
+                                            make_star=False, backend=backend,
+                                            verbosity=0)
 
             # check triang
             if temp_tri.is_fine():
@@ -2424,7 +2431,8 @@ def random_triangulations_fair_generator(triang_pts: ArrayLike,
         # after enough steps are taken, move on to random flips
         if (step_ctr>initial_walk_steps) and (step_per_tri_ctr>=n_walk):
             flip_seed_tri =Triangulation(triang_pts, poly=poly, heights=new_pt,
-                                        make_star=make_star, backend=backend)
+                                        make_star=make_star, backend=backend,
+                                        verbosity=0)
 
             # take flips
             if n_flip > 0:

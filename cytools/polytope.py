@@ -2983,7 +2983,8 @@ class Polytope:
                     points: ArrayLike = None,
                     simplices: ArrayLike = None,
                     check_input_simplices: bool = True,
-                    backend: str = "cgal") -> Triangulation:
+                    backend: str = "cgal",
+                    verbosity: int = 1) -> Triangulation:
         """
         **Description:**
         Returns a single regular triangulation of the polytope.
@@ -3100,7 +3101,7 @@ class Polytope:
         return Triangulation(triang_pts, poly=self, heights=triang_heights,
                              make_star=make_star, simplices=simplices,
                              check_input_simplices=check_input_simplices,
-                             backend=backend)
+                             backend=backend, verbosity=verbosity)
 
     def random_triangulations_fast(self,
                                    N: int = None,
