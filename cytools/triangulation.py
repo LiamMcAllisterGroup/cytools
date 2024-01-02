@@ -171,7 +171,7 @@ class Triangulation:
         ```
         """
         # initialize hidden attributes
-        self.clear_cache(clear_simplices=False)
+        self.clear_cache()
 
         # Grab inputs
         # -----------
@@ -373,17 +373,13 @@ class Triangulation:
         self._simplices = sorted([sorted(s) for s in self._simplices])
         self._simplices = np.array(self._simplices)
 
-        self._restricted_simplices = [None]*self._simplices.shape[1]
-
-    def clear_cache(self,
-                    recursive: bool = False,
-                    clear_simplices: bool = True) -> None:
+    def clear_cache(self, recursive: bool = False) -> None:
         """
         **Description:**
         Clears the cached results of any previous computation.
 
         **Arguments:**
-        - `recursive` Whether to also clear the cache of the ambient polytope.
+        - `recursive`: Whether to also clear the cache of the ambient polytope.
 
         **Returns:**
         Nothing.
@@ -410,8 +406,7 @@ class Triangulation:
         self._sr_ideal = None
         self._toricvariety = None
 
-        if clear_simplices:
-            self._restricted_simplices = [None]*self._simplices.shape[1]
+        self._restricted_simplices = dict()
 
         if recursive:
             self._poly.clear_cache()
@@ -733,7 +728,7 @@ class Triangulation:
             raise ValueError("Invalid face dimension.")
 
         # restrict simplices to faces
-        if self._restricted_simplices[faces_dim] is None:
+        if faces_dim not in self._restricted_simplices:
             full_simp = [frozenset(s) for s in self._simplices]
 
             # get face information
