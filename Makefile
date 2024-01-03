@@ -1,91 +1,55 @@
 SHELL := /bin/bash
 
-UNAME=$(shell uname)
-ifneq (,$(findstring Darwin,$(UNAME)))
-	machine=Mac
-else ifneq (,$(findstring Linux,$(UNAME)))
-	machine=Linux
-else
-	machine=UNKNOWN
-endif
+# Get machine type
+uname := $(shell uname)
+machine := $(if $(filter Darwin,$(uname)),Mac,$(if $(filter Linux,$(uname)),Linux,UNKNOWN))
 
-UNAMEM=$(shell uname -m)
-ifneq (,$(findstring arm64,$(UNAMEM)))
-	arch=arm64
-	aarch=aarch64
-else
-	arch=amd64
-	aarch=x86_64
-endif
+# Get machine architecture
+uname_m := $(shell uname -m)
+arch := $(if $(filter arm64,$(uname_m)),arm64,amd64)
+aarch := $(if $(filter arm64,$(uname_m)),aarch64,x86_64)
 
-USERID=$(shell id -u)
-USERIDN=$(shell id -u -n)
+# Get user information
+userid := $(shell id -u)
+userid_n := $(shell id -u -n)
 
-# argument to install optional packages
-OPTIONAL_PKGS?=0
+# Argument to install optional packages
+optional_pkgs ?= 0
 
-.PHONY: all build install uninstall run test build-with-root-user
+.PHONY: all build install uninstall run test build-with-root-user check-not-root-user get-sudo-credentials
 
 all:
-	@ echo "Please specify an instruction (e.g make install)"
+	@echo "Please specify an instruction (e.g make install)."
 
-build:
-	@ if [ "$(USERID)" = "0" ]; then \
-		echo "Please run make as a non-root user and without sudo!"; \
-		false; \
-	fi
-	@ echo "Building a Docker image requires sudo privileges. Please enter your password:"
-	@ sudo echo ""
+build: check-not-root-user get-sudo-credentials
 	@ echo "Deleting old CYTools image..."
-	sudo docker rmi cytools:uid-$(USERID) || echo "Old CYTools image does not exist or cannot be deleted"
-	@ echo "Building CYTools image for user $(USERIDN)..."
-	@ if [ "$(machine)" = "Mac" ]; then \
-		osascript -e "display notification \"The CYTools image has started building. We'll notify you once it's done :)\" with title \"CYTools\"" || echo ""; \
-	else \
-		notify-send "CYTools" "The CYTools image has started building. We'll notify you once it's done :)" || echo ""; \
-	fi
+	sudo docker rmi cytools:uid-$(userid) || echo "Old CYTools image does not exist or cannot be deleted"
+	@echo "Building CYTools image for user $(userid_n)..."
 	sudo docker pull python:3.11-bullseye
-	sudo docker build --no-cache --force-rm -t cytools:uid-$(USERID) --build-arg USERNAME=cytools\
-	     --build-arg USERID=$(USERID) --build-arg ARCH=$(arch) --build-arg AARCH=$(aarch)\
-			 --build-arg VIRTUAL_ENV=/home/cytools/cytools-venv/ --build-arg ALLOW_ROOT_ARG=" "\
-			 --build-arg OPTIONAL_PKGS=$(OPTIONAL_PKGS) --build-arg PORT_ARG=$$(( $(USERID) + 2875 )) .
-	@ echo "Successfully built CYTools image for user $(USERIDN)"
-	@ if [ "$(machine)" = "Mac" ]; then \
-		osascript -e "display notification \"The CYTools image was successfully built!\" with title \"CYTools\"" || echo ""; \
-	else \
-		notify-send "CYTools" "The CYTools image was successfully built!" || echo ""; \
-	fi
+	sudo docker build --no-cache --force-rm -t cytools:uid-$(userid) \
+		--build-arg USERNAME=cytools --build-arg USERID=$(userid) \
+		--build-arg ARCH=$(arch) --build-arg AARCH=$(aarch) \
+		--build-arg VIRTUAL_ENV=/home/cytools/cytools-venv/ \
+		--build-arg ALLOW_ROOT_ARG=" " \
+		--build-arg OPTIONAL_PKGS=$(optional_pkgs) \
+		--build-arg PORT_ARG=$$(( $(userid) + 2875 )) .
 
-build-fast:
-	@ if [ "$(USERID)" = "0" ]; then \
-		echo "Please run make as a non-root user and without sudo!"; \
-		false; \
-	fi
-	@ echo "Building a Docker image requires sudo privileges. Please enter your password:"
-	@ sudo echo ""
-	@ echo "Building CYTools image for user $(USERIDN)..."
-	@ if [ "$(machine)" = "Mac" ]; then \
-		osascript -e "display notification \"The CYTools image has started building. We'll notify you once it's done :)\" with title \"CYTools\"" || echo ""; \
-	else \
-		notify-send "CYTools" "The CYTools image has started building. We'll notify you once it's done :)" || echo ""; \
-	fi
+	@echo "Successfully built CYTools image for user $(userid_n)"
+
+build-fast: check-not-root-user get-sudo-credentials
+	@echo "Building CYTools image for user $(userid_n)..."
 	sudo docker pull python:3.11-bullseye
-	sudo docker build -t cytools:uid-$(USERID) --build-arg USERNAME=cytools\
-	     --build-arg USERID=$(USERID) --build-arg ARCH=$(arch) --build-arg AARCH=$(aarch)\
-			 --build-arg VIRTUAL_ENV=/home/cytools/cytools-venv/ --build-arg ALLOW_ROOT_ARG=" "\
-			 --build-arg OPTIONAL_PKGS=$(OPTIONAL_PKGS) --build-arg PORT_ARG=$$(( $(USERID) + 2875 )) .
-	@ echo "Successfully built CYTools image for user $(USERIDN)"
-	@ if [ "$(machine)" = "Mac" ]; then \
-		osascript -e "display notification \"The CYTools image was successfully built!\" with title \"CYTools\"" || echo ""; \
-	else \
-		notify-send "CYTools" "The CYTools image was successfully built!" || echo ""; \
-	fi
+	sudo docker build -t cytools:uid-$(userid) \
+		--build-arg USERNAME=cytools --build-arg USERID=$(userid) \
+		--build-arg ARCH=$(arch) --build-arg AARCH=$(aarch) \
+		--build-arg VIRTUAL_ENV=/home/cytools/cytools-venv/ \
+		--build-arg ALLOW_ROOT_ARG=" " \
+		--build-arg OPTIONAL_PKGS=$(optional_pkgs) \
+		--build-arg PORT_ARG=$$(( $(userid) + 2875 )) .
+
+	@echo "Successfully built CYTools image for user $(userid_n)"
 
 install: build
-	@if [ "$(USERID)" = "0" ]; then \
-		echo "Please run make as a non-root user and without sudo!"; \
-		false; \
-	fi
 	@echo "Copying launcher script and associated files..."
 	@if [ "$(machine)" = "Mac" ]; then \
 		sudo cp scripts/macos/cytools /usr/local/bin/cytools; \
@@ -104,13 +68,10 @@ install: build
 		sudo cp scripts/linux/cytools.png /usr/share/pixmaps/cytools.png; \
 		sudo cp scripts/linux/cytools.desktop /usr/share/applications/cytools.desktop; \
 	fi
+
 	@echo "Installation finished successfully!"
 
-uninstall:
-	@if [ "$(USERID)" = "0" ]; then \
-		echo "Please run make as a non-root user and without sudo!"; \
-		false; \
-	fi
+uninstall: check-not-root-user
 	@if [ "$(machine)" = "Mac" ]; then \
 		sudo rm -rf /Applications/CYTools.app/; \
 		sudo rm -f /usr/local/bin/cytools; \
@@ -119,25 +80,17 @@ uninstall:
 		sudo rm -f /usr/share/pixmaps/cytools.png; \
 		sudo rm -f /usr/share/applications/cytools.desktop; \
 	fi
-	sudo docker rmi cytools:uid-$(USERID)
+	sudo docker rmi cytools:uid-$(userid) || true
 
-run:
-	@if [ "$(USERID)" = "0" ]; then \
-		echo "Please run make as a non-root user and without sudo!"; \
-		false; \
-	fi
+run: check-not-root-user
 	@if [ "$(machine)" = "Mac" ]; then \
 		bash scripts/macos/cytools; \
 	else \
 		bash scripts/linux/cytools; \
 	fi
 
-test:
-	@if [ "$(USERID)" = "0" ]; then \
-		echo "Please run make as a non-root user and without sudo!"; \
-		false; \
-	fi
-	sudo docker run --rm -it cytools:uid-$(USERID) bash -c "cd /opt/cytools/unittests/; bash /opt/cytools/unittests/run_tests.sh"
+test: check-not-root-user
+	sudo docker run --rm -it cytools:uid-$(userid) bash -c "cd /opt/cytools/unittests/; bash /opt/cytools/unittests/run_tests.sh"
 
 build-with-root-user:
 	@ echo " "
@@ -148,12 +101,28 @@ build-with-root-user:
 	@ echo "********************************************************************"
 	@ echo " "
 	@ read -p "Press enter to continue or ctrl+c to cancel"
-	@ echo "Deleting old CYTools image..."
-	sudo docker rmi cytools:root | echo "Old CYTools image does not exist or cannot be deleted"
-	@ echo "Building CYTools image for root user..."
+	@echo "Deleting old CYTools image..."
+	sudo docker rmi cytools:root || echo "Old CYTools image does not exist or cannot be deleted"
+	@echo "Building CYTools image for root user..."
 	sudo docker pull python:3.11-bullseye
-	sudo docker build -t cytools:root --build-arg USERNAME=root\
-	     --build-arg USERID=0 --build-arg ARCH=$(arch) --build-arg AARCH=$(aarch)\
-			 --build-arg VIRTUAL_ENV=/opt/cytools/cytools-venv/ --build-arg ALLOW_ROOT_ARG="--allow-root"\
-			 --build-arg OPTIONAL_PKGS=$(OPTIONAL_PKGS) --build-arg PORT_ARG=2875 .
-	@ echo "Successfully built CYTools image with root user."
+	sudo docker build -t cytools:root \
+		--build-arg USERNAME=root --build-arg USERID=0 \
+		--build-arg ARCH=$(arch) --build-arg AARCH=$(aarch) \
+		--build-arg VIRTUAL_ENV=/opt/cytools/cytools-venv/ \
+		--build-arg ALLOW_ROOT_ARG="--allow-root" \
+		--build-arg OPTIONAL_PKGS=$(optional_pkgs) \
+		--build-arg PORT_ARG=2875 .
+
+	@echo "Successfully built CYTools image with root user."
+
+check-not-root-user:
+	@if [ "$(userid)" = "0" ]; then \
+		echo "Please run make as a non-root user and without sudo!"; \
+		exit 1; \
+	fi
+
+get-sudo-credentials:
+	@ echo "Building a Docker image requires sudo privileges. Please enter your password:"
+	@ sudo echo ""
+
+.PHONY: all build install uninstall run test build-with-root-user check-not-root-user get-sudo-credentials
