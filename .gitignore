@@ -25,3 +25,5 @@ dist
 private.py
 examples
 
+# build logs
+build.log

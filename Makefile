@@ -1,57 +1,83 @@
 SHELL := /bin/bash
 
-# Get machine type
-uname := $(shell uname)
-machine := $(if $(filter Darwin,$(uname)),Mac,$(if $(filter Linux,$(uname)),Linux,UNKNOWN))
+# Determine the operating system of the host machine
+UNAME := $(shell uname)
+MACHINE := $(if $(filter Darwin,$(UNAME)),Mac,$(if $(filter Linux,$(UNAME)),Linux,UNKNOWN))
 
-# Get machine architecture
-uname_m := $(shell uname -m)
-arch := $(if $(filter arm64,$(uname_m)),arm64,amd64)
-aarch := $(if $(filter arm64,$(uname_m)),aarch64,x86_64)
+# Determine the machine architecture
+UNAME_M := $(shell uname -m)
+ARCH := $(if $(filter arm64,$(UNAME_M)),arm64,amd64)
+AARCH := $(if $(filter arm64,$(UNAME_M)),aarch64,x86_64)
 
-# Get user information
-userid := $(shell id -u)
-userid_n := $(shell id -u -n)
+# Get the current user's ID and name
+USERID := $(shell id -u)
+USERID_N := $(shell id -u -n)
 
-# Argument to install optional packages
-optional_pkgs ?= 0
+# Option to install additional packages, set to 0/false by default
+OPTIONAL_PKGS ?= 0
 
-.PHONY: all build install uninstall run test build-with-root-user check-not-root-user get-sudo-credentials
+# Default build type is set to 'build'
+BUILD_TYPE := build
 
+# Define phony targets to prevent conflicts with files of the same name
+.PHONY: all build-common build build-fast build-with-root-user install uninstall run test check-not-root-user get-sudo-credentials
+
+# Default target; displays a message to the user
 all:
 	@echo "Please specify an instruction (e.g make install)."
 
+# Common build steps for non-root build types
+build-common:
+	@echo "Building CYTools image for user $(USERID_N)..."
+	@{ sudo docker pull python:3.11-bullseye && \
+	   sudo docker build $(DOCKER_BUILD_OPTS) -t cytools:uid-$(USERID) \
+		--build-arg USERNAME=cytools --build-arg USERID=$(USERID) \
+		--build-arg ARCH=$(ARCH) --build-arg AARCH=$(AARCH) \
+		--build-arg VIRTUAL_ENV=/home/cytools/cytools-venv/ \
+		--build-arg ALLOW_ROOT_ARG=" " \
+		--build-arg OPTIONAL_PKGS=$(OPTIONAL_PKGS) \
+		--build-arg PORT_ARG=$$(( $(USERID) + 2875 )) .; } > build.log
+	@echo "Successfully built CYTools image for user $(USERID_N)"
+
+# Standard build process
+build: DOCKER_BUILD_OPTS=--no-cache --force-rm
 build: check-not-root-user get-sudo-credentials
-	@ echo "Deleting old CYTools image..."
-	sudo docker rmi cytools:uid-$(userid) || echo "Old CYTools image does not exist or cannot be deleted"
-	@echo "Building CYTools image for user $(userid_n)..."
-	sudo docker pull python:3.11-bullseye
-	sudo docker build --no-cache --force-rm -t cytools:uid-$(userid) \
-		--build-arg USERNAME=cytools --build-arg USERID=$(userid) \
-		--build-arg ARCH=$(arch) --build-arg AARCH=$(aarch) \
-		--build-arg VIRTUAL_ENV=/home/cytools/cytools-venv/ \
-		--build-arg ALLOW_ROOT_ARG=" " \
-		--build-arg OPTIONAL_PKGS=$(optional_pkgs) \
-		--build-arg PORT_ARG=$$(( $(userid) + 2875 )) .
+	@echo -n "Deleting old CYTools image... "
+	@sudo docker rmi cytools:uid-$(USERID) > /dev/null 2>&1 && echo "done!" || echo "old CYTools image does not exist or cannot be deleted..."
+	@$(MAKE) -C . --no-print-directory build-common DOCKER_BUILD_OPTS='$(DOCKER_BUILD_OPTS)'
 
-	@echo "Successfully built CYTools image for user $(userid_n)"
-
+# Fast build process, allows cached info for quicker build
+build-fast: DOCKER_BUILD_OPTS=
 build-fast: check-not-root-user get-sudo-credentials
-	@echo "Building CYTools image for user $(userid_n)..."
-	sudo docker pull python:3.11-bullseye
-	sudo docker build -t cytools:uid-$(userid) \
-		--build-arg USERNAME=cytools --build-arg USERID=$(userid) \
-		--build-arg ARCH=$(arch) --build-arg AARCH=$(aarch) \
-		--build-arg VIRTUAL_ENV=/home/cytools/cytools-venv/ \
-		--build-arg ALLOW_ROOT_ARG=" " \
-		--build-arg OPTIONAL_PKGS=$(optional_pkgs) \
-		--build-arg PORT_ARG=$$(( $(userid) + 2875 )) .
+	@$(MAKE) -C . --no-print-directory build-common DOCKER_BUILD_OPTS='$(DOCKER_BUILD_OPTS)'
 
-	@echo "Successfully built CYTools image for user $(userid_n)"
+# Build process when running as root user
+build-with-root-user:
+	@ echo " "
+	@ echo "********************************************************************"
+	@ echo "Warning: You are building an image with a root user. Any user with "
+	@ echo "access to this image will be able to have root access to the host "
+	@ echo "computer as well. Please proceed with care.";
+	@ echo "********************************************************************"
+	@ echo " "
+	@ read -p "Press enter to continue or ctrl+c to cancel"
+	@echo "Deleting old CYTools image..."
+	@sudo docker rmi cytools:root > /dev/null 2>&1 && echo "done!" || echo "old CYTools image does not exist or cannot be deleted..."
+	@echo "Building CYTools image for root user..."
+	@{ sudo docker pull python:3.11-bullseye && \
+	   sudo docker build -t cytools:root \
+		--build-arg USERNAME=root --build-arg USERID=0 \
+		--build-arg ARCH=$(ARCH) --build-arg AARCH=$(AARCH) \
+		--build-arg VIRTUAL_ENV=/opt/cytools/cytools-venv/ \
+		--build-arg ALLOW_ROOT_ARG="--allow-root" \
+		--build-arg OPTIONAL_PKGS=$(OPTIONAL_PKGS) \
+		--build-arg PORT_ARG=2875 .; } > build.log
+	@echo "Successfully built CYTools image with root user."
 
-install: build
+# Installation process
+install: $(BUILD_TYPE)
 	@echo "Copying launcher script and associated files..."
-	@if [ "$(machine)" = "Mac" ]; then \
+	@if [ "$(MACHINE)" = "Mac" ]; then \
 		sudo cp scripts/macos/cytools /usr/local/bin/cytools; \
 		sudo chmod +x /usr/local/bin/cytools; \
 		sudo mkdir -p /Applications/CYTools.app/Contents/MacOS/; \
@@ -71,8 +97,9 @@ install: build
 
 	@echo "Installation finished successfully!"
 
+# Uninstallation process
 uninstall: check-not-root-user
-	@if [ "$(machine)" = "Mac" ]; then \
+	@if [ "$(MACHINE)" = "Mac" ]; then \
 		sudo rm -rf /Applications/CYTools.app/; \
 		sudo rm -f /usr/local/bin/cytools; \
 	else \
@@ -80,49 +107,20 @@ uninstall: check-not-root-user
 		sudo rm -f /usr/share/pixmaps/cytools.png; \
 		sudo rm -f /usr/share/applications/cytools.desktop; \
 	fi
-	sudo docker rmi cytools:uid-$(userid) || true
+	sudo docker rmi cytools:uid-$(USERID) || true
 
-run: check-not-root-user
-	@if [ "$(machine)" = "Mac" ]; then \
-		bash scripts/macos/cytools; \
-	else \
-		bash scripts/linux/cytools; \
-	fi
-
+# Test the application
 test: check-not-root-user
-	sudo docker run --rm -it cytools:uid-$(userid) bash -c "cd /opt/cytools/unittests/; bash /opt/cytools/unittests/run_tests.sh"
+	sudo docker run --rm -it cytools:uid-$(USERID) bash -c "cd /opt/cytools/unittests/; bash /opt/cytools/unittests/run_tests.sh"
 
-build-with-root-user:
-	@ echo " "
-	@ echo "********************************************************************"
-	@ echo "Warning: You are building an image with a root user. Any user with "
-	@ echo "access to this image will be able to have root access to the host "
-	@ echo "computer as well. Please proceed with care.";
-	@ echo "********************************************************************"
-	@ echo " "
-	@ read -p "Press enter to continue or ctrl+c to cancel"
-	@echo "Deleting old CYTools image..."
-	sudo docker rmi cytools:root || echo "Old CYTools image does not exist or cannot be deleted"
-	@echo "Building CYTools image for root user..."
-	sudo docker pull python:3.11-bullseye
-	sudo docker build -t cytools:root \
-		--build-arg USERNAME=root --build-arg USERID=0 \
-		--build-arg ARCH=$(arch) --build-arg AARCH=$(aarch) \
-		--build-arg VIRTUAL_ENV=/opt/cytools/cytools-venv/ \
-		--build-arg ALLOW_ROOT_ARG="--allow-root" \
-		--build-arg OPTIONAL_PKGS=$(optional_pkgs) \
-		--build-arg PORT_ARG=2875 .
-
-	@echo "Successfully built CYTools image with root user."
-
+# Check if the current user is root and exit if true
 check-not-root-user:
-	@if [ "$(userid)" = "0" ]; then \
+	@if [ "$(USERID)" = "0" ]; then \
 		echo "Please run make as a non-root user and without sudo!"; \
 		exit 1; \
 	fi
 
+# Request sudo credentials from the user
 get-sudo-credentials:
-	@ echo "Building a Docker image requires sudo privileges. Please enter your password:"
-	@ sudo echo ""
-
-.PHONY: all build install uninstall run test build-with-root-user check-not-root-user get-sudo-credentials
+	@echo -n "Building a Docker image requires sudo privileges. "
+	@read -s -p "Please enter your password to continue: " && echo && sudo -v
