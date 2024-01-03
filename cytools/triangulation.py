@@ -1715,9 +1715,18 @@ class Triangulation:
                     if self.is_star():
                         full_v[star_origin] = v[-1]
 
-            self._secondary_cone[args_id] = Cone(hyperplanes=list(null_vecs),\
+            # define the secondary cone
+            null_vecs = list(null_vecs)
+
+            if len(null_vecs):
+                hyps = null_vecs
+            else:
+                hyps = np.zeros((0,len(pts_ext)), dtype=int)
+
+            self._secondary_cone[args_id] = Cone(hyperplanes=hyps,\
                                                  check=False)
 
+            # return
             return self._secondary_cone[args_id]
 
         # Otherwise we compute this cone by using differences of GKZ vectors.

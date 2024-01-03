@@ -183,62 +183,63 @@ class Cone:
         # basic data-checking
         if len(data.shape) != 2:
             raise ValueError(f"Input {data_name} must be a 2D matrix.")
-        elif data.shape[0]<1:
-            raise ValueError(f"At least one {data_name} is required.")
         elif data.shape[1]<1:
             raise ValueError("Zero-dimensional cones are not supported.")
+        #elif data.shape[0]<1:
+        #    raise ValueError(f"At least one {data_name} is required.")
 
         self._ambient_dim = data.shape[1]
 
-        # check size of coordinates
-        if np.min(data)<=-100000000000000:
-            warnings.warn(f"Extremely small coordinate, {np.min(data)}, "
+        if len(data):
+            # check size of coordinates
+            if np.min(data)<=-100000000000000:
+                warnings.warn(f"Extremely small coordinate, {np.min(data)}, "
                     f"found in {data_name}. Computations may be incorrect.")
-        if np.max(data)>=+100000000000000:
-            warnings.warn(f"Extremely large coordinate, {np.max(data)}, "
+            if np.max(data)>=+100000000000000:
+                warnings.warn(f"Extremely large coordinate, {np.max(data)}, "
                     f"found in {data_name}. Computations may be incorrect.")
 
-        # parse input according to data type
-        t = type(data[0,0])
-        if t in (fmpz, fmpq):
-            if not config._exp_features_enabled:
-                raise Exception("Arbitrary precision data types only have "
-                            "experimental support, so experimental features "
-                            "must be enabled in the configuration.")
-            if t == fmpz:
-                data = array_fmpz_to_int(data)
-            else:
-                data = array_fmpq_to_float(data)
-        elif t == np.int8:
-            # rest of calculations assume ints are 64-bit? convert...
-            data = data.astype(np.int64)
-            t = np.int64
-        elif t not in (np.int64, np.float64):
-            raise NotImplementedError("Unsupported data type.")
+            # parse input according to data type
+            t = type(data[0,0])
+            if t in (fmpz, fmpq):
+                if not config._exp_features_enabled:
+                    raise Exception("Arbitrary precision data types only have "
+                                "experimental support, so experimental "
+                                "features must be enabled in configuration.")
+                if t == fmpz:
+                    data = array_fmpz_to_int(data)
+                else:
+                    data = array_fmpq_to_float(data)
+            elif t == np.int8:
+                # rest of calculations assume ints are 64-bit? convert...
+                data = data.astype(np.int64)
+                t = np.int64
+            elif t not in (np.int64, np.float64):
+                raise NotImplementedError("Unsupported data type.")
 
-        # reduce by GCD
-        if check or t in (fmpz, np.float64):
-            # get GCDs
-            if t == np.int64:
-                gcds = np.gcd.reduce(data, axis=1)
-            else:
-                gcds = np.asarray([gcd_list(v) for v in data])
+            # reduce by GCD
+            if check or t in (fmpz, np.float64):
+                # get GCDs
+                if t == np.int64:
+                    gcds = np.gcd.reduce(data, axis=1)
+                else:
+                    gcds = np.asarray([gcd_list(v) for v in data])
 
-            # reduce by them
-            if t == np.int64:
-                mask = (gcds > 0)
-                if False in mask:
-                    warnings.warn("0 gcd found (row of zeros)... "
-                                  "Skipping it!")
-                data = data[mask]//gcds[mask].reshape(-1,1).astype(int)
+                # reduce by them
+                if t == np.int64:
+                    mask = (gcds > 0)
+                    if False in mask:
+                        warnings.warn("0 gcd found (row of zeros)... "
+                                      "Skipping it!")
+                    data = data[mask]//gcds[mask].reshape(-1,1).astype(int)
+                else:
+                    mask = (gcds >= 1e-5)
+                    if False in mask:
+                        warnings.warn("Extremely small gcd found... "
+                                      "Computations may be incorrect!")
+                    data = (data[mask]/gcds[mask].reshape(-1,1)).astype(int)
             else:
-                mask = (gcds >= 1e-5)
-                if False in mask:
-                    warnings.warn("Extremely small gcd found... "
-                                  "Computations may be incorrect!")
-                data = (data[mask]/gcds[mask].reshape(-1,1)).astype(int)
-        else:
-            data = data.astype(int)
+                data = data.astype(int)
 
         # put data in correct variable
         if self._rays_were_input:
@@ -587,6 +588,10 @@ class Cone:
             if cstr.is_equality():
                 hyperplanes.append(tuple(-int(c) for c in cstr.coefficients()))
         self._hyperplanes = np.array(hyperplanes, dtype=int)
+
+        if len(self._hyperplanes)==0:
+            self._hyperplanes = np.zeros((0,self._ambient_dim), dtype=int)
+
         return np.array(self._hyperplanes)
 
     def contains(self, pt: "list-like", strict: bool = False) -> bool:
