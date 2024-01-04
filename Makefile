@@ -26,6 +26,18 @@ BUILD_TYPE := build
 all:
 	@echo "Please specify an instruction (e.g make install)."
 
+# Check if the current user is root and exit if true
+check-not-root-user:
+	@if [ "$(USERID)" = "0" ]; then \
+		echo "Please run make as a non-root user and without sudo!"; \
+		exit 1; \
+	fi
+
+# Request sudo credentials from the user
+get-sudo-credentials:
+	@echo -n "Building a Docker image requires sudo privileges. "
+	@read -s -p "Please enter your password to continue: " && echo && sudo -v
+
 # Common build steps for non-root build types
 build-common:
 	@echo "Building CYTools image for user $(USERID_N)..."
@@ -112,15 +124,3 @@ uninstall: check-not-root-user
 # Test the application
 test: check-not-root-user
 	sudo docker run --rm -it cytools:uid-$(USERID) bash -c "cd /opt/cytools/unittests/; bash /opt/cytools/unittests/run_tests.sh"
-
-# Check if the current user is root and exit if true
-check-not-root-user:
-	@if [ "$(USERID)" = "0" ]; then \
-		echo "Please run make as a non-root user and without sudo!"; \
-		exit 1; \
-	fi
-
-# Request sudo credentials from the user
-get-sudo-credentials:
-	@echo -n "Building a Docker image requires sudo privileges. "
-	@read -s -p "Please enter your password to continue: " && echo && sudo -v
