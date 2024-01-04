@@ -35,8 +35,10 @@ check-not-root-user:
 
 # Request sudo credentials from the user
 get-sudo-credentials:
-	@echo -n "Building a Docker image requires sudo privileges. "
-	@read -s -p "Please enter your password to continue: " && echo && sudo -v
+	@sudo -n true 2>/dev/null || { \
+        echo -n "Building a Docker image requires sudo privileges. "; \
+        read -s -p "Please enter your password to continue: " && echo && sudo -v; \
+    }
 
 # Common build steps for non-root build types
 build-common:
@@ -106,7 +108,6 @@ install: $(BUILD_TYPE)
 		sudo cp scripts/linux/cytools.png /usr/share/pixmaps/cytools.png; \
 		sudo cp scripts/linux/cytools.desktop /usr/share/applications/cytools.desktop; \
 	fi
-
 	@echo "Installation finished successfully!"
 
 # Uninstallation process
@@ -119,7 +120,7 @@ uninstall: check-not-root-user
 		sudo rm -f /usr/share/pixmaps/cytools.png; \
 		sudo rm -f /usr/share/applications/cytools.desktop; \
 	fi
-	sudo docker rmi cytools:uid-$(USERID) || true
+	@sudo docker rmi cytools:uid-$(USERID) || true
 
 # Test the application
 test: check-not-root-user
