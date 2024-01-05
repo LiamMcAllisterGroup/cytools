@@ -1019,21 +1019,14 @@ class Triangulation:
         # check if we already know the heights...
         if self._heights is not None:
             heights_out = self._heights.copy()
-            t = heights_out.dtype
 
-            if t==int:
-                if integral:    return heights_out
-                else:           return heights_out.astype(float)
-            elif t==float:
-                if integral:
-                    warnings.warn("There may be rounding bugs... better to" +\
+            # convert to integral heights, if desired
+            if integral and (heights_out.dtype==float):
+                warnings.warn("Potential rounding errors... better to" +\
                                             "solve LP problem in this case...")
-                    heights_out /= gcd_list(heights_out)
-                    return np.rint(heights_out).astype(int)
-                else:
-                    return heights_out
-            else:
-                raise TypeError(f"Heights have unexpected type: {t}")
+                heights_out = np.rint(heights_out/gcd_list(heights_out))
+
+            return heights_out.astype(int if integral else float)
 
         # need to calculate the heights
         Npts = self._triang_pts.shape[0]
