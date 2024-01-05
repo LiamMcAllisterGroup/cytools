@@ -159,10 +159,9 @@ class Polytope:
         # Internally it uses the optimal form for computations, but it outputs
         # everything in the same form as the input
 
-        in_pts_shape = self._input_pts.shape
         # translate if not full-dim
         if self.is_solid():
-            self._transl_vector = np.zeros(in_pts_shape[1], dtype=int)
+            self._transl_vector = np.zeros(self._input_pts.shape[1], dtype=int)
         else:
             self._transl_vector = self._input_pts[0]
         tmp_pts = self._input_pts - self._transl_vector
@@ -471,7 +470,7 @@ class Polytope:
         ```
         """
         if not isinstance(other, Polytope):
-            return NotImplemented
+            raise ValueError
 
         return self.minkowski_sum(other)
 
