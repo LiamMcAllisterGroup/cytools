@@ -1238,6 +1238,8 @@ class Polytope:
                     break
 
         # The points and saturated inequalities have now been computed.
+
+        # undo LLL transformation, to get points in original basis
         if self._ambient_dim > self._dim:
             points_mat = np.empty((len(points), self._ambient_dim), dtype=int)
             points_mat[:,self._dim_diff:] = points
@@ -1245,13 +1247,21 @@ class Polytope:
         else:
             points_mat = np.array(points, dtype=int)
         points_mat = self._transf_mat_inv.dot(points_mat.T).T
+
         if self._ambient_dim > self._dim:
             for i in range(points_mat.shape[0]):
                 points_mat[i,:] += self._transl_vector
 
-        # Organize the points as explained above.
-        self._points_sat = sorted([(tuple(points_mat[i]), facet_ind[i]) for i in range(len(points))],
-                                  key=(lambda p: (-(len(p[1]) if len(p[1]) > 0 else 1e9),) + tuple(p[0])))
+        # prep the outputs (tuple of points and sets of saturated ineqs)
+        self._points_sat = [(tuple(points_mat[i]), facet_ind[i]) for i in\
+                                                            range(len(points))]
+
+        # organize points in decreasing number of saturated inequalities
+        self._points_sat = sorted(self._points_sat,
+                    key=(lambda p: (-(len(p[1]) if len(p[1]) > 0 else 1e9),) +\
+                                                                tuple(p[0]) ))
+
+        # dictionary from point to index in self._points_sat
         self._pts_dict = {ii[0]:i for i,ii in enumerate(self._points_sat)}
 
         return copy.copy(self._points_sat)
@@ -1333,11 +1343,17 @@ class Polytope:
         # array([[ 0,  0,  0,  0]])
         ```
         """
+        # calculate the answer if not known
         if self._interior_points is None:
-            self._interior_points = np.array([pt[0] for pt in self._points_saturated() if len(pt[1]) == 0])
+            self._interior_points = np.array([pt[0] for pt in\
+                                                    self._points_saturated()\
+                                                        if len(pt[1]) == 0])
+
+        # return
         if as_indices:
             return self.points_to_indices(self._interior_points)
-        return np.array(self._interior_points)
+        else:
+            return np.array(self._interior_points)
     # aliases
     interior_pts = interior_points
 
@@ -1372,11 +1388,16 @@ class Polytope:
         #        [ 0,  0,  0, -1]])
         ```
         """
+        # calculate the answer if not known
         if self._boundary_points is None:
-            self._boundary_points = np.array([pt[0] for pt in self._points_saturated() if len(pt[1]) > 0])
+            self._boundary_points = np.array([pt[0] for pt in\
+                                                    self._points_saturated()\
+                                                        if len(pt[1]) > 0])
+        # return
         if as_indices:
             return self.points_to_indices(self._boundary_points)
-        return np.array(self._boundary_points)
+        else:
+            return np.array(self._boundary_points)
     # aliases
     boundary_pts = boundary_points
 
@@ -1407,11 +1428,17 @@ class Polytope:
         #        [ 0,  0,  0, -1]])
         ```
         """
+        # calculate the answer if not known
         if self._points_interior_to_facets is None:
-            self._points_interior_to_facets = np.array([pt[0] for pt in self._points_saturated() if len(pt[1]) == 1])
+            self._points_interior_to_facets = np.array([pt[0] for pt in\
+                                                    self._points_saturated()\
+                                                        if len(pt[1]) == 1])
+        
+        # return
         if as_indices:
             return self.points_to_indices(self._points_interior_to_facets)
-        return np.array(self._points_interior_to_facets)
+        else:
+            return np.array(self._points_interior_to_facets)
     # aliases
     pts_interior_to_facets = points_interior_to_facets
 
@@ -1446,12 +1473,18 @@ class Polytope:
         #        [ 0,  0, -2, -3]])
         ```
         """
+        # calculate the answer if not known
         if self._boundary_points_not_interior_to_facets is None:
-            self._boundary_points_not_interior_to_facets = np.array([pt[0] for pt in self._points_saturated() if len(pt[1]) > 1])
+            self._boundary_points_not_interior_to_facets = np.array([pt[0] for\
+                                                pt in self._points_saturated()\
+                                                        if len(pt[1]) > 1])
+
+        # return
         if as_indices:
             return self.points_to_indices(
                                 self._boundary_points_not_interior_to_facets)
-        return np.array(self._boundary_points_not_interior_to_facets)
+        else:
+            return np.array(self._boundary_points_not_interior_to_facets)
     # aliases
     boundary_pts_not_interior_to_facets = boundary_points_not_interior_to_facets
 
@@ -1486,13 +1519,156 @@ class Polytope:
         #        [ 0,  0, -2, -3]])
         ```
         """
+        # calculate the answer if not known
         if self._points_not_interior_to_facets is None:
-            self._points_not_interior_to_facets = np.array([pt[0] for pt in self._points_saturated() if len(pt[1]) != 1])
+            self._points_not_interior_to_facets = np.array([pt[0] for\
+                                                pt in self._points_saturated()\
+                                                        if len(pt[1]) != 1])
+        
+        # return
         if as_indices:
             return self.points_to_indices(self._points_not_interior_to_facets)
-        return np.array(self._points_not_interior_to_facets)
+        else:
+            return np.array(self._points_not_interior_to_facets)
     # aliases
     pts_not_interior_to_facets = points_not_interior_to_facets
+
+    def faces(self, d: int = None) -> tuple:
+        """
+        **Description:**
+        Computes the faces of a polytope.
+
+        :::note
+        When the polytope is 4-dimensional it calls the slightly more optimized
+        [`_faces4d()`](#_faces4d) function.
+        :::
+
+        **Arguments:**
+        - `d`: Optional parameter that specifies the dimension of the desired
+            faces.
+
+        **Returns:**
+        A tuple of [`PolytopeFace`](./polytopeface) objects of dimension d, if
+        specified. Otherwise, a tuple of tuples of
+        [`PolytopeFace`](./polytopeface) objects organized in ascending
+        dimension.
+
+        **Example:**
+        We show that this function returns a tuple of 2-faces if `d` is set to
+        2. Otherwise, the function returns all faces in tuples organized in
+        ascending dimension. We verify that the first element in the tuple of
+        2-faces is the same as the first element in the corresponding subtuple
+        in the tuple of all faces.
+        ```python {2,3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        faces2d = p.faces(2)
+        allfaces = p.faces()
+        print(faces2d[0]) # Print first face in tuple of 2-faces
+        # A 2-dimensional face of a 4-dimensional polytope in ZZ^4
+        faces2d[0] is allfaces[2][0]
+        # True
+        ```
+        """
+        # input checking
+        if (d is not None) and (d not in range(self._dim + 1)):
+            raise ValueError(f"Polytope does not have faces of dimension {d}")
+
+        # return answer if known
+        if self._faces is not None:
+            return (self._faces[d] if (d is not None) else self._faces)
+
+        # calculate the answer
+        # ====================
+        # see if we can punt the problem
+        # ------------------------------
+        if (self._dual is not None) and (self._dual._faces is not None):
+            # can convert answer from dual-polytope!
+            self._faces = []
+
+            # codim>0 faces in increasing order of dimension
+            for dim_faces in self._dual._faces[::-1][1:]:
+                self._faces.append( tuple(f.dual() for f in dim_faces) )
+            # full-dim face
+            self._faces.append( (PolytopeFace(self, self.vertices(),\
+                                                frozenset(), dim=self._dim),) )
+
+            # cast to tuple
+            self._faces = tuple(self._faces)
+
+        elif self._dim == 4:
+            # can use otpimized method for 4d polytopes
+            self._faces = self._faces4d()
+
+        # return
+        if self._faces is not None:
+            return (self._faces[d] if (d is not None) else self._faces)
+
+        # have to calculate from scratch...
+        # ---------------------------------
+        # get vertices, along with their saturated inequalities
+        vert = [tuple(pt) for pt in self.vertices()]
+        vert_sat = [tuple(pt) for pt in self._points_saturated() if\
+                                                                pt[0] in vert]
+
+        # construct faces in reverse order (decreasing dim)
+        self._faces = []
+
+        # full-dim face
+        self._faces.append( (PolytopeFace(self, vert, frozenset(),\
+                                                            dim=self._dim),) )
+        # if polytope is 0-dimensional, we're done!
+        if self._dim == 0:
+            self._faces = tuple(self._faces)
+            return (self._faces[d] if (d is not None) else self._faces)
+
+        # not done... construct the codim>0 faces
+        #
+        # do so in decreasing order of dimension, by constructing a map,
+        # ineq2pts, from size-dd sets of inequalities (indicating faces of
+        # dim-dd) to the points saturating them
+        #
+        # then, to get dim-(dd-1) faces, just take intersections of dim-dd ones
+        for dd in range(self._dim-1, 0, -1):
+            # map from inequalities to points saturating them
+            ineq2pts = defaultdict(set)
+
+            if dd == self._dim-1:
+                # facets... for f-th facet, just collect all points saturating
+                # said inequality
+                for pt in vert_sat:
+                    for f in pt[1]:
+                        ineq2pts[frozenset([f])].add(pt)
+            else:
+                # codim>1 faces... take intersections of higher-dim faces
+                for f1, f2 in itertools.combinations(ineq2pts_prev.values()):
+                    # check if their intersection has the right dimension
+                    inter = f1 & f2
+                    dim = np.linalg.matrix_rank([pt[0]+(1,) for pt in inter])-1
+                    if dim != dd:
+                        continue
+
+                    # it does! grab saturated inequalities
+                    ineqs = frozenset.intersection(*[pt[1] for pt in inter])
+                    ineq2pts[ineqs] = inter
+
+            # save dim-dd faces to self._faces
+            dd_faces = []
+            for f in ineq2pts.keys():
+                tmp_vert = [pt[0] for pt in vert_sat if f.issubset(pt[1])]
+                dd_faces.append(PolytopeFace(self, tmp_vert, f, dim=dd))
+
+            self._faces.append(dd_faces)
+
+            # store for next iteration
+            ineq2pts_prev = ineq2pts
+        
+        # Finally add vertices
+        self._faces.append([PolytopeFace(self, [pt[0]], pt[1], dim=0)\
+                                                        for pt in vert_sat])
+
+        # reverse order (to increasing with dimension)
+        self._faces = tuple(tuple(ff) for ff in self._faces[::-1])
+        return (self._faces[d] if d is not None else self._faces)
 
     def _faces4d(self) -> tuple:
         """
@@ -1523,10 +1699,14 @@ class Polytope:
         # A 1-dimensional face of a 4-dimensional polytope in ZZ^4
         ```
         """
+        assert self._dim == 4
+
+        #
         pts_sat = self._points_saturated()
         vert = [tuple(pt) for pt in self.vertices()]
         vert_sat = [tuple(pt) for pt in pts_sat if pt[0] in vert]
         facets = defaultdict(set)
+
         # First create facets
         for pt in vert_sat:
             for f in pt[1]:
@@ -1580,103 +1760,6 @@ class Polytope:
                            tuple(fourface_obj_list))
         return organized_faces
 
-    def faces(self, d: int = None) -> tuple:
-        """
-        **Description:**
-        Computes the faces of a polytope.
-
-        :::note
-        When the polytope is 4-dimensional it calls the slightly more optimized
-        [`_faces4d()`](#_faces4d) function.
-        :::
-
-        **Arguments:**
-        - `d`: Optional parameter that specifies the dimension of the desired
-            faces.
-
-        **Returns:**
-        A tuple of [`PolytopeFace`](./polytopeface) objects of dimension d, if
-        specified. Otherwise, a tuple of tuples of
-        [`PolytopeFace`](./polytopeface) objects organized in ascending
-        dimension.
-
-        **Example:**
-        We show that this function returns a tuple of 2-faces if `d` is set to
-        2. Otherwise, the function returns all faces in tuples organized in
-        ascending dimension. We verify that the first element in the tuple of
-        2-faces is the same as the first element in the corresponding subtuple
-        in the tuple of all faces.
-        ```python {2,3}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        faces2d = p.faces(2)
-        allfaces = p.faces()
-        print(faces2d[0]) # Print first face in tuple of 2-faces
-        # A 2-dimensional face of a 4-dimensional polytope in ZZ^4
-        faces2d[0] is allfaces[2][0]
-        # True
-        ```
-        """
-        if d is not None and d not in range(self._dim + 1):
-            raise ValueError(f"Polytope does not have faces of dimension {d}")
-        if self._faces is not None:
-            return (self._faces[d] if d is not None else self._faces)
-        if self._dual is not None and self._dual._faces is not None:
-            self._faces = (tuple(tuple(f.dual() for f in ff) for ff in self._dual._faces[::-1][1:])
-                           + ((PolytopeFace(self, self.vertices(), frozenset(), dim=self._dim),),))
-            return (self._faces[d] if d is not None else self._faces)
-        if self._dim == 4:
-            self._faces = self._faces4d()
-            return (self._faces[d] if d is not None else self._faces)
-        pts_sat = self._points_saturated()
-        vert = [tuple(pt) for pt in self.vertices()]
-        vert_sat = [tuple(pt) for pt in pts_sat if pt[0] in vert]
-        organized_faces = [] # The list where all face obejcts will be stored
-        # First construct trivial full-dimensional face
-        organized_faces.append([PolytopeFace(self, vert, frozenset(), dim=self._dim)])
-        # If thee polytope is zero-dimensional, finish the computation
-        if self._dim == 0:
-            self._faces = organized_faces
-            return np.array(self._faces[d] if d is not None else [np.array(ff) for ff in self._faces])
-        # Now construct the facets
-        tmp_facets = []
-        for j in range(len(self._input_ineqs)):
-            tmp_vert = [pt[0] for pt in vert_sat if j in pt[1]]
-            tmp_facets.append(PolytopeFace(self, tmp_vert, frozenset([j]), dim=self._dim-1))
-        organized_faces.append(tmp_facets)
-        # Then iteratively construct lower-dimensional faces
-        previous_faces = defaultdict(set)
-        for pt in vert_sat:
-            for f in pt[1]:
-                previous_faces[frozenset([f])].add(pt)
-        previous_faces_list = list(previous_faces.keys())
-        n_previous_faces = len(previous_faces_list)
-        for dd in range(self._dim-2, 0, -1):
-            current_faces = defaultdict(set)
-            for i in range(n_previous_faces):
-                for j in range(i+1, n_previous_faces):
-                    f1 = previous_faces_list[i]
-                    f2 = previous_faces_list[j]
-                    inter = previous_faces[f1] & previous_faces[f2]
-                    # Check if it has the right dimension
-                    if np.linalg.matrix_rank([tuple(pt[0])+(1,) for pt in inter])-1 != dd:
-                        continue
-                    # Find saturated inequalities
-                    f3 = frozenset.intersection(*[pt[1] for pt in inter])
-                    current_faces[f3] = inter
-            # Add current faces to the list, and reset for next loop
-            tmp_faces = []
-            for f in current_faces.keys():
-                tmp_vert = [pt[0] for pt in vert_sat if f.issubset(pt[1])]
-                tmp_faces.append(PolytopeFace(self, tmp_vert, f, dim=dd))
-            organized_faces.append(tmp_faces)
-            previous_faces = current_faces
-            previous_faces_list = list(previous_faces.keys())
-            n_previous_faces = len(previous_faces_list)
-        # Finally add vertices
-        organized_faces.append([PolytopeFace(self, [pt[0]], pt[1], dim=0) for pt in vert_sat])
-        self._faces = tuple(tuple(ff) for ff in organized_faces[::-1])
-        return (self._faces[d] if d is not None else self._faces)
-
     def facets(self) -> tuple[PolytopeFace]:
         """
         **Description:**
@@ -1722,10 +1805,13 @@ class Polytope:
         #        [-1, -1, -1, -1]])
         ```
         """
+        # return the answer if known
         if self._vertices is not None:
             if as_indices:
                 return self.points_to_indices(self._vertices)
             return np.array(self._vertices)
+
+        # calculate the answer
         if self._dim == 0:
             self._vertices = np.array([self._input_pts[0]])
         elif self._backend == "ppl":
