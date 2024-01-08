@@ -669,6 +669,99 @@ class Polytope:
         # return
         return self._is_reflexive
 
+    def is_favorable(self, lattice: str) -> bool:
+        """
+        **Description:**
+        Returns True if the Calabi-Yau hypersurface arising from this polytope
+        is favorable (i.e. all Kahler forms descend from Kahler forms on the
+        ambient toric variety) and False otherwise.
+
+        :::note
+        Only reflexive polytopes of dimension 2-5 are currently supported.
+        :::
+
+        **Arguments:**
+        - `lattice`: Specifies the lattice on which the polytope is
+            defined. Options are "N" and "M".
+
+        The truth value of the polytope being favorable.
+
+        **Example:**
+        We construct two reflexive polytopes and find whether they are favorable
+        when considered in the N lattice.
+        ```python {3,5}
+        p1 = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        p2 = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-3,-6]])
+        p1.is_favorable(lattice="N")
+        # True
+        p2.is_favorable(lattice="N")
+        # False
+        ```
+        """
+        if lattice=="N":
+            if self._is_favorable is None:
+                self._is_favorable = (len(self.points_not_interior_to_facets())
+                                      == self.h11(lattice="N")+self.dim()+1)
+            return self._is_favorable
+        elif lattice=='M':
+            return self.dual().is_favorable(lattice="N")
+
+        raise ValueError("Lattice must be specified. "
+                        "Options are: \"N\" or \"M\".")
+
+    def dual_polytope(self) -> "Polytope":
+        """
+        **Description:**
+        Returns the dual polytope (also called polar polytope).  Only lattice
+        polytopes are currently supported, so only duals of reflexive polytopes
+        can be computed.
+
+        :::note
+        If $L$ is a lattice polytope, the dual polytope of $L$ is
+        $ConvexHull(\{y\in \mathbb{Z}^n | x\cdot y \geq -1 \text{ for all } x \in L\})$.
+        A lattice polytope is reflexive if its dual is also a lattice polytope.
+        :::
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        The dual polytope.
+
+        **Aliases:**
+        `dual`, `polar_polytope`, `polar`.
+
+        **Example:**
+        We construct a reflexive polytope and find its dual. We then verify that
+        the dual of the dual is the original polytope.
+        ```python {2,5}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        p_dual = p.dual_polytope()
+        print(p_dual)
+        # A 4-dimensional reflexive lattice polytope in ZZ^4
+        p_dual_dual = p_dual.dual_polytope()
+        p_dual_dual is p
+        # True
+        ```
+        """
+        # return answer if known
+        if self._dual is not None:
+            return self._dual
+
+        # calculate the answer
+        if not self.is_reflexive():
+            raise NotImplementedError("Duality of non-reflexive polytopes "+\
+                                                        "is not supported.")
+
+        pts = np.array(self._input_ineqs[:,:-1])
+        self._dual = Polytope(pts, backend=self._backend)
+        self._dual._dual = self
+        return self._dual
+    # aliases
+    dual = dual_polytope
+    polar_polytope = dual_polytope
+    polar = dual_polytope
+
     def hpq(self, p: int, q: int, lattice: str) -> int:
         """
         **Description:**
@@ -1901,93 +1994,6 @@ class Polytope:
         else:
             return np.array(self._vertices)
 
-    def dual_polytope(self) -> "Polytope":
-        """
-        **Description:**
-        Returns the dual polytope (also called polar polytope).  Only lattice
-        polytopes are currently supported, so only duals of reflexive polytopes
-        can be computed.
-
-        :::note
-        If $L$ is a lattice polytope, the dual polytope of $L$ is
-        $ConvexHull(\{y\in \mathbb{Z}^n | x\cdot y \geq -1 \text{ for all } x \in L\})$.
-        A lattice polytope is reflexive if its dual is also a lattice polytope.
-        :::
-
-        **Arguments:**
-        None.
-
-        **Returns:**
-        The dual polytope.
-
-        **Aliases:**
-        `dual`, `polar_polytope`, `polar`.
-
-        **Example:**
-        We construct a reflexive polytope and find its dual. We then verify that
-        the dual of the dual is the original polytope.
-        ```python {2,5}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        p_dual = p.dual_polytope()
-        print(p_dual)
-        # A 4-dimensional reflexive lattice polytope in ZZ^4
-        p_dual_dual = p_dual.dual_polytope()
-        p_dual_dual is p
-        # True
-        ```
-        """
-        if self._dual is not None:
-            return self._dual
-        if not self.is_reflexive():
-            raise NotImplementedError("Duality of non-reflexive polytopes not supported.")
-        pts = np.array(self._input_ineqs[:,:-1])
-        self._dual = Polytope(pts, backend=self._backend)
-        self._dual._dual = self
-        return self._dual
-    # aliases
-    dual = dual_polytope
-    polar_polytope = dual_polytope
-    polar = dual_polytope
-
-    def is_favorable(self, lattice: str) -> bool:
-        """
-        **Description:**
-        Returns True if the Calabi-Yau hypersurface arising from this polytope
-        is favorable (i.e. all Kahler forms descend from Kahler forms on the
-        ambient toric variety) and False otherwise.
-
-        :::note
-        Only reflexive polytopes of dimension 2-5 are currently supported.
-        :::
-
-        **Arguments:**
-        - `lattice`: Specifies the lattice on which the polytope is
-            defined. Options are "N" and "M".
-
-        The truth value of the polytope being favorable.
-
-        **Example:**
-        We construct two reflexive polytopes and find whether they are favorable
-        when considered in the N lattice.
-        ```python {3,5}
-        p1 = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        p2 = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-3,-6]])
-        p1.is_favorable(lattice="N")
-        # True
-        p2.is_favorable(lattice="N")
-        # False
-        ```
-        """
-        if lattice=="N":
-            if self._is_favorable is None:
-                self._is_favorable = (len(self.points_not_interior_to_facets())
-                                      == self.h11(lattice="N")+self.dim()+1)
-            return self._is_favorable
-        if lattice=='M':
-            return self.dual().is_favorable(lattice="N")
-        raise ValueError("Lattice must be specified. "
-                        "Options are: \"N\" or \"M\".")
-
     def glsm_charge_matrix(self,
                            include_origin: bool = True,
                            include_points_interior_to_facets: bool = False,
@@ -2038,26 +2044,37 @@ class Polytope:
         #        [ -2,   0,   1,   0,   0,   0,   0,   0,   0,   1]])
         ```
         """
+        # check that this makes sense
         if not self.is_reflexive():
             raise ValueError("The GLSM charge matrix can only be computed for "
                              "reflexive polytopes.")
+
         # Set up the list of points that will be used.
         if points is not None:
             # We always add the origin, but remove it later if necessary
-            pts_ind = tuple(set(list(points)+[0]))
-            if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
+            pts_ind = set(list(points)+[0])
+            if (min(pts_ind)<0) or (max(pts_ind)>self.points().shape[0]):
                 raise ValueError("An index is out of the allowed range.")
+
             include_origin = 0 in points
         elif include_points_interior_to_facets:
-            pts_ind = tuple(range(self.points().shape[0]))
+            pts_ind = range(self.points().shape[0])
         else:
-            pts_ind = tuple(range(self.points_not_interior_to_facets().shape[0]))
+            pts_ind = range(self.points_not_interior_to_facets().shape[0])
+        pts_ind = tuple(pts_ind)
+
+        # check if we know the answer
         if (pts_ind,integral) in self._glsm_charge_matrix:
-            if not include_origin and points is None:
-                return np.array(self._glsm_charge_matrix[(pts_ind,integral)][:,1:])
-            return np.array(self._glsm_charge_matrix[(pts_ind,integral)])
-        # If the result is not cached we do the computation
-        # We start by finding a basis of columns
+            out = np.array(self._glsm_charge_matrix[(pts_ind,integral)])
+
+            if (not include_origin) and (points is None):
+                return out[:,1:]
+            else:
+                return out
+
+        # actually have to do the work...
+        # -------------------------------
+        # find a basis of columns
         if integral:
             linrel = self.points()[list(pts_ind)].T
             sublat_ind =  int(round(np.linalg.det(np.array(fmpz_mat(linrel.tolist()).snf().tolist(), dtype=int)[:,:linrel.shape[0]])))
@@ -2083,6 +2100,7 @@ class Polytope:
                         np.random.seed(1337)
                     np.random.shuffle(indices[1:])
                     indices[:linrel.shape[0]] = np.sort(indices[:linrel.shape[0]])
+
                 for ctr in range(np.prod(linrel.shape)+1):
                     found_good_basis=True
                     ctr += 1
@@ -2101,21 +2119,24 @@ class Polytope:
                     tmp_sublat_ind = 1
                     for v in linrel_rand:
                         for i,ii in enumerate(v):
-                            if ii != 0:
-                                tmp_sublat_ind *= abs(ii)
-                                if sublat_ind % tmp_sublat_ind == 0:
-                                    v *= ii//abs(ii)
-                                    good_exclusions += 1
-                                else:
-                                    found_good_basis = False
-                                basis_exc.append(i)
-                                break
+                            if ii==0:
+                                continue
+
+                            tmp_sublat_ind *= abs(ii)
+                            if sublat_ind % tmp_sublat_ind == 0:
+                                v *= ii//abs(ii)
+                                good_exclusions += 1
+                            else:
+                                found_good_basis = False
+                            basis_exc.append(i)
+                            break
                         if not found_good_basis:
                             break
                     if found_good_basis:
                         break
                 if found_good_basis:
                     break
+
             if not found_good_basis:
                 warnings.warn("An integral basis could not be found. "
                               "A non-integral one will be computed. However, this "
@@ -2185,23 +2206,28 @@ class Polytope:
             linear_relations[0][0] = 1
             linrel = linear_relations
             basis_ind = glsm_basis
-        # Check that everything was computed correctly
+
+        # check that everything was computed correctly
         if (np.linalg.matrix_rank(glsm[:,basis_ind]) != len(basis_ind)
-                or any(glsm.dot(linrel.T).flat)
-                or any(glsm.dot(self.points()[list(pts_ind)]).flat)):
+                        or any(glsm.dot(linrel.T).flat)
+                        or any(glsm.dot(self.points()[list(pts_ind)]).flat)):
             raise RuntimeError("Error finding basis")
-        # We now cache the results
+
+        # cache the results
         if integral:
             self._glsm_charge_matrix[(pts_ind,integral)] = glsm
             self._glsm_linrels[(pts_ind,integral)] = linrel
             self._glsm_basis[(pts_ind,integral)] = basis_ind
+
         self._glsm_charge_matrix[(pts_ind,False)] = glsm
         self._glsm_linrels[(pts_ind,False)] = linrel
         self._glsm_basis[(pts_ind,False)] = basis_ind
-        # Finally return a copy of the result
-        if not include_origin and points is None:
+
+        # return
+        if (not include_origin) and (points is None):
             return np.array(self._glsm_charge_matrix[(pts_ind,integral)][:,1:])
-        return np.array(self._glsm_charge_matrix[(pts_ind,integral)])
+        else:
+            return np.array(self._glsm_charge_matrix[(pts_ind,integral)])
 
     def glsm_linear_relations(self,
                               include_origin: bool = True,
