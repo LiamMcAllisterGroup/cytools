@@ -2459,21 +2459,30 @@ class Polytope:
         # https://github.com/sagemath/sage/blob/develop/src/sage/geometry/lattice_polytope.py
         # https://trac.sagemath.org/ticket/13525
 
+        # process backend
         if backend not in ("native", "palp"):
             raise ValueError("Error: options for backend are \"native\" and "
                              "\"palp\".")
-        args_id = 1*affine_transform + affine_transform*(backend=="native")*1
-        if self._normal_form[args_id] is not None:
-            return np.array(self._normal_form[args_id])
+
         if backend == "palp":
             if not self.is_solid():
                 warnings.warn("PALP doesn't support polytopes that are not "
                               "full-dimensional. Using native backend.")
                 backend = "native"
+
+        # check if we know the answer
+        args_id = 1*affine_transform + affine_transform*(backend=="native")*1
+        if self._normal_form[args_id] is not None:
+            return np.array(self._normal_form[args_id])
+
+        # PALP backend
+        # ------------
         if backend == "palp":
             palp = subprocess.Popen((config.palp_path + "poly.x", ("-A" if affine_transform else "-N")),
                                     stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE, universal_newlines=True)
+            
+            # prep the command
             pt_list = ""
             pts_optimal = {tuple(pt) for pt in self._pts_optimal}
             for pt in pts_optimal:
@@ -2481,9 +2490,13 @@ class Polytope:
                 pt_str = pt_str.replace(","," ")
                 pt_list += pt_str + "\n"
             palp_in = f"{len(pts_optimal)} {self._dim}\n{pt_list}\n"
+
+            # do the work
             palp_out = palp.communicate(input=palp_in)[0]
             if "ormal form" not in palp_out:
                 raise RuntimeError(f"PALP error. Full output: {palp_out}")
+
+            # read the output
             palp_out = palp_out.split("\n")
             for i in range(len(palp_out)):
                 if "ormal form" not in palp_out[i]:
@@ -2494,8 +2507,13 @@ class Polytope:
                     tmp_pts[j,:] = [int(c) for c in palp_out[i+j+1].split()]
                 break
             points = (tmp_pts.T if pts_shape[0] < pts_shape[1] else tmp_pts)
+
+            # cache it and return
             self._normal_form[args_id] = points
             return np.array(self._normal_form[args_id])
+
+        # native backend
+        # --------------
         # Define function that constructs permutation matrices
         def PGE(n, u, v):
             tmp_m = np.eye(n, dtype=int)
@@ -2506,6 +2524,7 @@ class Polytope:
             tmp_m[u-1,v-1] = 1
             tmp_m[v-1,u-1] = 1
             return tmp_m
+
         V = self.vertices()
         n_v = len(V)
         n_f = len(self._input_ineqs)
@@ -2787,31 +2806,42 @@ class Polytope:
         #  {0: 0, 1: 5, 2: 2, 3: 3, 4: 4, 5: 1, 6: 6, 7: 7, 8: 8, 9: 9}]
         ```
         """
+        # check that this is sensical
         if self.dim() != self.ambient_dim():
-            raise NotImplementedError("Automorphisms can only be computed for full-dimensional polytopes.")
+            raise NotImplementedError("Automorphisms can only be computed " +\
+                                            "for full-dimensional polytopes.")
+        
         if action not in ("right", "left"):
             raise ValueError("Options for action are \"right\" or \"left\".")
+
+        # check if we know the answer
         args_id = 1*square_to_one + 2*as_dictionary
         if self._autos[args_id] is not None:
             if as_dictionary:
                 return copy.deepcopy(self._autos[args_id])
-            if action == "left":
+            elif action == "left":
                 return np.array([a.T for a in self._autos[args_id]])
-            return np.array(self._autos[args_id])
+            else:
+                return np.array(self._autos[args_id])
+
+        # calculate the answer
         if self._autos[0] is None:
             vert_set = set(tuple(pt) for pt in self.vertices())
-            f_min = None
-            for f in self.facets():
-                if f_min is None or len(f.vertices()) < len(f_min.vertices()):
-                    f_min = f
+
+            # get the facet with minimum number of vertices
+            f_min = min(self.facets(), key=lambda f:len(f.vertices()))
             f_min_vert_rref = np.array(fmpz_mat(f_min.vertices().T.tolist()).hnf().tolist(), dtype=int)
+
             pivots = []
             for v in f_min_vert_rref:
-                if any(v):
-                    for i,ii in enumerate(v):
-                        if ii != 0:
-                            pivots.append(i)
-                            break
+                if not any(v):
+                    continue
+
+                for i,ii in enumerate(v):
+                    if ii != 0:
+                        pivots.append(i)
+                        break
+
             basis = [f_min.vertices()[i].tolist() for i in pivots]
             basis_inverse = fmpz_mat(basis).inv()
             images = []
@@ -2847,11 +2877,14 @@ class Polytope:
                 autos2_dict.append({i:new_pts_tup.index(ii) for i,ii in enumerate(pts_tup)})
             self._autos[2] = autos_dict
             self._autos[3] = autos2_dict
+
+        # return
         if as_dictionary:
             return copy.deepcopy(self._autos[args_id])
-        if action == "left":
+        elif action == "left":
             return np.array([a.T for a in self._autos[args_id]])
-        return np.array(self._autos[args_id])
+        else:
+            return np.array(self._autos[args_id])
 
     def find_2d_reflexive_subpolytopes(self) -> list["Polytope"]:
         """
