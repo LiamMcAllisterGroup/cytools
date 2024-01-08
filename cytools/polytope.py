@@ -22,7 +22,7 @@
 # 'standard' imports
 from collections import defaultdict
 import copy
-from itertools import permutations
+import itertools
 import math
 import subprocess
 import warnings
@@ -200,10 +200,11 @@ class Polytope:
 
             # find hyperplanes
             self._poly_optimal = ppl.C_Polyhedron(gs)
-            ineqs_optimal = [list(ineq.coefficients())
-                             + [ineq.inhomogeneous_term()]
-                             for ineq in self._poly_optimal.minimized_constraints()]
-            self._ineqs_optimal = np.array(ineqs_optimal, dtype=int)
+            self._ineqs_optimal = []
+            for ineq in self._poly_optimal.minimized_constraints():
+                self._ineqs_optimal.append(list(ineq.coefficients()) +\
+                                                [ineq.inhomogeneous_term()])
+            self._ineqs_optimal = np.array(self._ineqs_optimal, dtype=int)
 
         elif backend == "qhull":
             if self._dim == 0:
@@ -473,6 +474,39 @@ class Polytope:
             raise ValueError
 
         return self.minkowski_sum(other)
+
+    def _map_2_original_basis(self, pts_opt: ArrayLike) -> np.array:
+        """
+        **Description:**
+        We internally store the points in an 'optimal' representation
+        (translated, LLL-reduced, ...). This eases computations. We will
+        always want to return answers in original representation. This
+        funciton performs the mapping.
+
+        **Arguments:**
+        - `pts`: The points in the optimal representation.
+
+        **Returns:**
+        The points in the original representation.
+        """
+        # undo LLL transformation, to get points in original basis
+        if self._dim < self._ambient_dim:
+            # pad points with 0s, to make width fit in original dim
+            points_orig = np.empty((len(pts_opt),self._ambient_dim), dtype=int)
+            points_orig[:,self._dim_diff:] = pts_opt
+            points_orig[:,:self._dim_diff] = 0
+        else:
+            points_orig = np.array(pts_opt, dtype=int)
+
+        # undo the transformation
+        points_orig = self._transf_mat_inv.dot(points_orig.T).T
+
+        # undo the translation, if applicable
+        if self._dim < self._ambient_dim:
+            for i in range(points_orig.shape[0]):
+                points_orig[i,:] += self._transl_vector
+
+        return points_orig
 
     def minkowski_sum(self, other: "Polytope") -> "Polytope":
         """
@@ -1240,17 +1274,7 @@ class Polytope:
         # The points and saturated inequalities have now been computed.
 
         # undo LLL transformation, to get points in original basis
-        if self._ambient_dim > self._dim:
-            points_mat = np.empty((len(points), self._ambient_dim), dtype=int)
-            points_mat[:,self._dim_diff:] = points
-            points_mat[:,:self._dim_diff] = 0
-        else:
-            points_mat = np.array(points, dtype=int)
-        points_mat = self._transf_mat_inv.dot(points_mat.T).T
-
-        if self._ambient_dim > self._dim:
-            for i in range(points_mat.shape[0]):
-                points_mat[i,:] += self._transl_vector
+        points_mat = self._map_2_original_basis(points)
 
         # prep the outputs (tuple of points and sets of saturated ineqs)
         self._points_sat = [(tuple(points_mat[i]), facet_ind[i]) for i in\
@@ -1599,7 +1623,7 @@ class Polytope:
             # can use otpimized method for 4d polytopes
             self._faces = self._faces4d()
 
-        # return
+        # return, if we just figure it out
         if self._faces is not None:
             return (self._faces[d] if (d is not None) else self._faces)
 
@@ -1640,7 +1664,7 @@ class Polytope:
                         ineq2pts[frozenset([f])].add(pt)
             else:
                 # codim>1 faces... take intersections of higher-dim faces
-                for f1, f2 in itertools.combinations(ineq2pts_prev.values()):
+                for f1, f2 in itertools.combinations(ineq2pts_prev.values(),2):
                     # check if their intersection has the right dimension
                     inter = f1 & f2
                     dim = np.linalg.matrix_rank([pt[0]+(1,) for pt in inter])-1
@@ -1701,60 +1725,62 @@ class Polytope:
         """
         assert self._dim == 4
 
-        #
-        pts_sat = self._points_saturated()
+        # get vertices, along with their saturated inequalities
         vert = [tuple(pt) for pt in self.vertices()]
-        vert_sat = [tuple(pt) for pt in pts_sat if pt[0] in vert]
-        facets = defaultdict(set)
+        vert_sat = [tuple(pt) for pt in self._points_saturated() if\
+                                                                pt[0] in vert]
 
-        # First create facets
+        # facets
+        facets = defaultdict(set)
         for pt in vert_sat:
             for f in pt[1]:
                 facets[frozenset([f])].add(pt)
-        # Then find 2-faces
-        facets_list = list(facets.keys())
-        n_facets = len(facets_list)
+
+        # 2-faces
         twofaces = defaultdict(set)
-        for i in range(n_facets):
-            for j in range(i+1, n_facets):
-                f1 = facets_list[i]
-                f2 = facets_list[j]
-                inter = facets[f1] & facets[f2]
+        for ineqs1, ineqs2 in itertools.combinations(facets.keys(),2):
+                inter = facets[ineqs1] & facets[ineqs2]
+
                 # These intersections are 2D iff there are at least 3 vertices.
                 if len(inter) >= 3:
-                    f3 = f1 | f2
-                    twofaces[f3] = inter
-        # Finally find 1-faces
-        twofaces_list = list(twofaces.keys())
-        n_twofaces = len(twofaces_list)
+                    ineqs3 = ineqs1 | ineqs2
+                    twofaces[ineqs3] = inter
+
+        # 1-faces
         onefaces = defaultdict(set)
-        for i in range(n_twofaces):
-            for j in range(i+1, n_twofaces):
-                f1 = twofaces_list[i]
-                f2 = twofaces_list[j]
-                inter = twofaces[f1] & twofaces[f2]
+        for f1, f2 in itertools.combinations(twofaces.values(),2):
+            inter = f1 & f2
+
+            # These intersections are 1D iff there are exactly 2 vertices.
+            if len(inter) == 2:
                 inter_list = list(inter)
-                # These intersections are 1D iff there are exactly 2 vertices.
-                if len(inter) == 2:
-                    f3 = inter_list[0][1] & inter_list[1][1]
-                    if f3 not in onefaces.keys():
-                        onefaces[f3] = inter
-        # Now construct all face objects
+                f3 = inter_list[0][1] & inter_list[1][1]
+
+                if f3 not in onefaces.keys():
+                    onefaces[f3] = inter
+
+        # now, construct all formal face objects
         fourface_obj_list = [PolytopeFace(self, vert, frozenset(), dim=4)]
+
         facets_obj_list = []
         for f in facets.keys():
             tmp_vert = [pt[0] for pt in vert_sat if f.issubset(pt[1])]
             facets_obj_list.append(PolytopeFace(self, tmp_vert, f, dim=3))
+
         twofaces_obj_list = []
         for f in twofaces.keys():
             tmp_vert = [pt[0] for pt in vert_sat if f.issubset(pt[1])]
             twofaces_obj_list.append(PolytopeFace(self, tmp_vert, f, dim=2))
+
         onefaces_obj_list = []
         for f in onefaces.keys():
             tmp_vert = [pt[0] for pt in vert_sat if f.issubset(pt[1])]
             onefaces_obj_list.append(PolytopeFace(self, tmp_vert, f, dim=1))
+
         zerofaces_obj_list = [PolytopeFace(self, [pt[0]], pt[1], dim=0)
                               for pt in vert_sat]
+
+        # organize in tuple and return
         organized_faces = (tuple(zerofaces_obj_list), tuple(onefaces_obj_list),
                            tuple(twofaces_obj_list), tuple(facets_obj_list),
                            tuple(fourface_obj_list))
@@ -1809,76 +1835,71 @@ class Polytope:
         if self._vertices is not None:
             if as_indices:
                 return self.points_to_indices(self._vertices)
+
             return np.array(self._vertices)
 
         # calculate the answer
         if self._dim == 0:
+            # 0D... trivial
             self._vertices = np.array([self._input_pts[0]])
-        elif self._backend == "ppl":
-            points_mat = np.array([tuple(int(i) for i in pt.coefficients())
-                                   for pt in self._poly_optimal.minimized_generators()])
-            if self._ambient_dim > self._dim:
-                pts_mat_tmp = np.empty((points_mat.shape[0],self._ambient_dim), dtype=int)
-                pts_mat_tmp[:,:self._dim_diff] = 0
-                pts_mat_tmp[:,self._dim_diff:] = points_mat.reshape(-1, self._dim)
-                points_mat = pts_mat_tmp
-            points_mat = self._transf_mat_inv.dot(points_mat.T).T
-            if self._ambient_dim > self._dim:
-                points_mat = [pt + self._transl_vector for pt in points_mat]
-            tmp_vert = [tuple(pt) for pt in points_mat]
-            input_pts = []
-            for pt in self._input_pts:
-                pt_tup = tuple(pt)
-                if pt_tup not in input_pts:
-                    input_pts.append(pt_tup)
-            self._vertices = np.array([list(pt) for pt in input_pts if pt in tmp_vert])
+
         elif self._backend == "qhull":
             if self._dim == 1: # QHull cannot handle 1D polytopes
                 tmp_vert = [tuple(pt[0]) for pt in self._points_saturated() if len(pt[1]) == 1]
                 self._vertices = np.array([list(pt) for pt in self._input_pts if tuple(pt) in tmp_vert])
             else:
                 self._vertices = self._input_pts[self._poly_optimal.vertices]
-        else: # Backend is PALP
-            palp = subprocess.Popen((config.palp_path + "poly.x", "-v"),
-                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE, universal_newlines=True)
-            pt_list = ""
-            pts_optimal = {tuple(pt) for pt in self._pts_optimal}
-            for pt in pts_optimal:
-                pt_list += (str(pt).replace("(","").replace(")","").replace(","," ") + "\n")
-            palp_out = palp.communicate(input=f"{len(pts_optimal)} {self._dim}\n" + pt_list + "\n")[0]
-            if "Vertices of P" not in palp_out:
-                raise RuntimeError(f"PALP error. Full output: {palp_out}")
-            palp_out = palp_out.split("\n")
-            for i,line in enumerate(palp_out):
-                if "Vertices of P" not in line:
-                    continue
-                pts_shape = [int(c) for c in line.split()[:2]]
-                tmp_pts = np.empty(pts_shape, dtype=int)
-                for j in range(pts_shape[0]):
-                    tmp_pts[j,:] = [int(c) for c in palp_out[i+j+1].split()]
-                break
-            points = (tmp_pts.T if pts_shape[0] < pts_shape[1] else tmp_pts)
-            if self._ambient_dim > self._dim:
-                points_mat = np.empty((len(points),self._ambient_dim), dtype=int)
-                points_mat[:,self._dim_diff:] = points
-                points_mat[:,:self._dim_diff] = 0
-            else:
-                points_mat = np.array(points, dtype=int)
-            points_mat = self._transf_mat_inv.dot(points_mat.T).T
-            if self._ambient_dim > self._dim:
-                for i in range(points_mat.shape[0]):
-                    points_mat[i,:] += self._transl_vector
+        else:
+            # get the vertices
+            if self._backend == "ppl":
+                points = []
+                for pt in self._poly_optimal.minimized_generators():
+                    points.append(pt.coefficients())
+                points = np.array(points, dtype=int)
+
+            else: # Backend is PALP
+                palp = subprocess.Popen((config.palp_path + "poly.x", "-v"),
+                                                    stdin=subprocess.PIPE,
+                                                    stdout=subprocess.PIPE,
+                                                    stderr=subprocess.PIPE,
+                                                    universal_newlines=True)
+                # prep input for PALP
+                pt_list = ""
+                pts_optimal = {tuple(pt) for pt in self._pts_optimal}
+                for pt in pts_optimal:
+                    pt_list += (str(pt).replace("(","").replace(")","").replace(","," ") + "\n")
+
+                # do the work
+                palp_out = palp.communicate(input=f"{len(pts_optimal)} {self._dim}\n" + pt_list + "\n")[0]
+                if "Vertices of P" not in palp_out:
+                    raise RuntimeError(f"PALP error. Full output: {palp_out}")
+
+                # read the outputs
+                palp_out = palp_out.split("\n")
+                for i,line in enumerate(palp_out):
+                    if "Vertices of P" not in line:
+                        continue
+
+                    pts_shape = [int(c) for c in line.split()[:2]]
+                    tmp_pts = np.empty(pts_shape, dtype=int)
+                    for j in range(pts_shape[0]):
+                        tmp_pts[j,:] =[int(c) for c in palp_out[i+j+1].split()]
+                    break
+                points =(tmp_pts.T if pts_shape[0] < pts_shape[1] else tmp_pts)
+
+            # for either ppl/PALP, map points to original representation
+            points_mat = self._map_2_original_basis(points)
             tmp_vert = [tuple(pt) for pt in points_mat]
-            input_pts = []
-            for pt in self._input_pts:
-                pt_tup = tuple(pt)
-                if pt_tup not in input_pts:
-                    input_pts.append(pt_tup)
-            self._vertices = np.array([list(pt) for pt in input_pts if pt in tmp_vert])
+
+            input_pts = list(set( tuple(pt) for pt in self._input_pts ))
+            self._vertices = np.array([list(pt) for pt in input_pts if\
+                                                            pt in tmp_vert])
+
+        # return
         if as_indices:
             return self.points_to_indices(self._vertices)
-        return np.array(self._vertices)
+        else:
+            return np.array(self._vertices)
 
     def dual_polytope(self) -> "Polytope":
         """
@@ -2767,7 +2788,7 @@ class Polytope:
             for f in self.facets():
                 if len(f_min.vertices()) == len(f.vertices()):
                     f_vert = [pt.tolist() for pt in f.vertices()]
-                    images.extend(permutations(f_vert, r=int(self.dim())))
+                    images.extend(itertools.permutations(f_vert, r=int(self.dim())))
             autos = []
             autos2 = []
             for im in images:
