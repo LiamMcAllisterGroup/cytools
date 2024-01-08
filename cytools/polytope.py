@@ -587,6 +587,47 @@ class Polytope:
     # aliases
     dim = dimension
 
+    def volume(self) -> int:
+        """
+        **Description:**
+        Returns the volume of the polytope.
+
+        :::important
+        By convention, the standard simplex has unit volume. To get the more
+        typical Euclidean volume it must be multiplied by $d!$.
+        :::
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        The volume of the polytope.
+
+        **Example:**
+        We construct a standard simplex and a cube, and find their volumes.
+        ```python {3,5}
+        p1 = Polytope([[1,0,0],[0,1,0],[0,0,1],[0,0,0]])
+        p2 = Polytope([[1,0,0],[0,1,0],[0,0,1],[0,0,0],[0,1,1],[1,0,1],[1,1,0],[1,1,1]])
+        p1.volume()
+        # 1
+        p2.volume()
+        # 6
+        ```
+        """
+        # calculate teh answer if not known
+        if self._volume is None:
+            if self._dim == 0:
+                self._volume = 0
+            elif self._dim == 1:
+                self._volume = max(self._pts_optimal) - min(self._pts_optimal)
+            else:
+                self._volume = ConvexHull(self._pts_optimal).volume
+                self._volume *= math.factorial(self._dim)
+                self._volume = int(round( self._volume ))
+
+        # return
+        return self._volume
+
     def inequalities(self) -> np.ndarray:
         """
         **Description:**
@@ -2371,43 +2412,6 @@ class Polytope:
         if not include_origin and points is None:
             return np.array(self._glsm_basis[(pts_ind,integral)]) - 1
         return np.array(self._glsm_basis[(pts_ind,integral)])
-
-    def volume(self) -> int:
-        """
-        **Description:**
-        Returns the volume of the polytope.
-
-        :::important
-        By convention, the standard simplex has unit volume. To get the more
-        typical Euclidean volume it must be multiplied by $d!$.
-        :::
-
-        **Arguments:**
-        None.
-
-        **Returns:**
-        The volume of the polytope.
-
-        **Example:**
-        We construct a standard simplex and a cube, and find their volumes.
-        ```python {3,5}
-        p1 = Polytope([[1,0,0],[0,1,0],[0,0,1],[0,0,0]])
-        p2 = Polytope([[1,0,0],[0,1,0],[0,0,1],[0,0,0],[0,1,1],[1,0,1],[1,1,0],[1,1,1]])
-        p1.volume()
-        # 1
-        p2.volume()
-        # 6
-        ```
-        """
-        if self._volume is not None:
-            return self._volume
-        if self._dim == 0:
-            self._volume = 0
-        elif self._dim == 1:
-            self._volume = max(self._pts_optimal) - min(self._pts_optimal)
-        else:
-            self._volume = int(round(ConvexHull(self._pts_optimal).volume * math.factorial(self._dim)))
-        return self._volume
 
     def normal_form(self,
                     affine_transform: bool = False,
