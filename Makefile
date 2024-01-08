@@ -37,7 +37,7 @@ check-not-root-user:
 get-sudo-credentials:
 	@sudo -n true 2>/dev/null || { \
         echo -n "Building a Docker image requires sudo privileges. "; \
-        read -s -p "Please enter your password to continue: " && echo && sudo -v; \
+        sudo -v; \
     }
 
 # Common build steps for non-root build types
