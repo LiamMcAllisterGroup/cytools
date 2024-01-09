@@ -120,26 +120,25 @@ class Polytope:
         # A 3-dimensional lattice polytope in ZZ^4
         ```
         """
-        # Grab inputs
-        # -----------
-        # points
-        self._input_pts = np.array(points, dtype=int)
-
-        # dimension
-        pts_ext = [list(pt)+[1,] for pt in self._input_pts]
-        self._dim = np.linalg.matrix_rank(pts_ext)-1
-
-        self._ambient_dim = self._input_pts.shape[1]
-        self._dim_diff = self._ambient_dim-self._dim
-
-        # backend
+        # input checking
         backends = ["ppl", "qhull", "palp", None]
         if backend not in backends:
             raise ValueError(f"Invalid backend, {backend}."+\
                                                 f" Options are {backends}.")
 
+        # Initialize hidden attributes
+        self.clear_cache()
+
+        # parse the inputs
+        # ----------------
+        # dimension
+        self._ambient_dim = len(points[0])
+        self._dim = np.linalg.matrix_rank([list(pt)+[1] for pt in points]) - 1
+        self._dim_diff = self._ambient_dim-self._dim
+
+        # backend
         if backend is None:
-            if self._dim <= 4:
+            if 1 <= self._dim <= 4:
                 backend = "ppl"
             else:
                 backend = "palp"
@@ -149,157 +148,10 @@ class Polytope:
 
         self._backend = backend
 
-        # Parse points
-        # ------------
-        # Find the optimal form of the polytope by performing LLL reduction.
-        #
-        # If the polytope is not full-dimensional it constructs an
-        # affinely-equivalent polytope in a lattice of matching dimension.
-        #
-        # Internally it uses the optimal form for computations, but it outputs
-        # everything in the same form as the input
-
-        # translate if not full-dim
-        if self.is_solid():
-            self._transl_vector = np.zeros(self._input_pts.shape[1], dtype=int)
-        else:
-            self._transl_vector = self._input_pts[0]
-        tmp_pts = self._input_pts - self._transl_vector
-
-        # lll reduction
-        self._pts_optimal, transf = lll_reduce(tmp_pts, transform=True)
-        self._pts_optimal = self._pts_optimal[:, self._dim_diff:]
-        self._transf_mat, self._transf_mat_inv = transf
-
-        # Flint sometimes returns an inverse that is missing a factor of -1
-        check_inverse = self._transf_mat_inv.dot(self._transf_mat)
-
-        id_mat = np.eye(self._ambient_dim, dtype=int)
-        if all((check_inverse == id_mat).flatten()):
-            pass
-        elif all((check_inverse == -id_mat).flatten()):
-            self._transf_mat_inv = -self._transf_mat_inv
-        else:
-            raise RuntimeError("Problem finding inverse matrix")
-
-        # Construct convex hull
-        # ---------------------
-        # also find the hyperplane representation with the appropriate backend
-        # The equations are in the form
-        #   c_0 * x_0 + ... + c_{d-1} * x_{d-1} + c_d >= 0
-
-        # begin with optimal representation
-        if backend == "ppl":
-            gs = ppl.Generator_System()
-            vrs = [ppl.Variable(i) for i in range(self._dim)]
-
-            # insert points to generator system
-            for pt in self._pts_optimal:
-                ppl_pt = ppl.point(sum(pt[i]*vrs[i] for i in range(self._dim)))
-                gs.insert(ppl_pt)
-
-            # find hyperplanes
-            self._poly_optimal = ppl.C_Polyhedron(gs)
-            self._ineqs_optimal = []
-            for ineq in self._poly_optimal.minimized_constraints():
-                self._ineqs_optimal.append(list(ineq.coefficients()) +\
-                                                [ineq.inhomogeneous_term()])
-            self._ineqs_optimal = np.array(self._ineqs_optimal, dtype=int)
-
-        elif backend == "qhull":
-            if self._dim == 0:
-                # qhull cannot handle 0-dimensional polytopes
-                self._poly_optimal = None
-                self._ineqs_optimal = np.array([[0]])
-
-            elif self._dim == 1:
-                # qhull cannot handle 1-dimensional polytopes
-                self._poly_optimal = None
-                min_pt, max_pt = min(self._pts_optimal), max(self._pts_optimal)
-                self._ineqs_optimal = np.array([[1,-min_pt],[-1,max_pt]])
-
-            else:
-                self._poly_optimal = ConvexHull(self._pts_optimal)
-
-                # get the ineqs, ensure right sign and gcd
-                tmp_ineqs = set()
-                for eq in self._poly_optimal.equations:
-                    g = abs(gcd_list(eq))
-                    tmp_ineqs.add(tuple(-int(round(i/g)) for i in eq))
-
-                self._ineqs_optimal = np.array(list(tmp_ineqs), dtype=int)
-
-        else: # Backend is PALP
-            self._poly_optimal = None
-            if self._dim == 0:
-                # PALP cannot handle 0-dimensional polytopes
-                self._ineqs_optimal = np.array([[0]])
-
-            else:
-                # prepare the command
-                pt_list = ""
-                pts_optimal = {tuple(pt) for pt in self._pts_optimal}
-                for pt in pts_optimal:
-                    pt_str = str(pt).replace("(","").replace(")","")
-                    pt_str = pt_str.replace(","," ")
-                    pt_list += pt_str + "\n"
-                palp_in = f"{len(pts_optimal)} {self._dim}\n{pt_list}\n"
-
-                # execute it!
-                palp = subprocess.Popen((config.palp_path + "poly.x", "-e"),
-                                                    stdin=subprocess.PIPE,
-                                                    stdout=subprocess.PIPE,
-                                                    stderr=subprocess.PIPE,
-                                                    universal_newlines=True)
-                palp_out = palp.communicate(input=palp_in)[0]
-
-                if "Equations" not in palp_out:
-                    raise RuntimeError(f"PALP error. Full output: {palp_out}")
-
-                # parse results
-                palp_out = palp_out.split("\n")
-                for i,line in enumerate(palp_out):
-                    if "Equations" not in line:
-                        continue
-
-                    self._is_reflexive = ("Vertices" in line)
-                    ineqs_shape = [int(c) for c in line.split()[:2]]
-                    tmp_ineqs = [[int(c) for c in palp_out[i+j+1].split()]
-                                 for j in range(ineqs_shape[0])]
-                    break
-
-                # Check if transposed
-                tmp_ineqs = np.array(tmp_ineqs)
-
-                if ineqs_shape[0] < ineqs_shape[1]:
-                    tmp_ineqs = tmp_ineqs.T
-
-                if self._is_reflexive:
-                    col_of_1s = np.ones((tmp_ineqs.shape[0], 1),dtype=int)
-                    tmp_ineqs = np.hstack((tmp_ineqs,col_of_1s))
-
-                self._ineqs_optimal = tmp_ineqs
-
-        # convert to input representation
-        if self._ambient_dim > self._dim:
-            shape = (self._ineqs_optimal.shape[0],
-                     self._ineqs_optimal.shape[1] + self._dim_diff)
-
-            self._ineqs_optimal_ext = np.zeros(shape, dtype=int)
-            self._ineqs_optimal_ext[:,self._dim_diff:] = self._ineqs_optimal
-
-            self._input_ineqs = np.empty(shape, dtype=int)
-            self._input_ineqs[:,:-1] = self._transf_mat.T.dot(self._ineqs_optimal_ext[:,:-1].T).T
-            self._input_ineqs[:,-1] = [self._ineqs_optimal[i,-1]
-                                       - v[:-1].dot(self._transl_vector)
-                                       for i,v in enumerate(self._input_ineqs)]
-        else:
-            self._input_ineqs = np.empty(self._ineqs_optimal.shape, dtype=int)
-            self._input_ineqs[:,:-1] = self._transf_mat.T.dot(self._ineqs_optimal[:,:-1].T).T
-            self._input_ineqs[:,-1] = self._ineqs_optimal[:,-1]
-
-        # Initialize remaining hidden attributes
-        self.clear_cache()
+        # points (better basis, H-representation)
+        # (sets _transl_vector, _transf_mat, _transf_mat_inv, _poly_optimal,
+        # _pts_optimal, _ineqs_optimal, and _ineqs_input)
+        self._process_points(points)
 
     def clear_cache(self) -> None:
         """
@@ -324,8 +176,8 @@ class Polytope:
         """
         self._hash = None
         self._pts_dict = None
-        self._points_sat = None
-        self._points = None
+        self._pts_sat = None
+        self._pts = None
         self._interior_points = None
         self._boundary_points = None
         self._points_interior_to_facets = None
@@ -475,7 +327,68 @@ class Polytope:
 
         return self.minkowski_sum(other)
 
-    def _map_2_original_basis(self, pts_opt: ArrayLike) -> np.array:
+    def _process_points(self, pts_input: ArrayLike):
+        """
+        **Description:**
+        Internal function for processing input points. Should only be called
+        once (in the initializer). Abstracted here to clarify logic.
+
+        Sets
+            self._transl_vector, self._transf_mat, self._transf_mat_inv,
+            self._poly_optimal,
+            self._ineqs_optimal, and self._ineqs_input
+
+        **Arguments:**
+        - `pts_input`: The points input from the user.
+
+        **Returns:**
+        Nothing.
+
+        **Example:**
+        We construct two polytops and compute their Minkowski sum.
+        ```python {3}
+        p1 = Polytope([[1,0,0],[0,1,0],[-1,-1,0]])
+        p2 = Polytope([[0,0,1],[0,0,-1]])
+        p1 + p2
+        # A 3-dimensional reflexive lattice polytope in ZZ^3
+        ```
+        """
+        # Find 'optimal' representation
+        # -----------------------------
+        # translate if not full-dim (allows LLL-reduction)
+        if self.is_solid():
+            self._transl_vector = np.zeros(self._ambient_dim, dtype=int)
+        else:
+            self._transl_vector = pts_input[0]
+        self._pts_optimal = np.array(pts_input)-self._transl_vector
+
+        # LLL-reduction (allows reduction in dimension)
+        self._pts_optimal, transf =lll_reduce(self._pts_optimal,transform=True)
+        self._pts_optimal = self._pts_optimal[:, self._dim_diff:]
+        self._transf_mat, self._transf_mat_inv = transf
+
+        # Calculate the polytope, inequalities
+        # ------------------------------------
+        out = poly_v_to_h(self._pts_optimal, self._backend)
+        self._ineqs_optimal, self._poly_optimal = out
+
+        # convert to input representation
+        shape_opt = self._ineqs_optimal.shape
+        shape = (shape_opt[0], shape_opt[1]+self._dim_diff)
+
+        self._ineqs_input = np.zeros(shape, dtype=int)
+        self._ineqs_input[:,self._dim_diff:] = self._ineqs_optimal
+        self._ineqs_input[:,:-1] = self._transf_mat.T.dot(self._ineqs_input[:,:-1].T).T
+
+        if self.is_solid():
+            self._ineqs_input[:,-1] = self._ineqs_optimal[:,-1]
+        else:
+            # this method is always correct, just a bit slower
+            for i,v in enumerate(self._ineqs_input):
+                self._ineqs_input[i,-1] = self._ineqs_optimal[i,-1] \
+                                            - v[:-1].dot(self._transl_vector)
+
+    def _optimal_to_input(self, pts_opt: ArrayLike) -> np.array:
         """
         **Description:**
         We internally store the points in an 'optimal' representation
@@ -489,24 +402,269 @@ class Polytope:
         **Returns:**
         The points in the original representation.
         """
-        # undo LLL transformation, to get points in original basis
-        if self._dim < self._ambient_dim:
-            # pad points with 0s, to make width fit in original dim
-            points_orig = np.empty((len(pts_opt),self._ambient_dim), dtype=int)
-            points_orig[:,self._dim_diff:] = pts_opt
-            points_orig[:,:self._dim_diff] = 0
-        else:
-            points_orig = np.array(pts_opt, dtype=int)
+        # pad points with 0s, to make width match original dim
+        points_orig = np.empty((len(pts_opt), self._ambient_dim), dtype=int)
+        points_orig[:,self._dim_diff:] = pts_opt
+        points_orig[:,:self._dim_diff] = 0
 
-        # undo the transformation
+        # undo the LLL-reduction
         points_orig = self._transf_mat_inv.dot(points_orig.T).T
 
         # undo the translation, if applicable
-        if self._dim < self._ambient_dim:
-            for i in range(points_orig.shape[0]):
+        if not self.is_solid():
+            for i in range(len( points_orig )):
                 points_orig[i,:] += self._transl_vector
 
         return points_orig
+
+    def _pts_saturated(self) -> list[tuple]:
+        """
+        **Description:**
+        Computes the lattice points of the polytope along with the indices of
+        the hyperplane inequalities that they saturate.
+
+        :::note notes
+        - Points are sorted so that interior points are first, and then the
+            rest are arranged by decreasing number of saturated inequalities
+            and lexicographically. For reflexive polytopes this is useful since
+            the origin will be at index 0 and boundary points interior to
+            facets will be last.
+        - Typically this function should not be called by the user. Instead, it
+            is called by various other functions in the Polytope class.
+        :::
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        A list of tuples. The first component of each tuple is the list of
+        coordinates of the point and the second component is a `frozenset` of
+        the hyperplane inequalities that it saturates.
+
+        **Example:**
+        We construct a polytope and compute the lattice points along with the
+        inequalities that they saturate. We print the second point and the
+        inequalities that it saturates.
+        ```python {2}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        pts_sat = p._pts_saturated()
+        print(pts_sat[1])
+        # ((-1, -1, -1, -1), frozenset({0, 1, 2, 3}))
+        p.inequalities()[list(pts_sat[1][1])]
+        # array([[ 4, -1, -1, -1,  1],
+        #        [-1,  4, -1, -1,  1],
+        #        [-1, -1,  4, -1,  1],
+        #        [-1, -1, -1,  4,  1]])
+        ```
+        """
+        # return answer if known
+        if self._pts_sat is not None:
+            return copy.copy(self._pts_sat)
+
+        # When using PALP as the backend, use it to compute all lattice points
+        # in the polytope.
+        if self._backend == "palp":
+            if self._dim == 0:
+                # PALP cannot handle 0-dimensional polytopes
+                points = [self._pts_optimal[0]]
+                facet_ind = [frozenset([0])]
+            else:
+                # prep PALP input
+                pt_list = ""
+                pts_optimal = {tuple(pt) for pt in self._pts_optimal}
+                for pt in pts_optimal:
+                    pt_str = str(pt).replace("(","").replace(")","")
+                    pt_str = pt_str.replace(","," ")
+                    pt_list += pt_str + "\n"
+                palp_in = f"{len(pts_optimal)} {self._dim}\n{pt_list}\n"
+
+                # prep PALP
+                palp = subprocess.Popen((config.palp_path + "poly.x", "-p"),
+                                                    stdin=subprocess.PIPE,
+                                                    stdout=subprocess.PIPE,
+                                                    stderr=subprocess.PIPE,
+                                                    universal_newlines=True)
+                
+                # do the work and read output
+                palp_out = palp.communicate(input=palp_in)[0]
+                if "Points of P" not in palp_out:
+                    raise RuntimeError(f"PALP error. Full output: {palp_out}")
+
+                # parse the outputs
+                palp_out = palp_out.split("\n")
+                for i,line in enumerate(palp_out):
+                    if "Points of P" not in line:
+                        continue
+
+                    # read the points
+                    pts_shape = [int(c) for c in line.split()[:2]]
+                    tmp_pts = np.empty(pts_shape, dtype=int)
+                    for j in range(pts_shape[0]):
+                        tmp_pts[j,:] =[int(c) for c in palp_out[i+j+1].split()]
+
+                    break
+
+                # Check if transposed
+                if pts_shape[0] < pts_shape[1]:
+                    points = tmp_pts.T
+                else:
+                    points = tmp_pts
+
+                # find inequialities each point saturates
+                ineqs = self._ineqs_optimal
+                facet_ind = [frozenset(i for i,ii in enumerate(ineqs) if\
+                            ii[:-1].dot(pt) + ii[-1] == 0) for pt in points]
+
+        # Otherwise we use the algorithm by Volker Braun.
+        # This is redistributed under GNU General Public License version 2+.
+        #
+        # The original code can be found at
+        # https://github.com/sagemath/sage/blob/master/src/sage/geometry/integral_points.pxi
+        else:
+            # Find bounding box and sort by decreasing dimension size
+            box_min = np.array([min(self._pts_optimal[:,i]) for i in\
+                                                            range(self._dim)])
+            box_max = np.array([max(self._pts_optimal[:,i]) for i in\
+                                                            range(self._dim)])
+            box_diff = box_max - box_min
+            diameter_index = np.argsort(box_diff)[::-1]
+
+            # Construct the inverse permutation
+            orig_dict = {j:i for i,j in enumerate(diameter_index)}
+            orig_perm = [orig_dict[i] for i in range(self._dim)]
+
+            # Sort box bounds
+            box_min = box_min[diameter_index]
+            box_max = box_max[diameter_index]
+
+            # Inequalities must also have their coordinates permuted
+            ineqs = np.array(self._ineqs_optimal) # We need a new copy
+            ineqs[:,:-1] = self._ineqs_optimal[:,diameter_index]
+
+            # Find all lattice points and apply the inverse permutation
+            points = []
+            facet_ind = []
+            p = np.array(box_min)
+
+            while True:
+                tmp_v = ineqs[:,1:-1].dot(p[1:]) + ineqs[:,-1]
+                i_min = box_min[0]
+                i_max = box_max[0]
+
+                # Find the lower bound for the allowed region
+                while i_min <= i_max:
+                    if all(i_min*ineqs[i,0] >= -v for i,v in enumerate(tmp_v)):
+                        break
+                    i_min += 1
+
+                # Find the upper bound for the allowed region
+                while i_min <= i_max:
+                    if all(i_max*ineqs[i,0] >= -v for i,v in enumerate(tmp_v)):
+                        break
+                    i_max -= 1
+
+                # The points i_min .. i_max are contained in the polytope
+                i = i_min
+                while i <= i_max:
+                    p[0] = i
+                    saturated = frozenset(j for j in range(len(tmp_v))
+                                          if i*ineqs[j,0] + tmp_v[j] == 0)
+                    points.append(np.array(p)[orig_perm])
+                    facet_ind.append(saturated)
+                    i += 1
+
+                # Increment the other entries in p to move on to next loop
+                inc = 1
+                if self._dim == 1:
+                    break
+                break_loop = False
+                while True:
+                    if p[inc] == box_max[inc]:
+                        p[inc] = box_min[inc]
+                        inc += 1
+                        if inc == self._dim:
+                            break_loop = True
+                            break
+                    else:
+                        p[inc] += 1
+                        break
+                if break_loop:
+                    break
+
+        # The points and saturated inequalities have now been computed.
+
+        # undo LLL transformation, to get points in original basis
+        points_mat = self._optimal_to_input(points)
+
+        # prep the outputs (tuple of points and sets of saturated ineqs)
+        self._pts_sat = [(tuple(points_mat[i]), facet_ind[i]) for i in\
+                                                            range(len(points))]
+
+        # organize points in decreasing number of saturated inequalities
+        self._pts_sat = sorted(self._pts_sat,
+                    key=(lambda p: (-(len(p[1]) if len(p[1]) > 0 else 1e9),) +\
+                                                                tuple(p[0]) ))
+
+        # dictionary from point to index in self._pts_sat
+        self._pts_dict = {ii[0]:i for i,ii in enumerate(self._pts_sat)}
+
+        return copy.copy(self._pts_sat)
+
+    def points(self, as_indices: bool = False) -> np.ndarray:
+        """
+        **Description:**
+        Returns the lattice points of the polytope.
+
+        :::note
+        Points are sorted so that interior points are first, and then the rest
+        are arranged by decreasing number of saturated inequalities and
+        lexicographically. For reflexive polytopes this is useful since the
+        origin will be at index 0 and boundary points interior to facets will
+        be last.
+        :::
+
+        **Arguments:**
+        - `as_indices`: Return the points as indices of the full list of points
+        of the polytope.
+
+        **Returns:**
+        The list of lattice points of the polytope.
+
+        **Aliases:**
+        `pts`.
+
+        **Example:**
+        We construct a polytope and compute the lattice points. One can verify
+        that the first point is the only interior point, and the last three
+        points are the ones interior to facets. Thus it follows the aforementioned ordering.
+        ```python {2}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        p.points()
+        # array([[ 0,  0,  0,  0],
+        #        [-1, -1, -6, -9],
+        #        [ 0,  0,  0,  1],
+        #        [ 0,  0,  1,  0],
+        #        [ 0,  1,  0,  0],
+        #        [ 1,  0,  0,  0],
+        #        [ 0,  0, -2, -3],
+        #        [ 0,  0, -1, -2],
+        #        [ 0,  0, -1, -1],
+        #        [ 0,  0,  0, -1]])
+        ```
+        """
+        # calculate the answer if not known
+        if self._pts is None:
+            # save points in a dictionary from arbitrary labels to coordinates
+            self._pts = {i:pt[0] for i,pt in enumerate(self._pts_saturated())}
+            self._pt_order = list(range(len(self._pts)))
+
+        # return
+        if as_indices:
+            return self._pt_order.copy()
+        else:
+            return np.array([self._pts[i] for i in self._pt_order])
+    # aliases
+    pts = points
 
     def minkowski_sum(self, other: "Polytope") -> "Polytope":
         """
@@ -656,7 +814,7 @@ class Polytope:
         #        [-1, -1, -1, -1,  1]])
         ```
         """
-        return np.array(self._input_ineqs)
+        return np.array(self._ineqs_input)
 
     def is_solid(self) -> bool:
         """
@@ -705,7 +863,7 @@ class Polytope:
 
         # calculate the answer
         self._is_reflexive = self.is_solid() and\
-                                all(c == 1 for c in self._input_ineqs[:,-1])
+                                all(c == 1 for c in self._ineqs_input[:,-1])
 
         # return
         return self._is_reflexive
@@ -794,7 +952,7 @@ class Polytope:
             raise NotImplementedError("Duality of non-reflexive polytopes "+\
                                                         "is not supported.")
 
-        pts = np.array(self._input_ineqs[:,:-1])
+        pts = np.array(self._ineqs_input[:,:-1])
         self._dual = Polytope(pts, backend=self._backend)
         self._dual._dual = self
         return self._dual
@@ -1211,7 +1369,7 @@ class Polytope:
         """
          # calculate map from point to index, if not already calculated
         if self._pts_dict is None:
-            self._points_saturated()
+            self._pts_saturated()
 
         # check for empty input
         if len(points)==0:
@@ -1228,255 +1386,6 @@ class Polytope:
             return out[0]   # just return the single index
         else:
             return out      # return a list of indices
-
-    def _points_saturated(self) -> list[tuple]:
-        """
-        **Description:**
-        Computes the lattice points of the polytope along with the indices of
-        the hyperplane inequalities that they saturate.
-
-        :::note notes
-        - Points are sorted so that interior points are first, and then the
-            rest are arranged by decreasing number of saturated inequalities
-            and lexicographically. For reflexive polytopes this is useful since
-            the origin will be at index 0 and boundary points interior to
-            facets will be last.
-        - Typically this function should not be called by the user. Instead, it
-            is called by various other functions in the Polytope class.
-        :::
-
-        **Arguments:**
-        None.
-
-        **Returns:**
-        A list of tuples. The first component of each tuple is the list of
-        coordinates of the point and the second component is a `frozenset` of
-        the hyperplane inequalities that it saturates.
-
-        **Example:**
-        We construct a polytope and compute the lattice points along with the
-        inequalities that they saturate. We print the second point and the
-        inequalities that it saturates.
-        ```python {2}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        pts_sat = p._points_saturated()
-        print(pts_sat[1])
-        # ((-1, -1, -1, -1), frozenset({0, 1, 2, 3}))
-        p.inequalities()[list(pts_sat[1][1])]
-        # array([[ 4, -1, -1, -1,  1],
-        #        [-1,  4, -1, -1,  1],
-        #        [-1, -1,  4, -1,  1],
-        #        [-1, -1, -1,  4,  1]])
-        ```
-        """
-        # This function is based on code by Volker Braun, and is redistributed
-        # under the GNU General Public License version 2+.
-        #
-        # The original code can be found at
-        # https://github.com/sagemath/sage/blob/master/src/sage/geometry/integral_points.pyx
-
-        # return answer if known
-        if self._points_sat is not None:
-            return copy.copy(self._points_sat)
-
-        # When using PALP as the backend, use it to compute all lattice points
-        # in the polytope.
-        if self._backend == "palp":
-            if self._dim == 0:
-                # PALP cannot handle 0-dimensional polytopes
-                points = [self._pts_optimal[0]]
-                facet_ind = [frozenset([0])]
-            else:
-                # prep PALP input
-                pt_list = ""
-                pts_optimal = {tuple(pt) for pt in self._pts_optimal}
-                for pt in pts_optimal:
-                    pt_str = str(pt).replace("(","").replace(")","")
-                    pt_str = pt_str.replace(","," ")
-                    pt_list += pt_str + "\n"
-                palp_in = f"{len(pts_optimal)} {self._dim}\n{pt_list}\n"
-
-                # prep PALP
-                palp = subprocess.Popen((config.palp_path + "poly.x", "-p"),
-                                                    stdin=subprocess.PIPE,
-                                                    stdout=subprocess.PIPE,
-                                                    stderr=subprocess.PIPE,
-                                                    universal_newlines=True)
-                
-                # do the work and read output
-                palp_out = palp.communicate(input=palp_in)[0]
-                if "Points of P" not in palp_out:
-                    raise RuntimeError(f"PALP error. Full output: {palp_out}")
-
-                # parse the outputs
-                palp_out = palp_out.split("\n")
-                for i,line in enumerate(palp_out):
-                    if "Points of P" not in line:
-                        continue
-
-                    # read the points
-                    pts_shape = [int(c) for c in line.split()[:2]]
-                    tmp_pts = np.empty(pts_shape, dtype=int)
-                    for j in range(pts_shape[0]):
-                        tmp_pts[j,:] =[int(c) for c in palp_out[i+j+1].split()]
-
-                    break
-
-                # Check if transposed
-                if pts_shape[0] < pts_shape[1]:
-                    points = tmp_pts.T
-                else:
-                    points = tmp_pts
-
-                # find inequialities each point saturates
-                ineqs = self._ineqs_optimal
-                facet_ind = [frozenset(i for i,ii in enumerate(ineqs) if\
-                            ii[:-1].dot(pt) + ii[-1] == 0) for pt in points]
-
-        # Otherwise we use the algorithm by Volker Braun.
-        else:
-            # Find bounding box and sort by decreasing dimension size
-            box_min = np.array([min(self._pts_optimal[:,i]) for i in\
-                                                            range(self._dim)])
-            box_max = np.array([max(self._pts_optimal[:,i]) for i in\
-                                                            range(self._dim)])
-            box_diff = box_max - box_min
-            diameter_index = np.argsort(box_diff)[::-1]
-
-            # Construct the inverse permutation
-            orig_dict = {j:i for i,j in enumerate(diameter_index)}
-            orig_perm = [orig_dict[i] for i in range(self._dim)]
-
-            # Sort box bounds
-            box_min = box_min[diameter_index]
-            box_max = box_max[diameter_index]
-
-            # Inequalities must also have their coordinates permuted
-            ineqs = np.array(self._ineqs_optimal) # We need a new copy
-            ineqs[:,:-1] = self._ineqs_optimal[:,diameter_index]
-
-            # Find all lattice points and apply the inverse permutation
-            points = []
-            facet_ind = []
-            p = np.array(box_min)
-
-            while True:
-                tmp_v = ineqs[:,1:-1].dot(p[1:]) + ineqs[:,-1]
-                i_min = box_min[0]
-                i_max = box_max[0]
-
-                # Find the lower bound for the allowed region
-                while i_min <= i_max:
-                    if all(i_min*ineqs[i,0] >= -v for i,v in enumerate(tmp_v)):
-                        break
-                    i_min += 1
-
-                # Find the upper bound for the allowed region
-                while i_min <= i_max:
-                    if all(i_max*ineqs[i,0] >= -v for i,v in enumerate(tmp_v)):
-                        break
-                    i_max -= 1
-
-                # The points i_min .. i_max are contained in the polytope
-                i = i_min
-                while i <= i_max:
-                    p[0] = i
-                    saturated = frozenset(j for j in range(len(tmp_v))
-                                          if i*ineqs[j,0] + tmp_v[j] == 0)
-                    points.append(np.array(p)[orig_perm])
-                    facet_ind.append(saturated)
-                    i += 1
-
-                # Increment the other entries in p to move on to next loop
-                inc = 1
-                if self._dim == 1:
-                    break
-                break_loop = False
-                while True:
-                    if p[inc] == box_max[inc]:
-                        p[inc] = box_min[inc]
-                        inc += 1
-                        if inc == self._dim:
-                            break_loop = True
-                            break
-                    else:
-                        p[inc] += 1
-                        break
-                if break_loop:
-                    break
-
-        # The points and saturated inequalities have now been computed.
-
-        # undo LLL transformation, to get points in original basis
-        points_mat = self._map_2_original_basis(points)
-
-        # prep the outputs (tuple of points and sets of saturated ineqs)
-        self._points_sat = [(tuple(points_mat[i]), facet_ind[i]) for i in\
-                                                            range(len(points))]
-
-        # organize points in decreasing number of saturated inequalities
-        self._points_sat = sorted(self._points_sat,
-                    key=(lambda p: (-(len(p[1]) if len(p[1]) > 0 else 1e9),) +\
-                                                                tuple(p[0]) ))
-
-        # dictionary from point to index in self._points_sat
-        self._pts_dict = {ii[0]:i for i,ii in enumerate(self._points_sat)}
-
-        return copy.copy(self._points_sat)
-
-    def points(self, as_indices: bool = False) -> np.ndarray:
-        """
-        **Description:**
-        Returns the lattice points of the polytope.
-
-        :::note
-        Points are sorted so that interior points are first, and then the rest
-        are arranged by decreasing number of saturated inequalities and
-        lexicographically. For reflexive polytopes this is useful since the
-        origin will be at index 0 and boundary points interior to facets will
-        be last.
-        :::
-
-        **Arguments:**
-        - `as_indices`: Return the points as indices of the full list of points
-        of the polytope.
-
-        **Returns:**
-        The list of lattice points of the polytope.
-
-        **Aliases:**
-        `pts`.
-
-        **Example:**
-        We construct a polytope and compute the lattice points. One can verify
-        that the first point is the only interior point, and the last three
-        points are the ones interior to facets. Thus it follows the aforementioned ordering.
-        ```python {2}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        p.points()
-        # array([[ 0,  0,  0,  0],
-        #        [-1, -1, -6, -9],
-        #        [ 0,  0,  0,  1],
-        #        [ 0,  0,  1,  0],
-        #        [ 0,  1,  0,  0],
-        #        [ 1,  0,  0,  0],
-        #        [ 0,  0, -2, -3],
-        #        [ 0,  0, -1, -2],
-        #        [ 0,  0, -1, -1],
-        #        [ 0,  0,  0, -1]])
-        ```
-        """
-        # calculate the answer if not known
-        if self._points is None:
-            self._points = np.array([pt[0] for pt in self._points_saturated()])
-
-        # return
-        if as_indices:
-            return self.points_to_indices(self._points)
-        else:
-            return np.array(self._points)
-    # aliases
-    pts = points
 
     def interior_points(self, as_indices: bool = False) -> np.ndarray:
         """
@@ -1504,7 +1413,7 @@ class Polytope:
         # calculate the answer if not known
         if self._interior_points is None:
             self._interior_points = np.array([pt[0] for pt in\
-                                                    self._points_saturated()\
+                                                    self._pts_saturated()\
                                                         if len(pt[1]) == 0])
 
         # return
@@ -1549,7 +1458,7 @@ class Polytope:
         # calculate the answer if not known
         if self._boundary_points is None:
             self._boundary_points = np.array([pt[0] for pt in\
-                                                    self._points_saturated()\
+                                                    self._pts_saturated()\
                                                         if len(pt[1]) > 0])
         # return
         if as_indices:
@@ -1589,7 +1498,7 @@ class Polytope:
         # calculate the answer if not known
         if self._points_interior_to_facets is None:
             self._points_interior_to_facets = np.array([pt[0] for pt in\
-                                                    self._points_saturated()\
+                                                    self._pts_saturated()\
                                                         if len(pt[1]) == 1])
         
         # return
@@ -1634,7 +1543,7 @@ class Polytope:
         # calculate the answer if not known
         if self._boundary_points_not_interior_to_facets is None:
             self._boundary_points_not_interior_to_facets = np.array([pt[0] for\
-                                                pt in self._points_saturated()\
+                                                pt in self._pts_saturated()\
                                                         if len(pt[1]) > 1])
 
         # return
@@ -1680,7 +1589,7 @@ class Polytope:
         # calculate the answer if not known
         if self._points_not_interior_to_facets is None:
             self._points_not_interior_to_facets = np.array([pt[0] for\
-                                                pt in self._points_saturated()\
+                                                pt in self._pts_saturated()\
                                                         if len(pt[1]) != 1])
         
         # return
@@ -1765,7 +1674,7 @@ class Polytope:
         # ---------------------------------
         # get vertices, along with their saturated inequalities
         vert = [tuple(pt) for pt in self.vertices()]
-        vert_sat = [tuple(pt) for pt in self._points_saturated() if\
+        vert_sat = [tuple(pt) for pt in self._pts_saturated() if\
                                                                 pt[0] in vert]
 
         # construct faces in reverse order (decreasing dim)
@@ -1861,7 +1770,7 @@ class Polytope:
 
         # get vertices, along with their saturated inequalities
         vert = [tuple(pt) for pt in self.vertices()]
-        vert_sat = [tuple(pt) for pt in self._points_saturated() if\
+        vert_sat = [tuple(pt) for pt in self._pts_saturated() if\
                                                                 pt[0] in vert]
 
         # facets
@@ -1969,27 +1878,27 @@ class Polytope:
         if self._vertices is not None:
             if as_indices:
                 return self.points_to_indices(self._vertices)
-
-            return np.array(self._vertices)
+            else:
+                return np.array(self._vertices)
 
         # calculate the answer
         if self._dim == 0:
             # 0D... trivial
-            self._vertices = np.array([self._input_pts[0]])
+            verts = np.array([self._pts_optimal[0]])
 
         elif self._backend == "qhull":
             if self._dim == 1: # QHull cannot handle 1D polytopes
-                tmp_vert = [tuple(pt[0]) for pt in self._points_saturated() if len(pt[1]) == 1]
-                self._vertices = np.array([list(pt) for pt in self._input_pts if tuple(pt) in tmp_vert])
+                verts = np.array([tuple(pt[0]) for pt in self._pts_saturated()\
+                                                        if len(pt[1]) == 1])
             else:
-                self._vertices = self._input_pts[self._poly_optimal.vertices]
+                verts = self._pts_optimal[self._poly_optimal.vertices]
         else:
             # get the vertices
             if self._backend == "ppl":
-                points = []
+                verts = []
                 for pt in self._poly_optimal.minimized_generators():
-                    points.append(pt.coefficients())
-                points = np.array(points, dtype=int)
+                    verts.append(pt.coefficients())
+                verts = np.array(verts, dtype=int)
 
             else: # Backend is PALP
                 palp = subprocess.Popen((config.palp_path + "poly.x", "-v"),
@@ -2019,15 +1928,10 @@ class Polytope:
                     for j in range(pts_shape[0]):
                         tmp_pts[j,:] =[int(c) for c in palp_out[i+j+1].split()]
                     break
-                points =(tmp_pts.T if pts_shape[0] < pts_shape[1] else tmp_pts)
+                verts = (tmp_pts.T if pts_shape[0] < pts_shape[1] else tmp_pts)
 
-            # for either ppl/PALP, map points to original representation
-            points_mat = self._map_2_original_basis(points)
-            tmp_vert = [tuple(pt) for pt in points_mat]
-
-            input_pts = list(set( tuple(pt) for pt in self._input_pts ))
-            self._vertices = np.array([list(pt) for pt in input_pts if\
-                                                            pt in tmp_vert])
+        # for either ppl/PALP, map points to original representation
+        self._vertices = self._optimal_to_input(verts)
 
         # return
         if as_indices:
@@ -2527,8 +2431,8 @@ class Polytope:
 
         V = self.vertices()
         n_v = len(V)
-        n_f = len(self._input_ineqs)
-        PM = np.array([n[:-1].dot(V.T) + n[-1] for n in self._input_ineqs])
+        n_f = len(self._ineqs_input)
+        PM = np.array([n[:-1].dot(V.T) + n[-1] for n in self._ineqs_input])
         n_s = 1
         prm = {0 : [np.eye(n_f, dtype=int), np.eye(n_v, dtype=int)]}
         for j in range(n_v):
@@ -3640,3 +3544,110 @@ class Polytope:
         if as_list:
             return list(triangs)
         return triangs
+
+def poly_v_to_h(pts: ArrayLike, backend: str) -> (ArrayLike, None):
+    """
+    **Description:**
+    Generate the H-representation of a polytope, given the V-representation.
+    I.e., map points/vertices to hyperplanes inequalities.
+
+    The o inequalities are in the form
+        c_0 * x_0 + ... + c_{d-1} * x_{d-1} + c_d >= 0
+
+    **Arguments:**
+    - `pts`: The input points. Each row is a point.
+    - `backend`: The backend to use. Currently, support "ppl", "qhull", and
+        "palp".
+
+    **Returns:**
+    The hyperplane inequalities in the form
+        c_0 * x_0 + ... + c_{d-1} * x_{d-1} + c_d >= 0
+    and, depending on backend/dimension, the formal convex hull of the points.
+    """
+    # preliminary
+    dim = len(pts[0])
+
+    # do the work, depending on backend
+    if backend == "ppl":
+        gs = ppl.Generator_System()
+        vrs = [ppl.Variable(i) for i in range(dim)]
+
+        # insert points to generator system
+        for pt in pts:
+            ppl_pt = ppl.point(sum(pt[i]*vrs[i] for i in range(dim)))
+            gs.insert(ppl_pt)
+
+        # find polytope, hyperplanes
+        poly = ppl.C_Polyhedron(gs)
+        ineqs = []
+        for ineq in poly.minimized_constraints():
+            ineqs.append(list(ineq.coefficients()) +\
+                                            [ineq.inhomogeneous_term()])
+        ineqs = np.array(ineqs, dtype=int)
+
+    elif backend == "qhull":
+        if dim == 1:
+            # qhull cannot handle 1-dimensional polytopes
+            poly = None
+            ineqs = np.array([[1,-min(pts)], [-1,max(pts)]])
+
+        else:
+            poly = ConvexHull(pts)
+
+            # get the ineqs, ensure right sign and gcd
+            ineqs = set()
+            for eq in poly.equations:
+                g = abs(gcd_list(eq))
+                ineqs.add(tuple(-int(round(i/g)) for i in eq))
+            ineqs = np.array(list(ineqs), dtype=int)
+
+    elif backend == "palp":
+        poly = None
+        if dim == 0:
+            # PALP cannot handle 0-dimensional polytopes
+            ineqs = np.array([[0]])
+        else:
+            # prepare the command
+            pt_list = ""
+            pts = {tuple(pt) for pt in pts}
+            for pt in pts:
+                pt_str = str(pt).replace("(","").replace(")","")
+                pt_str = pt_str.replace(","," ")
+                pt_list += pt_str + "\n"
+            palp_in = f"{len(pts)} {dim}\n{pt_list}\n"
+
+            # execute it!
+            palp = subprocess.Popen((config.palp_path + "poly.x", "-e"),
+                                                stdin=subprocess.PIPE,
+                                                stdout=subprocess.PIPE,
+                                                stderr=subprocess.PIPE,
+                                                universal_newlines=True)
+            palp_out = palp.communicate(input=palp_in)[0]
+
+            # check for errors
+            if "Equations" not in palp_out:
+                raise RuntimeError(f"PALP error. Full output: {palp_out}")
+
+            # parse results
+            palp_out = palp_out.split("\n")
+            for i,line in enumerate(palp_out):
+                if "Equations" not in line:
+                    continue
+
+                is_reflexive = ("Vertices" in line)
+                ineqs_shape = [int(c) for c in line.split()[:2]]
+                ineqs = [[int(c) for c in palp_out[i+j+1].split()]
+                                                for j in range(ineqs_shape[0])]
+                break
+
+            # Check if transposed
+            ineqs = np.array(ineqs)
+
+            if ineqs_shape[0] < ineqs_shape[1]:
+                ineqs = ineqs.T
+
+            if is_reflexive:
+                col_of_1s = np.ones((ineqs.shape[0], 1),dtype=int)
+                ineqs = np.hstack((ineqs,col_of_1s))
+
+    return ineqs, poly

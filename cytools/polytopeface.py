@@ -170,7 +170,7 @@ class PolytopeFace:
                 f"{self._ambient_poly._dim}-dimensional polytope in "
                 f"ZZ^{self._ambient_dim}")
 
-    def _points_saturated(self):
+    def _pts_saturated(self):
         """
         **Description:**
         Computes the lattice points of the face along with the indices of the
@@ -199,7 +199,7 @@ class PolytopeFace:
         ```python {2}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
         f = p.faces(3)[0]
-        pts_sat = f._points_saturated()
+        pts_sat = f._pts_saturated()
         print(pts_sat[1])
         # ((0, 0, 0, 1), frozenset({0, 1, 2, 4}))
         p.inequalities()[list(pts_sat[1][1])]
@@ -211,7 +211,7 @@ class PolytopeFace:
         """
         if self._points_sat is None:
             self._points_sat = [
-                            pt for pt in self._ambient_poly._points_saturated()
+                            pt for pt in self._ambient_poly._pts_saturated()
                             if self._saturated_ineqs.issubset(pt[1])]
         return copy.copy(self._points_sat)
 
@@ -243,7 +243,7 @@ class PolytopeFace:
         ```
         """
         if self._points is None:
-            self._points = np.array([pt[0] for pt in self._points_saturated()])
+            self._points = np.array([pt[0] for pt in self._pts_saturated()])
         if as_indices:
             return self._ambient_poly.points_to_indices(self._points)
         return np.array(self._points)
@@ -277,7 +277,7 @@ class PolytopeFace:
         """
         if self._interior_points is None:
             self._interior_points = np.array(
-                                    [pt[0] for pt in self._points_saturated()
+                                    [pt[0] for pt in self._pts_saturated()
                                     if len(pt[1])==len(self._saturated_ineqs)])
         if as_indices:
             return self._ambient_poly.points_to_indices(self._interior_points)
@@ -314,7 +314,7 @@ class PolytopeFace:
         """
         if self._boundary_points is None:
             self._boundary_points = np.array(
-                                    [pt[0] for pt in self._points_saturated()
+                                    [pt[0] for pt in self._pts_saturated()
                                     if len(pt[1])>len(self._saturated_ineqs)])
         if as_indices:
             return self._ambient_poly.points_to_indices(self._boundary_points)
@@ -410,10 +410,10 @@ class PolytopeFace:
             return self._dual_face
         if not self._ambient_poly.is_reflexive():
             raise NotImplementedError("Ambient polytope is not reflexive.")
-        dual_vert = self._ambient_poly._input_ineqs[
+        dual_vert = self._ambient_poly._ineqs_input[
                                             list(self._saturated_ineqs),:-1]
         dual_poly = self._ambient_poly.dual()
-        dual_ineqs = dual_poly._input_ineqs[:,:-1].tolist()
+        dual_ineqs = dual_poly._ineqs_input[:,:-1].tolist()
         dual_saturated_ineqs = frozenset([dual_ineqs.index(v)
                                             for v in self._vertices.tolist()])
         dual_face_dim = self._ambient_poly._dim - self._dim - 1
@@ -570,15 +570,6 @@ class PolytopeFace:
         **Returns:**
         *(Triangulation)* A [`Triangulation`](./triangulation) object describing
             a triangulation of the polytope.
-
-        **Example:**
-        We construct a face from a polytope and triangulate it.
-        ```python {3}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        f = p.faces(3)[0] # Pick one of the 3-faces
-        f.triangulate()
-        # A fine, regular triangulation of a 3-dimensional point configuration with 4 points in ZZ^4
-        ```
         """
         # check if we're just grabbing the Delaunay triangulation
         if (simplices is None) and (heights is None):

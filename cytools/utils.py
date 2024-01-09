@@ -1232,8 +1232,17 @@ def lll_reduce(pts_in: ArrayLike, transform: bool=False) -> "misc":
         A    = np.array(transf.tolist(), dtype=int)
         Ainv = np.array(transf.inv(integer=True).tolist(), dtype=int)
 
-        # check
-        #assert np.all(pts_red.T == np.matmul(A,(pts_in+Ainv_b).T))
+        # check that Ainv is indeed an inverse
+        # (sometimes it's off by a sign)
+        check_inverse = Ainv.dot(A)
+        id_mat = np.eye(len(A), dtype=int)
+
+        if all((check_inverse == id_mat).flatten()):
+            pass
+        elif all((check_inverse == -id_mat).flatten()):
+            Ainv *= -1
+        else:
+            raise RuntimeError("Problem finding inverse matrix")
 
         return pts_red, (A, Ainv)
     else:
