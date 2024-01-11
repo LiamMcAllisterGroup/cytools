@@ -1410,7 +1410,8 @@ class Triangulation:
                                 only_fine: bool = False,
                                 only_regular: bool = False,
                                 only_star: bool = False,
-                                backend: str = None) -> list["Triangulation"]:
+                                backend: str = None,
+                                verbose : bool = False)->list["Triangulation"]:
         """
         **Description:**
         Returns the list of triangulations that differ by one bistellar flip
@@ -1460,13 +1461,29 @@ class Triangulation:
 
         # prep TOPCOM
         topcom_bin = config.topcom_path + "topcom-points2flips"
-        topcom = subprocess.Popen((topcom_bin,), stdin=subprocess.PIPE,
+        if verbose:
+            cmd = (topcom_bin,"-v")
+        else:
+            cmd = (topcom_bin,)
+        topcom = subprocess.Popen(cmd, stdin=subprocess.PIPE,
                                   stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE,
                                   universal_newlines=True)
 
         # do the work and read output
-        topcom_res = topcom.communicate(input=topcom_input)[0]
+        topcom_res, topcom_err = topcom.communicate(input=topcom_input)
+
+        # check for errors
+        if topcom.returncode != 0:
+            print(f"TOPCOM exited with code {topcom.returncode}")
+            if topcom.returncode == -9:
+                print("This likely indicates an OOM error...")
+                print("Try increasing memory (Docker Settings->Resources...)")
+            return []
+
+        if verbose:
+            print(topcom_err)
+
         if len(topcom_res)==0:
             return []
         triangs_list = [ast.literal_eval(r) for r in\
