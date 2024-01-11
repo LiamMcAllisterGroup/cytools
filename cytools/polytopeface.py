@@ -210,9 +210,13 @@ class PolytopeFace:
         ```
         """
         if self._points_sat is None:
-            self._points_sat = [
-                            pt for pt in self._ambient_poly._pts_saturated()
-                            if self._saturated_ineqs.issubset(pt[1])]
+            pts, saturating, order = self._ambient_poly._pts_saturated()
+
+            self._points_sat = []
+            for label in order:
+                if self._saturated_ineqs.issubset(saturating[label]):
+                    self._points_sat.append((pts[label],saturating[label]))
+
         return copy.copy(self._points_sat)
 
     def points(self, as_indices=False):

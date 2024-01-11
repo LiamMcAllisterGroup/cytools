@@ -175,7 +175,6 @@ class Polytope:
         ```
         """
         self._hash = None
-        self._pts_dict = None
         self._pts_sat = None
         self._pts = None
         self._interior_points = None
@@ -360,16 +359,16 @@ class Polytope:
             self._transl_vector = np.zeros(self._ambient_dim, dtype=int)
         else:
             self._transl_vector = pts_input[0]
-        self._pts_optimal = np.array(pts_input)-self._transl_vector
+        self._pts_optimal_mat = np.array(pts_input)-self._transl_vector
 
         # LLL-reduction (allows reduction in dimension)
-        self._pts_optimal, transf =lll_reduce(self._pts_optimal,transform=True)
-        self._pts_optimal = self._pts_optimal[:, self._dim_diff:]
+        self._pts_optimal_mat, transf =lll_reduce(self._pts_optimal_mat,transform=True)
+        self._pts_optimal_mat = self._pts_optimal_mat[:, self._dim_diff:]
         self._transf_mat, self._transf_mat_inv = transf
 
         # Calculate the polytope, inequalities
         # ------------------------------------
-        out = poly_v_to_h(self._pts_optimal, self._backend)
+        out = poly_v_to_h(self._pts_optimal_mat, self._backend)
         self._ineqs_optimal, self._poly_optimal = out
 
         # convert to input representation
@@ -388,6 +387,10 @@ class Polytope:
                 self._ineqs_input[i,-1] = self._ineqs_optimal[i,-1] \
                                             - v[:-1].dot(self._transl_vector)
 
+        # Organize points by saturated inequalities
+        # -----------------------------------------
+        self._pts_saturated()
+
     def _optimal_to_input(self, pts_opt: ArrayLike) -> np.array:
         """
         **Description:**
@@ -402,6 +405,8 @@ class Polytope:
         **Returns:**
         The points in the original representation.
         """
+        pts_opt = np.asarray(pts_opt)
+
         # pad points with 0s, to make width match original dim
         points_orig = np.empty((len(pts_opt), self._ambient_dim), dtype=int)
         points_orig[:,self._dim_diff:] = pts_opt
@@ -457,21 +462,19 @@ class Polytope:
         #        [-1, -1, -1,  4,  1]])
         ```
         """
-        # return answer if known
-        if self._pts_sat is not None:
-            return copy.copy(self._pts_sat)
+        pts_optimal = self._pts_optimal_mat
 
         # When using PALP as the backend, use it to compute all lattice points
         # in the polytope.
         if self._backend == "palp":
             if self._dim == 0:
                 # PALP cannot handle 0-dimensional polytopes
-                points = [self._pts_optimal[0]]
+                points = [pts_optimal[0]]
                 facet_ind = [frozenset([0])]
             else:
                 # prep PALP input
                 pt_list = ""
-                pts_optimal = {tuple(pt) for pt in self._pts_optimal}
+                pts_optimal = {tuple(pt) for pt in pts_optimal}
                 for pt in pts_optimal:
                     pt_str = str(pt).replace("(","").replace(")","")
                     pt_str = pt_str.replace(","," ")
@@ -522,10 +525,9 @@ class Polytope:
         # https://github.com/sagemath/sage/blob/master/src/sage/geometry/integral_points.pxi
         else:
             # Find bounding box and sort by decreasing dimension size
-            box_min = np.array([min(self._pts_optimal[:,i]) for i in\
-                                                            range(self._dim)])
-            box_max = np.array([max(self._pts_optimal[:,i]) for i in\
-                                                            range(self._dim)])
+            box_min = np.min(pts_optimal, axis=0)
+            box_max = np.max(pts_optimal, axis=0)
+
             box_diff = box_max - box_min
             diameter_index = np.argsort(box_diff)[::-1]
 
@@ -597,20 +599,122 @@ class Polytope:
         points_mat = self._optimal_to_input(points)
 
         # prep the outputs (tuple of points and sets of saturated ineqs)
-        self._pts_sat = [(tuple(points_mat[i]), facet_ind[i]) for i in\
-                                                            range(len(points))]
+        inds_sort = np.lexsort(points_mat.T[::-1])
 
-        # organize points in decreasing number of saturated inequalities
-        self._pts_sat = sorted(self._pts_sat,
-                    key=(lambda p: (-(len(p[1]) if len(p[1]) > 0 else 1e9),) +\
-                                                                tuple(p[0]) ))
+        # save points in a dictionary from arbitrary labels to coordinates
+        self._pts_optimal = dict()
+        self._pts_saturating = dict()
+        self._N_saturated = [[] for _ in range(len(self._ineqs_optimal)+1)]
 
-        # dictionary from point to index in self._pts_sat
-        self._pts_dict = {ii[0]:i for i,ii in enumerate(self._pts_sat)}
+        for i in inds_sort:
+            self._pts_optimal[i] = tuple(points[i])
+            self._pts_saturating[i] = facet_ind[i]
+            self._N_saturated[len(facet_ind[i])].append(i)
 
-        return copy.copy(self._pts_sat)
+        # save order of labels
+        self._pt_order = sum(self._N_saturated[1:][::-1], self._N_saturated[0])
 
-    def points(self, as_indices: bool = False) -> np.ndarray:
+        # dictionary from labels to input coordinates
+        pts_input=self._optimal_to_input(self.points(optimal=True))
+        self._pts_input = {label:tuple(pt) for label,pt in \
+                                                zip(self._pt_order, pts_input)}
+
+        # dictionary from point to index in self.points()
+        self._pts_dict = {tuple(pt):i for i,pt in enumerate(self.points())}
+
+        return self._pts_input.copy(), self._pts_saturating.copy(), self._pt_order.copy()
+
+    def vertices(self, as_indices: bool = False) -> np.ndarray:
+        """
+        **Description:**
+        Returns the vertices of the polytope.
+
+        **Arguments:**
+        - `as_indices`: Return the points as indices of the full list
+            of points of the polytope.
+
+        **Returns:**
+        The list of vertices of the polytope.
+
+        **Example:**
+        We construct a polytope and find its vertices. We can see that they
+        match the points that we used to construct the polytope.
+        ```python {2}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        p.vertices()
+        # array([[ 1,  0,  0,  0],
+        #        [ 0,  1,  0,  0],
+        #        [ 0,  0,  1,  0],
+        #        [ 0,  0,  0,  1],
+        #        [-1, -1, -1, -1]])
+        ```
+        """
+        # return the answer if known
+        if self._vertices is not None:
+            if as_indices:
+                return self.points_to_indices(self._vertices)
+            else:
+                return np.array(self._vertices)
+
+        # calculate the answer
+        if self._dim == 0:
+            # 0D... trivial
+            verts = np.array([self.points(optimal=True)[0]])
+
+        elif self._backend == "qhull":
+            if self._dim == 1: # QHull cannot handle 1D polytopes
+                verts = np.array([self._pts_input[label] for label \
+                                                    in self._N_saturated[1]])
+            else:
+                verts = self._pts_optimal_mat[self._poly_optimal.vertices]
+        else:
+            # get the vertices
+            if self._backend == "ppl":
+                verts = []
+                for pt in self._poly_optimal.minimized_generators():
+                    verts.append(pt.coefficients())
+                verts = np.array(verts, dtype=int)
+
+            else: # Backend is PALP
+                palp = subprocess.Popen((config.palp_path + "poly.x", "-v"),
+                                                    stdin=subprocess.PIPE,
+                                                    stdout=subprocess.PIPE,
+                                                    stderr=subprocess.PIPE,
+                                                    universal_newlines=True)
+                # prep input for PALP
+                pt_list = ""
+                pts_optimal = {tuple(pt) for pt in self.points(optimal=True)}
+                for pt in pts_optimal:
+                    pt_list += (str(pt).replace("(","").replace(")","").replace(","," ") + "\n")
+
+                # do the work
+                palp_out = palp.communicate(input=f"{len(pts_optimal)} {self._dim}\n" + pt_list + "\n")[0]
+                if "Vertices of P" not in palp_out:
+                    raise RuntimeError(f"PALP error. Full output: {palp_out}")
+
+                # read the outputs
+                palp_out = palp_out.split("\n")
+                for i,line in enumerate(palp_out):
+                    if "Vertices of P" not in line:
+                        continue
+
+                    pts_shape = [int(c) for c in line.split()[:2]]
+                    tmp_pts = np.empty(pts_shape, dtype=int)
+                    for j in range(pts_shape[0]):
+                        tmp_pts[j,:] =[int(c) for c in palp_out[i+j+1].split()]
+                    break
+                verts = (tmp_pts.T if pts_shape[0] < pts_shape[1] else tmp_pts)
+
+        # for either ppl/PALP, map points to original representation
+        self._vertices = self._optimal_to_input(verts)
+
+        # return
+        if as_indices:
+            return self.points_to_indices(self._vertices)
+        else:
+            return np.array(self._vertices)
+
+    def points(self, optimal:bool=False, as_indices:bool=False) -> np.ndarray:
         """
         **Description:**
         Returns the lattice points of the polytope.
@@ -652,17 +756,19 @@ class Polytope:
         #        [ 0,  0,  0, -1]])
         ```
         """
-        # calculate the answer if not known
-        if self._pts is None:
-            # save points in a dictionary from arbitrary labels to coordinates
-            self._pts = {i:pt[0] for i,pt in enumerate(self._pts_saturated())}
-            self._pt_order = list(range(len(self._pts)))
-
-        # return
+        # return the answer in the desired format
         if as_indices:
-            return self._pt_order.copy()
+            #return self._pt_order.copy()
+            return range(len(self._pts_optimal))
         else:
-            return np.array([self._pts[i] for i in self._pt_order])
+            # set pts to be optimal/input depending on 'optimal' parameter
+            if optimal:
+                pts = self._pts_optimal
+            else:
+                pts = self._pts_input
+            
+            # return
+            return np.array([pts[i] for i in self._pt_order])
     # aliases
     pts = points
 
@@ -777,9 +883,10 @@ class Polytope:
             if self._dim == 0:
                 self._volume = 0
             elif self._dim == 1:
-                self._volume = max(self._pts_optimal) - min(self._pts_optimal)
+                self._volume = max(self.points(optimal=True)) \
+                               - min(self.points(optimal=True))
             else:
-                self._volume = ConvexHull(self._pts_optimal).volume
+                self._volume = ConvexHull(self.points(optimal=True)).volume
                 self._volume *= math.factorial(self._dim)
                 self._volume = int(round( self._volume ))
 
@@ -1367,10 +1474,6 @@ class Polytope:
         # array([1, 0, 3])
         ```
         """
-         # calculate map from point to index, if not already calculated
-        if self._pts_dict is None:
-            self._pts_saturated()
-
         # check for empty input
         if len(points)==0:
             return np.asarray([],dtype=int)
@@ -1381,6 +1484,7 @@ class Polytope:
             points = [points]
         
         # get/return the indices
+        #pt_to_label = {tuple(v):k for k,v in self._pts_input.items()}
         out = np.array([self._pts_dict[tuple(pt)] for pt in points], dtype=int)
         if single_pt and len(out):
             return out[0]   # just return the single index
@@ -1412,9 +1516,9 @@ class Polytope:
         """
         # calculate the answer if not known
         if self._interior_points is None:
-            self._interior_points = np.array([pt[0] for pt in\
-                                                    self._pts_saturated()\
-                                                        if len(pt[1]) == 0])
+            labels = self._N_saturated[0]
+            self._interior_points = np.array([self._pts_input[label]\
+                                                        for label in labels])
 
         # return
         if as_indices:
@@ -1457,9 +1561,10 @@ class Polytope:
         """
         # calculate the answer if not known
         if self._boundary_points is None:
-            self._boundary_points = np.array([pt[0] for pt in\
-                                                    self._pts_saturated()\
-                                                        if len(pt[1]) > 0])
+            labels = sum(self._N_saturated[1:][::-1], [])
+            self._boundary_points = np.array([self._pts_input[label]\
+                                                        for label in labels])
+
         # return
         if as_indices:
             return self.points_to_indices(self._boundary_points)
@@ -1497,9 +1602,9 @@ class Polytope:
         """
         # calculate the answer if not known
         if self._points_interior_to_facets is None:
-            self._points_interior_to_facets = np.array([pt[0] for pt in\
-                                                    self._pts_saturated()\
-                                                        if len(pt[1]) == 1])
+            labels = self._N_saturated[1]
+            self._points_interior_to_facets = np.array([self._pts_input[label]\
+                                                        for label in labels])
         
         # return
         if as_indices:
@@ -1542,9 +1647,9 @@ class Polytope:
         """
         # calculate the answer if not known
         if self._boundary_points_not_interior_to_facets is None:
-            self._boundary_points_not_interior_to_facets = np.array([pt[0] for\
-                                                pt in self._pts_saturated()\
-                                                        if len(pt[1]) > 1])
+            labels = sum(self._N_saturated[2:][::-1], [])
+            self._boundary_points_not_interior_to_facets = np.array([self._pts_input[label]\
+                                                        for label in labels])
 
         # return
         if as_indices:
@@ -1588,9 +1693,9 @@ class Polytope:
         """
         # calculate the answer if not known
         if self._points_not_interior_to_facets is None:
-            self._points_not_interior_to_facets = np.array([pt[0] for\
-                                                pt in self._pts_saturated()\
-                                                        if len(pt[1]) != 1])
+            labels = sum(self._N_saturated[2:][::-1], self._N_saturated[0])
+            self._points_not_interior_to_facets = np.array([self._pts_input[label]\
+                                                        for label in labels])
         
         # return
         if as_indices:
@@ -1666,22 +1771,24 @@ class Polytope:
             # can use otpimized method for 4d polytopes
             self._faces = self._faces4d()
 
-        # return, if we just figure it out
+        # return, if we just figured it out
         if self._faces is not None:
             return (self._faces[d] if (d is not None) else self._faces)
 
         # have to calculate from scratch...
         # ---------------------------------
-        # get vertices, along with their saturated inequalities
-        vert = [tuple(pt) for pt in self.vertices()]
-        vert_sat = [tuple(pt) for pt in self._pts_saturated() if\
-                                                                pt[0] in vert]
+        # get vertices
+        verts = [tuple(pt) for pt in self.vertices()]
+        vert_labels = [label for label,pt in self._pts_optimal.items() if pt in verts]
+        vert_pts = [self._pts_input[label] for label in vert_labels]
+        vert_sat = [self._pts_saturating[label] for label in vert_labels]
+        vert_legacy = list(zip(vert_pts, vert_sat))
 
         # construct faces in reverse order (decreasing dim)
         self._faces = []
 
         # full-dim face
-        self._faces.append( (PolytopeFace(self, vert, frozenset(),\
+        self._faces.append( (PolytopeFace(self, vert_pts, frozenset(),\
                                                             dim=self._dim),) )
         # if polytope is 0-dimensional, we're done!
         if self._dim == 0:
@@ -1702,7 +1809,7 @@ class Polytope:
             if dd == self._dim-1:
                 # facets... for f-th facet, just collect all points saturating
                 # said inequality
-                for pt in vert_sat:
+                for pt in zip(vert_pts,vert_sat):
                     for f in pt[1]:
                         ineq2pts[frozenset([f])].add(pt)
             else:
@@ -1721,7 +1828,7 @@ class Polytope:
             # save dim-dd faces to self._faces
             dd_faces = []
             for f in ineq2pts.keys():
-                tmp_vert = [pt[0] for pt in vert_sat if f.issubset(pt[1])]
+                tmp_vert = [pt[0] for pt in vert_legacy if f.issubset(pt[1])]
                 dd_faces.append(PolytopeFace(self, tmp_vert, f, dim=dd))
 
             self._faces.append(dd_faces)
@@ -1731,7 +1838,7 @@ class Polytope:
         
         # Finally add vertices
         self._faces.append([PolytopeFace(self, [pt[0]], pt[1], dim=0)\
-                                                        for pt in vert_sat])
+                                                        for pt in vert_legacy])
 
         # reverse order (to increasing with dimension)
         self._faces = tuple(tuple(ff) for ff in self._faces[::-1])
@@ -1769,13 +1876,15 @@ class Polytope:
         assert self._dim == 4
 
         # get vertices, along with their saturated inequalities
-        vert = [tuple(pt) for pt in self.vertices()]
-        vert_sat = [tuple(pt) for pt in self._pts_saturated() if\
-                                                                pt[0] in vert]
+        verts = [tuple(pt) for pt in self.vertices()]
+        vert_labels = [label for label,pt in self._pts_input.items() if pt in verts]
+        vert_pts = [self._pts_input[label] for label in vert_labels]
+        vert_sat = [self._pts_saturating[label] for label in vert_labels]
+        vert_legacy = list(zip(vert_pts, vert_sat))
 
         # facets
         facets = defaultdict(set)
-        for pt in vert_sat:
+        for pt in vert_legacy:
             for f in pt[1]:
                 facets[frozenset([f])].add(pt)
 
@@ -1803,25 +1912,25 @@ class Polytope:
                     onefaces[f3] = inter
 
         # now, construct all formal face objects
-        fourface_obj_list = [PolytopeFace(self, vert, frozenset(), dim=4)]
+        fourface_obj_list = [PolytopeFace(self, vert_pts, frozenset(), dim=4)]
 
         facets_obj_list = []
         for f in facets.keys():
-            tmp_vert = [pt[0] for pt in vert_sat if f.issubset(pt[1])]
+            tmp_vert = [pt[0] for pt in vert_legacy if f.issubset(pt[1])]
             facets_obj_list.append(PolytopeFace(self, tmp_vert, f, dim=3))
 
         twofaces_obj_list = []
         for f in twofaces.keys():
-            tmp_vert = [pt[0] for pt in vert_sat if f.issubset(pt[1])]
+            tmp_vert = [pt[0] for pt in vert_legacy if f.issubset(pt[1])]
             twofaces_obj_list.append(PolytopeFace(self, tmp_vert, f, dim=2))
 
         onefaces_obj_list = []
         for f in onefaces.keys():
-            tmp_vert = [pt[0] for pt in vert_sat if f.issubset(pt[1])]
+            tmp_vert = [pt[0] for pt in vert_legacy if f.issubset(pt[1])]
             onefaces_obj_list.append(PolytopeFace(self, tmp_vert, f, dim=1))
 
         zerofaces_obj_list = [PolytopeFace(self, [pt[0]], pt[1], dim=0)
-                              for pt in vert_sat]
+                              for pt in vert_legacy]
 
         # organize in tuple and return
         organized_faces = (tuple(zerofaces_obj_list), tuple(onefaces_obj_list),
@@ -1848,96 +1957,6 @@ class Polytope:
         ```
         """
         return self.faces(self._dim-1)
-
-    def vertices(self, as_indices: bool = False) -> np.ndarray:
-        """
-        **Description:**
-        Returns the vertices of the polytope.
-
-        **Arguments:**
-        - `as_indices`: Return the points as indices of the full list
-            of points of the polytope.
-
-        **Returns:**
-        The list of vertices of the polytope.
-
-        **Example:**
-        We construct a polytope and find its vertices. We can see that they
-        match the points that we used to construct the polytope.
-        ```python {2}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        p.vertices()
-        # array([[ 1,  0,  0,  0],
-        #        [ 0,  1,  0,  0],
-        #        [ 0,  0,  1,  0],
-        #        [ 0,  0,  0,  1],
-        #        [-1, -1, -1, -1]])
-        ```
-        """
-        # return the answer if known
-        if self._vertices is not None:
-            if as_indices:
-                return self.points_to_indices(self._vertices)
-            else:
-                return np.array(self._vertices)
-
-        # calculate the answer
-        if self._dim == 0:
-            # 0D... trivial
-            verts = np.array([self._pts_optimal[0]])
-
-        elif self._backend == "qhull":
-            if self._dim == 1: # QHull cannot handle 1D polytopes
-                verts = np.array([tuple(pt[0]) for pt in self._pts_saturated()\
-                                                        if len(pt[1]) == 1])
-            else:
-                verts = self._pts_optimal[self._poly_optimal.vertices]
-        else:
-            # get the vertices
-            if self._backend == "ppl":
-                verts = []
-                for pt in self._poly_optimal.minimized_generators():
-                    verts.append(pt.coefficients())
-                verts = np.array(verts, dtype=int)
-
-            else: # Backend is PALP
-                palp = subprocess.Popen((config.palp_path + "poly.x", "-v"),
-                                                    stdin=subprocess.PIPE,
-                                                    stdout=subprocess.PIPE,
-                                                    stderr=subprocess.PIPE,
-                                                    universal_newlines=True)
-                # prep input for PALP
-                pt_list = ""
-                pts_optimal = {tuple(pt) for pt in self._pts_optimal}
-                for pt in pts_optimal:
-                    pt_list += (str(pt).replace("(","").replace(")","").replace(","," ") + "\n")
-
-                # do the work
-                palp_out = palp.communicate(input=f"{len(pts_optimal)} {self._dim}\n" + pt_list + "\n")[0]
-                if "Vertices of P" not in palp_out:
-                    raise RuntimeError(f"PALP error. Full output: {palp_out}")
-
-                # read the outputs
-                palp_out = palp_out.split("\n")
-                for i,line in enumerate(palp_out):
-                    if "Vertices of P" not in line:
-                        continue
-
-                    pts_shape = [int(c) for c in line.split()[:2]]
-                    tmp_pts = np.empty(pts_shape, dtype=int)
-                    for j in range(pts_shape[0]):
-                        tmp_pts[j,:] =[int(c) for c in palp_out[i+j+1].split()]
-                    break
-                verts = (tmp_pts.T if pts_shape[0] < pts_shape[1] else tmp_pts)
-
-        # for either ppl/PALP, map points to original representation
-        self._vertices = self._optimal_to_input(verts)
-
-        # return
-        if as_indices:
-            return self.points_to_indices(self._vertices)
-        else:
-            return np.array(self._vertices)
 
     def glsm_charge_matrix(self,
                            include_origin: bool = True,
@@ -2388,7 +2407,7 @@ class Polytope:
             
             # prep the command
             pt_list = ""
-            pts_optimal = {tuple(pt) for pt in self._pts_optimal}
+            pts_optimal = {tuple(pt) for pt in self.points(optimal=True)}
             for pt in pts_optimal:
                 pt_str = str(pt).replace("(","").replace(")","")
                 pt_str = pt_str.replace(","," ")
