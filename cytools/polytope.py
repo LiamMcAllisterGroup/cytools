@@ -86,7 +86,7 @@ class Polytope:
     ```
     """
 
-    def __init__(self, points: ArrayLike, backend: str = None) -> None:
+    def __init__(self, points: ArrayLike, labels: ArrayLike = None, backend: str = None) -> None:
         """
         **Description:**
         Initializes a `Polytope` object describing a lattice polytope.
@@ -126,6 +126,13 @@ class Polytope:
             raise ValueError(f"Invalid backend, {backend}."+\
                                                 f" Options are {backends}.")
 
+        # check input labels
+        if labels is not None:
+            N_labels = len(labels)
+            N_pts = len(points)
+            assert N_labels == N_pts
+            assert N_labels == len(set(labels))
+
         # Initialize hidden attributes
         self.clear_cache()
 
@@ -151,7 +158,7 @@ class Polytope:
         # points (better basis, H-representation)
         # (sets _transl_vector, _transf_mat, _transf_mat_inv, _poly_optimal,
         # _pts_optimal, _ineqs_optimal, and _ineqs_input)
-        self._process_points(points)
+        self._process_points(points, labels)
 
     def clear_cache(self) -> None:
         """
@@ -326,7 +333,7 @@ class Polytope:
 
         return self.minkowski_sum(other)
 
-    def _process_points(self, pts_input: ArrayLike):
+    def _process_points(self, pts_input: ArrayLike, labels_input: ArrayLike = None) -> None:
         """
         **Description:**
         Internal function for processing input points. Should only be called
@@ -339,6 +346,7 @@ class Polytope:
 
         **Arguments:**
         - `pts_input`: The points input from the user.
+        - `labels_input`: The point labels input from the user.
 
         **Returns:**
         Nothing.
@@ -389,7 +397,7 @@ class Polytope:
 
         # Organize points by saturated inequalities
         # -----------------------------------------
-        self._pts_saturated()
+        self._pts_saturated(labels_input)
 
     def _optimal_to_input(self, pts_opt: ArrayLike) -> np.array:
         """
@@ -422,7 +430,7 @@ class Polytope:
 
         return points_orig
 
-    def _pts_saturated(self) -> list[tuple]:
+    def _pts_saturated(self, labels: ArrayLike = None) -> list[tuple]:
         """
         **Description:**
         Computes the lattice points of the polytope along with the indices of
@@ -462,7 +470,9 @@ class Polytope:
         #        [-1, -1, -1,  4,  1]])
         ```
         """
-        pts_optimal = self._pts_optimal_mat
+        if labels is None:
+            labels = []
+        pts_optimal = [tuple(pt) for pt in self._pts_optimal_mat]
 
         # When using PALP as the backend, use it to compute all lattice points
         # in the polytope.
@@ -606,10 +616,24 @@ class Polytope:
         self._pts_saturating = dict()
         self._N_saturated = [[] for _ in range(len(self._ineqs_optimal)+1)]
 
+        last_default_label = -1
         for i in inds_sort:
-            self._pts_optimal[i] = tuple(points[i])
-            self._pts_saturating[i] = facet_ind[i]
-            self._N_saturated[len(facet_ind[i])].append(i)
+            pt = tuple(points[i])
+
+            # find the label to use
+            if (labels!=[]) and (pt in pts_optimal):
+                label = labels[pts_optimal.index(pt)]
+            else:
+                label = last_default_label+1
+
+                while (label in self._pts_optimal) or (label in labels):
+                    label += 1
+                last_default_label = label
+
+            # save it!
+            self._pts_optimal[label] = tuple(points[i])
+            self._pts_saturating[label] = facet_ind[i]
+            self._N_saturated[len(facet_ind[i])].append(label)
 
         # save order of labels
         self._pt_order = sum(self._N_saturated[1:][::-1], self._N_saturated[0])
