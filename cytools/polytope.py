@@ -99,6 +99,7 @@ class Polytope:
         **Arguments:**
         - `points`: A list of lattice points defining the polytope as their
             convex hull.
+        - `points`: A list of labels for the points, optional.
         - `backend`: A string that specifies the backend used to construct the
             convex hull. The available options are "ppl", "qhull", or "palp".
             When not specified, it uses PPL for dimensions up to four, and palp
@@ -121,23 +122,40 @@ class Polytope:
         ```
         """
         # input checking
+        # --------------
+        # check that points are unique
+        N_pts = len(points)
+        N_unique_pts = len({tuple(pt) for pt in pts})
+        if N_pts != N_unique_pts
+            raise ValueError("Points must all be unique! " +\
+                                f"There were {N_pts}, {N_unique_pts} "+\
+                                 "of them were unique...")
+
+        # check that labels are unique and match point counts
+        if labels is not None:
+            N_labels = len(labels)
+            N_unique_labels = len(set(labels))
+
+            if N_labels != N_unique_labels:
+                raise ValueError("Labels must all be unique! " +\
+                                f"There were {N_labels}, {N_unique_labels} "+\
+                                 "of them were unique...")
+
+            if N_labels != N_pts:
+                raise ValueError(f"Count of labels, {N_labels}, must match " +\
+                                 f"the count of points, {N_pts}")
+
+        # check that backend is allowed
         backends = ["ppl", "qhull", "palp", None]
         if backend not in backends:
             raise ValueError(f"Invalid backend, {backend}."+\
                                                 f" Options are {backends}.")
 
-        # check input labels
-        if labels is not None:
-            N_labels = len(labels)
-            N_pts = len(points)
-            assert N_labels == N_pts
-            assert N_labels == len(set(labels))
-
+        # parse the inputs
+        # ----------------
         # Initialize hidden attributes
         self.clear_cache()
 
-        # parse the inputs
-        # ----------------
         # dimension
         self._ambient_dim = len(points[0])
         self._dim = np.linalg.matrix_rank([list(pt)+[1] for pt in points]) - 1
@@ -155,9 +173,7 @@ class Polytope:
 
         self._backend = backend
 
-        # points (better basis, H-representation)
-        # (sets _transl_vector, _transf_mat, _transf_mat_inv, _poly_optimal,
-        # _pts_optimal, _ineqs_optimal, and _ineqs_input)
+        # set point information (better basis, H-representation)
         self._process_points(points, labels)
 
     def clear_cache(self) -> None:
@@ -341,8 +357,9 @@ class Polytope:
 
         Sets
             self._transl_vector, self._transf_mat, self._transf_mat_inv,
-            self._poly_optimal,
-            self._ineqs_optimal, and self._ineqs_input
+            self._ineqs_optimal, self._poly_optimal, and
+            self._ineqs_input
+        along with parameters set in self._pts_saturated
 
         **Arguments:**
         - `pts_input`: The points input from the user.
@@ -350,15 +367,6 @@ class Polytope:
 
         **Returns:**
         Nothing.
-
-        **Example:**
-        We construct two polytops and compute their Minkowski sum.
-        ```python {3}
-        p1 = Polytope([[1,0,0],[0,1,0],[-1,-1,0]])
-        p2 = Polytope([[0,0,1],[0,0,-1]])
-        p1 + p2
-        # A 3-dimensional reflexive lattice polytope in ZZ^3
-        ```
         """
         # Find 'optimal' representation
         # -----------------------------
@@ -367,16 +375,16 @@ class Polytope:
             self._transl_vector = np.zeros(self._ambient_dim, dtype=int)
         else:
             self._transl_vector = pts_input[0]
-        self._pts_optimal_mat = np.array(pts_input)-self._transl_vector
+        pts_optimal_mat = np.array(pts_input)-self._transl_vector
 
         # LLL-reduction (allows reduction in dimension)
-        self._pts_optimal_mat, transf =lll_reduce(self._pts_optimal_mat,transform=True)
-        self._pts_optimal_mat = self._pts_optimal_mat[:, self._dim_diff:]
+        pts_optimal_mat, transf =lll_reduce(pts_optimal_mat, transform=True)
+        pts_optimal_mat = pts_optimal_mat[:, self._dim_diff:]
         self._transf_mat, self._transf_mat_inv = transf
 
         # Calculate the polytope, inequalities
         # ------------------------------------
-        out = poly_v_to_h(self._pts_optimal_mat, self._backend)
+        out = poly_v_to_h(pts_optimal_mat, self._backend)
         self._ineqs_optimal, self._poly_optimal = out
 
         # convert to input representation
@@ -397,7 +405,7 @@ class Polytope:
 
         # Organize points by saturated inequalities
         # -----------------------------------------
-        self._pts_saturated(labels_input)
+        self._pts_saturated(pts_optimal_mat, labels_input)
 
     def _optimal_to_input(self, pts_opt: ArrayLike) -> np.array:
         """
@@ -405,16 +413,14 @@ class Polytope:
         We internally store the points in an 'optimal' representation
         (translated, LLL-reduced, ...). This eases computations. We will
         always want to return answers in original representation. This
-        funciton performs the mapping.
+        function performs the mapping.
 
         **Arguments:**
-        - `pts`: The points in the optimal representation.
+        - `pts_opt`: The points in the optimal representation.
 
         **Returns:**
         The points in the original representation.
         """
-        pts_opt = np.asarray(pts_opt)
-
         # pad points with 0s, to make width match original dim
         points_orig = np.empty((len(pts_opt), self._ambient_dim), dtype=int)
         points_orig[:,self._dim_diff:] = pts_opt
@@ -430,7 +436,7 @@ class Polytope:
 
         return points_orig
 
-    def _pts_saturated(self, labels: ArrayLike = None) -> list[tuple]:
+    def _pts_saturated(self, pts_optimal: ArrayLike, labels: ArrayLike = None) -> list[tuple]:
         """
         **Description:**
         Computes the lattice points of the polytope along with the indices of
@@ -472,7 +478,7 @@ class Polytope:
         """
         if labels is None:
             labels = []
-        pts_optimal = [tuple(pt) for pt in self._pts_optimal_mat]
+        pts_optimal = [tuple(pt) for pt in pts_optimal]
 
         # When using PALP as the backend, use it to compute all lattice points
         # in the polytope.
@@ -687,10 +693,10 @@ class Polytope:
 
         elif self._backend == "qhull":
             if self._dim == 1: # QHull cannot handle 1D polytopes
-                verts = np.array([self._pts_input[label] for label \
+                verts = np.array([self._pts_optimal[label] for label \
                                                     in self._N_saturated[1]])
             else:
-                verts = self._pts_optimal_mat[self._poly_optimal.vertices]
+                verts = self._poly_optimal.points[self._poly_optimal.vertices]
         else:
             # get the vertices
             if self._backend == "ppl":
