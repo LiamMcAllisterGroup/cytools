@@ -360,7 +360,6 @@ class Polytope:
         # points
         # ------
         # LLL-reduction         (DON'T CLEAR! Set in init...)
-        #self._transf_mat
         #self._transf_mat_inv
         #self._transl_vector
 
@@ -371,7 +370,7 @@ class Polytope:
 
         # input, optimal points (DON'T CLEAR! Set in init...)
         #self._numSaturated_to_labels
-        #self._pts_dict
+        #self._pts_indices
         #self._pts_input
         #self._pts_optimal
         #self._pts_saturating
@@ -421,7 +420,7 @@ class Polytope:
         once (in the initializer). Abstracted here to clarify logic.
 
         Sets
-            self._transl_vector, self._transf_mat, self._transf_mat_inv,
+            self._transl_vector, self._transf_mat_inv,
             self._ineqs_optimal, self._poly_optimal, and
             self._ineqs_input
         along with parameters set in self._pts_saturated
@@ -445,7 +444,7 @@ class Polytope:
         # LLL-reduction (allows reduction in dimension)
         pts_optimal_mat, transf =lll_reduce(pts_optimal_mat, transform=True)
         pts_optimal_mat = pts_optimal_mat[:, self._dim_diff:]
-        self._transf_mat, self._transf_mat_inv = transf
+        transf_mat, self._transf_mat_inv = transf
 
         # Calculate the polytope, inequalities
         # ------------------------------------
@@ -458,7 +457,7 @@ class Polytope:
 
         self._ineqs_input = np.zeros(shape, dtype=int)
         self._ineqs_input[:,self._dim_diff:] = self._ineqs_optimal
-        self._ineqs_input[:,:-1] = self._transf_mat.T.dot(self._ineqs_input[:,:-1].T).T
+        self._ineqs_input[:,:-1] = transf_mat.T.dot(self._ineqs_input[:,:-1].T).T
 
         if self.is_solid():
             self._ineqs_input[:,-1] = self._ineqs_optimal[:,-1]
@@ -521,9 +520,7 @@ class Polytope:
         None.
 
         **Returns:**
-        A list of tuples. The first component of each tuple is the list of
-        coordinates of the point and the second component is a `frozenset` of
-        the hyperplane inequalities that it saturates.
+        Nothing.
 
         **Example:**
         We construct a polytope and compute the lattice points along with the
@@ -715,9 +712,7 @@ class Polytope:
                                                 zip(self._pts_order, pts_input)}
 
         # dictionary from point to index in self.points()
-        self._pts_dict = {tuple(pt):i for i,pt in enumerate(self.points())}
-
-        return self._pts_input.copy(), self._pts_saturating.copy(), self._pts_order.copy()
+        self._pts_indices = {tuple(pt):i for i,pt in enumerate(self.points())}
 
     def vertices(self, as_indices: bool = False) -> np.ndarray:
         """
@@ -1580,7 +1575,7 @@ class Polytope:
         
         # get/return the indices
         #pt_to_label = {tuple(v):k for k,v in self._pts_input.items()}
-        out = np.array([self._pts_dict[tuple(pt)] for pt in points], dtype=int)
+        out = np.array([self._pts_indices[tuple(pt)] for pt in points], dtype=int)
         if single_pt and len(out):
             return out[0]   # just return the single index
         else:
