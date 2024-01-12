@@ -156,12 +156,6 @@ class Polytope:
 
         # initialize attributes
         # ---------------------
-        # inputs
-        self._points_in  = copy.deepcopy(points)
-        self._labels_in  = copy.deepcopy(labels)
-        self._backend_in = copy.deepcopy(backend)
-
-        # others
         self.clear_cache()
 
         # process the inputs
