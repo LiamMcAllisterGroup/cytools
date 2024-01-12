@@ -341,7 +341,7 @@ class Polytope:
         pts = p.points() # Takes a few seconds
         pts = p.points() # It runs instantly because the result is cached
         p.clear_cache() # Clears the results of any previos computation
-        pts = p.points() # Again it takes a few seconds since the chache was cleared
+        pts = p.points() # Again it takes a few seconds since the cache was cleared
         ```
         """
         # basics
