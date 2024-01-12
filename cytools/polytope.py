@@ -125,11 +125,13 @@ class Polytope:
         # --------------
         # check that points are unique
         N_pts = len(points)
-        N_unique_pts = len({tuple(pt) for pt in pts})
-        if N_pts != N_unique_pts
-            raise ValueError("Points must all be unique! " +\
-                                f"There were {N_pts}, {N_unique_pts} "+\
-                                 "of them were unique...")
+        N_unique_pts = len({tuple(pt) for pt in points})
+        if N_pts != N_unique_pts:
+            msg = f"Points must all be unique! There were {N_pts}, "
+            msg +=f"{N_unique_pts} of them were unique...\n"
+            msg +=f"Points = {points}..."
+
+            raise ValueError(msg)
 
         # check that labels are unique and match point counts
         if labels is not None:
@@ -175,53 +177,6 @@ class Polytope:
 
         # set point information (better basis, H-representation)
         self._process_points(points, labels)
-
-    def clear_cache(self) -> None:
-        """
-        **Description:**
-        Clears the cached results of any previous computation.
-
-        **Arguments:**
-        None.
-
-        **Returns:**
-        Nothing.
-
-        **Example:**
-        We compute the lattice points of a large polytope.
-        ```python {4}
-        p = Polytope([[-1,-1,-1,-1,-1],[3611,-1,-1,-1,-1],[-1,42,-1,-1,-1],[-1,-1,6,-1,-1],[-1,-1,-1,2,-1],[-1,-1,-1,-1,1]])
-        pts = p.points() # Takes a few seconds
-        pts = p.points() # It runs instantly because the result is cached
-        p.clear_cache() # Clears the results of any previos computation
-        pts = p.points() # Again it takes a few seconds since the chache was cleared
-        ```
-        """
-        self._hash = None
-        self._pts_sat = None
-        self._pts = None
-        self._interior_points = None
-        self._boundary_points = None
-        self._points_interior_to_facets = None
-        self._boundary_points_not_interior_to_facets = None
-        self._points_not_interior_to_facets = None
-        self._is_reflexive = None
-        self._h11 = None
-        self._h12 = None
-        self._h13 = None
-        self._h22 = None
-        self._chi = None
-        self._faces = None
-        self._vertices = None
-        self._dual = None
-        self._is_favorable = None
-        self._volume = None
-        self._normal_form = [None]*3
-        self._autos = [None]*4
-        self._nef_parts = dict()
-        self._glsm_charge_matrix = dict()
-        self._glsm_linrels = dict()
-        self._glsm_basis = dict()
 
     def __repr__(self) -> str:
         """
@@ -348,6 +303,60 @@ class Polytope:
             raise ValueError
 
         return self.minkowski_sum(other)
+
+    # getters
+    @property
+    def pt_order(self):
+        return self._pts_order.copy()
+    
+
+    # others
+    def clear_cache(self) -> None:
+        """
+        **Description:**
+        Clears the cached results of any previous computation.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        Nothing.
+
+        **Example:**
+        We compute the lattice points of a large polytope.
+        ```python {4}
+        p = Polytope([[-1,-1,-1,-1,-1],[3611,-1,-1,-1,-1],[-1,42,-1,-1,-1],[-1,-1,6,-1,-1],[-1,-1,-1,2,-1],[-1,-1,-1,-1,1]])
+        pts = p.points() # Takes a few seconds
+        pts = p.points() # It runs instantly because the result is cached
+        p.clear_cache() # Clears the results of any previos computation
+        pts = p.points() # Again it takes a few seconds since the chache was cleared
+        ```
+        """
+        self._hash = None
+        self._pts_sat = None
+        self._pts = None
+        self._interior_points = None
+        self._boundary_points = None
+        self._points_interior_to_facets = None
+        self._boundary_points_not_interior_to_facets = None
+        self._points_not_interior_to_facets = None
+        self._is_reflexive = None
+        self._h11 = None
+        self._h12 = None
+        self._h13 = None
+        self._h22 = None
+        self._chi = None
+        self._faces = None
+        self._vertices = None
+        self._dual = None
+        self._is_favorable = None
+        self._volume = None
+        self._normal_form = [None]*3
+        self._autos = [None]*4
+        self._nef_parts = dict()
+        self._glsm_charge_matrix = dict()
+        self._glsm_linrels = dict()
+        self._glsm_basis = dict()
 
     def _process_points(self, pts_input: ArrayLike, labels_input: ArrayLike = None) -> None:
         """
@@ -642,17 +651,17 @@ class Polytope:
             self._N_saturated[len(facet_ind[i])].append(label)
 
         # save order of labels
-        self._pt_order = sum(self._N_saturated[1:][::-1], self._N_saturated[0])
+        self._pts_order = sum(self._N_saturated[1:][::-1], self._N_saturated[0])
 
         # dictionary from labels to input coordinates
         pts_input=self._optimal_to_input(self.points(optimal=True))
         self._pts_input = {label:tuple(pt) for label,pt in \
-                                                zip(self._pt_order, pts_input)}
+                                                zip(self._pts_order, pts_input)}
 
         # dictionary from point to index in self.points()
         self._pts_dict = {tuple(pt):i for i,pt in enumerate(self.points())}
 
-        return self._pts_input.copy(), self._pts_saturating.copy(), self._pt_order.copy()
+        return self._pts_input.copy(), self._pts_saturating.copy(), self._pts_order.copy()
 
     def vertices(self, as_indices: bool = False) -> np.ndarray:
         """
@@ -788,7 +797,7 @@ class Polytope:
         """
         # return the answer in the desired format
         if as_indices:
-            #return self._pt_order.copy()
+            #return self._pts_order.copy()
             return range(len(self._pts_optimal))
         else:
             # set pts to be optimal/input depending on 'optimal' parameter
@@ -798,7 +807,7 @@ class Polytope:
                 pts = self._pts_input
             
             # return
-            return np.array([pts[i] for i in self._pt_order])
+            return np.array([pts[i] for i in self._pts_order])
     # aliases
     pts = points
 
@@ -822,12 +831,12 @@ class Polytope:
         # A 3-dimensional reflexive lattice polytope in ZZ^3
         ```
         """
-        points = []
+        points = set()
         for p1 in self.vertices():
             for p2 in other.vertices():
-                points.append(p1+p2)
+                points.add(tuple(p1+p2))
 
-        return Polytope(points)
+        return Polytope(list(points))
 
     def ambient_dimension(self) -> int:
         """

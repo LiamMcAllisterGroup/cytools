@@ -21,7 +21,7 @@ for b in ["ppl", "qhull", "palp"]:
     p.ambient_dim()
     p.dim()
     p.is_solid()
-    p._pts_saturated()
+    #p._pts_saturated()
     p.points()
     p.interior_points()
     p.boundary_points()

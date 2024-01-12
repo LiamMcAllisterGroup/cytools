@@ -210,12 +210,15 @@ class PolytopeFace:
         ```
         """
         if self._points_sat is None:
-            pts, saturating, order = self._ambient_poly._pts_saturated()
-
             self._points_sat = []
-            for label in order:
-                if self._saturated_ineqs.issubset(saturating[label]):
-                    self._points_sat.append((pts[label],saturating[label]))
+
+            # inherit the calculation from the ambient polytope
+            for label in self._ambient_poly._pts_order:
+                saturating = self._ambient_poly._pts_saturating[label]
+
+                if self._saturated_ineqs.issubset(saturating):
+                    pt = self._ambient_poly._pts_input[label]
+                    self._points_sat.append((pt,saturating))
 
         return copy.copy(self._points_sat)
 
