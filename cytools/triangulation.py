@@ -92,6 +92,7 @@ class Triangulation:
     - `backend`: The backend used to compute the triangulation. Options are
         "qhull", "cgal", and "topcom". CGAL is the default as it is very
         fast and robust.
+    - `verbosity`: The verbosity level.
 
     **Example:**
     We construct a triangulation of a polytope. Since this class is not
@@ -151,6 +152,7 @@ class Triangulation:
         - `backend`: The backend used to compute the triangulation. Options are
             "qhull", "cgal", and "topcom". CGAL is the default as it is very
             fast and robust.
+        - `verbosity`: The verbosity level.
 
         **Returns:**
         Nothing.
@@ -355,24 +357,7 @@ class Triangulation:
 
             # check that the heights uniquely define this triangulation
             if check_heights and (self._heights is not None):
-                # check if we're on a wall of our secondary cone
-                # in this case, the triangulation may not be uniquely defined
-                eps = 1e-6
-                hyp_dist = np.matmul(self.secondary_cone().hyperplanes(),\
-                                     self._heights)
-                not_interior = hyp_dist<eps
-
-                if not_interior.any():
-                    self._heights = None
-
-                    if (verbosity>1) or (verbosity==1 and not default_triang):
-                        print(f"Triangulation: height-vector is within {eps}"+\
-                               " of a wall of the secondary cone... heights "+\
-                               "likely don't define a unique triangulation " +\
-                               "(common for Delaunay)...")
-                        print("Will recalculate more appropriate heights " +\
-                              "for the (semi-arbitrarily chosen) " +\
-                              "triangulation...")
+                self.check_heights(verbosity-default_triang)
 
         # Make sure that the simplices are sorted
         self._simplices = sorted([sorted(s) for s in self._simplices])
@@ -1290,6 +1275,40 @@ class Triangulation:
         self._is_valid = True
         return self._is_valid
 
+    def check_heights(self, verbosity: int = 1) -> bool:
+        """
+        **Description:**
+        Check if the heights uniquely define a triangulation. That is, if they
+        do not lie on a wall of the generated secondary cone.
+
+        If heights don't uniquely correspond to a trinagulation, delete the
+        heights so they are re-calculated (keep triangulation, though...)
+
+        **Arguments:**
+        - `verbosity`: The verbosity level.
+
+        **Returns:**
+        Nothing.
+        """
+        # find hyperplanes that we are within eps of wall
+        eps = 1e-6
+        hyp_dist = np.matmul(self.secondary_cone().hyperplanes(),\
+                             self._heights)
+        not_interior = hyp_dist<eps
+
+        # if we are close to any walls
+        if not_interior.any():
+            self._heights = None
+
+            if (verbosity>1) or (verbosity==1 and not default_triang):
+                print(f"Triangulation: height-vector is within {eps}"+\
+                       " of a wall of the secondary cone... heights "+\
+                       "likely don't define a unique triangulation " +\
+                       "(common for Delaunay)...")
+                print("Will recalculate more appropriate heights " +\
+                      "for the (semi-arbitrarily chosen) " +\
+                      "triangulation...")
+
     def gkz_phi(self) -> np.ndarray:
         """
         **Description:**
@@ -1429,6 +1448,7 @@ class Triangulation:
             backend available for the [`is_solid`](./cone#is_solid) function of
             the [`Cone`](./cone) class. If not specified, it will be picked
             automatically.
+        - `verbose`: Whether to print extra info from the TOPCOM command.
 
         **Returns:**
         The list of triangulations that differ by one bistellar flip from the
@@ -1450,6 +1470,10 @@ class Triangulation:
                             "for trivial triangulation (1 simplex)... " + \
                             "Returning []! Fix TOPCOM!")
             return []
+
+        # optimized method for 2D fine neighbors
+        if self.is_fine() and (self.dim()==2) and only_fine:
+            return self._fine_neighbors_2d()
 
         # prep TOPCOM input
         pts_str = str([list(pt)+[1] for pt in self._optimal_pts])
@@ -1509,6 +1533,73 @@ class Triangulation:
             triangs.append(tri)
         return triangs
     neighbors = neighbor_triangulations
+
+    def _fine_neighbors_2d(self,
+                           only_regular: bool = False,
+                           only_star: bool = False,
+                           backend: str = None)->list["Triangulation"]:
+        """
+        **Description:**
+        An optimized variant of neighbor_triangulations for triangulations that
+        are:
+            1) 2D (in dimension... ambient dimension doesn't matter)
+            2) fine
+            3) fine neighbors are desired
+        In this case, _fine_neighbors_2d runs much quicker than the
+        corresponding TOPCOM calculation
+
+        **Arguments:**
+        - `only_regular`: Restricts the to regular triangulations.
+        - `only_star`: Restricts to star triangulations.
+        - `backend`: The backend used to check regularity. The options are any
+            backend available for the [`is_solid`](./cone#is_solid) function of
+            the [`Cone`](./cone) class. If not specified, it will be picked
+            automatically.
+
+        **Returns:**
+        The list of triangulations that differ by one diagonal flip from the
+        current triangulation.
+        """
+        simps_set = [set(s) for s in self._simplices]
+        triangs = []
+
+        # for each pair of simplices
+        for i, s1 in enumerate(simps_set):
+            for _j,s2 in enumerate(simps_set[i+1:]):
+                j = i+1+_j
+                
+                # check if they form a quadrilateral
+                # (i.e., if they intersect along an edge)
+                inter = s1&s2
+                if len(inter)!=2:
+                    continue
+                
+                # (and if the edge is 'internal')
+                other = s1.union(s2)-inter
+                if (sum(map(lambda ind:self._triang_pts[ind], inter)) !=\
+                    sum(map(lambda ind:self._triang_pts[ind], other))).any():
+                    continue
+                
+                # flip the inner diagonal
+                flipped = list(map(lambda p: sorted(other|{p}), inter))
+                new_simps = self._simplices.copy()
+                new_simps[i] = flipped[0]
+                new_simps[j] = flipped[1]
+
+                # construct the triangulation
+                tri = Triangulation(self._triang_pts, self._poly,\
+                                    simplices=new_simps,\
+                                    check_input_simplices=False)
+
+                # check the triangulation
+                if only_star and (not tri.is_star()):
+                    continue
+                if only_regular and (not tri.is_regular(backend=backend)):
+                    continue
+
+                # keep it :)
+                triangs.append(tri)
+        return triangs
 
     def sr_ideal(self) -> tuple:
         """
@@ -2244,12 +2335,16 @@ def random_triangulations_fast_generator(triang_pts: ArrayLike,
         # generate random heights, make the triangulation
         heights= [pt.dot(pt) + np.random.normal(0,c) for pt in triang_pts]
         t = Triangulation(triang_pts, poly=poly, heights=heights,
-                          make_star=make_star, backend=backend)
+                          make_star=make_star, backend=backend,
+                          check_heights=False)
 
         # check if it's good
         if only_fine and (not t.is_fine()):
             n_retries += 1
             continue
+
+        # check that the heights aren't on a wall of the secondary cone
+        t.check_heights(verbosity-1)
 
         h = hash(t)
         if h in triang_hashes:
