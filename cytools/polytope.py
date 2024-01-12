@@ -307,12 +307,6 @@ class Polytope:
             raise ValueError
 
         return self.minkowski_sum(other)
-
-    # getters
-    # =======
-    @property
-    def pt_order(self):
-        return self._pts_order.copy()
     
     # others
     # ======
@@ -352,7 +346,7 @@ class Polytope:
         """
         # basics
         # ------
-        # inputs                (DON'T CLEAR!)
+        # inputs                (DON'T CLEAR! Set in init...)
         #self._backend
 
         # defaults
@@ -365,17 +359,17 @@ class Polytope:
 
         # points
         # ------
-        # LLL-reduction         (DON'T CLEAR)
+        # LLL-reduction         (DON'T CLEAR! Set in init...)
         #self._transf_mat
         #self._transf_mat_inv
         #self._transl_vector
 
-        # H-rep                 (DON'T CLEAR)
+        # H-rep                 (DON'T CLEAR! Set in init...)
         #self._ineqs_input
         #self._ineqs_optimal
         #self._poly_optimal
 
-        # input, optimal points (DON'T CLEAR)
+        # input, optimal points (DON'T CLEAR! Set in init...)
         #self._numSaturated_to_labels
         #self._pts_dict
         #self._pts_input
@@ -392,7 +386,7 @@ class Polytope:
         self._pts_not_interior_to_facets        = None
         self._vertices                          = None
 
-        # dimension             (DON'T CLEAR)
+        # dimension             (DON'T CLEAR! Set in init...)
         #self._dim
         #self._dim_ambient
         #self._dim_diff
