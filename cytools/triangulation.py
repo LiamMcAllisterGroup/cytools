@@ -1076,7 +1076,7 @@ class Triangulation:
         # 4
         ```
         """
-        return self._poly._ambient_dim
+        return self._poly._dim_ambient
     # aliases
     ambient_dim = ambient_dimension
 

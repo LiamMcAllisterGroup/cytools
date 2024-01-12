@@ -86,7 +86,7 @@ class Polytope:
     ```
     """
 
-    def __init__(self, points: ArrayLike, labels: ArrayLike = None, backend: str = None) -> None:
+    def __init__(self, points: ArrayLike, labels: ArrayLike = None, backend: str=None) -> None:
         """
         **Description:**
         Initializes a `Polytope` object describing a lattice polytope.
@@ -153,15 +153,22 @@ class Polytope:
             raise ValueError(f"Invalid backend, {backend}."+\
                                                 f" Options are {backends}.")
 
-        # parse the inputs
-        # ----------------
-        # Initialize hidden attributes
+        # initialize attributes
+        # ---------------------
+        # inputs
+        self._points_in  = copy.deepcopy(points)
+        self._labels_in  = copy.deepcopy(labels)
+        self._backend_in = copy.deepcopy(backend)
+
+        # others
         self.clear_cache()
 
+        # process the inputs
+        # ------------------
         # dimension
-        self._ambient_dim = len(points[0])
+        self._dim_ambient = len(points[0])
         self._dim = np.linalg.matrix_rank([list(pt)+[1] for pt in points]) - 1
-        self._dim_diff = self._ambient_dim-self._dim
+        self._dim_diff = self._dim_ambient-self._dim
 
         # backend
         if backend is None:
@@ -178,6 +185,8 @@ class Polytope:
         # set point information (better basis, H-representation)
         self._process_points(points, labels)
 
+    # defaults
+    # ========
     def __repr__(self) -> str:
         """
         **Description:**
@@ -201,7 +210,7 @@ class Polytope:
         """
         return (f"A {self._dim}-dimensional "
                 f"{('reflexive ' if self.is_reflexive() else '')}"
-                f"lattice polytope in ZZ^{self._ambient_dim}")
+                f"lattice polytope in ZZ^{self._dim_ambient}")
 
     def __eq__(self, other: "Polytope") -> bool:
         """
@@ -305,12 +314,26 @@ class Polytope:
         return self.minkowski_sum(other)
 
     # getters
+    # =======
     @property
     def pt_order(self):
         return self._pts_order.copy()
     
-
     # others
+    # ======
+    def dump(self) -> dict:
+        """
+        **Description:**
+        Get every class variable.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        Dictionary mapping variable name to value.
+        """
+        return copy.deepcopy(self.__dict__)
+
     def clear_cache(self) -> None:
         """
         **Description:**
@@ -332,31 +355,75 @@ class Polytope:
         pts = p.points() # Again it takes a few seconds since the chache was cleared
         ```
         """
+        # basics
+        # ------
+        # inputs                (DON'T CLEAR!)
+        #self._backend
+
+        # defaults
         self._hash = None
-        self._pts_sat = None
-        self._pts = None
-        self._interior_points = None
-        self._boundary_points = None
-        self._points_interior_to_facets = None
-        self._boundary_points_not_interior_to_facets = None
-        self._points_not_interior_to_facets = None
-        self._is_reflexive = None
+
+        # simple properties
+        self._is_favorable  = None
+        self._is_reflexive  = None
+        self._volume        = None
+
+        # points
+        # ------
+        # LLL-reduction         (DON'T CLEAR)
+        #self._transf_mat
+        #self._transf_mat_inv
+        #self._transl_vector
+
+        # H-rep                 (DON'T CLEAR)
+        #self._ineqs_input
+        #self._ineqs_optimal
+        #self._poly_optimal
+
+        # input, optimal points (DON'T CLEAR)
+        #self._numSaturated_to_labels
+        #self._pts_dict
+        #self._pts_input
+        #self._pts_optimal
+        #self._pts_saturating
+
+        #self._pts_order
+
+        # points on/in various faces
+        self._pts_bdry                          = None
+        self._pts_bdry_not_interior_to_facets   = None
+        self._pts_interior                      = None
+        self._pts_interior_to_facets            = None
+        self._pts_not_interior_to_facets        = None
+        self._vertices                          = None
+
+        # dimension             (DON'T CLEAR)
+        #self._dim
+        #self._dim_ambient
+        #self._dim_diff
+
+        # dual, faces, H-rep
+        self._dual   = None
+        self._faces  = None
+
+        # symmetries
+        self._autos = [None]*4
+
+        # hodge numbers
+        self._chi = None
         self._h11 = None
         self._h12 = None
         self._h13 = None
         self._h22 = None
-        self._chi = None
-        self._faces = None
-        self._vertices = None
-        self._dual = None
-        self._is_favorable = None
-        self._volume = None
-        self._normal_form = [None]*3
-        self._autos = [None]*4
-        self._nef_parts = dict()
-        self._glsm_charge_matrix = dict()
-        self._glsm_linrels = dict()
-        self._glsm_basis = dict()
+
+        # glsm
+        self._glsm_basis            = dict()
+        self._glsm_charge_matrix    = dict()
+        self._glsm_linrels          = dict()
+        
+        # misc
+        self._nef_parts     = dict()
+        self._normal_form   = [None]*3
 
     def _process_points(self, pts_input: ArrayLike, labels_input: ArrayLike = None) -> None:
         """
@@ -381,7 +448,7 @@ class Polytope:
         # -----------------------------
         # translate if not full-dim (allows LLL-reduction)
         if self.is_solid():
-            self._transl_vector = np.zeros(self._ambient_dim, dtype=int)
+            self._transl_vector = np.zeros(self._dim_ambient, dtype=int)
         else:
             self._transl_vector = pts_input[0]
         pts_optimal_mat = np.array(pts_input)-self._transl_vector
@@ -431,7 +498,7 @@ class Polytope:
         The points in the original representation.
         """
         # pad points with 0s, to make width match original dim
-        points_orig = np.empty((len(pts_opt), self._ambient_dim), dtype=int)
+        points_orig = np.empty((len(pts_opt), self._dim_ambient), dtype=int)
         points_orig[:,self._dim_diff:] = pts_opt
         points_orig[:,:self._dim_diff] = 0
 
@@ -629,7 +696,7 @@ class Polytope:
         # save points in a dictionary from arbitrary labels to coordinates
         self._pts_optimal = dict()
         self._pts_saturating = dict()
-        self._N_saturated = [[] for _ in range(len(self._ineqs_optimal)+1)]
+        self._numSaturated_to_labels = [[] for _ in range(len(self._ineqs_optimal)+1)]
 
         last_default_label = -1
         for i in inds_sort:
@@ -648,10 +715,10 @@ class Polytope:
             # save it!
             self._pts_optimal[label] = tuple(points[i])
             self._pts_saturating[label] = facet_ind[i]
-            self._N_saturated[len(facet_ind[i])].append(label)
+            self._numSaturated_to_labels[len(facet_ind[i])].append(label)
 
         # save order of labels
-        self._pts_order = sum(self._N_saturated[1:][::-1], self._N_saturated[0])
+        self._pts_order = sum(self._numSaturated_to_labels[1:][::-1], self._numSaturated_to_labels[0])
 
         # dictionary from labels to input coordinates
         pts_input=self._optimal_to_input(self.points(optimal=True))
@@ -703,7 +770,7 @@ class Polytope:
         elif self._backend == "qhull":
             if self._dim == 1: # QHull cannot handle 1D polytopes
                 verts = np.array([self._pts_optimal[label] for label \
-                                                    in self._N_saturated[1]])
+                                                    in self._numSaturated_to_labels[1]])
             else:
                 verts = self._poly_optimal.points[self._poly_optimal.vertices]
         else:
@@ -860,7 +927,7 @@ class Polytope:
         # 4
         ```
         """
-        return self._ambient_dim
+        return self._dim_ambient
     # aliases
     ambient_dim = ambient_dimension
 
@@ -982,7 +1049,7 @@ class Polytope:
         # False
         ```
         """
-        return(self._ambient_dim == self._dim)
+        return(self._dim_ambient == self._dim)
 
     def is_reflexive(self) -> bool:
         """
@@ -1554,16 +1621,16 @@ class Polytope:
         ```
         """
         # calculate the answer if not known
-        if self._interior_points is None:
-            labels = self._N_saturated[0]
-            self._interior_points = np.array([self._pts_input[label]\
+        if self._pts_interior is None:
+            labels = self._numSaturated_to_labels[0]
+            self._pts_interior = np.array([self._pts_input[label]\
                                                         for label in labels])
 
         # return
         if as_indices:
-            return self.points_to_indices(self._interior_points)
+            return self.points_to_indices(self._pts_interior)
         else:
-            return np.array(self._interior_points)
+            return np.array(self._pts_interior)
     # aliases
     interior_pts = interior_points
 
@@ -1599,16 +1666,16 @@ class Polytope:
         ```
         """
         # calculate the answer if not known
-        if self._boundary_points is None:
-            labels = sum(self._N_saturated[1:][::-1], [])
-            self._boundary_points = np.array([self._pts_input[label]\
+        if self._pts_bdry is None:
+            labels = sum(self._numSaturated_to_labels[1:][::-1], [])
+            self._pts_bdry = np.array([self._pts_input[label]\
                                                         for label in labels])
 
         # return
         if as_indices:
-            return self.points_to_indices(self._boundary_points)
+            return self.points_to_indices(self._pts_bdry)
         else:
-            return np.array(self._boundary_points)
+            return np.array(self._pts_bdry)
     # aliases
     boundary_pts = boundary_points
 
@@ -1640,16 +1707,16 @@ class Polytope:
         ```
         """
         # calculate the answer if not known
-        if self._points_interior_to_facets is None:
-            labels = self._N_saturated[1]
-            self._points_interior_to_facets = np.array([self._pts_input[label]\
+        if self._pts_interior_to_facets is None:
+            labels = self._numSaturated_to_labels[1]
+            self._pts_interior_to_facets = np.array([self._pts_input[label]\
                                                         for label in labels])
         
         # return
         if as_indices:
-            return self.points_to_indices(self._points_interior_to_facets)
+            return self.points_to_indices(self._pts_interior_to_facets)
         else:
-            return np.array(self._points_interior_to_facets)
+            return np.array(self._pts_interior_to_facets)
     # aliases
     pts_interior_to_facets = points_interior_to_facets
 
@@ -1685,17 +1752,17 @@ class Polytope:
         ```
         """
         # calculate the answer if not known
-        if self._boundary_points_not_interior_to_facets is None:
-            labels = sum(self._N_saturated[2:][::-1], [])
-            self._boundary_points_not_interior_to_facets = np.array([self._pts_input[label]\
+        if self._pts_bdry_not_interior_to_facets is None:
+            labels = sum(self._numSaturated_to_labels[2:][::-1], [])
+            self._pts_bdry_not_interior_to_facets = np.array([self._pts_input[label]\
                                                         for label in labels])
 
         # return
         if as_indices:
             return self.points_to_indices(
-                                self._boundary_points_not_interior_to_facets)
+                                self._pts_bdry_not_interior_to_facets)
         else:
-            return np.array(self._boundary_points_not_interior_to_facets)
+            return np.array(self._pts_bdry_not_interior_to_facets)
     # aliases
     boundary_pts_not_interior_to_facets = boundary_points_not_interior_to_facets
 
@@ -1731,16 +1798,16 @@ class Polytope:
         ```
         """
         # calculate the answer if not known
-        if self._points_not_interior_to_facets is None:
-            labels = sum(self._N_saturated[2:][::-1], self._N_saturated[0])
-            self._points_not_interior_to_facets = np.array([self._pts_input[label]\
+        if self._pts_not_interior_to_facets is None:
+            labels = sum(self._numSaturated_to_labels[2:][::-1], self._numSaturated_to_labels[0])
+            self._pts_not_interior_to_facets = np.array([self._pts_input[label]\
                                                         for label in labels])
         
         # return
         if as_indices:
-            return self.points_to_indices(self._points_not_interior_to_facets)
+            return self.points_to_indices(self._pts_not_interior_to_facets)
         else:
-            return np.array(self._points_not_interior_to_facets)
+            return np.array(self._pts_not_interior_to_facets)
     # aliases
     pts_not_interior_to_facets = points_not_interior_to_facets
 
@@ -3311,7 +3378,7 @@ class Polytope:
         rand_triangs = p.random_triangulations_fast(N=10, as_list=True) # Produces the list of 10 triangulations very quickly
         ```
         """
-        if self._ambient_dim > self._dim:
+        if self._dim_ambient > self._dim:
             raise NotImplementedError("Only triangulations of full-dimensional polytopes"
                                       "are supported.")
         if N is None and as_list:
@@ -3454,7 +3521,7 @@ class Polytope:
         guess reasonable parameters, but it is better to adjust them to your
         desired balance between speed and fairness of the sampling.
         """
-        if self._ambient_dim > self._dim:
+        if self._dim_ambient > self._dim:
             raise NotImplementedError("Only triangulations of full-dimensional polytopes"
                                       "are supported.")
         if N is None and as_list:
