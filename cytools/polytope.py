@@ -68,6 +68,7 @@ class Polytope:
     **Arguments:**
     - `points` *(array_like)*: A list of lattice points defining the polytope
         as their convex hull.
+    - `labels`: A list of labels for the points, optional.
     - `backend` *(string, optional)*: A string that specifies the backend used
         to construct the convex hull. The available options are "ppl", "qhull",
         or "palp". When not specified, it uses PPL for dimensions up to four,
@@ -99,7 +100,7 @@ class Polytope:
         **Arguments:**
         - `points`: A list of lattice points defining the polytope as their
             convex hull.
-        - `points`: A list of labels for the points, optional.
+        - `labels`: A list of labels for the points, optional.
         - `backend`: A string that specifies the backend used to construct the
             convex hull. The available options are "ppl", "qhull", or "palp".
             When not specified, it uses PPL for dimensions up to four, and palp
