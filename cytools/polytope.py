@@ -837,13 +837,22 @@ class Polytope:
         # save order of labels
         self._pts_order = sum(self._nSat_to_labels[1:][::-1], self._nSat_to_labels[0])
 
+        # common sets of labels
+        self._labels_int    = self._nSat_to_labels[0]
+        self._labels_facet  = self._nSat_to_labels[1]
+
+        self._labels_bdry   = sum(self._nSat_to_labels[1:][::-1],[])
+        self._labels_codim2 = sum(self._nSat_to_labels[2:][::-1],[])
+
+        self._labels_not_facets = self._labels_int + self._labels_codim2
+
         # dictionary from labels to input coordinates
         pts_input=self._optimal_to_input(self.points(optimal=True))
         self._pts_input = {label:tuple(pt) for label,pt in \
                                             zip(self._pts_order, pts_input)}
 
-    # external
-    # --------
+    # main
+    # ----
     def points(self,
                labels = None,
                optimal: bool = False,
@@ -915,31 +924,28 @@ class Polytope:
     pts = points
 
     # common point grabbers
-    interior_points = lambda self, as_indices=False:\
-                    self.points(labels=self._nSat_to_labels[0],\
-                                as_indices=as_indices)
-    interior_pts = interior_points
+    # ---------------------
+    pts_int = lambda self, as_indices=False:\
+                self.pts(labels=self._labels_int,       as_indices=as_indices)
+    pts_bdry = lambda self, as_indices=False:\
+                self.pts(labels=self._labels_bdry,      as_indices=as_indices)
+    pts_facet = lambda self, as_indices=False:\
+                self.pts(labels=self._labels_facet,     as_indices=as_indices)
+    pts_codim2 = lambda self, as_indices=False:\
+                self.pts(labels=self._labels_codim2,    as_indices=as_indices)
+    pts_not_facets = lambda self, as_indices=False:\
+                self.pts(labels=self._labels_not_facets,as_indices=as_indices)
 
-    boundary_points = lambda self, as_indices=False:\
-                    self.points(labels=sum(self._nSat_to_labels[1:][::-1],[]),\
-                                as_indices=as_indices)
-    bdry_points = boundary_points
-    
-    points_interior_to_facets = lambda self, as_indices=False:\
-                    self.points(labels=self._nSat_to_labels[1],\
-                                as_indices=as_indices)
-    pts_interior_to_facets = points_interior_to_facets
+    # aliases
+    interior_points           = pts_int;    interior_pts            = pts_int
+    boundary_points           = pts_bdry;   bdry_points             = pts_bdry
+    points_interior_to_facets = pts_facet;  pts_interior_to_facets  = pts_facet
 
-    boundary_points_not_interior_to_facets = lambda self, as_indices=False:\
-                    self.points(labels=sum(self._nSat_to_labels[2:][::-1],[]),\
-                                as_indices=as_indices)
-    boundary_pts_not_interior_to_facets = boundary_points_not_interior_to_facets
+    boundary_points_not_interior_to_facets  = pts_codim2
+    boundary_pts_not_interior_to_facets     = pts_codim2
 
-    points_not_interior_to_facets = lambda self, as_indices=False:\
-                    self.points(labels=sum(self._nSat_to_labels[2:][::-1],\
-                                                    self._nSat_to_labels[0]),\
-                                as_indices=as_indices)
-    pts_not_interior_to_facets = points_not_interior_to_facets
+    points_not_interior_to_facets           = pts_not_facets
+    pts_not_interior_to_facets              = pts_not_facets
 
     def points_to_indices(self, points: ArrayLike) -> "np.ndarray | int":
         """
