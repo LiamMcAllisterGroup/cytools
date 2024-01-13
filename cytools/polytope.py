@@ -307,6 +307,12 @@ class Polytope:
             raise ValueError
 
         return self.minkowski_sum(other)
+
+    # getters
+    # =======
+    @property
+    def labels(self):
+        return self._pts_order
     
     # others
     # ======
@@ -370,12 +376,13 @@ class Polytope:
 
         # input, optimal points (DON'T CLEAR! Set in init...)
         #self._numSaturated_to_labels
-        #self._pts_indices
         #self._pts_input
         #self._pts_optimal
         #self._pts_saturating
 
         #self._pts_order
+
+        self._pts_indices                       = None
 
         # points on/in various faces
         self._pts_bdry                          = None
@@ -419,11 +426,14 @@ class Polytope:
         Internal function for processing input points. Should only be called
         once (in the initializer). Abstracted here to clarify logic.
 
-        Sets
+        Sets:
             self._transl_vector, self._transf_mat_inv,
-            self._ineqs_optimal, self._poly_optimal, and
-            self._ineqs_input
-        along with parameters set in self._pts_saturated
+            self._poly_optimal,
+            self._ineqs_optimal, and self._ineqs_input
+        along with parameters set in self._pts_saturated:
+            self._pts_optimal, self._pts_input,
+            self._pts_saturating, self._numSaturated_to_labels,
+            self._pts_order, and self._pts_indices
 
         **Arguments:**
         - `pts_input`: The points input from the user.
@@ -457,7 +467,7 @@ class Polytope:
 
         self._ineqs_input = np.zeros(shape, dtype=int)
         self._ineqs_input[:,self._dim_diff:] = self._ineqs_optimal
-        self._ineqs_input[:,:-1] = transf_mat.T.dot(self._ineqs_input[:,:-1].T).T
+        self._ineqs_input[:,:-1]=transf_mat.T.dot(self._ineqs_input[:,:-1].T).T
 
         if self.is_solid():
             self._ineqs_input[:,-1] = self._ineqs_optimal[:,-1]
@@ -485,6 +495,9 @@ class Polytope:
         **Returns:**
         The points in the original representation.
         """
+
+        # *** could be sped up by using pre-calculated dicts ***
+
         # pad points with 0s, to make width match original dim
         points_orig = np.empty((len(pts_opt), self._dim_ambient), dtype=int)
         points_orig[:,self._dim_diff:] = pts_opt
@@ -677,7 +690,19 @@ class Polytope:
         points_mat = self._optimal_to_input(points)
 
         # prep the outputs (tuple of points and sets of saturated ineqs)
-        inds_sort = np.lexsort(points_mat.T[::-1])
+        def sort_fct(ind):
+            out = []
+
+            # the number of saturated inequalities
+            if len(facet_ind[ind]) > 0:
+                out.append(-len(facet_ind[ind]))
+            else:
+                out.append(-float('inf'))
+
+            # the coordinates
+            out += tuple(points_mat[ind])
+            return tuple(out)
+        inds_sort = sorted(range(len(points_mat)), key=sort_fct)
 
         # save points in a dictionary from arbitrary labels to coordinates
         self._pts_optimal = dict()
@@ -709,10 +734,7 @@ class Polytope:
         # dictionary from labels to input coordinates
         pts_input=self._optimal_to_input(self.points(optimal=True))
         self._pts_input = {label:tuple(pt) for label,pt in \
-                                                zip(self._pts_order, pts_input)}
-
-        # dictionary from point to index in self.points()
-        self._pts_indices = {tuple(pt):i for i,pt in enumerate(self.points())}
+                                            zip(self._pts_order, pts_input)}
 
     def vertices(self, as_indices: bool = False) -> np.ndarray:
         """
@@ -804,7 +826,7 @@ class Polytope:
         else:
             return np.array(self._vertices)
 
-    def points(self, optimal:bool=False, as_indices:bool=False) -> np.ndarray:
+    def points(self, labels=None, optimal: bool=False, as_indices: bool=False) -> np.ndarray:
         """
         **Description:**
         Returns the lattice points of the polytope.
@@ -818,6 +840,9 @@ class Polytope:
         :::
 
         **Arguments:**
+        - `labels`: Which points to return. Specified by a (list of) labels.
+            NOT INDICES!!!
+        - `optimal`: Whether to return the points in their optimal coordinates.
         - `as_indices`: Return the points as indices of the full list of points
         of the polytope.
 
@@ -846,10 +871,16 @@ class Polytope:
         #        [ 0,  0,  0, -1]])
         ```
         """
+        # get the labels of the points to return
+        if labels is None:
+            labels = self._pts_order
+        elif labels in self._pts_order:
+            labels = [labels]
+
         # return the answer in the desired format
         if as_indices:
             #return self._pts_order.copy()
-            return range(len(self._pts_optimal))
+            return [self._pts_order.index(label) for label in labels]
         else:
             # set pts to be optimal/input depending on 'optimal' parameter
             if optimal:
@@ -858,9 +889,55 @@ class Polytope:
                 pts = self._pts_input
             
             # return
-            return np.array([pts[i] for i in self._pts_order])
+            return np.array([pts[label] for label in labels])
     # aliases
     pts = points
+
+    def points_to_indices(self, points: ArrayLike) -> "np.ndarray | int":
+        """
+        **Description:**
+        Returns the list of indices corresponding to the given points. It also
+        accepts a single point, in which case it returns the corresponding
+        index.
+
+        **Arguments:**
+        - `points`: A point or a list of points.
+
+        **Returns:**
+        The list of indices corresponding to the given points, or the index of
+        the point if only one is given.
+
+        **Example:**
+        We construct a polytope and find the indices of some of its points.
+        ```python {2,4}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        p.points_to_indices([-1,-1,-6,-9]) # We input a single point, so a single index is returned
+        # 1
+        p.points_to_indices([[-1,-1,-6,-9],[0,0,0,0],[0,0,1,0]]) # We input a list of points, so a list of indices is returned
+        # array([1, 0, 3])
+        ```
+        """
+        # check for empty input
+        if len(points)==0:
+            return np.asarray([],dtype=int)
+
+        # check that we calculated the map from points to indices
+        if self._pts_indices is None:
+            self._pts_indices = {tuple(pt):i for i,pt in\
+                                                    enumerate(self.points())}
+
+        # map single-point input into list case
+        single_pt = (len(np.array(points).shape) == 1)
+        if single_pt:
+            points = [points]
+        
+        # get/return the indices
+        out = np.array([self._pts_indices[tuple(pt)] for pt in points],\
+                                                                    dtype=int)
+        if single_pt and len(out):
+            return out[0]   # just return the single index
+        else:
+            return out      # return a list of indices
 
     def minkowski_sum(self, other: "Polytope") -> "Polytope":
         """
@@ -1539,47 +1616,6 @@ class Polytope:
                                                     backend=backend).tolist()
 
         return(our_normal_form == other_normal_form)
-
-    def points_to_indices(self, points: ArrayLike) -> "np.ndarray | int":
-        """
-        **Description:**
-        Returns the list of indices corresponding to the given points. It also
-        accepts a single point, in which case it returns the corresponding
-        index.
-
-        **Arguments:**
-        - `points`: A point or a list of points.
-
-        **Returns:**
-        The list of indices corresponding to the given points, or the index of
-        the point if only one is given.
-
-        **Example:**
-        We construct a polytope and find the indices of some of its points.
-        ```python {2,4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        p.points_to_indices([-1,-1,-6,-9]) # We input a single point, so a single index is returned
-        # 1
-        p.points_to_indices([[-1,-1,-6,-9],[0,0,0,0],[0,0,1,0]]) # We input a list of points, so a list of indices is returned
-        # array([1, 0, 3])
-        ```
-        """
-        # check for empty input
-        if len(points)==0:
-            return np.asarray([],dtype=int)
-
-        # map single-point input into list case
-        single_pt = (len(np.array(points).shape) == 1)
-        if single_pt:
-            points = [points]
-        
-        # get/return the indices
-        #pt_to_label = {tuple(v):k for k,v in self._pts_input.items()}
-        out = np.array([self._pts_indices[tuple(pt)] for pt in points], dtype=int)
-        if single_pt and len(out):
-            return out[0]   # just return the single index
-        else:
-            return out      # return a list of indices
 
     def interior_points(self, as_indices: bool = False) -> np.ndarray:
         """
