@@ -22,6 +22,7 @@
 # 'standard' imports
 from collections import defaultdict
 import copy
+from functools import lru_cache
 import itertools
 import math
 import subprocess
@@ -352,12 +353,8 @@ class Polytope:
         # inputs                (DON'T CLEAR! Set in init...)
         #self._backend
 
-        # defaults
-        self._hash = None
-
         # simple properties
-        self._is_favorable  = None
-        self._is_reflexive  = None
+        self._hash = None
         self._volume        = None
 
         # points
@@ -370,23 +367,16 @@ class Polytope:
         #self._ineqs_input
         #self._ineqs_optimal
         #self._poly_optimal
+        self._is_reflexive  = None
 
         # input, optimal points (DON'T CLEAR! Set in init...)
-        #self._num_saturated_to_labels
+        #self._nSat_to_labels
         #self._pts_input
         #self._pts_optimal
         #self._pts_saturating
 
         #self._pts_order
-
         self._pts_indices                       = None
-
-        # points on/in various faces
-        self._pts_bdry                          = None
-        self._pts_bdry_not_interior_to_facets   = None
-        self._pts_interior                      = None
-        self._pts_interior_to_facets            = None
-        self._pts_not_interior_to_facets        = None
         self._vertices                          = None
 
         # dimension             (DON'T CLEAR! Set in init...)
@@ -401,12 +391,9 @@ class Polytope:
         # symmetries
         self._autos = [None]*4
 
-        # hodge numbers
+        # hodge
         self._chi = None
-        self._h11 = None
-        self._h12 = None
-        self._h13 = None
-        self._h22 = None
+        self._is_favorable  = None
 
         # glsm
         self._glsm_basis            = dict()
@@ -549,7 +536,7 @@ class Polytope:
             self._ineqs_optimal, and self._ineqs_input
         along with parameters set in self._pts_saturated:
             self._pts_optimal, self._pts_input,
-            self._pts_saturating, self._num_saturated_to_labels,
+            self._pts_saturating, self._nSat_to_labels,
             self._pts_order, and self._pts_indices
 
         **Arguments:**
@@ -826,7 +813,7 @@ class Polytope:
         # save points in a dictionary from arbitrary labels to coordinates
         self._pts_optimal = dict()
         self._pts_saturating = dict()
-        self._num_saturated_to_labels = [[] for _ in range(len(self._ineqs_optimal)+1)]
+        self._nSat_to_labels = [[] for _ in range(len(self._ineqs_optimal)+1)]
 
         last_default_label = -1
         for i in inds_sort:
@@ -845,10 +832,10 @@ class Polytope:
             # save it!
             self._pts_optimal[label] = tuple(points[i])
             self._pts_saturating[label] = facet_ind[i]
-            self._num_saturated_to_labels[len(facet_ind[i])].append(label)
+            self._nSat_to_labels[len(facet_ind[i])].append(label)
 
         # save order of labels
-        self._pts_order = sum(self._num_saturated_to_labels[1:][::-1], self._num_saturated_to_labels[0])
+        self._pts_order = sum(self._nSat_to_labels[1:][::-1], self._nSat_to_labels[0])
 
         # dictionary from labels to input coordinates
         pts_input=self._optimal_to_input(self.points(optimal=True))
@@ -926,6 +913,33 @@ class Polytope:
             return np.array([pts[label] for label in labels])
     # aliases
     pts = points
+
+    # common point grabbers
+    interior_points = lambda self, as_indices=False:\
+                    self.points(labels=self._nSat_to_labels[0],\
+                                as_indices=as_indices)
+    interior_pts = interior_points
+
+    boundary_points = lambda self, as_indices=False:\
+                    self.points(labels=sum(self._nSat_to_labels[1:][::-1],[]),\
+                                as_indices=as_indices)
+    bdry_points = boundary_points
+    
+    points_interior_to_facets = lambda self, as_indices=False:\
+                    self.points(labels=self._nSat_to_labels[1],\
+                                as_indices=as_indices)
+    pts_interior_to_facets = points_interior_to_facets
+
+    boundary_points_not_interior_to_facets = lambda self, as_indices=False:\
+                    self.points(labels=sum(self._nSat_to_labels[2:][::-1],[]),\
+                                as_indices=as_indices)
+    boundary_pts_not_interior_to_facets = boundary_points_not_interior_to_facets
+
+    points_not_interior_to_facets = lambda self, as_indices=False:\
+                    self.points(labels=sum(self._nSat_to_labels[2:][::-1],\
+                                                    self._nSat_to_labels[0]),\
+                                as_indices=as_indices)
+    pts_not_interior_to_facets = points_not_interior_to_facets
 
     def points_to_indices(self, points: ArrayLike) -> "np.ndarray | int":
         """
@@ -1013,7 +1027,7 @@ class Polytope:
         elif self._backend == "qhull":
             if self._dim == 1: # QHull cannot handle 1D polytopes
                 verts = np.array([self._pts_optimal[label] for label \
-                                                    in self._num_saturated_to_labels[1]])
+                                                    in self._nSat_to_labels[1]])
             else:
                 verts = self._poly_optimal.points[self._poly_optimal.vertices]
         else:
@@ -1062,220 +1076,6 @@ class Polytope:
             return self.points_to_indices(self._vertices)
         else:
             return np.array(self._vertices)
-
-    def interior_points(self, as_indices: bool = False) -> np.ndarray:
-        """
-        **Description:**
-        Returns the interior lattice points of the polytope.
-
-        **Arguments:**
-        - `as_indices`: Return the points as indices of the full list of points
-            of the polytope.
-
-        **Returns:**
-        The list of interior lattice points of the polytope.
-
-        **Aliases:**
-        `interior_pts`.
-
-        **Example:**
-        We construct a polytope and compute the interior lattice points.
-        ```python {2}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        p.interior_points()
-        # array([[ 0,  0,  0,  0]])
-        ```
-        """
-        # calculate the answer if not known
-        if self._pts_interior is None:
-            labels = self._num_saturated_to_labels[0]
-            self._pts_interior = np.array([self._pts_input[label]\
-                                                        for label in labels])
-
-        # return
-        if as_indices:
-            return self.points_to_indices(self._pts_interior)
-        else:
-            return np.array(self._pts_interior)
-    # aliases
-    interior_pts = interior_points
-
-    def boundary_points(self, as_indices: bool = False) -> np.ndarray:
-        """
-        **Description:**
-        Returns the boundary lattice points of the polytope.
-
-        **Arguments:**
-        - `as_indices`: Return the points as indices of the full list of points
-            of the polytope.
-
-        **Returns:**
-        The list of boundary lattice points of the polytope.
-
-        **Aliases:**
-        `boundary_pts`.
-
-        **Example:**
-        We construct a polytope and compute the boundary lattice points.
-        ```python {2}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        p.interior_points()
-        # array([[-1, -1, -6, -9],
-        #        [ 0,  0,  0,  1],
-        #        [ 0,  0,  1,  0],
-        #        [ 0,  1,  0,  0],
-        #        [ 1,  0,  0,  0],
-        #        [ 0,  0, -2, -3],
-        #        [ 0,  0, -1, -2],
-        #        [ 0,  0, -1, -1],
-        #        [ 0,  0,  0, -1]])
-        ```
-        """
-        # calculate the answer if not known
-        if self._pts_bdry is None:
-            labels = sum(self._num_saturated_to_labels[1:][::-1], [])
-            self._pts_bdry = np.array([self._pts_input[label]\
-                                                        for label in labels])
-
-        # return
-        if as_indices:
-            return self.points_to_indices(self._pts_bdry)
-        else:
-            return np.array(self._pts_bdry)
-    # aliases
-    boundary_pts = boundary_points
-
-    def points_interior_to_facets(self,
-                                  as_indices: bool = False) -> np.ndarray:
-        """
-        **Description:**
-        Returns the lattice points interior to facets.
-
-        **Arguments:**
-        - `as_indices`: Return the points as indices of the full list of points
-            of the polytope.
-
-        **Returns:**
-        The list of lattice points interior to facets of the polytope.
-
-        **Aliases:**
-        `pts_interior_to_facets`.
-
-        **Example:**
-        We construct a polytope and compute the lattice points interior to
-        facets.
-        ```python {2}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        p.points_interior_to_facets()
-        # array([[ 0,  0, -1, -2],
-        #        [ 0,  0, -1, -1],
-        #        [ 0,  0,  0, -1]])
-        ```
-        """
-        # calculate the answer if not known
-        if self._pts_interior_to_facets is None:
-            labels = self._num_saturated_to_labels[1]
-            self._pts_interior_to_facets = np.array([self._pts_input[label]\
-                                                        for label in labels])
-        
-        # return
-        if as_indices:
-            return self.points_to_indices(self._pts_interior_to_facets)
-        else:
-            return np.array(self._pts_interior_to_facets)
-    # aliases
-    pts_interior_to_facets = points_interior_to_facets
-
-    def boundary_points_not_interior_to_facets(self,
-                                        as_indices: bool = False)-> np.ndarray:
-        """
-        **Description:**
-        Returns the boundary lattice points not interior to facets.
-
-        **Arguments:**
-        - `as_indices`: Return the points as indices of the full list of points
-            of the polytope.
-
-        **Returns:**
-        The list of boundary lattice points not interior to facets of the
-        polytope.
-
-        **Aliases:**
-        `boundary_pts_not_interior_to_facets`.
-
-        **Example:**
-        We construct a polytope and compute the boundary lattice points not
-        interior to facets.
-        ```python {2}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        p.boundary_points_not_interior_to_facets()
-        # array([[-1, -1, -6, -9],
-        #        [ 0,  0,  0,  1],
-        #        [ 0,  0,  1,  0],
-        #        [ 0,  1,  0,  0],
-        #        [ 1,  0,  0,  0],
-        #        [ 0,  0, -2, -3]])
-        ```
-        """
-        # calculate the answer if not known
-        if self._pts_bdry_not_interior_to_facets is None:
-            labels = sum(self._num_saturated_to_labels[2:][::-1], [])
-            self._pts_bdry_not_interior_to_facets = np.array([self._pts_input[label]\
-                                                        for label in labels])
-
-        # return
-        if as_indices:
-            return self.points_to_indices(
-                                self._pts_bdry_not_interior_to_facets)
-        else:
-            return np.array(self._pts_bdry_not_interior_to_facets)
-    # aliases
-    boundary_pts_not_interior_to_facets = boundary_points_not_interior_to_facets
-
-    def points_not_interior_to_facets(self,
-                                      as_indices: bool = False) -> np.ndarray:
-        """
-        **Description:**
-        Returns the lattice points not interior to facets.
-
-        **Arguments:**
-        - `as_indices`: Return the points as indices of the full list of points
-            of the polytope.
-
-        **Returns:**
-        The list of lattice points not interior to facets of the polytope.
-
-        **Aliases:**
-        `pts_not_interior_to_facets`.
-
-        **Example:**
-        We construct a polytope and compute the lattice points not interior to
-        facets.
-        ```python {2}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        p.points_not_interior_to_facets()
-        # array([[ 0,  0,  0,  0],
-        #        [-1, -1, -6, -9],
-        #        [ 0,  0,  0,  1],
-        #        [ 0,  0,  1,  0],
-        #        [ 0,  1,  0,  0],
-        #        [ 1,  0,  0,  0],
-        #        [ 0,  0, -2, -3]])
-        ```
-        """
-        # calculate the answer if not known
-        if self._pts_not_interior_to_facets is None:
-            labels = sum(self._num_saturated_to_labels[2:][::-1], self._num_saturated_to_labels[0])
-            self._pts_not_interior_to_facets = np.array([self._pts_input[label]\
-                                                        for label in labels])
-        
-        # return
-        if as_indices:
-            return self.points_to_indices(self._pts_not_interior_to_facets)
-        else:
-            return np.array(self._pts_not_interior_to_facets)
-    # aliases
-    pts_not_interior_to_facets = points_not_interior_to_facets
 
     # faces
     # =====
@@ -2721,6 +2521,7 @@ class Polytope:
 
     # hodge
     # =====
+    @lru_cache(maxsize=None)
     def hpq(self, p: int, q: int, lattice: str) -> int:
         """
         **Description:**
@@ -2809,173 +2610,10 @@ class Polytope:
             return hpq
         raise RuntimeError("Error computing Hodge numbers.")
 
-    def h11(self, lattice: str) -> int:
-        """
-        **Description:**
-        Returns the Hodge number $h^{1,1}$ of the Calabi-Yau obtained as the
-        anticanonical hypersurface in the toric variety given by a
-        desingularization of the face or normal fan of the polytope when the
-        lattice is specified as "N" or "M", respectively.
-
-        :::note
-        Only reflexive polytopes of dimension 2-5 are currently supported.
-        :::
-
-        **Arguments:**
-        - `lattice`: Specifies the lattice on which the polytope is defined.
-            Options are "N" and "M".
-
-        **Returns:**
-        The Hodge number $h^{1,1}$ of the arising Calabi-Yau manifold.
-
-        **Example:**
-        We construct a polytope and compute $h^{1,1}$ of the associated
-        hypersurfaces.
-        ```python {2,4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        p.h11(lattice="N")
-        # 2
-        p.h11(lattice="M")
-        # 272
-        ```
-        """
-        if lattice == "N":
-            if self._h11 is None:
-                self._h11 = self.hpq(1,1,lattice="N")
-            return self._h11
-        elif lattice == "M":
-            return self.dual().h11(lattice="N")
-        else:
-            raise ValueError("Lattice must be specified. "
-                             "Options are: \"N\" or \"M\".")
-
-    def h12(self, lattice: str) -> int:
-        """
-        **Description:**
-        Returns the Hodge number $h^{1,2}$ of the Calabi-Yau obtained as the
-        anticanonical hypersurface in the toric variety given by a
-        desingularization of the face or normal fan of the polytope when the
-        lattice is specified as "N" or "M", respectively.
-
-        :::note
-        Only reflexive polytopes of dimension 2-5 are currently supported.
-        :::
-
-        **Arguments:**
-        - `lattice`: Specifies the lattice on which the polytope is defined.
-            Options are "N" and "M".
-
-        **Returns:**
-        The Hodge number $h^{1,2}$ of the arising Calabi-Yau manifold.
-
-        **Aliases:**
-        `h21`.
-
-        **Example:**
-        We construct a polytope and compute $h^{1,2}$ of the associated
-        hypersurfaces.
-        ```python {2,4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        p.h12(lattice="N")
-        # 272
-        p.h12(lattice="M")
-        # 2
-        ```
-        """
-        if lattice == "N":
-            if self._h12 is None:
-                self._h12 = self.hpq(1,2,lattice="N")
-            return self._h12
-        elif lattice == "M":
-            return self.dual().h12(lattice="N")
-        else:
-            raise ValueError("Lattice must be specified. "
-                             "Options are: \"N\" or \"M\".")
-    # aliases
-    h21 = h12
-
-    def h13(self, lattice: str) -> int:
-        """
-        **Description:**
-        Returns the Hodge number $h^{1,3}$ of the Calabi-Yau obtained as the
-        anticanonical hypersurface in the toric variety given by a
-        desingularization of the face or normal fan of the polytope when the
-        lattice is specified as "N" or "M", respectively.
-
-        :::note
-        Only reflexive polytopes of dimension 2-5 are currently supported.
-        :::
-
-        **Arguments:**
-        - `lattice`: Specifies the lattice on which the polytope is defined.
-            Options are "N" and "M".
-
-        **Returns:**
-        The Hodge number $h^{1,3}$ of the arising Calabi-Yau manifold.
-
-        **Aliases:**
-        `h31`.
-
-        **Example:**
-        We construct a polytope and compute $h^{1,3}$ of the associated
-        hypersurfaces.
-        ```python {2,4}
-        p = Polytope([[1,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,1],[-1,-1,-6,-9,-18]])
-        p.h13(lattice="N")
-        # 2966
-        p.h13(lattice="M")
-        # 8
-        ```
-        """
-        if lattice == "N":
-            if self._h13 is None:
-                self._h13 = self.hpq(1,3,lattice="N")
-            return self._h13
-        elif lattice == "M":
-            return self.dual().h13(lattice="N")
-        else:
-            raise ValueError("Lattice must be specified. "
-                             "Options are: \"N\" or \"M\".")
-    # aliases
-    h31 = h13
-
-    def h22(self, lattice: str) -> int:
-        """
-        **Description:**
-        Returns the Hodge number $h^{2,2}$ of the Calabi-Yau obtained as the
-        anticanonical hypersurface in the toric variety given by a
-        desingularization of the face or normal fan of the polytope when the
-        lattice is specified as "N" or "M", respectively.
-
-        :::note
-        Only reflexive polytopes of dimension 2-5 are currently supported.
-        :::
-
-        **Arguments:**
-        - `lattice`: Specifies the lattice on which the polytope is defined.
-            Options are "N" and "M".
-
-        **Returns:**
-        The Hodge number $h^{2,2}$ of the arising Calabi-Yau manifold.
-
-        **Example:**
-        We construct a polytope and compute $h^{2,2}$ of the associated
-        hypersurfaces.
-        ```python {2}
-        p = Polytope([[1,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,1],[-1,-1,-6,-9,-18]])
-        p.h22(lattice="N")
-        # 11940
-        ```
-        """
-        if lattice == "N":
-            if self._h22 is None:
-                self._h22 = self.hpq(2,2,lattice="N")
-            return self._h22
-        elif lattice == "M":
-            return self.dual().h22(lattice="N")
-        else:
-            raise ValueError("Lattice must be specified. "
-                             "Options are: \"N\" or \"M\".")
+    h11 = lambda self,lattice: self.hpq(1,1,lattice=lattice)
+    h12 = lambda self,lattice: self.hpq(1,2,lattice=lattice); h21 = h12
+    h13 = lambda self,lattice: self.hpq(1,3,lattice=lattice); h31 = h13
+    h22 = lambda self,lattice: self.hpq(2,2,lattice=lattice)
 
     def chi(self, lattice: str) -> int:
         """
