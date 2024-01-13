@@ -776,19 +776,16 @@ class Polytope:
                 inc = 1
                 if self._dim == 1:
                     break
-                break_loop = False
-                while True:
-                    if p[inc] == box_max[inc]:
-                        p[inc] = box_min[inc]
-                        inc += 1
-                        if inc == self._dim:
-                            break_loop = True
-                            break
-                    else:
-                        p[inc] += 1
+                
+                while p[inc] == box_max[inc]:
+                    p[inc] = box_min[inc]
+                    inc += 1
+                    if inc == self._dim:
                         break
-                if break_loop:
-                    break
+                else:
+                    p[inc] += 1
+                    continue
+                break
 
         # The points and saturated inequalities have now been computed.
 
