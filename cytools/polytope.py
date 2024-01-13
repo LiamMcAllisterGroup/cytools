@@ -725,16 +725,14 @@ class Polytope:
             box_min = np.min(pts_optimal, axis=0)
             box_max = np.max(pts_optimal, axis=0)
 
-            box_diff = box_max - box_min
-            diameter_index = np.argsort(box_diff)[::-1]
+            # Sort box bounds
+            diameter_index = np.argsort(box_max - box_min)[::-1]
+            box_min = box_min[diameter_index]
+            box_max = box_max[diameter_index]
 
             # Construct the inverse permutation
             orig_dict = {j:i for i,j in enumerate(diameter_index)}
             orig_perm = [orig_dict[i] for i in range(self._dim)]
-
-            # Sort box bounds
-            box_min = box_min[diameter_index]
-            box_max = box_max[diameter_index]
 
             # Inequalities must also have their coordinates permuted
             ineqs = np.array(self._ineqs_optimal) # We need a new copy
@@ -752,13 +750,13 @@ class Polytope:
 
                 # Find the lower bound for the allowed region
                 while i_min <= i_max:
-                    if all(i_min*ineqs[i,0] >= -v for i,v in enumerate(tmp_v)):
+                    if all(i_min*ineqs[:,0]+tmp_v >= 0):
                         break
                     i_min += 1
 
                 # Find the upper bound for the allowed region
                 while i_min <= i_max:
-                    if all(i_max*ineqs[i,0] >= -v for i,v in enumerate(tmp_v)):
+                    if all(i_max*ineqs[:,0]+tmp_v >= 0):
                         break
                     i_max -= 1
 
