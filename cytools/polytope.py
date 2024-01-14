@@ -22,7 +22,6 @@
 # 'standard' imports
 from collections import defaultdict
 import copy
-import functools
 import itertools
 import math
 import subprocess
@@ -42,20 +41,7 @@ from cytools.polytopeface import PolytopeFace
 from cytools.triangulation import (Triangulation, all_triangulations,
                                    random_triangulations_fast_generator,
                                    random_triangulations_fair_generator)
-from cytools.utils import gcd_list, lll_reduce
-
-# useful decorator
-def instanced_lru_cache(maxsize=128):
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(self, *args, **kwargs):
-            if not hasattr(self, '_cache'):
-                self._cache = {}
-            if func not in self._cache:
-                self._cache[func] = functools.lru_cache(maxsize=maxsize)(func)
-            return self._cache[func](self, *args, **kwargs)
-        return wrapper
-    return decorator
+from cytools.utils import gcd_list, lll_reduce, instanced_lru_cache
 
 class Polytope:
     """
@@ -431,7 +417,7 @@ class Polytope:
 
     # getters
     # =======
-    # (these should all be @property's)
+    # (all methods here should be @property)
     def ambient_dimension(self) -> int:
         """
         **Description:**

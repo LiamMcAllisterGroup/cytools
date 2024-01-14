@@ -37,6 +37,28 @@ import scipy.sparse as sp
 # CYTools imports
 from cytools import config
 
+# custom decorators
+# -----------------
+# class instance caching
+# (lru_cache persists for all class instances... that is not desired...)
+def instanced_lru_cache(maxsize=128):
+    # implement lru_cache, stored in self._cache
+    def decorator(func):
+        @functools.wraps(func)  # copy func's metadata
+        def wrapper(self, *args, **kwargs):
+            # make class cache if it doesn't exist
+            if not hasattr(self, '_cache'):
+                self._cache = {}
+
+            # store function cache in class cache
+            if func not in self._cache:
+                self._cache[func] = functools.lru_cache(maxsize=maxsize)(func)
+
+            # use cached result
+            return self._cache[func](self, *args, **kwargs)
+        return wrapper
+    return decorator
+
 # basic math
 # ----------
 def gcd_float(a: float, b: float, tol: float = 1e-5) -> float:
