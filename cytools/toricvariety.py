@@ -1727,11 +1727,15 @@ class ToricVariety:
         else:
             if not self.triangulation().is_fine():
                 raise ValueError("Triangulation is non-fine.")
-            if ((self.dim() != 4 or not self.triangulation().polytope().is_favorable(lattice="N"))
-                    and not config._exp_features_enabled):
-                raise Exception("The experimental features must be enabled to "
-                                "construct non-favorable CYs or CYs with "
-                                "dimension other than 3.")
+            if not config._exp_features_enabled:
+                if self.dim() != 4:
+                    raise Exception("The experimental features must be enabled to "
+                                    "construct CYs with dimension other than 3... "
+                                   f"observed dimension = {self.dim()}")
+                if not self.triangulation().polytope().is_favorable(lattice="N"):
+                    raise Exception("The experimental features must be enabled to "
+                                    "construct non-favorable CYs...")
+
             if not ((self.triangulation().points().shape == self.triangulation().polytope().points_not_interior_to_facets().shape
                      and all((self.triangulation().points() == self.triangulation().polytope().points_not_interior_to_facets()).flat))
                     or (self.triangulation().points().shape == self.triangulation().polytope().points().shape
