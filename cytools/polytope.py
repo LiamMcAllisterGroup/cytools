@@ -546,7 +546,7 @@ class Polytope:
             self._transl_vector, self._transf_mat_inv,
             self._poly_optimal,
             self._ineqs_optimal, and self._ineqs_input
-        along with parameters set in self._pts_saturated:
+        along with parameters set in self._lattice_pts:
             self._labels2optPts, self._labels2inputPts,
             self._pts_saturating, self._nSat_to_labels,
             self._pts_order, and self._pts_indices
@@ -595,7 +595,85 @@ class Polytope:
 
         # Organize points by saturated inequalities
         # -----------------------------------------
-        self._pts_saturated(pts_optimal, labels)
+        pts_optimal_all, facet_ind = self._lattice_pts(pts_optimal)
+
+        # undo LLL transformation, to get points in original basis
+        pts_input_all = self._optimal_to_input(pts_optimal_all)
+
+        # Assign labels, organize points by saturated inequalities
+        # --------------------------------------------------------
+        # the sorting function
+        def sort_fct(ind):
+            # order:
+            #   -) interior points first
+            #   -) rest by decreasing # of saturated inequalities
+            # ties (i.e., 2+ points with the same # of saturated inequalities)
+            # are broken by lexicographical ordering on the (input)
+            # coordinates.
+            out = []
+
+            # the number of saturated inequalities
+            if len(facet_ind[ind]) > 0:
+                out.append(-len(facet_ind[ind]))
+            else:
+                out.append(-float('inf'))
+
+            # the coordinates
+            out += list(pts_input_all[ind])
+            return out
+        inds_sort = sorted(range(len(pts_input_all)), key=sort_fct)
+
+        # save info to useful variables/dictionaries
+        self._labels2optPts = dict()
+        self._pts_saturating = dict()
+        self._nSat_to_labels = [[] for _ in range(len(self._ineqs_optimal)+1)]
+
+        pts_optimal_tmp = [tuple(pt) for pt in pts_optimal]
+
+        if labels is None:
+            labels = []
+
+        last_default_label = -1
+        for i in inds_sort:
+            pt = tuple(pts_optimal_all[i])
+
+            # find the label to use
+            if (labels!=[]) and (pt in pts_optimal):
+                label = labels[pts_optimal_tmp.index(pt)]
+            else:
+                label = last_default_label+1
+
+                while (label in self._labels2optPts) or (label in labels):
+                    label += 1
+                last_default_label = label
+
+            # save it!
+            self._labels2optPts[label] = pt
+            self._pts_saturating[label] = facet_ind[i]
+            self._nSat_to_labels[len(facet_ind[i])].append(label)
+
+        # save order of labels
+        self._pts_order = sum(self._nSat_to_labels[1:][::-1], self._nSat_to_labels[0])
+
+        # common sets of labels
+        self._labels_int    = self._nSat_to_labels[0]
+        self._labels_facet  = self._nSat_to_labels[1]
+
+        self._labels_bdry   = sum(self._nSat_to_labels[1:][::-1],[])
+        self._labels_codim2 = sum(self._nSat_to_labels[2:][::-1],[])
+
+        self._labels_not_facets = self._labels_int + self._labels_codim2
+
+        # dictionary from labels to input coordinates
+        pts_input=self._optimal_to_input(self.points(optimal=True))
+        self._labels2inputPts = {label:tuple(pt) for label,pt in \
+                                            zip(self._pts_order, pts_input)}
+
+        # reverse dictionaries
+        self._inputpts2labels   ={v:k for k,v in self._labels2inputPts.items()}
+        self._optimalpts2labels ={v:k for k,v in self._labels2optPts.items()}
+
+        self._labels2inds       ={v:i for i,v in enumerate(self._pts_order)}
 
     def _optimal_to_input(self, pts_opt: ArrayLike) -> np.array:
         """
@@ -634,48 +712,23 @@ class Polytope:
 
         return points_orig
 
-    def _pts_saturated(self,
-                       pts_optimal: ArrayLike,
-                       labels: ArrayLike=None) -> list[tuple]:
+    def _lattice_pts(self, pts_optimal: ArrayLike) -> list[tuple]:
         """
         **Description:**
         Computes the lattice points of the polytope along with the indices of
         the hyperplane inequalities that they saturate.
 
-        :::note notes
-        - Points are sorted so that interior points are first, and then the
-            rest are arranged by decreasing number of saturated inequalities
-            and lexicographically. For reflexive polytopes this is useful since
-            the origin will be at index 0 and boundary points interior to
-            facets will be last.
-        - Typically this function should not be called by the user. Instead, it
-            is called by various other functions in the Polytope class.
-        :::
-
         **Arguments:**
-        None.
+        - `pts`: A list of points spanning the hull. Each point is a tuple.
+        - `ineq`: Hyperplane inqualities defining the hull. Same format as
+            output by poly_v_to_h
+        - `dim`: The dimension of the hull.
+        - `backend`: The backend to use. Either "palp" or defaults to native.
 
         **Returns:**
-        Nothing.
-
-        **Example:**
-        We construct a polytope and compute the lattice points along with the
-        inequalities that they saturate. We print the second point and the
-        inequalities that it saturates.
-        ```python {2}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        pts_sat = p._pts_saturated()
-        print(pts_sat[1])
-        # ((-1, -1, -1, -1), frozenset({0, 1, 2, 3}))
-        p.inequalities()[list(pts_sat[1][1])]
-        # array([[ 4, -1, -1, -1,  1],
-        #        [-1,  4, -1, -1,  1],
-        #        [-1, -1,  4, -1,  1],
-        #        [-1, -1, -1,  4,  1]])
-        ```
+        An array of all lattice points (the rows).
+        A list of sets of all inequalities each lattice point saturates.
         """
-        if labels is None:
-            labels = []
         pts_optimal = [tuple(pt) for pt in pts_optimal]
 
         # When using PALP as the backend, use it to compute all lattice points
@@ -800,79 +853,7 @@ class Polytope:
                 break
 
         # The points and saturated inequalities have now been computed.
-
-        # undo LLL transformation, to get points in original basis
-        pts_input_all = self._optimal_to_input(pts_optimal_all)
-
-        # Assign labels, organize points by saturated inequalities
-        # --------------------------------------------------------
-        # the sorting function
-        def sort_fct(ind):
-            # order:
-            #   -) interior points first
-            #   -) rest by decreasing # of saturated inequalities
-            # ties (i.e., 2+ points with the same # of saturated inequalities)
-            # are broken by lexicographical ordering on the (input)
-            # coordinates.
-            out = []
-
-            # the number of saturated inequalities
-            if len(facet_ind[ind]) > 0:
-                out.append(-len(facet_ind[ind]))
-            else:
-                out.append(-float('inf'))
-
-            # the coordinates
-            out += list(pts_input_all[ind])
-            return out
-        inds_sort = sorted(range(len(pts_input_all)), key=sort_fct)
-
-        # save info to useful variables/dictionaries
-        self._labels2optPts = dict()
-        self._pts_saturating = dict()
-        self._nSat_to_labels = [[] for _ in range(len(self._ineqs_optimal)+1)]
-
-        last_default_label = -1
-        for i in inds_sort:
-            pt = tuple(pts_optimal_all[i])
-
-            # find the label to use
-            if (labels!=[]) and (pt in pts_optimal):
-                label = labels[pts_optimal.index(pt)]
-            else:
-                label = last_default_label+1
-
-                while (label in self._labels2optPts) or (label in labels):
-                    label += 1
-                last_default_label = label
-
-            # save it!
-            self._labels2optPts[label] = pt
-            self._pts_saturating[label] = facet_ind[i]
-            self._nSat_to_labels[len(facet_ind[i])].append(label)
-
-        # save order of labels
-        self._pts_order = sum(self._nSat_to_labels[1:][::-1], self._nSat_to_labels[0])
-
-        # common sets of labels
-        self._labels_int    = self._nSat_to_labels[0]
-        self._labels_facet  = self._nSat_to_labels[1]
-
-        self._labels_bdry   = sum(self._nSat_to_labels[1:][::-1],[])
-        self._labels_codim2 = sum(self._nSat_to_labels[2:][::-1],[])
-
-        self._labels_not_facets = self._labels_int + self._labels_codim2
-
-        # dictionary from labels to input coordinates
-        pts_input=self._optimal_to_input(self.points(optimal=True))
-        self._labels2inputPts = {label:tuple(pt) for label,pt in \
-                                            zip(self._pts_order, pts_input)}
-
-        # reverse dictionaries
-        self._inputpts2labels   ={v:k for k,v in self._labels2inputPts.items()}
-        self._optimalpts2labels ={v:k for k,v in self._labels2optPts.items()}
-
-        self._labels2inds       ={v:i for i,v in enumerate(self._pts_order)}
+        return pts_optimal_all, facet_ind
 
     # main
     # ----
