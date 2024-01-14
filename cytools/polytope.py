@@ -683,7 +683,7 @@ class Polytope:
         if self._backend == "palp":
             if self._dim == 0:
                 # PALP cannot handle 0-dimensional polytopes
-                points = [pts_optimal[0]]
+                pts_optimal_all = [pts_optimal[0]]
                 facet_ind = [frozenset([0])]
             else:
                 # prep PALP input
@@ -723,14 +723,14 @@ class Polytope:
 
                 # Check if transposed
                 if pts_shape[0] < pts_shape[1]:
-                    points = tmp_pts.T
+                    pts_optimal_all = tmp_pts.T
                 else:
-                    points = tmp_pts
+                    pts_optimal_all = tmp_pts
 
                 # find inequialities each point saturates
                 ineqs = self._ineqs_optimal
                 facet_ind = [frozenset(i for i,ii in enumerate(ineqs) if\
-                            ii[:-1].dot(pt) + ii[-1] == 0) for pt in points]
+                            ii[:-1].dot(pt) + ii[-1] == 0) for pt in pts_optimal_all]
 
         # Otherwise we use the algorithm by Volker Braun.
         # This is redistributed under GNU General Public License version 2+.
@@ -756,7 +756,7 @@ class Polytope:
             ineqs[:,:-1] = self._ineqs_optimal[:,diameter_index]
 
             # Find all lattice points and apply the inverse permutation
-            points = []
+            pts_optimal_all = []
             facet_ind = []
             p = np.array(box_min)
 
@@ -778,7 +778,7 @@ class Polytope:
                 # The points i_min .. i_max are contained in the polytope
                 for i in range(i_min, i_max+1):
                     p[0] = i
-                    points.append(np.array(p)[orig_perm])
+                    pts_optimal_all.append(np.array(p)[orig_perm])
 
                     saturated = frozenset(j for j in range(len(tmp_v))
                                           if i*ineqs[j,0] + tmp_v[j] == 0)
@@ -802,7 +802,7 @@ class Polytope:
         # The points and saturated inequalities have now been computed.
 
         # undo LLL transformation, to get points in original basis
-        points_mat = self._optimal_to_input(points)
+        pts_input_all = self._optimal_to_input(pts_optimal_all)
 
         # prep the outputs (tuple of points and sets of saturated ineqs)
         def sort_fct(ind):
@@ -815,9 +815,9 @@ class Polytope:
                 out.append(-float('inf'))
 
             # the coordinates
-            out += tuple(points_mat[ind])
+            out += tuple(pts_input_all[ind])
             return tuple(out)
-        inds_sort = sorted(range(len(points_mat)), key=sort_fct)
+        inds_sort = sorted(range(len(pts_input_all)), key=sort_fct)
 
         # save points in a dictionary from arbitrary labels to coordinates
         self._labels2optPts = dict()
@@ -826,7 +826,7 @@ class Polytope:
 
         last_default_label = -1
         for i in inds_sort:
-            pt = tuple(points[i])
+            pt = tuple(pts_optimal_all[i])
 
             # find the label to use
             if (labels!=[]) and (pt in pts_optimal):
@@ -839,7 +839,7 @@ class Polytope:
                 last_default_label = label
 
             # save it!
-            self._labels2optPts[label] = tuple(points[i])
+            self._labels2optPts[label] = pt
             self._pts_saturating[label] = facet_ind[i]
             self._nSat_to_labels[len(facet_ind[i])].append(label)
 
