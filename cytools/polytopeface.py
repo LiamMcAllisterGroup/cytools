@@ -213,11 +213,11 @@ class PolytopeFace:
             self._points_sat = []
 
             # inherit the calculation from the ambient polytope
-            for label in self._ambient_poly._pts_order:
+            for label in self._ambient_poly.labels:
                 saturating = self._ambient_poly._pts_saturating[label]
 
                 if self._saturated_ineqs.issubset(saturating):
-                    pt = self._ambient_poly._pts_input[label]
+                    pt = self._ambient_poly.points(label)[0]
                     self._points_sat.append((pt,saturating))
 
         return copy.copy(self._points_sat)

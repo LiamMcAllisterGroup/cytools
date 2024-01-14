@@ -22,7 +22,7 @@
 # 'standard' imports
 from collections import defaultdict
 import copy
-from functools import lru_cache
+import functools
 import itertools
 import math
 import subprocess
@@ -43,6 +43,19 @@ from cytools.triangulation import (Triangulation, all_triangulations,
                                    random_triangulations_fast_generator,
                                    random_triangulations_fair_generator)
 from cytools.utils import gcd_list, lll_reduce
+
+# useful decorator
+def instanced_lru_cache(maxsize=128):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(self, *args, **kwargs):
+            if not hasattr(self, '_cache'):
+                self._cache = {}
+            if func not in self._cache:
+                self._cache[func] = functools.lru_cache(maxsize=maxsize)(func)
+            return self._cache[func](self, *args, **kwargs)
+        return wrapper
+    return decorator
 
 class Polytope:
     """
@@ -314,7 +327,7 @@ class Polytope:
 
     # caching
     # =======
-    def dump(self) -> dict:
+    def _dump(self) -> dict:
         """
         **Description:**
         Get every class variable.
@@ -325,7 +338,7 @@ class Polytope:
         **Returns:**
         Dictionary mapping variable name to value.
         """
-        return copy.deepcopy(self.__dict__)
+        return self.__dict__
 
     def clear_cache(self) -> None:
         """
@@ -354,8 +367,8 @@ class Polytope:
         #self._backend
 
         # simple properties
-        self._hash = None
-        self._volume        = None
+        self._hash      = None
+        self._volume    = None
 
         # points
         # ------
@@ -371,14 +384,26 @@ class Polytope:
 
         # input, optimal points (DON'T CLEAR! Set in init...)
         #self._nSat_to_labels
-        #self._pts_input
-        #self._pts_optimal
+        #self._labels2inputPts
+        #self._labels2optPts
         #self._pts_saturating
 
         #self._pts_order
-        self._pts_indices                       = None
-        self._vertices                          = None
 
+        #self._inputpts2labels
+        #self._optimalpts2labels
+        #self._labels2inds
+
+        # groups of points
+        self._labels_int        = None
+        self._labels_facet      = None
+        self._labels_bdry       = None
+        self._labels_codim2     = None
+        self._labels_not_facets = None
+        self._labels_vertices   = None
+
+        # others
+        # ------
         # dimension             (DON'T CLEAR! Set in init...)
         #self._dim
         #self._dim_ambient
@@ -406,6 +431,7 @@ class Polytope:
 
     # getters
     # =======
+    # (these should all be @property's)
     def ambient_dimension(self) -> int:
         """
         **Description:**
@@ -535,7 +561,7 @@ class Polytope:
             self._poly_optimal,
             self._ineqs_optimal, and self._ineqs_input
         along with parameters set in self._pts_saturated:
-            self._pts_optimal, self._pts_input,
+            self._labels2optPts, self._labels2inputPts,
             self._pts_saturating, self._nSat_to_labels,
             self._pts_order, and self._pts_indices
 
@@ -592,6 +618,11 @@ class Polytope:
         (translated, LLL-reduced, ...). This eases computations. We will
         always want to return answers in original representation. This
         function performs the mapping.
+
+        This is a kind of costly map so, whenever possible, use
+            _optimalpts2labels
+        and
+            _labels2inputPts
 
         **Arguments:**
         - `pts_opt`: The points in the optimal representation.
@@ -745,19 +776,17 @@ class Polytope:
 
             while True:
                 tmp_v = ineqs[:,1:-1].dot(p[1:]) + ineqs[:,-1]
-                i_min = box_min[0]
-                i_max = box_max[0]
 
                 # Find the lower bound for the allowed region
-                while i_min <= i_max:
+                for i_min in range(box_min[0], box_max[0]+1, 1):
                     if all(i_min*ineqs[:,0]+tmp_v >= 0):
                         break
-                    i_min += 1
 
                 # Find the upper bound for the allowed region
-                while i_min <= i_max:
+                for i_max in range(box_max[0], i_min-1, -1):
                     if all(i_max*ineqs[:,0]+tmp_v >= 0):
                         break
+                else:
                     i_max -= 1
 
                 # The points i_min .. i_max are contained in the polytope
@@ -806,7 +835,7 @@ class Polytope:
         inds_sort = sorted(range(len(points_mat)), key=sort_fct)
 
         # save points in a dictionary from arbitrary labels to coordinates
-        self._pts_optimal = dict()
+        self._labels2optPts = dict()
         self._pts_saturating = dict()
         self._nSat_to_labels = [[] for _ in range(len(self._ineqs_optimal)+1)]
 
@@ -820,12 +849,12 @@ class Polytope:
             else:
                 label = last_default_label+1
 
-                while (label in self._pts_optimal) or (label in labels):
+                while (label in self._labels2optPts) or (label in labels):
                     label += 1
                 last_default_label = label
 
             # save it!
-            self._pts_optimal[label] = tuple(points[i])
+            self._labels2optPts[label] = tuple(points[i])
             self._pts_saturating[label] = facet_ind[i]
             self._nSat_to_labels[len(facet_ind[i])].append(label)
 
@@ -843,8 +872,14 @@ class Polytope:
 
         # dictionary from labels to input coordinates
         pts_input=self._optimal_to_input(self.points(optimal=True))
-        self._pts_input = {label:tuple(pt) for label,pt in \
+        self._labels2inputPts = {label:tuple(pt) for label,pt in \
                                             zip(self._pts_order, pts_input)}
+
+        # reverse dictionaries
+        self._inputpts2labels   ={v:k for k,v in self._labels2inputPts.items()}
+        self._optimalpts2labels ={v:k for k,v in self._labels2optPts.items()}
+
+        self._labels2inds       ={v:i for i,v in enumerate(self._pts_order)}
 
     # main
     # ----
@@ -904,14 +939,13 @@ class Polytope:
 
         # return the answer in the desired format
         if as_indices:
-            #return self._pts_order.copy()
-            return [self._pts_order.index(label) for label in labels]
+            return [self._labels2inds[label] for label in labels]
         else:
             # set pts to be optimal/input depending on 'optimal' parameter
             if optimal:
-                pts = self._pts_optimal
+                pts = self._labels2optPts
             else:
-                pts = self._pts_input
+                pts = self._labels2inputPts
             
             # return
             return np.array([pts[label] for label in labels])
@@ -942,7 +976,50 @@ class Polytope:
     points_not_interior_to_facets           = pts_not_facets
     pts_not_interior_to_facets              = pts_not_facets
 
-    def points_to_indices(self, points: ArrayLike) -> "np.ndarray | int":
+    def points_to_labels(self,
+                         points: ArrayLike,
+                         is_optimal: bool = False) -> "list | None":
+        """
+        **Description:**
+        Returns the list of labels corresponding to the given points. It also
+        accepts a single point, in which case it returns the corresponding
+        label.
+
+        **Arguments:**
+        - `points`: A point or a list of points.
+        - `is_optimal`: Whether the points argument represents points in the
+            optimal (True) or input (False) basis
+
+        **Returns:**
+        The list of labels corresponding to the given points, or the label of
+        the point if only one is given.
+        """
+        # check for empty input
+        if len(points)==0:
+            return []
+
+        # map single-point input into list case
+        single_pt = (len(np.array(points).shape) == 1)
+        if single_pt:
+            points = [points]
+
+        # get relevant dictionary
+        if is_optimal:
+            relevant_map = self._optimalpts2labels
+        else:
+            relevant_map = self._inputpts2labels
+
+        # get/return the indices
+        labels = [relevant_map[tuple(pt)] for pt in points]
+
+        if single_pt and len(labels):
+            return labels[0]    # just return the single label
+        else:
+            return labels       # return a list of labels
+
+    def points_to_indices(self,
+                          points: ArrayLike,
+                          is_optimal: bool = False) -> "np.ndarray | int":
         """
         **Description:**
         Returns the list of indices corresponding to the given points. It also
@@ -951,6 +1028,8 @@ class Polytope:
 
         **Arguments:**
         - `points`: A point or a list of points.
+        - `is_optimal`: Whether the points argument represents points in the
+            optimal (True) or input (False) basis
 
         **Returns:**
         The list of indices corresponding to the given points, or the index of
@@ -970,23 +1049,20 @@ class Polytope:
         if len(points)==0:
             return np.asarray([],dtype=int)
 
-        # check that we calculated the map from points to indices
-        if self._pts_indices is None:
-            self._pts_indices = {tuple(pt):i for i,pt in\
-                                                    enumerate(self.points())}
-
         # map single-point input into list case
         single_pt = (len(np.array(points).shape) == 1)
         if single_pt:
             points = [points]
+
+        # just compose point->label and label->index maps
+        labels = self.points_to_labels(points, is_optimal=is_optimal)
+        inds = np.array([self._labels2inds[l] for l in labels], dtype=int)
         
         # get/return the indices
-        out = np.array([self._pts_indices[tuple(pt)] for pt in points],\
-                                                                    dtype=int)
-        if single_pt and len(out):
-            return out[0]   # just return the single index
+        if single_pt and len(inds):
+            return inds[0]  # just return the single index
         else:
-            return out      # return a list of indices
+            return inds     # return a list of indices
 
     def vertices(self, as_indices: bool = False) -> np.ndarray:
         """
@@ -1014,21 +1090,17 @@ class Polytope:
         ```
         """
         # return the answer if known
-        if self._vertices is not None:
-            if as_indices:
-                return self.points_to_indices(self._vertices)
-            else:
-                return np.array(self._vertices)
+        if self._labels_vertices is not None:
+            return self.pts(labels=self._labels_vertices,as_indices=as_indices)
 
         # calculate the answer
         if self._dim == 0:
             # 0D... trivial
-            verts = np.array([self.points(optimal=True)[0]])
+            self._labels_vertices = self._pts_order
 
         elif self._backend == "qhull":
             if self._dim == 1: # QHull cannot handle 1D polytopes
-                verts = np.array([self._pts_optimal[label] for label \
-                                                    in self._nSat_to_labels[1]])
+                self._labels_vertices = self._nSat_to_labels[1]
             else:
                 verts = self._poly_optimal.points[self._poly_optimal.vertices]
         else:
@@ -1070,13 +1142,11 @@ class Polytope:
                 verts = (tmp_pts.T if pts_shape[0] < pts_shape[1] else tmp_pts)
 
         # for either ppl/PALP, map points to original representation
-        self._vertices = self._optimal_to_input(verts)
+        if self._labels_vertices is None:
+            self._labels_vertices =self.points_to_labels(verts,is_optimal=True)
 
         # return
-        if as_indices:
-            return self.points_to_indices(self._vertices)
-        else:
-            return np.array(self._vertices)
+        return self.vertices(as_indices=as_indices)
 
     # faces
     # =====
@@ -1154,8 +1224,8 @@ class Polytope:
         # ---------------------------------
         # get vertices
         verts = [tuple(pt) for pt in self.vertices()]
-        vert_labels = [label for label,pt in self._pts_optimal.items() if pt in verts]
-        vert_pts = [self._pts_input[label] for label in vert_labels]
+        vert_labels = [label for label,pt in self._labels2optPts.items() if pt in verts]
+        vert_pts = [self._labels2inputPts[label] for label in vert_labels]
         vert_sat = [self._pts_saturating[label] for label in vert_labels]
         vert_legacy = list(zip(vert_pts, vert_sat))
 
@@ -1252,8 +1322,8 @@ class Polytope:
 
         # get vertices, along with their saturated inequalities
         verts = [tuple(pt) for pt in self.vertices()]
-        vert_labels = [label for label,pt in self._pts_input.items() if pt in verts]
-        vert_pts = [self._pts_input[label] for label in vert_labels]
+        vert_labels = [label for label,pt in self._labels2inputPts.items() if pt in verts]
+        vert_pts = [self._labels2inputPts[label] for label in vert_labels]
         vert_sat = [self._pts_saturating[label] for label in vert_labels]
         vert_legacy = list(zip(vert_pts, vert_sat))
 
@@ -2522,7 +2592,7 @@ class Polytope:
 
     # hodge
     # =====
-    @lru_cache(maxsize=None)
+    @instanced_lru_cache(maxsize=None)
     def hpq(self, p: int, q: int, lattice: str) -> int:
         """
         **Description:**
@@ -2533,10 +2603,6 @@ class Polytope:
 
         :::note notes
         - Only reflexive polytopes of dimension 2-5 are currently supported.
-        - This function always computes Hodge numbers from scratch. The
-            functions [`h11`](#h11), [`h21`](#h21), [`h12`](#h12),
-            [`h13`](#h13), and [`h22`](#h22) cache the results so they
-            offer improved performance.
         :::
 
         **Arguments:**
