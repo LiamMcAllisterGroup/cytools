@@ -536,7 +536,7 @@ class Polytope:
     # -------------
     def _process_points(self,
                         pts_input: ArrayLike,
-                        labels_input: ArrayLike=None) -> None:
+                        labels: ArrayLike=None) -> None:
         """
         **Description:**
         Internal function for processing input points. Should only be called
@@ -553,7 +553,7 @@ class Polytope:
 
         **Arguments:**
         - `pts_input`: The points input from the user.
-        - `labels_input`: The point labels input from the user.
+        - `labels`: The point labels input from the user.
 
         **Returns:**
         Nothing.
@@ -595,7 +595,7 @@ class Polytope:
 
         # Organize points by saturated inequalities
         # -----------------------------------------
-        self._pts_saturated(pts_optimal_mat, labels_input)
+        self._pts_saturated(pts_optimal_mat, labels)
 
     def _optimal_to_input(self, pts_opt: ArrayLike) -> np.array:
         """
