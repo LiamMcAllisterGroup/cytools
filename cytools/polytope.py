@@ -776,14 +776,13 @@ class Polytope:
                     i_max -= 1
 
                 # The points i_min .. i_max are contained in the polytope
-                i = i_min
-                while i <= i_max:
+                for i in range(i_min, i_max+1):
                     p[0] = i
+                    points.append(np.array(p)[orig_perm])
+
                     saturated = frozenset(j for j in range(len(tmp_v))
                                           if i*ineqs[j,0] + tmp_v[j] == 0)
-                    points.append(np.array(p)[orig_perm])
                     facet_ind.append(saturated)
-                    i += 1
 
                 # Increment the other entries in p to move on to next loop
                 inc = 1
