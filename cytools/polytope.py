@@ -545,8 +545,7 @@ class Polytope:
         Sets:
             self._transl_vector, self._transf_mat_inv,
             self._poly_optimal,
-            self._ineqs_optimal, and self._ineqs_input
-        along with parameters set in self._lattice_pts:
+            self._ineqs_optimal, self._ineqs_input,
             self._labels2optPts, self._labels2inputPts,
             self._pts_saturating, self._nSat_to_labels,
             self._pts_order, and self._pts_indices
@@ -595,7 +594,10 @@ class Polytope:
 
         # Get the lattice points and their saturated inequalities
         # -------------------------------------------------------
-        pts_optimal_all, saturating = self._lattice_pts(pts_optimal)
+        pts_optimal = [tuple(pt) for pt in pts_optimal]
+        pts_optimal_all, saturating = lattice_pts(pts_optimal,
+                                              self._ineqs_optimal,
+                                              self._dim, self._backend)
 
         # undo LLL transformation, to get points in original basis
         pts_input_all = self._optimal_to_input(pts_optimal_all)
@@ -621,14 +623,14 @@ class Polytope:
             # the coordinates
             out += list(pts_input_all[ind])
             return out
+
+        # sort it!
         inds_sort = sorted(range(len(pts_input_all)), key=sort_fct)
 
         # save info to useful variables/dictionaries
         self._labels2optPts = dict()
         self._pts_saturating = dict()
         self._nSat_to_labels = [[] for _ in range(len(self._ineqs_optimal)+1)]
-
-        pts_optimal_tmp = [tuple(pt) for pt in pts_optimal]
 
         if labels is None:
             labels = []
@@ -639,7 +641,7 @@ class Polytope:
 
             # find the label to use
             if (labels!=[]) and (pt in pts_optimal):
-                label = labels[pts_optimal_tmp.index(pt)]
+                label = labels[pts_optimal.index(pt)]
             else:
                 label = last_default_label+1
 
@@ -665,9 +667,9 @@ class Polytope:
         self._labels_not_facets = self._labels_int + self._labels_codim2
 
         # dictionary from labels to input coordinates
-        pts_input=self._optimal_to_input(self.points(optimal=True))
+        pts_input_all = self._optimal_to_input(self.points(optimal=True))
         self._labels2inputPts = {label:tuple(pt) for label,pt in \
-                                            zip(self._pts_order, pts_input)}
+                                        zip(self._pts_order, pts_input_all)}
 
         # reverse dictionaries
         self._inputpts2labels   ={v:k for k,v in self._labels2inputPts.items()}
@@ -711,149 +713,6 @@ class Polytope:
                 points_orig[i,:] += self._transl_vector
 
         return points_orig
-
-    def _lattice_pts(self, pts_optimal: ArrayLike) -> list[tuple]:
-        """
-        **Description:**
-        Computes the lattice points of the polytope along with the indices of
-        the hyperplane inequalities that they saturate.
-
-        **Arguments:**
-        - `pts`: A list of points spanning the hull. Each point is a tuple.
-        - `ineq`: Hyperplane inqualities defining the hull. Same format as
-            output by poly_v_to_h
-        - `dim`: The dimension of the hull.
-        - `backend`: The backend to use. Either "palp" or defaults to native.
-
-        **Returns:**
-        An array of all lattice points (the rows).
-        A list of sets of all inequalities each lattice point saturates.
-        """
-        pts_optimal = [tuple(pt) for pt in pts_optimal]
-
-        # When using PALP as the backend, use it to compute all lattice points
-        # in the polytope.
-        if self._backend == "palp":
-            if self._dim == 0:
-                # PALP cannot handle 0-dimensional polytopes
-                pts_optimal_all = [pts_optimal[0]]
-                facet_ind = [frozenset([0])]
-            else:
-                # prep PALP input
-                pt_list = ""
-                pts_optimal = {tuple(pt) for pt in pts_optimal}
-                for pt in pts_optimal:
-                    pt_str = str(pt).replace("(","").replace(")","")
-                    pt_str = pt_str.replace(","," ")
-                    pt_list += pt_str + "\n"
-                palp_in = f"{len(pts_optimal)} {self._dim}\n{pt_list}\n"
-
-                # prep PALP
-                palp = subprocess.Popen((config.palp_path + "poly.x", "-p"),
-                                                    stdin=subprocess.PIPE,
-                                                    stdout=subprocess.PIPE,
-                                                    stderr=subprocess.PIPE,
-                                                    universal_newlines=True)
-                
-                # do the work and read output
-                palp_out = palp.communicate(input=palp_in)[0]
-                if "Points of P" not in palp_out:
-                    raise RuntimeError(f"PALP error. Full output: {palp_out}")
-
-                # parse the outputs
-                palp_out = palp_out.split("\n")
-                for i,line in enumerate(palp_out):
-                    if "Points of P" not in line:
-                        continue
-
-                    # read the points
-                    pts_shape = [int(c) for c in line.split()[:2]]
-                    tmp_pts = np.empty(pts_shape, dtype=int)
-                    for j in range(pts_shape[0]):
-                        tmp_pts[j,:] =[int(c) for c in palp_out[i+j+1].split()]
-
-                    break
-
-                # Check if transposed
-                if pts_shape[0] < pts_shape[1]:
-                    pts_optimal_all = tmp_pts.T
-                else:
-                    pts_optimal_all = tmp_pts
-
-                # find inequialities each point saturates
-                ineqs = self._ineqs_optimal
-                facet_ind = [frozenset(i for i,ii in enumerate(ineqs) if\
-                            ii[:-1].dot(pt) + ii[-1] == 0) for pt in pts_optimal_all]
-
-        # Otherwise we use the algorithm by Volker Braun.
-        # This is redistributed under GNU General Public License version 2+.
-        #
-        # The original code can be found at
-        # https://github.com/sagemath/sage/blob/master/src/sage/geometry/integral_points.pxi
-        else:
-            # Find bounding box and sort by decreasing dimension size
-            box_min = np.min(pts_optimal, axis=0)
-            box_max = np.max(pts_optimal, axis=0)
-
-            # Sort box bounds
-            diameter_index = np.argsort(box_max - box_min)[::-1]
-            box_min = box_min[diameter_index]
-            box_max = box_max[diameter_index]
-
-            # Construct the inverse permutation
-            orig_dict = {j:i for i,j in enumerate(diameter_index)}
-            orig_perm = [orig_dict[i] for i in range(self._dim)]
-
-            # Inequalities must also have their coordinates permuted
-            ineqs = np.array(self._ineqs_optimal) # We need a new copy
-            ineqs[:,:-1] = self._ineqs_optimal[:,diameter_index]
-
-            # Find all lattice points and apply the inverse permutation
-            pts_optimal_all = []
-            facet_ind = []
-            p = np.array(box_min)
-
-            while True:
-                tmp_v = ineqs[:,1:-1].dot(p[1:]) + ineqs[:,-1]
-
-                # Find the lower bound for the allowed region
-                for i_min in range(box_min[0], box_max[0]+1, 1):
-                    if all(i_min*ineqs[:,0]+tmp_v >= 0):
-                        break
-
-                # Find the upper bound for the allowed region
-                for i_max in range(box_max[0], i_min-1, -1):
-                    if all(i_max*ineqs[:,0]+tmp_v >= 0):
-                        break
-                else:
-                    i_max -= 1
-
-                # The points i_min .. i_max are contained in the polytope
-                for i in range(i_min, i_max+1):
-                    p[0] = i
-                    pts_optimal_all.append(np.array(p)[orig_perm])
-
-                    saturated = frozenset(j for j in range(len(tmp_v))
-                                          if i*ineqs[j,0] + tmp_v[j] == 0)
-                    facet_ind.append(saturated)
-
-                # Increment the other entries in p to move on to next loop
-                inc = 1
-                if self._dim == 1:
-                    break
-                
-                while p[inc] == box_max[inc]:
-                    p[inc] = box_min[inc]
-                    inc += 1
-                    if inc == self._dim:
-                        break
-                else:
-                    p[inc] += 1
-                    continue
-                break
-
-        # The points and saturated inequalities have now been computed.
-        return pts_optimal_all, facet_ind
 
     # main
     # ----
@@ -3508,3 +3367,147 @@ def poly_v_to_h(pts: ArrayLike, backend: str) -> (ArrayLike, None):
                 ineqs = np.hstack((ineqs,col_of_1s))
 
     return ineqs, poly
+
+def lattice_pts(pts: [tuple],
+                ineqs: ArrayLike,
+                dim: int,
+                backend: str = None) -> (ArrayLike, [frozenset]):
+    """
+    **Description:**
+    Computes the lattice points of the polytope along with the indices of
+    the hyperplane inequalities that they saturate.
+
+    **Arguments:**
+    - `pts`: A list of points spanning the hull. Each point is a tuple.
+    - `ineq`: Hyperplane inqualities defining the hull. Same format as
+        output by poly_v_to_h
+    - `dim`: The dimension of the hull.
+    - `backend`: The backend to use. Either "palp" or defaults to native.
+
+    **Returns:**
+    An array of all lattice points (the rows).
+    A list of sets of all inequalities each lattice point saturates.
+    """
+    assert isinstance(pts,list) and isinstance(pts[0],tuple)
+
+    # split computation by backend
+    if backend == "palp":
+        if dim == 0:
+            # PALP cannot handle 0-dimensional polytopes
+            pts_all = [pts[0]]
+            facet_ind = [frozenset([0])]
+        else:
+            # prep command to pass to PALP
+            pt_list = ""
+            pts_set = set(pts)
+            for pt in pts_set:
+                pt_str = str(pt).replace("(","").replace(")","")
+                pt_str = pt_str.replace(","," ")
+                pt_list += pt_str + "\n"
+            palp_in = f"{len(pts_set)} {dim}\n{pt_list}\n"
+
+            # prep PALP
+            palp = subprocess.Popen((config.palp_path + "poly.x", "-p"),
+                                                stdin=subprocess.PIPE,
+                                                stdout=subprocess.PIPE,
+                                                stderr=subprocess.PIPE,
+                                                universal_newlines=True)
+            
+            # do the work and read output
+            palp_out = palp.communicate(input=palp_in)[0]
+            if "Points of P" not in palp_out:
+                raise RuntimeError(f"PALP error. Full output: {palp_out}")
+
+            # parse the outputs
+            palp_out = palp_out.split("\n")
+            for i,line in enumerate(palp_out):
+                if "Points of P" not in line:
+                    continue
+
+                # read the points
+                pts_shape = [int(c) for c in line.split()[:2]]
+                tmp_pts = np.empty(pts_shape, dtype=int)
+                for j in range(pts_shape[0]):
+                    tmp_pts[j,:] =[int(c) for c in palp_out[i+j+1].split()]
+
+                break
+
+            # Check if transposed
+            if pts_shape[0] < pts_shape[1]:
+                pts_all = tmp_pts.T
+            else:
+                pts_all = tmp_pts
+
+            # find inequialities each point saturates
+            facet_ind = [frozenset(i for i,ii in enumerate(ineqs) if\
+                        ii[:-1].dot(pt) + ii[-1] == 0) for pt in pts_all]
+
+    # Otherwise use the algorithm by Volker Braun.
+    # This is redistributed under GNU General Public License version 2+.
+    #
+    # The original code can be found at
+    # https://github.com/sagemath/sage/blob/master/src/sage/geometry/integral_points.pxi
+    else:
+        # Find bounding box and sort by decreasing dimension size
+        box_min = np.min(pts, axis=0)
+        box_max = np.max(pts, axis=0)
+
+        # Sort box bounds
+        diameter_index = np.argsort(box_max - box_min)[::-1]
+        box_min = box_min[diameter_index]
+        box_max = box_max[diameter_index]
+
+        # Construct the inverse permutation
+        orig_dict = {j:i for i,j in enumerate(diameter_index)}
+        orig_perm = [orig_dict[i] for i in range(dim)]
+
+        # Inequalities must also have their coordinates permuted
+        ineqs = ineqs.copy()
+        ineqs[:,:-1] = ineqs[:,diameter_index]
+
+        # Find all lattice points and apply the inverse permutation
+        pts_all = []
+        facet_ind = []
+        p = np.array(box_min)
+
+        while True:
+            tmp_v = ineqs[:,1:-1].dot(p[1:]) + ineqs[:,-1]
+
+            # Find the lower bound for the allowed region
+            for i_min in range(box_min[0], box_max[0]+1, 1):
+                if all(i_min*ineqs[:,0]+tmp_v >= 0):
+                    break
+
+            # Find the upper bound for the allowed region
+            for i_max in range(box_max[0], i_min-1, -1):
+                if all(i_max*ineqs[:,0]+tmp_v >= 0):
+                    break
+            else:
+                i_max -= 1
+
+            # The points i_min .. i_max are contained in the polytope
+            for i in range(i_min, i_max+1):
+                p[0] = i
+                pts_all.append(np.array(p)[orig_perm])
+
+                saturated = frozenset(j for j in range(len(tmp_v))
+                                      if i*ineqs[j,0] + tmp_v[j] == 0)
+                facet_ind.append(saturated)
+
+            # Increment the other entries in p to move on to next loop
+            inc = 1
+            if dim == 1:
+                break
+            
+            while p[inc] == box_max[inc]:
+                p[inc] = box_min[inc]
+                inc += 1
+                if inc == dim:
+                    break
+            else:
+                p[inc] += 1
+                continue
+            break
+
+    # return
+    return pts_all, facet_ind
