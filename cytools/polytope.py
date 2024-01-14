@@ -657,15 +657,6 @@ class Polytope:
         # save order of labels
         self._pts_order = sum(self._nSat_to_labels[1:][::-1], self._nSat_to_labels[0])
 
-        # common sets of labels
-        self._labels_int    = self._nSat_to_labels[0]
-        self._labels_facet  = self._nSat_to_labels[1]
-
-        self._labels_bdry   = sum(self._nSat_to_labels[1:][::-1],[])
-        self._labels_codim2 = sum(self._nSat_to_labels[2:][::-1],[])
-
-        self._labels_not_facets = self._labels_int + self._labels_codim2
-
         # dictionary from labels to input coordinates
         pts_input_all = self._optimal_to_input(self.points(optimal=True))
         self._labels2inputPts = {label:tuple(pt) for label,pt in \
@@ -676,6 +667,16 @@ class Polytope:
         self._optimalpts2labels ={v:k for k,v in self._labels2optPts.items()}
 
         self._labels2inds       ={v:i for i,v in enumerate(self._pts_order)}
+
+        # common sets of labels
+        # ---------------------
+        self._labels_int    = self._nSat_to_labels[0]
+        self._labels_facet  = self._nSat_to_labels[1]
+
+        self._labels_bdry   = sum(self._nSat_to_labels[1:][::-1],[])
+        self._labels_codim2 = sum(self._nSat_to_labels[2:][::-1],[])
+
+        self._labels_not_facets = self._labels_int + self._labels_codim2
 
     def _optimal_to_input(self, pts_opt: ArrayLike) -> np.array:
         """
