@@ -565,16 +565,16 @@ class Polytope:
             self._transl_vector = np.zeros(self._dim_ambient, dtype=int)
         else:
             self._transl_vector = pts_input[0]
-        pts_optimal_mat = np.array(pts_input)-self._transl_vector
+        pts_optimal = np.array(pts_input)-self._transl_vector
 
         # LLL-reduction (allows reduction in dimension)
-        pts_optimal_mat, transf =lll_reduce(pts_optimal_mat, transform=True)
-        pts_optimal_mat = pts_optimal_mat[:, self._dim_diff:]
+        pts_optimal, transf =lll_reduce(pts_optimal, transform=True)
+        pts_optimal = pts_optimal[:, self._dim_diff:]
         transf_mat, self._transf_mat_inv = transf
 
         # Calculate the polytope, inequalities
         # ------------------------------------
-        out = poly_v_to_h(pts_optimal_mat, self._backend)
+        out = poly_v_to_h(pts_optimal, self._backend)
         self._ineqs_optimal, self._poly_optimal = out
 
         # convert to input representation
@@ -595,7 +595,7 @@ class Polytope:
 
         # Organize points by saturated inequalities
         # -----------------------------------------
-        self._pts_saturated(pts_optimal_mat, labels)
+        self._pts_saturated(pts_optimal, labels)
 
     def _optimal_to_input(self, pts_opt: ArrayLike) -> np.array:
         """
