@@ -804,8 +804,16 @@ class Polytope:
         # undo LLL transformation, to get points in original basis
         pts_input_all = self._optimal_to_input(pts_optimal_all)
 
-        # prep the outputs (tuple of points and sets of saturated ineqs)
+        # Assign labels, organize points by saturated inequalities
+        # --------------------------------------------------------
+        # the sorting function
         def sort_fct(ind):
+            # order:
+            #   -) interior points first
+            #   -) rest by decreasing # of saturated inequalities
+            # ties (i.e., 2+ points with the same # of saturated inequalities)
+            # are broken by lexicographical ordering on the (input)
+            # coordinates.
             out = []
 
             # the number of saturated inequalities
@@ -815,11 +823,11 @@ class Polytope:
                 out.append(-float('inf'))
 
             # the coordinates
-            out += tuple(pts_input_all[ind])
-            return tuple(out)
+            out += list(pts_input_all[ind])
+            return out
         inds_sort = sorted(range(len(pts_input_all)), key=sort_fct)
 
-        # save points in a dictionary from arbitrary labels to coordinates
+        # save info to useful variables/dictionaries
         self._labels2optPts = dict()
         self._pts_saturating = dict()
         self._nSat_to_labels = [[] for _ in range(len(self._ineqs_optimal)+1)]
