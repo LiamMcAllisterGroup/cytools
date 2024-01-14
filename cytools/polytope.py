@@ -593,9 +593,9 @@ class Polytope:
                 self._ineqs_input[i,-1] = self._ineqs_optimal[i,-1] \
                                             - v[:-1].dot(self._transl_vector)
 
-        # Organize points by saturated inequalities
-        # -----------------------------------------
-        pts_optimal_all, facet_ind = self._lattice_pts(pts_optimal)
+        # Get the lattice points and their saturated inequalities
+        # -------------------------------------------------------
+        pts_optimal_all, saturating = self._lattice_pts(pts_optimal)
 
         # undo LLL transformation, to get points in original basis
         pts_input_all = self._optimal_to_input(pts_optimal_all)
@@ -613,8 +613,8 @@ class Polytope:
             out = []
 
             # the number of saturated inequalities
-            if len(facet_ind[ind]) > 0:
-                out.append(-len(facet_ind[ind]))
+            if len(saturating[ind]) > 0:
+                out.append(-len(saturating[ind]))
             else:
                 out.append(-float('inf'))
 
@@ -649,8 +649,8 @@ class Polytope:
 
             # save it!
             self._labels2optPts[label] = pt
-            self._pts_saturating[label] = facet_ind[i]
-            self._nSat_to_labels[len(facet_ind[i])].append(label)
+            self._pts_saturating[label] = saturating[i]
+            self._nSat_to_labels[len(saturating[i])].append(label)
 
         # save order of labels
         self._pts_order = sum(self._nSat_to_labels[1:][::-1], self._nSat_to_labels[0])
