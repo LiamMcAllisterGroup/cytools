@@ -3390,7 +3390,7 @@ def lattice_pts(pts_in: [tuple],
     A list of sets of all inequalities each lattice point saturates.
     """
     # check inputs
-    if isinstance(pts,list) and isinstance(pts[0],tuple):
+    if isinstance(pts_in,list) and isinstance(pts_in[0],tuple):
         pts = pts_in
     else:
         pts = [tuple(pt) for pt in pts_in]
