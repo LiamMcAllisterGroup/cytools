@@ -318,6 +318,8 @@ class Polytope:
         **Description:**
         Get every class variable.
 
+        No copying is done, so be careful with mutability!
+
         **Arguments:**
         None.
 
