@@ -596,8 +596,8 @@ class Polytope:
         # -------------------------------------------------------
         pts_optimal = [tuple(pt) for pt in pts_optimal]
         pts_optimal_all, saturating = lattice_pts(pts_optimal,
-                                              self._ineqs_optimal,
-                                              self._dim, self._backend)
+                                                  self._ineqs_optimal,
+                                                  self._dim, self._backend)
 
         # undo LLL transformation, to get points in original basis
         pts_input_all = self._optimal_to_input(pts_optimal_all)
@@ -3369,17 +3369,17 @@ def poly_v_to_h(pts: ArrayLike, backend: str) -> (ArrayLike, None):
 
     return ineqs, poly
 
-def lattice_pts(pts: [tuple],
-                ineqs: ArrayLike,
-                dim: int,
+def lattice_pts(pts_in: [tuple],
+                ineqs: ArrayLike = None,
+                dim: int = None,
                 backend: str = None) -> (ArrayLike, [frozenset]):
     """
     **Description:**
-    Computes the lattice points of the polytope along with the indices of
-    the hyperplane inequalities that they saturate.
+    Computes the lattice points contained in conv(pts), along with the indices
+    of the hyperplane inequalities that they saturate.
 
     **Arguments:**
-    - `pts`: A list of points spanning the hull. Each point is a tuple.
+    - `pts`: A list of points spanning the hull.
     - `ineq`: Hyperplane inqualities defining the hull. Same format as
         output by poly_v_to_h
     - `dim`: The dimension of the hull.
@@ -3389,7 +3389,27 @@ def lattice_pts(pts: [tuple],
     An array of all lattice points (the rows).
     A list of sets of all inequalities each lattice point saturates.
     """
-    assert isinstance(pts,list) and isinstance(pts[0],tuple)
+    # check inputs
+    if isinstance(pts,list) and isinstance(pts[0],tuple):
+        pts = pts_in
+    else:
+        pts = [tuple(pt) for pt in pts_in]
+
+    # fill in missing inputs
+    if dim is None:
+        dim = np.linalg.matrix_rank([list(pt)+[1] for pt in pts]) - 1
+
+    if backend is None:
+        if 1 <= dim <= 4:
+            backend = "ppl"
+        else:
+            backend = "palp"
+
+    if dim == 0: # 0-dimensional polytopes are finicky
+        backend = "palp"
+
+    if ineqs is None:
+        ineqs, _ = poly_v_to_h(pts, backend)
 
     # split computation by backend
     if backend == "palp":
