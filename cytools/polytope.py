@@ -927,7 +927,7 @@ class Polytope:
         """
         # return the answer if known
         if self._labels_vertices is not None:
-            return self.pts(labels=self._labels_vertices,as_indices=as_indices)
+            return self.pts(which=self._labels_vertices,as_indices=as_indices)
 
         # calculate the answer
         if self._dim == 0:
