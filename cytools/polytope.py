@@ -720,7 +720,7 @@ class Polytope:
     # main
     # ----
     def points(self,
-               labels = None,
+               which = None,
                optimal: bool = False,
                as_indices: bool = False) -> np.ndarray:
         """
@@ -736,7 +736,7 @@ class Polytope:
         :::
 
         **Arguments:**
-        - `labels`: Which points to return. Specified by a (list of) labels.
+        - `which`: Which points to return. Specified by a (list of) labels.
             NOT INDICES!!!
         - `optimal`: Whether to return the points in their optimal coordinates.
         - `as_indices`: Return the points as indices of the full list of points
@@ -768,14 +768,14 @@ class Polytope:
         ```
         """
         # get the labels of the points to return
-        if labels is None:
-            labels = self._pts_order
-        elif labels in self._pts_order:
-            labels = [labels]
+        if which is None:
+            which = self._pts_order
+        elif which in self._pts_order:
+            which = [which]
 
         # return the answer in the desired format
         if as_indices:
-            return [self._labels2inds[label] for label in labels]
+            return [self._labels2inds[label] for label in which]
         else:
             # set pts to be optimal/input depending on 'optimal' parameter
             if optimal:
@@ -784,22 +784,22 @@ class Polytope:
                 pts = self._labels2inputPts
             
             # return
-            return np.array([pts[label] for label in labels])
+            return np.array([pts[label] for label in which])
     # aliases
     pts = points
 
     # common point grabbers
     # ---------------------
     pts_int = lambda self, as_indices=False:\
-                self.pts(labels=self._labels_int,       as_indices=as_indices)
+                self.pts(which=self._labels_int,        as_indices=as_indices)
     pts_bdry = lambda self, as_indices=False:\
-                self.pts(labels=self._labels_bdry,      as_indices=as_indices)
+                self.pts(which=self._labels_bdry,       as_indices=as_indices)
     pts_facet = lambda self, as_indices=False:\
-                self.pts(labels=self._labels_facet,     as_indices=as_indices)
+                self.pts(which=self._labels_facet,      as_indices=as_indices)
     pts_codim2 = lambda self, as_indices=False:\
-                self.pts(labels=self._labels_codim2,    as_indices=as_indices)
+                self.pts(which=self._labels_codim2,     as_indices=as_indices)
     pts_not_facets = lambda self, as_indices=False:\
-                self.pts(labels=self._labels_not_facets,as_indices=as_indices)
+                self.pts(which=self._labels_not_facets, as_indices=as_indices)
 
     # aliases
     interior_points           = pts_int;    interior_pts            = pts_int
