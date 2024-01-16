@@ -1005,7 +1005,7 @@ class Triangulation:
         if not_interior.any():
             self._heights = None
 
-            if (verbosity>1) or (verbosity==1 and not default_triang):
+            if verbosity>1:
                 print(f"Triangulation: height-vector is within {eps}"+\
                        " of a wall of the secondary cone... heights "+\
                        "likely don't define a unique triangulation " +\
