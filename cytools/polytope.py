@@ -1867,9 +1867,8 @@ class Polytope:
 
     # triangulating
     # =============
-    def _triang_pt_inds(self,
-                        include_points_interior_to_facets: bool = None,
-                        points: ArrayLike = None) -> tuple[int]:
+    def _triang_pts(self,
+                    include_points_interior_to_facets:bool=None) -> tuple[int]:
         """
         **Description:**
         Constructs the list of indices of the points that will be used in a
@@ -1884,9 +1883,6 @@ class Polytope:
         - `include_points_interior_to_facets`: Whether to include points
             interior to facets from the triangulation. If not specified, it is
             set to False for reflexive polytopes and True otherwise.
-        - `points`: The list of indices of the points that will be used. Note
-            that if this option is used then the parameter
-            `include_points_interior_to_facets` is ignored.
 
         **Returns:**
         A tuple of the indices of the points that will be included in a
@@ -1912,23 +1908,14 @@ class Polytope:
         # configuration with 5 points in ZZ^4
         ```
         """
-        if points is not None:
-            pts_ind = tuple(set(points))
+        if include_points_interior_to_facets is None:
+            include_points_interior_to_facets = self.is_reflexive()
 
-            # check bounds
-            if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
-                raise ValueError("An index is out of the allowed range.")
+        if include_points_interior_to_facets:
+            pts_ind =tuple(self.points(as_indices=True))
         else:
-            if include_points_interior_to_facets is None:
-                include_points_interior_to_facets = self.is_reflexive()
-
-            if include_points_interior_to_facets:
-                pts_ind = tuple(self.points(as_indices=True))
-            else:
-                pts_ind = tuple(self.points_not_interior_to_facets(as_indices=True))
-
-        pts_ind = tuple(sorted(pts_ind))
-        return pts_ind
+            pts_ind =tuple(self.points_not_interior_to_facets(as_indices=True))
+        return tuple(sorted(pts_ind))
 
     def triangulate(self,
                     heights: ArrayLike = None,
@@ -2012,7 +1999,10 @@ class Polytope:
             use_pts_in_facets = include_points_interior_to_facets
 
         # get indices of relevant points
-        pts_ind = self._triang_pt_inds(use_pts_in_facets, points)
+        if points is not None:
+            pts_ind = tuple(sorted(set(points)))
+        else:
+            pts_ind = self._triang_pts(use_pts_in_facets)
 
         # if simplices are provided, check if they span the relevant points
         if simplices is not None:
@@ -2140,7 +2130,10 @@ class Polytope:
         if N is None and as_list:
             raise ValueError("Number of triangulations must be specified when "
                              "returning a list.")
-        pts_ind = self._triang_pt_inds(include_points_interior_to_facets, points)
+        if points is not None:
+            pts_ind = tuple(sorted(set(points)))
+        else:
+            pts_ind = self._triang_pts(include_points_interior_to_facets)
         triang_pts = [tuple(pt) for pt in self.points()[list(pts_ind)]]
         if make_star is None:
             make_star = self.is_reflexive()
@@ -2283,7 +2276,10 @@ class Polytope:
         if N is None and as_list:
             raise ValueError("Number of triangulations must be specified when "
                              "returning a list.")
-        pts_ind = self._triang_pt_inds(include_points_interior_to_facets, points)
+        if points is not None:
+            pts_ind = tuple(sorted(set(points)))
+        else:
+            pts_ind = self._triang_pts(include_points_interior_to_facets)
         triang_pts = [tuple(pt) for pt in self.points()[list(pts_ind)]]
         if make_star is None:
             make_star =  self.is_reflexive()
@@ -2412,7 +2408,10 @@ class Polytope:
                 raise ValueError("The star_origin parameter must be specified "
                                  "when finding star triangulations of "
                                  "non-reflexive polytopes.")
-        pts_ind = self._triang_pt_inds(include_points_interior_to_facets, points)
+        if points is not None:
+            pts_ind = tuple(sorted(set(points)))
+        else:
+            pts_ind = self._triang_pts(include_points_interior_to_facets)
         triang_pts = [tuple(pt) for pt in self.points()[list(pts_ind)]]
         if len(triang_pts) >= 17:
             warnings.warn("Polytopes with more than around 17 points usually "
