@@ -2002,7 +2002,6 @@ class Polytope:
             points = tuple(sorted(set(points)))
         else:
             points = self._triang_labels(use_pts_in_facets)
-        pts_inds = self.points(which=points,as_indices=True)
 
         # if simplices are provided, check if they span the relevant points
         if simplices is not None:
@@ -2027,6 +2026,7 @@ class Polytope:
 
         # if heights are provided for all points, trim them
         if (heights is not None) and (len(heights) == len(self.points())):
+            pts_inds = self.points(which=points,as_indices=True)
             triang_heights = np.array(heights)[list(pts_inds)]
         else:
             triang_heights = heights
