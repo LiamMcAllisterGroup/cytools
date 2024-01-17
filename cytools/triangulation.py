@@ -113,9 +113,9 @@ class Triangulation:
     """
 
     def __init__(self,
+                 poly: "Polytope",
                  pts: ArrayLike,
                  labels: list = None,
-                 poly: "Polytope" = None,
                  heights: list = None,
                  make_star: bool = False,
                  simplices: ArrayLike = None,
@@ -193,11 +193,7 @@ class Triangulation:
             raise ValueError("Need at least 1 point.")
         
         # polytope
-        if poly is None:
-            from cytools.polytope import Polytope
-            self._poly = Polytope(list(tmp_pts))
-        else:
-            self._poly = poly
+        self._poly = poly
 
         # simplices
         if simplices is not None:
@@ -935,7 +931,7 @@ class Triangulation:
         # If the triangulation is presumably regular, then we can check if
         # heights inside the secondary cone yield the same triangulation.
         if self.is_regular(backend=backend):
-            tmp_triang = Triangulation(self.points(), self.polytope(),\
+            tmp_triang = Triangulation(self.polytope(), self.points(),\
                                        heights=self.heights(), make_star=False)
 
             simps1 = sorted(sorted(s) for s in self.simplices().tolist())
@@ -1663,7 +1659,7 @@ class Triangulation:
                 continue
 
             # construct and check triangulation
-            tri = Triangulation(self._pts, self._poly, simplices=t,
+            tri = Triangulation(self._poly, self._pts, simplices=t,
                                 check_input_simplices=False)
             if only_fine and (not tri.is_fine()):
                 continue
@@ -1807,7 +1803,7 @@ class Triangulation:
                 new_simps[j] = flipped[1]
 
                 # construct the triangulation
-                tri = Triangulation(self._pts, self._poly,\
+                tri = Triangulation(self._poly, self._pts,\
                                     simplices=new_simps,\
                                     check_input_simplices=False)
 
@@ -2275,7 +2271,7 @@ def all_triangulations(points: ArrayLike,
         if raw_output:
             yield t
             continue
-        tri = Triangulation(points, poly=poly, simplices=t, make_star=False,
+        tri = Triangulation(poly, points, simplices=t, make_star=False,
                                                 check_input_simplices=False)
         if not only_regular or tri.is_regular(backend=backend):
             yield tri
@@ -2374,7 +2370,7 @@ def random_triangulations_fast_generator(pts: ArrayLike,
 
         # generate random heights, make the triangulation
         heights= [pt.dot(pt) + np.random.normal(0,c) for pt in pts]
-        t = Triangulation(pts, poly=poly, heights=heights,
+        t = Triangulation(poly, pts, heights=heights,
                           make_star=make_star, backend=backend,
                           check_heights=False)
 
@@ -2538,7 +2534,7 @@ def random_triangulations_fair_generator(pts: ArrayLike,
             # take steps
             for __ in range(max_steps_to_wall):
                 new_pt = in_pt + random_dir*step_size
-                temp_tri = Triangulation(pts, poly=poly, heights=new_pt,
+                temp_tri = Triangulation(poly, pts, heights=new_pt,
                                             make_star=False, backend=backend,
                                             verbosity=0)
 
@@ -2563,7 +2559,7 @@ def random_triangulations_fair_generator(pts: ArrayLike,
         in_pt_found = False
         while (fine_tune_ctr<fine_tune_steps) or (not in_pt_found):
             new_pt = (in_pt+out_pt)/2
-            temp_tri = Triangulation(pts, poly=poly, heights=new_pt,
+            temp_tri = Triangulation(poly, pts, heights=new_pt,
                                             make_star=False, backend=backend,
                                             verbosity=0)
 
@@ -2584,7 +2580,7 @@ def random_triangulations_fair_generator(pts: ArrayLike,
 
         # after enough steps are taken, move on to random flips
         if (step_ctr>initial_walk_steps) and (step_per_tri_ctr>=n_walk):
-            flip_seed_tri =Triangulation(pts, poly=poly, heights=new_pt,
+            flip_seed_tri =Triangulation(poly, pts, heights=new_pt,
                                         make_star=make_star, backend=backend,
                                         verbosity=0)
 

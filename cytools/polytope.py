@@ -2042,7 +2042,7 @@ class Polytope:
             make_star = False
 
         # return triangulation
-        return Triangulation(triang_pts, poly=self, heights=triang_heights,
+        return Triangulation(self, triang_pts, heights=triang_heights,
                              make_star=make_star, simplices=simplices,
                              check_input_simplices=check_input_simplices,
                              backend=backend, verbosity=verbosity)
@@ -2388,7 +2388,7 @@ class Polytope:
             if raw_output:
                 triangs = [self.points(as_indices=True)[None,:]]
             else:
-                triangs = [Triangulation(self.points())]
+                triangs = [Triangulation(self, self.points())]
 
             if as_list:
                 return triangs
