@@ -2417,10 +2417,13 @@ class Polytope:
             warnings.warn("Polytopes with more than around 17 points usually "
                           "have too many triangulations, so this function may take "
                           "too long or run out of memory.")
-        triangs = all_triangulations(
-                    triang_pts, only_fine=only_fine, only_regular=only_regular,
-                    only_star=only_star, star_origin=star_origin,
-                    backend=backend, poly=self, raw_output=raw_output)
+        triangs = all_triangulations(self, triang_pts,
+                                     only_fine=only_fine,
+                                     only_regular=only_regular,
+                                     only_star=only_star,
+                                     star_origin=star_origin,
+                                     backend=backend,
+                                     raw_output=raw_output)
         if as_list:
             return list(triangs)
         return triangs

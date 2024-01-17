@@ -2149,13 +2149,13 @@ def _topcom_triangulate(points: ArrayLike) -> np.ndarray:
     return np.array(sorted([sorted(s) for s in simp]))
 
 
-def all_triangulations(points: ArrayLike,
+def all_triangulations(poly: "Polytope",
+                       points: ArrayLike,
                        only_fine: bool = False,
                        only_regular: bool = False,
                        only_star: bool = False,
                        star_origin: int = None,
                        backend: str = None,
-                       poly: "Polytope" = None,
                        raw_output: bool = False) -> "generator[Triangulation]":
     """
     **Description:**
