@@ -890,9 +890,9 @@ class Polytope:
         if single_pt:
             points = [points]
 
-        # just compose point->label and label->index maps
+        # grab labels, and then map to indices
         labels = self.points_to_labels(points, is_optimal=is_optimal)
-        inds = np.array([self._labels2inds[l] for l in labels], dtype=int)
+        inds = self.points(labels, as_indices=True)
         
         # get/return the indices
         if single_pt and len(inds):
