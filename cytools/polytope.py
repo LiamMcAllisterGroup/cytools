@@ -383,11 +383,12 @@ class Polytope:
         #self._labels2inds
 
         # groups of points
-        self._labels_int        = None
-        self._labels_facet      = None
-        self._labels_bdry       = None
-        self._labels_codim2     = None
-        self._labels_not_facets = None
+        #self._label_origin      = None
+        #self._labels_int        = None
+        #self._labels_facet      = None
+        #self._labels_bdry       = None
+        #self._labels_codim2     = None
+        #self._labels_not_facets = None
         self._labels_vertices   = None
 
         # others
@@ -672,6 +673,10 @@ class Polytope:
 
         # common sets of labels
         # ---------------------
+        origin = (0,)*self._dim_ambient
+        if origin in self._inputpts2labels:
+            self._label_origin = self._inputpts2labels[origin]
+
         self._labels_int    = self._nSat_to_labels[0]
         self._labels_facet  = self._nSat_to_labels[1]
 
@@ -2038,7 +2043,7 @@ class Polytope:
             else:
                 make_star = False
 
-        if not self.is_reflexive() and (0,)*self._dim not in [tuple(pt) for pt in triang_pts]:
+        if (not self.is_reflexive()) and (self._label_origin not in points):
             make_star = False
 
         # return triangulation
@@ -2130,18 +2135,20 @@ class Polytope:
         if N is None and as_list:
             raise ValueError("Number of triangulations must be specified when "
                              "returning a list.")
+
         if points is not None:
             points = tuple(sorted(set(points)))
         else:
             points = self._triang_labels(include_points_interior_to_facets)
+
         triang_pts = [tuple(pt) for pt in self.points(which=points)]
         if make_star is None:
             make_star = self.is_reflexive()
-        if (0,)*self._dim not in triang_pts:
+        if self._label_origin not in points:
             make_star = False
-        g = random_triangulations_fast_generator(triang_pts, N=N, c=c,
+        g = random_triangulations_fast_generator(self, triang_pts, N=N, c=c,
                 max_retries=max_retries, make_star=make_star,
-                only_fine=only_fine, backend=backend, poly=self, seed=seed)
+                only_fine=only_fine, backend=backend, seed=seed)
         if not as_list:
             return g
         if progress_bar:
@@ -2283,7 +2290,7 @@ class Polytope:
         triang_pts = [tuple(pt) for pt in self.points(which=points)]
         if make_star is None:
             make_star =  self.is_reflexive()
-        if (0,)*self._dim not in triang_pts:
+        if self._label_origin not in points:
             make_star = False
         if n_walk is None:
             n_walk = len(self.points())//10 + 10
@@ -2292,12 +2299,12 @@ class Polytope:
         if initial_walk_steps is None:
             initial_walk_steps = 2*len(self.points())//10 + 10
         g = random_triangulations_fair_generator(
-                triang_pts, N=N, n_walk=n_walk, n_flip=n_flip,
+                self, triang_pts, N=N, n_walk=n_walk, n_flip=n_flip,
                 initial_walk_steps=initial_walk_steps,
                 walk_step_size=walk_step_size,
                 max_steps_to_wall=max_steps_to_wall,
                 fine_tune_steps=fine_tune_steps, max_retries=max_retries,
-                make_star=make_star, backend=backend, poly=self, seed=seed)
+                make_star=make_star, backend=backend, seed=seed)
         if not as_list:
             return g
         if progress_bar:
@@ -2403,7 +2410,7 @@ class Polytope:
             only_star = self.is_reflexive()
         if only_star and star_origin is None:
             if self.is_reflexive():
-                star_origin = 0
+                star_origin = self._label_origin
             else:
                 raise ValueError("The star_origin parameter must be specified "
                                  "when finding star triangulations of "
@@ -2412,11 +2419,13 @@ class Polytope:
             points = tuple(sorted(set(points)))
         else:
             points = self._triang_labels(include_points_interior_to_facets)
-        triang_pts = [tuple(pt) for pt in self.points(which=points)]
-        if len(triang_pts) >= 17:
+
+        if len(points) >= 17:
             warnings.warn("Polytopes with more than around 17 points usually "
-                          "have too many triangulations, so this function may take "
-                          "too long or run out of memory.")
+                          "have too many triangulations, so this function may "
+                          "take too long or run out of memory.")
+
+        triang_pts = [tuple(pt) for pt in self.points(which=points)]
         triangs = all_triangulations(self, triang_pts,
                                      only_fine=only_fine,
                                      only_regular=only_regular,

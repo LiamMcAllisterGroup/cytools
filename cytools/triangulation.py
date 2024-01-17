@@ -691,7 +691,7 @@ class Triangulation:
         # return
         return self._is_fine
 
-    def is_star(self, star_origin: int = None) -> bool:
+    def is_star(self, star_origin = None) -> bool:
         """
         **Description:**
         Returns True if the triangulation is star and False otherwise. The star
@@ -2169,7 +2169,8 @@ def all_triangulations(poly: "Polytope",
     :::
 
     **Arguments:**
-    - `points`: The list of points to be triangulated.
+    - `poly`: The ambient polytope.
+    - `points`: The list of points (as labels) to be triangulated.
     - `only_fine`: Restricts to only fine triangulations.
     - `only_regular`: Restricts to only regular triangulations.
     - `only_star`: Restricts to only star triangulations.
@@ -2181,7 +2182,6 @@ def all_triangulations(poly: "Polytope",
         [`is_solid`](./cone#is_solid) function of the [`Cone`](./cone) class.
         If not specified, it will be picked automatically. Note that using
         TOPCOM to check regularity is slower.
-    - `poly`: The ambient polytope. It is constructed if not specified.
     - `raw_output`: Return the triangulations as lists of simplices instead of
         as Triangulation objects.
 
@@ -2217,10 +2217,6 @@ def all_triangulations(poly: "Polytope",
     if only_star and star_origin is None:
         raise ValueError("The star_origin parameter must be specified when "
                          "restricting to star triangulations.")
-
-    if poly is None and not raw_output:
-        from cytools.polytope import Polytope
-        poly = Polytope(points)
 
     # ensure points are appropriately sorted (for Triangulation inputs)
     if raw_output:
@@ -2276,14 +2272,14 @@ def all_triangulations(poly: "Polytope",
         if not only_regular or tri.is_regular(backend=backend):
             yield tri
 
-def random_triangulations_fast_generator(pts: ArrayLike,
+def random_triangulations_fast_generator(poly: "Polytope",
+                                         pts: ArrayLike,
                                          N: int = None,
                                          c: float = 0.2,
                                          max_retries: int = 500,
                                          make_star: bool = False,
                                          only_fine: bool = True,
                                          backend: str = "cgal",
-                                         poly: "Polytope" = None,
                                          seed: int = None,
                                          verbosity: int = 0) -> "generator[Triangulation]":
     """
@@ -2392,7 +2388,8 @@ def random_triangulations_fast_generator(pts: ArrayLike,
         n_retries = 0
         yield t
 
-def random_triangulations_fair_generator(pts: ArrayLike,
+def random_triangulations_fair_generator(poly: "Polytope",
+                                         pts: ArrayLike,
                                          N: int = None,
                                          n_walk: int = 10,
                                          n_flip: int = 10,
@@ -2403,7 +2400,6 @@ def random_triangulations_fair_generator(pts: ArrayLike,
                                          max_retries: int = 50,
                                          make_star: bool = False,
                                          backend: str = "cgal",
-                                         poly: "Polytope" = None,
                                          seed: int = None) -> "generator[Triangulation]":
     """
     **Description:**
