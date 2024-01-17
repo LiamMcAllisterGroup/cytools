@@ -2002,6 +2002,7 @@ class Polytope:
             points = tuple(sorted(set(points)))
         else:
             points = self._triang_labels(use_pts_in_facets)
+        pts_inds = self.points(which=points,as_indices=True)
 
         # if simplices are provided, check if they span the relevant points
         if simplices is not None:
@@ -2022,11 +2023,11 @@ class Polytope:
                 raise ValueError(error_msg)
 
         # get relevant points
-        triang_pts = self.points()[list(points)]
+        triang_pts = self.points(which=points)
 
         # if heights are provided for all points, trim them
         if (heights is not None) and (len(heights) == len(self.points())):
-            triang_heights = np.array(heights)[list(points)]
+            triang_heights = np.array(heights)[list(pts_inds)]
         else:
             triang_heights = heights
 
@@ -2133,7 +2134,7 @@ class Polytope:
             points = tuple(sorted(set(points)))
         else:
             points = self._triang_labels(include_points_interior_to_facets)
-        triang_pts = [tuple(pt) for pt in self.points()[list(points)]]
+        triang_pts = [tuple(pt) for pt in self.points(which=points)]
         if make_star is None:
             make_star = self.is_reflexive()
         if (0,)*self._dim not in triang_pts:
@@ -2279,7 +2280,7 @@ class Polytope:
             points = tuple(sorted(set(points)))
         else:
             points = self._triang_labels(include_points_interior_to_facets)
-        triang_pts = [tuple(pt) for pt in self.points()[list(points)]]
+        triang_pts = [tuple(pt) for pt in self.points(which=points)]
         if make_star is None:
             make_star =  self.is_reflexive()
         if (0,)*self._dim not in triang_pts:
@@ -2411,7 +2412,7 @@ class Polytope:
             points = tuple(sorted(set(points)))
         else:
             points = self._triang_labels(include_points_interior_to_facets)
-        triang_pts = [tuple(pt) for pt in self.points()[list(points)]]
+        triang_pts = [tuple(pt) for pt in self.points(which=points)]
         if len(triang_pts) >= 17:
             warnings.warn("Polytopes with more than around 17 points usually "
                           "have too many triangulations, so this function may take "
