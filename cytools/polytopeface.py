@@ -202,7 +202,7 @@ class PolytopeFace:
         The labels of lattice points in the face.
         """
         if self._labels is None:
-            self._pts_saturated()
+            self._process_points()
 
         return self._labels
 
@@ -219,7 +219,7 @@ class PolytopeFace:
         The indices of saturated hyperplanes, for each point.
         """
         if self._saturating is None:
-            self._pts_saturated()
+            self._process_points()
 
         return self._saturating
 
@@ -262,7 +262,7 @@ class PolytopeFace:
 
     # points
     # ======
-    def _pts_saturated(self):
+    def _process_points(self):
         """
         **Description:**
         Grabs the labels of the lattice points of the fae along with the
