@@ -789,6 +789,9 @@ class Polytope:
         # get the labels of the points to return
         if which is None:
             which = self._pts_order
+        elif isinstance(which, np.ndarray):
+            print(f"ERROR! which={which}... can't be numpy array")
+            return
         elif which in self._pts_order:
             which = [which]
 
@@ -2404,7 +2407,7 @@ class Polytope:
             if raw_output:
                 triangs = [self.points(as_indices=True)[None,:]]
             else:
-                triangs = [Triangulation(self, self.points())]
+                triangs = [Triangulation(self, self.labels)]
 
             if as_list:
                 return triangs

@@ -2236,10 +2236,10 @@ def all_triangulations(poly: "Polytope",
     # (only performs affine transformation, so can treat the new points as if
     # they were the original ones)
     dim = np.linalg.matrix_rank([tuple(pt)+(1,) for pt in triang_pts])-1
-    if dim == points.shape[1]:
-        optimal_pts = points
+    if dim == triang_pts.shape[1]:
+        optimal_pts = triang_pts
     else:
-        optimal_pts = lll_reduce([pt - points[0] for pt in triang_pts])[:,-dim:]
+        optimal_pts = lll_reduce([pt-triang_pts[0] for pt in triang_pts])[:,-dim:]
 
     # prep for TOPCOM
     topcom_bin = config.topcom_path
