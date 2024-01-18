@@ -95,6 +95,7 @@ class PolytopeFace:
         ```
         """
         self._ambient_poly = ambient_poly
+        self._vert_labels = ambient_poly.points_to_labels(vertices)
         self._vertices = np.array(vertices)
         self._ambient_dim = self._ambient_poly.ambient_dim()
         self._saturated_ineqs = saturated_ineqs
@@ -353,7 +354,8 @@ class PolytopeFace:
         """
         if self._polytope is None:
             from cytools.polytope import Polytope
-            self._polytope = Polytope(self._vertices,
+            self._polytope = Polytope(self.points(),
+                                      labels=self._ambient_poly.points_to_labels(self.points()),
                                       backend=self._ambient_poly._backend)
         return self._polytope
     # alias
@@ -578,9 +580,10 @@ class PolytopeFace:
         *(Triangulation)* A [`Triangulation`](./triangulation) object describing
             a triangulation of the polytope.
         """
+        pt_labels = self._ambient_poly.points_to_labels(self.points())
         # check if we're just grabbing the Delaunay triangulation
         if (simplices is None) and (heights is None):
-            return Triangulation(self.points(), poly=self.as_polytope(),
+            return Triangulation(self.as_polytope(), pt_labels,
                                  make_star=False, backend=backend)
 
         # user input simplices or heights... must do work reordering points
@@ -604,7 +607,7 @@ class PolytopeFace:
             heights_permuted = None
             simps_permuted = [list(map(f_perm, simp)) for simp in simplices]
 
-        return Triangulation(self.points(), poly=self.as_polytope(), heights=heights_permuted,
+        return Triangulation(self.as_polytope(), pt_labels, heights=heights_permuted,
                              make_star=False, simplices=simps_permuted,
                              check_input_simplices=check_input_simplices,
                              backend=backend)
