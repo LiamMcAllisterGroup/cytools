@@ -421,6 +421,20 @@ class Polytope:
     # getters
     # =======
     # (all methods here should be @property)
+    @property
+    def backend(self) -> str:
+        """
+        **Description:**
+        Returns the backend.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        The computational backend
+        """
+        return self._backend
+
     def ambient_dimension(self) -> int:
         """
         **Description:**

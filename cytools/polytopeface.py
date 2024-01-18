@@ -49,8 +49,8 @@ class PolytopeFace:
     **Arguments:**
     - `ambient_poly` *(Polytope)*: The ambient polytope.
     - `vertices` *(array_like)*: The list of vertices.
-    - `saturated_ineqs` *(frozenset)*: A frozenset containing the indices of the
-        inequalities that this face saturates.
+    - `saturated_ineqs` *(frozenset)*: A frozenset containing the indices of
+        the inequalities that this face saturates.
     - `dim` *(int, optional)*: The dimension of the face. If it is not given
         then it is computed.
 
@@ -111,10 +111,7 @@ class PolytopeFace:
             self._dim = dim
         else:
             verts = ambient_poly.points(which=vert_labels)
-            vert_ext = np.empty((verts.shape[0], verts.shape[1]+1), dtype=int)
-            vert_ext[:,:-1] = verts
-            vert_ext[:,-1] = 1
-            self._dim = np.linalg.matrix_rank(vert_ext)-1
+            self._dim = np.linalg.matrix_rank([list(pt)+[1] for pt in verts])-1
 
     # defaults
     # ========
@@ -140,7 +137,7 @@ class PolytopeFace:
         ```
         """
         return (f"A {self.dim()}-dimensional face of a "
-                f"{self._ambient_poly.dim()}-dimensional polytope in "
+                f"{self.ambient_poly.dim()}-dimensional polytope in "
                 f"ZZ^{self.ambient_dim()}")
 
     # caching
@@ -169,8 +166,8 @@ class PolytopeFace:
         """
         self._labels = None
         self._saturating = None
-        self._interior_points = None
-        self._boundary_points = None
+        self._labels_int = None
+        self._labels_bdry = None
         self._polytope = None
         self._dual_face = None
         self._faces = None
@@ -178,7 +175,32 @@ class PolytopeFace:
     # getters
     # =======
     @property
+    def ambient_poly(self):
+        """
+        **Description:**
+        Returns the ambient polytope.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        The ambient polytope.
+        """
+        return self._ambient_poly
+    ambient_polytope = lambda self:self.ambient_poly
+
+    @property
     def labels(self):
+        """
+        **Description:**
+        Returns the labels of lattice points in the face.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        The labels of lattice points in the face.
+        """
         if self._labels is None:
             self._pts_saturated()
 
@@ -186,10 +208,57 @@ class PolytopeFace:
 
     @property
     def saturating(self):
+        """
+        **Description:**
+        Returns the indices of saturated hyperplanes, for each point.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        The indices of saturated hyperplanes, for each point.
+        """
         if self._saturating is None:
             self._pts_saturated()
 
         return self._saturating
+
+    def dimension(self) -> int:
+        """
+        **Description:**
+        Returns the dimension of the face.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        *(int)* The dimension of the face.
+
+        **Aliases:**
+        `dim`.
+        """
+        return self._dim
+    # aliases
+    dim = dimension
+
+    def ambient_dimension(self) -> int:
+        """
+        **Description:**
+        Returns the dimension of the ambient lattice.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        The dimension of the ambient lattice.
+
+        **Aliases:**
+        `ambient_dim`.
+        ```
+        """
+        return self._ambient_poly.ambient_dimension()
+    # aliases
+    ambient_dim = ambient_dimension
 
     # points
     # ======
@@ -209,14 +278,15 @@ class PolytopeFace:
         self._saturating = []
 
         # inherit the calculation from the ambient polytope
-        for label in self._ambient_poly.labels:
-            saturating = self._ambient_poly._pts_saturating[label]
+        for label in self.ambient_poly.labels:
+            saturating = self.ambient_poly._pts_saturating[label]
 
             if self._saturated_ineqs.issubset(saturating):
                 self._labels.append(label)
                 self._saturating.append(saturating)
 
         self._labels = tuple(self._labels)
+        self._saturating = tuple(self._saturating)
 
     def points(self, as_indices=False):
         """
@@ -245,8 +315,8 @@ class PolytopeFace:
         #        [ 0,  1,  0,  0]])
         ```
         """
-        return self._ambient_poly.points(which=self.labels,
-                                         as_indices=as_indices)
+        return self.ambient_poly.points(which=self.labels,
+                                        as_indices=as_indices)
     # aliases
     pts = points
 
@@ -275,14 +345,17 @@ class PolytopeFace:
         #        [ 0,  0,  0, -1]])
         ```
         """
-        if self._interior_points is None:
-            self._interior_points = []
+        # get labels of interior points
+        if self._labels_int is None:
+            self._labels_int = []
 
             for label, sat in zip(self.labels, self.saturating):
                 if len(sat) == len(self._saturated_ineqs):
-                    self._interior_points.append(label)
+                    self._labels_int.append(label)
         
-        return self._ambient_poly.points(which=self._interior_points, as_indices=as_indices)
+        # return the points
+        return self.ambient_poly.points(which=self._labels_int,
+                                        as_indices=as_indices)
     # aliases
     interior_pts = interior_points
 
@@ -313,14 +386,17 @@ class PolytopeFace:
         #        [ 0,  1,  0,  0]])
         ```
         """
-        if self._boundary_points is None:
-            self._boundary_points = []
+        # get labels of interior points
+        if self._labels_bdry is None:
+            self._labels_bdry = []
 
             for label, sat in zip(self.labels, self.saturating):
                 if len(sat) > len(self._saturated_ineqs):
-                    self._boundary_points.append(label)
+                    self._labels_bdry.append(label)
 
-        return self._ambient_poly.points(which=self._boundary_points, as_indices=as_indices)
+        # return the points
+        return self.ambient_poly.points(which=self._labels_bdry,
+                                        as_indices=as_indices)
     # aliases
     boundary_pts = boundary_points
 
@@ -346,8 +422,10 @@ class PolytopeFace:
         #        [ 0,  0,  1,  0]])
         ```
         """
-        return self._ambient_poly.points(which=self._labels_vertices)
+        return self.ambient_poly.points(which=self._labels_vertices)
 
+    # polytope
+    # ========
     def as_polytope(self):
         """
         **Description:**
@@ -373,36 +451,14 @@ class PolytopeFace:
         if self._polytope is None:
             from cytools.polytope import Polytope
             self._polytope = Polytope(self.points(),
-                                      labels=self._ambient_poly.points_to_labels(self.points()),
-                                      backend=self._ambient_poly._backend)
+                                      labels=self.labels,
+                                      backend=self.ambient_poly.backend)
         return self._polytope
     # alias
     as_poly = as_polytope
 
-    def ambient_polytope(self):
-        """
-        **Description:**
-        Returns the ambient polytope of the face.
-
-        **Arguments:**
-        None.
-
-        **Returns:**
-        *(Polytope)* The ambient polytope.
-
-        **Example:**
-        We construct a face object from a polytope, then find the ambient
-        polytope and verify that it is the starting polytope.
-        ```python {3}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        f = p.faces(3)[0] # Pick one of the 3-faces
-        ambient_poly = f.ambient_polytope()
-        ambient_poly is p
-        # True
-        ```
-        """
-        return self._ambient_poly
-
+    # dual
+    # ====
     def dual_face(self):
         """
         **Description:**
@@ -451,6 +507,8 @@ class PolytopeFace:
     # aliases
     dual = dual_face
 
+    # faces
+    # =====
     def faces(self, d=None):
         """
         **Description:**
@@ -486,60 +544,8 @@ class PolytopeFace:
         self._faces = tuple(faces)
         return (self._faces[d] if d is not None else self._faces)
 
-    def dimension(self):
-        """
-        **Description:**
-        Returns the dimension of the face.
-
-        **Arguments:**
-        None.
-
-        **Returns:**
-        *(int)* The dimension of the face.
-
-        **Aliases:**
-        `dim`.
-
-        **Example:**
-        We construct a face from a polytope and print its dimension.
-        ```python {3}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        f = p.faces(3)[0] # Pick one of the 3-faces
-        f.dimension()
-        # 3
-        ```
-        """
-        return self._dim
-    # aliases
-    dim = dimension
-
-    def ambient_dimension(self):
-        """
-        **Description:**
-        Returns the dimension of the ambient lattice.
-
-        **Arguments:**
-        None.
-
-        **Returns:**
-        *(int)* The dimension of the ambient lattice.
-
-        **Aliases:**
-        `ambient_dim`.
-
-        **Example:**
-        We construct a face from a polytope and print its ambient dimension.
-        ```python {3}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        f = p.faces(3)[0] # Pick one of the 3-faces
-        f.ambient_dimension()
-        # 4
-        ```
-        """
-        return self._ambient_poly.ambient_dimension()
-    # aliases
-    ambient_dim = ambient_dimension
-
+    # triangulating
+    # =============
     def triangulate(self, heights=None, points=None, simplices=None,
                     check_input_simplices=True, backend="cgal"):
         """
