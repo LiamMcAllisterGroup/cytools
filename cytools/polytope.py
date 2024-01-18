@@ -794,8 +794,9 @@ class Polytope:
         if which is None:
             which = self._pts_order
         elif isinstance(which, np.ndarray):
-            print(f"ERROR! which={which}... can't be numpy array")
-            print("maybe you passed the point coordinates???")
+            print(f"Polytope.points received which={which}...")
+            print("`which` should be a list of point labels, not "+\
+                  "point coordinates... returning...")
             return
         elif which in self._pts_order:
             which = [which]
