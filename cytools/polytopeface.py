@@ -24,6 +24,7 @@ import copy
 
 # 3rd party imports
 import numpy as np
+from numpy.typing import ArrayLike
 
 # CYTools imports
 from cytools.triangulation import Triangulation
@@ -115,7 +116,7 @@ class PolytopeFace:
 
     # defaults
     # ========
-    def __repr__(self):
+    def __repr__(self) -> str:
         """
         **Description:**
         Returns a string describing the face.
@@ -142,7 +143,7 @@ class PolytopeFace:
 
     # caching
     # =======
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """
         **Description:**
         Clears the cached results of any previous computation.
@@ -174,8 +175,9 @@ class PolytopeFace:
 
     # getters
     # =======
+    # (all methods here should be @property)
     @property
-    def ambient_poly(self):
+    def ambient_poly(self) -> "Polytope":
         """
         **Description:**
         Returns the ambient polytope.
@@ -190,7 +192,7 @@ class PolytopeFace:
     ambient_polytope = lambda self:self.ambient_poly
 
     @property
-    def labels(self):
+    def labels(self) -> tuple:
         """
         **Description:**
         Returns the labels of lattice points in the face.
@@ -207,7 +209,7 @@ class PolytopeFace:
         return self._labels
 
     @property
-    def saturating(self):
+    def saturating(self) -> tuple:
         """
         **Description:**
         Returns the indices of saturated hyperplanes, for each point.
@@ -256,16 +258,16 @@ class PolytopeFace:
         `ambient_dim`.
         ```
         """
-        return self._ambient_poly.ambient_dimension()
+        return self.ambient_poly.ambient_dimension()
     # aliases
     ambient_dim = ambient_dimension
 
     # points
     # ======
-    def _process_points(self):
+    def _process_points(self) -> None:
         """
         **Description:**
-        Grabs the labels of the lattice points of the fae along with the
+        Grabs the labels of the lattice points of the face along with the
         indices of the hyperplane inequalities that they saturate.
 
         **Arguments:**
@@ -285,17 +287,18 @@ class PolytopeFace:
                 self._labels.append(label)
                 self._saturating.append(saturating)
 
+        # save it!
         self._labels = tuple(self._labels)
         self._saturating = tuple(self._saturating)
 
-    def points(self, as_indices=False):
+    def points(self, as_indices: bool = False) -> ArrayLike:
         """
         **Description:**
         Returns the lattice points of the face.
 
         **Arguments:**
-        - `as_indices` *(bool)*: Return the points as indices of the full list
-            of points of the polytope.
+        - `as_indices`: Return the points as indices of the full list of
+            points of the polytope.
 
         **Returns:**
         *(numpy.ndarray)* The list of lattice points of the face.
@@ -320,17 +323,17 @@ class PolytopeFace:
     # aliases
     pts = points
 
-    def interior_points(self, as_indices=False):
+    def interior_points(self, as_indices: bool = False) -> ArrayLike:
         """
         **Description:**
         Returns the interior lattice points of the face.
 
         **Arguments:**
-        - `as_indices` *(bool)*: Return the points as indices of the full list
-            of points of the polytope.
+        - `as_indices`: Return the points as indices of the full list of
+            points of the polytope.
 
         **Returns:**
-        *(numpy.ndarray)* The list of interior lattice points of the face.
+        The list of interior lattice points of the face.
 
         **Aliases:**
         `interior_pts`.
@@ -359,17 +362,17 @@ class PolytopeFace:
     # aliases
     interior_pts = interior_points
 
-    def boundary_points(self, as_indices=False):
+    def boundary_points(self, as_indices: bool = False) -> ArrayLike:
         """
         **Description:**
         Returns the boundary lattice points of the face.
 
         **Arguments:**
-        - `as_indices` *(bool)*: Return the points as indices of the full list
-        of points of the polytope.
+        - `as_indices`: Return the points as indices of the full list of
+            points of the polytope.
 
         **Returns:**
-        *(numpy.ndarray)* The list of boundary lattice points of the face.
+        The list of boundary lattice points of the face.
 
         **Aliases:**
         `boundary_pts`.
@@ -400,7 +403,7 @@ class PolytopeFace:
     # aliases
     boundary_pts = boundary_points
 
-    def vertices(self):
+    def vertices(self, as_indices: bool = False) -> ArrayLike:
         """
         **Description:**
         Returns the vertices of the face.
@@ -409,7 +412,7 @@ class PolytopeFace:
         None.
 
         **Returns:**
-        *(numpy.ndarray)* The list of vertices of the face.
+        The list of vertices of the face.
 
         **Example:**
         We construct a face from a polytope and find its vertices.
@@ -422,11 +425,12 @@ class PolytopeFace:
         #        [ 0,  0,  1,  0]])
         ```
         """
-        return self.ambient_poly.points(which=self._labels_vertices)
+        return self.ambient_poly.points(which=self._labels_vertices,
+                                        as_indices=as_indices)
 
     # polytope
     # ========
-    def as_polytope(self):
+    def as_polytope(self) -> "Polytope":
         """
         **Description:**
         Returns the face as a Polytope object.
@@ -435,7 +439,7 @@ class PolytopeFace:
         None.
 
         **Returns:**
-        *(Polytope)* The [`Polytope`](./polytope) corresponding to the face.
+        The [`Polytope`](./polytope) corresponding to the face.
 
         **Example:**
         We construct a face object and then convert it into a
@@ -459,7 +463,7 @@ class PolytopeFace:
 
     # dual
     # ====
-    def dual_face(self):
+    def dual_face(self) -> "PolytopeFace":
         """
         **Description:**
         Returns the dual face of the dual polytope.
@@ -473,7 +477,7 @@ class PolytopeFace:
         None.
 
         **Returns:**
-        *(PolytopeFace)* The dual face.
+        The dual face.
 
         **Aliases:**
         `dual`.
@@ -489,40 +493,50 @@ class PolytopeFace:
         # A 1-dimensional face of a 4-dimensional polytope in ZZ^4
         ```
         """
+        # return answer, if known
         if self._dual_face is not None:
             return self._dual_face
-        if not self._ambient_poly.is_reflexive():
+
+        # check if calculation makes sense
+        if not self.ambient_poly.is_reflexive():
             raise NotImplementedError("Ambient polytope is not reflexive.")
-        dual_vert = self._ambient_poly._ineqs_input[
+
+        # perform the calculation
+        dual_poly = self.ambient_poly.dual()
+
+        dual_vert = self.ambient_poly._ineqs_input[
                                             list(self._saturated_ineqs),:-1]
-        dual_poly = self._ambient_poly.dual()
         dual_ineqs = dual_poly._ineqs_input[:,:-1].tolist()
         dual_saturated_ineqs = frozenset([dual_ineqs.index(v)
                                             for v in self.vertices().tolist()])
-        dual_face_dim = self._ambient_poly._dim - self._dim - 1
-        self._dual_face = PolytopeFace(dual_poly, dual_poly.points_to_labels(dual_vert),
-                                       dual_saturated_ineqs, dim=dual_face_dim)
+        dual_face_dim = self.ambient_poly._dim - self._dim - 1
+        self._dual_face = PolytopeFace(dual_poly,
+                                       dual_poly.points_to_labels(dual_vert),
+                                       dual_saturated_ineqs,
+                                       dim=dual_face_dim)
         self._dual_face._dual_face = self
-        return self._dual_face
+
+        # return
+        return self.dual_face()
     # aliases
     dual = dual_face
 
     # faces
     # =====
-    def faces(self, d=None):
+    def faces(self, d: int = None) -> tuple:
         """
         **Description:**
         Computes the faces of the face.
 
         **Arguments:**
-        - `d` *(int, optional)*: Optional parameter that specifies the dimension
-            of the desired faces.
+        - `d`: Optional parameter that specifies the dimension of the desired
+            faces.
 
         **Returns:**
-        *(tuple)* A tuple of [`PolytopeFace`](./polytopeface) objects of
-            dimension d, if specified. Otherwise, a tuple of tuples of
-            [`PolytopeFace`](./polytopeface) objects organized in ascending
-            dimension.
+        A tuple of [`PolytopeFace`](./polytopeface) objects of dimension d, if
+        specified. Otherwise, a tuple of tuples of
+        [`PolytopeFace`](./polytopeface) objects organized in ascending
+        dimension.
 
         **Example:**
         We construct a face from a polytope and find its vertices.
@@ -533,21 +547,31 @@ class PolytopeFace:
         # A 2-dimensional face of a 4-dimensional polytope in ZZ^4
         ```
         """
-        if d is not None and d not in range(self._dim + 1):
+        # input checking
+        if (d is not None) and (d not in range(self._dim + 1)):
             raise ValueError(f"There are no faces of dimension {d}")
+
+        # return answer if known
         if self._faces is not None:
             return (self._faces[d] if d is not None else self._faces)
+
+        # calculate the answer
         faces = []
         for dd in range(self._dim + 1):
-            faces.append(tuple(f for f in self._ambient_poly.faces(dd)
+            faces.append(tuple(f for f in self.ambient_poly.faces(dd)
                         if self._saturated_ineqs.issubset(f._saturated_ineqs)))
         self._faces = tuple(faces)
-        return (self._faces[d] if d is not None else self._faces)
+
+        # return
+        return self.faces(d)
 
     # triangulating
     # =============
-    def triangulate(self, heights=None, points=None, simplices=None,
-                    check_input_simplices=True, backend="cgal"):
+    def triangulate(self,
+                    heights: list = None,
+                    simplices: ArrayLike = None,
+                    check_input_simplices: bool = True,
+                    backend: str = "cgal") -> "Triangulation":
         """
         **Description:**
         Returns a single regular triangulation of the face.
@@ -557,33 +581,29 @@ class PolytopeFace:
         Also see Polytope.triangulate
 
         **Arguments:**
-        - `heights` *(array_like, optional)*: A list of heights specifying the
-            regular triangulation. When not specified, it will return the
-            Delaunay triangulation when using CGAL, a triangulation obtained
-            from random heights near the Delaunay when using QHull, or the
-            placing triangulation when using TOPCOM. Heights can only be
-            specified when using CGAL or QHull as the backend.
-        - `simplices` *(array_like, optional)*: A list of simplices specifying
-            the triangulation. This is useful when a triangulation was
-            previously computed and it needs to be used again. Note that the
-            order of the points needs to be consistent with the order that the
-            `Polytope` class uses.
-        - `check_input_simplices` *(bool, optional, default=True)*: Flag that
-            specifies whether to check if the input simplices define a valid
-            triangulation.
-        - `backend` *(str, optional, default="cgal")*: Specifies the backend
-            used to compute the triangulation. The available options are
-            "qhull", "cgal", and "topcom". CGAL is the default one as it is very
-            fast and robust.
+        - `heights`: A list of heights specifying the regular triangulation.
+            When not specified, it will return the Delaunay triangulation when
+            using CGAL, a triangulation obtained from random heights near the
+            Delaunay when using QHull, or the placing triangulation when using
+            TOPCOM. Heights can only be specified when using CGAL or QHull as
+            the backend.
+        - `simplices`: A list of simplices specifying the triangulation. This
+            is useful when a triangulation was previously computed and it
+            needs to be used again. Note that the order of the points needs to
+            be consistent with the order that the `Polytope` class uses.
+        - `check_input_simplices`: Flag that specifies whether to check if the
+            input simplices define a valid triangulation.
+        - `backend`: Specifies the backend used to compute the triangulation.
+            The available options are "qhull", "cgal", and "topcom". CGAL is
+            the default one as it is very fast and robust.
 
         **Returns:**
-        *(Triangulation)* A [`Triangulation`](./triangulation) object describing
-            a triangulation of the polytope.
+        A [`Triangulation`](./triangulation) object describing a triangulation
+        of the polytope.
         """
-        pt_labels = self._ambient_poly.points_to_labels(self.points())
         # check if we're just grabbing the Delaunay triangulation
         if (simplices is None) and (heights is None):
-            return Triangulation(self.as_polytope(), pt_labels,
+            return Triangulation(self.as_polytope(), self.labels,
                                  make_star=False, backend=backend)
 
         # user input simplices or heights... must do work reordering points
@@ -607,7 +627,9 @@ class PolytopeFace:
             heights_permuted = None
             simps_permuted = [list(map(f_perm, simp)) for simp in simplices]
 
-        return Triangulation(self.as_polytope(), pt_labels, heights=heights_permuted,
-                             make_star=False, simplices=simps_permuted,
+        return Triangulation(self.as_polytope(), self.labels,
+                             make_star=False,
+                             heights=heights_permuted,
+                             simplices=simps_permuted,
                              check_input_simplices=check_input_simplices,
                              backend=backend)
