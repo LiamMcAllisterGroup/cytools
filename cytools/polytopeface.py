@@ -95,16 +95,16 @@ class PolytopeFace:
         ```
         """
         self._ambient_poly = ambient_poly
-        self._vert_labels = vert_labels
-        self._vertices = ambient_poly.points(which=vert_labels)
         self._ambient_dim = self._ambient_poly.ambient_dim()
+        self._vert_labels = vert_labels
+
         self._saturated_ineqs = saturated_ineqs
         if dim is not None:
             self._dim = dim
         else:
-            vert_ext = np.empty((self._vertices.shape[0],
-                                 self._vertices.shape[1]+1), dtype=int)
-            vert_ext[:,:-1] = self._vertices
+            verts = ambient_poly.points(which=vert_labels)
+            vert_ext = np.empty((verts.shape[0], verts.shape[1]+1), dtype=int)
+            vert_ext[:,:-1] = verts
             vert_ext[:,-1] = 1
             self._dim = np.linalg.matrix_rank(vert_ext)-1
         # Initialize remaining hidden attributes
@@ -424,7 +424,7 @@ class PolytopeFace:
         dual_poly = self._ambient_poly.dual()
         dual_ineqs = dual_poly._ineqs_input[:,:-1].tolist()
         dual_saturated_ineqs = frozenset([dual_ineqs.index(v)
-                                            for v in self._vertices.tolist()])
+                                            for v in self.vertices().tolist()])
         dual_face_dim = self._ambient_poly._dim - self._dim - 1
         self._dual_face = PolytopeFace(dual_poly, dual_poly.points_to_labels(dual_vert),
                                        dual_saturated_ineqs, dim=dual_face_dim)
@@ -455,7 +455,7 @@ class PolytopeFace:
         #        [ 0,  0,  1,  0]])
         ```
         """
-        return np.array(self._vertices)
+        return self._ambient_poly.points(which=self._vert_labels)
 
     def faces(self, d=None):
         """
