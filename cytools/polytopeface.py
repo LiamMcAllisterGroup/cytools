@@ -504,9 +504,9 @@ class PolytopeFace:
         # perform the calculation
         dual_poly = self.ambient_poly.dual()
 
-        dual_vert = self.ambient_poly._ineqs_input[
+        dual_vert = self.ambient_poly.inequalities()[
                                             list(self._saturated_ineqs),:-1]
-        dual_ineqs = dual_poly._ineqs_input[:,:-1].tolist()
+        dual_ineqs = dual_poly.inequalities()[:,:-1].tolist()
         dual_saturated_ineqs = frozenset([dual_ineqs.index(v)
                                             for v in self.vertices().tolist()])
         dual_face_dim = self.ambient_poly._dim - self._dim - 1
