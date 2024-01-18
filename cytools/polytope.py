@@ -690,6 +690,8 @@ class Polytope:
         origin = (0,)*self._dim_ambient
         if origin in self._inputpts2labels:
             self._label_origin = self._inputpts2labels[origin]
+        else:
+            self._label_origin = None
 
         self._labels_int    = self._nSat_to_labels[0]
         self._labels_facet  = self._nSat_to_labels[1]
