@@ -109,9 +109,7 @@ class PolytopeFace:
             self._dim = np.linalg.matrix_rank(vert_ext)-1
 
         # Initialize remaining variables
-        self._ambient_dim = self._ambient_poly.ambient_dim()
         self._points_sat = None
-        self._points = None
         self._interior_points = None
         self._boundary_points = None
         self._polytope = None
@@ -141,7 +139,6 @@ class PolytopeFace:
         ```
         """
         self._points_sat = None
-        self._points = None
         self._interior_points = None
         self._boundary_points = None
         self._polytope = None
@@ -171,7 +168,7 @@ class PolytopeFace:
         """
         return (f"A {self._dim}-dimensional face of a "
                 f"{self._ambient_poly._dim}-dimensional polytope in "
-                f"ZZ^{self._ambient_dim}")
+                f"ZZ^{self.ambient_dim()}")
 
     def _pts_saturated(self):
         """
@@ -220,8 +217,7 @@ class PolytopeFace:
                 saturating = self._ambient_poly._pts_saturating[label]
 
                 if self._saturated_ineqs.issubset(saturating):
-                    pt = self._ambient_poly.points(label)[0]
-                    self._points_sat.append((pt,saturating))
+                    self._points_sat.append((label,saturating))
 
         return copy.copy(self._points_sat)
 
@@ -252,11 +248,8 @@ class PolytopeFace:
         #        [ 0,  1,  0,  0]])
         ```
         """
-        if self._points is None:
-            self._points = np.array([pt[0] for pt in self._pts_saturated()])
-        if as_indices:
-            return self._ambient_poly.points_to_indices(self._points)
-        return np.array(self._points)
+        return self._ambient_poly.points(which=[pt[0] for pt in self._pts_saturated()],
+                                         as_indices=as_indices)
     # aliases
     pts = points
 
@@ -286,12 +279,10 @@ class PolytopeFace:
         ```
         """
         if self._interior_points is None:
-            self._interior_points = np.array(
-                                    [pt[0] for pt in self._pts_saturated()
-                                    if len(pt[1])==len(self._saturated_ineqs)])
-        if as_indices:
-            return self._ambient_poly.points_to_indices(self._interior_points)
-        return np.array(self._interior_points)
+            self._interior_points = [pt[0] for pt in self._pts_saturated()
+                                    if len(pt[1])==len(self._saturated_ineqs)]
+        
+        return self._ambient_poly.points(which=self._interior_points, as_indices=as_indices)
     # aliases
     interior_pts = interior_points
 
@@ -323,12 +314,9 @@ class PolytopeFace:
         ```
         """
         if self._boundary_points is None:
-            self._boundary_points = np.array(
-                                    [pt[0] for pt in self._pts_saturated()
-                                    if len(pt[1])>len(self._saturated_ineqs)])
-        if as_indices:
-            return self._ambient_poly.points_to_indices(self._boundary_points)
-        return np.array(self._boundary_points)
+            self._boundary_points = [pt[0] for pt in self._pts_saturated()
+                                    if len(pt[1])>len(self._saturated_ineqs)]
+        return self._ambient_poly.points(which=self._boundary_points, as_indices=as_indices)
     # aliases
     boundary_pts = boundary_points
 
@@ -544,7 +532,7 @@ class PolytopeFace:
         # 4
         ```
         """
-        return self._ambient_dim
+        return self._ambient_poly.ambient_dimension()
     # aliases
     ambient_dim = ambient_dimension
 
