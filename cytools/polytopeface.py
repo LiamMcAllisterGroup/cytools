@@ -67,18 +67,20 @@ class PolytopeFace:
     ```
     """
 
-    def __init__(self, ambient_poly, vert_labels, saturated_ineqs, dim=None):
+    def __init__(self,
+                 ambient_poly: "Polytope",
+                 vert_labels: list,
+                 saturated_ineqs: frozenset,
+                 dim: int = None) -> None:
         """
         **Description:**
         Initializes a `PolytopeFace` object.
 
         **Arguments:**
-        - `ambient_poly` *(Polytope)*: The ambient polytope.
-        - `vertices` *(array_like)*: The list of vertices.
-        - `saturated_ineqs` *(frozenset)*: A frozenset containing the indices of
-            the inequalities that this face saturates.
-        - `dim` *(int, optional)*: The dimension of the face. If it is not given
-            then it is computed.
+        - `ambient_poly`: The ambient polytope.
+        - `vert_labels`: The vertices, specified by labels in ambient_poly.
+        - `saturated_ineqs`: Indices of inequalities that this face saturates.
+        - `dim`: The dimension of this face. If not given, then it's computed.
 
         **Returns:**
         Nothing.
@@ -94,9 +96,14 @@ class PolytopeFace:
         # A 3-dimensional face of a 4-dimensional polytope in ZZ^4
         ```
         """
-        # grab required inputs
+        # initialize attributes
+        # ---------------------
+        self.clear_cache()
+
+        # process the inputs
+        # ------------------
         self._ambient_poly = ambient_poly
-        self._vert_labels = vert_labels
+        self._labels_vertices = vert_labels
         self._saturated_ineqs = saturated_ineqs
 
         # grab/compute optional inputs
@@ -108,9 +115,6 @@ class PolytopeFace:
             vert_ext[:,:-1] = verts
             vert_ext[:,-1] = 1
             self._dim = np.linalg.matrix_rank(vert_ext)-1
-
-        # Initialize remaining variables
-        self.clear_cache()
 
     # defaults
     # ========
@@ -342,7 +346,7 @@ class PolytopeFace:
         #        [ 0,  0,  1,  0]])
         ```
         """
-        return self._ambient_poly.points(which=self._vert_labels)
+        return self._ambient_poly.points(which=self._labels_vertices)
 
     def as_polytope(self):
         """
