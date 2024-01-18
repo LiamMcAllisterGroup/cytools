@@ -67,7 +67,7 @@ class PolytopeFace:
     ```
     """
 
-    def __init__(self, ambient_poly, vertices, saturated_ineqs, dim=None):
+    def __init__(self, ambient_poly, vert_labels, saturated_ineqs, dim=None):
         """
         **Description:**
         Initializes a `PolytopeFace` object.
@@ -95,8 +95,8 @@ class PolytopeFace:
         ```
         """
         self._ambient_poly = ambient_poly
-        self._vert_labels = ambient_poly.points_to_labels(vertices)
-        self._vertices = np.array(vertices)
+        self._vert_labels = vert_labels
+        self._vertices = ambient_poly.points(which=vert_labels)
         self._ambient_dim = self._ambient_poly.ambient_dim()
         self._saturated_ineqs = saturated_ineqs
         if dim is not None:
@@ -426,7 +426,7 @@ class PolytopeFace:
         dual_saturated_ineqs = frozenset([dual_ineqs.index(v)
                                             for v in self._vertices.tolist()])
         dual_face_dim = self._ambient_poly._dim - self._dim - 1
-        self._dual_face = PolytopeFace(dual_poly, dual_vert,
+        self._dual_face = PolytopeFace(dual_poly, dual_poly.points_to_labels(dual_vert),
                                        dual_saturated_ineqs, dim=dual_face_dim)
         self._dual_face._dual_face = self
         return self._dual_face

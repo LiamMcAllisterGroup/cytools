@@ -1047,7 +1047,7 @@ class Polytope:
             for dim_faces in self._dual._faces[::-1][1:]:
                 self._faces.append( tuple(f.dual() for f in dim_faces) )
             # full-dim face
-            self._faces.append( (PolytopeFace(self, self.vertices(),\
+            self._faces.append( (PolytopeFace(self, self._labels_vertices,\
                                                 frozenset(), dim=self._dim),) )
 
             # cast to tuple
@@ -1074,7 +1074,7 @@ class Polytope:
         self._faces = []
 
         # full-dim face
-        self._faces.append( (PolytopeFace(self, vert_pts, frozenset(),\
+        self._faces.append( (PolytopeFace(self, vert_labels, frozenset(),\
                                                             dim=self._dim),) )
         # if polytope is 0-dimensional, we're done!
         if self._dim == 0:
@@ -1115,7 +1115,7 @@ class Polytope:
             dd_faces = []
             for f in ineq2pts.keys():
                 tmp_vert = [pt[0] for pt in vert_legacy if f.issubset(pt[1])]
-                dd_faces.append(PolytopeFace(self, tmp_vert, f, dim=dd))
+                dd_faces.append(PolytopeFace(self, self.points_to_labels(tmp_vert), f, dim=dd))
 
             self._faces.append(dd_faces)
 
@@ -1123,7 +1123,7 @@ class Polytope:
             ineq2pts_prev = ineq2pts
         
         # Finally add vertices
-        self._faces.append([PolytopeFace(self, [pt[0]], pt[1], dim=0)\
+        self._faces.append([PolytopeFace(self, self.points_to_labels([pt[0]], pt[1]), dim=0)\
                                                         for pt in vert_legacy])
 
         # reverse order (to increasing with dimension)
@@ -1198,24 +1198,24 @@ class Polytope:
                     onefaces[f3] = inter
 
         # now, construct all formal face objects
-        fourface_obj_list = [PolytopeFace(self, vert_pts, frozenset(), dim=4)]
+        fourface_obj_list = [PolytopeFace(self, vert_labels, frozenset(), dim=4)]
 
         facets_obj_list = []
         for f in facets.keys():
-            tmp_vert = [pt[0] for pt in vert_legacy if f.issubset(pt[1])]
+            tmp_vert = self.points_to_labels([pt[0] for pt in vert_legacy if f.issubset(pt[1])])
             facets_obj_list.append(PolytopeFace(self, tmp_vert, f, dim=3))
 
         twofaces_obj_list = []
         for f in twofaces.keys():
-            tmp_vert = [pt[0] for pt in vert_legacy if f.issubset(pt[1])]
+            tmp_vert = self.points_to_labels([pt[0] for pt in vert_legacy if f.issubset(pt[1])])
             twofaces_obj_list.append(PolytopeFace(self, tmp_vert, f, dim=2))
 
         onefaces_obj_list = []
         for f in onefaces.keys():
-            tmp_vert = [pt[0] for pt in vert_legacy if f.issubset(pt[1])]
+            tmp_vert = self.points_to_labels([pt[0] for pt in vert_legacy if f.issubset(pt[1])])
             onefaces_obj_list.append(PolytopeFace(self, tmp_vert, f, dim=1))
 
-        zerofaces_obj_list = [PolytopeFace(self, [pt[0]], pt[1], dim=0)
+        zerofaces_obj_list = [PolytopeFace(self, self.points_to_labels([pt[0]]), pt[1], dim=0)
                               for pt in vert_legacy]
 
         # organize in tuple and return
