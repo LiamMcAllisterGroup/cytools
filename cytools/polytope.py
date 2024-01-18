@@ -920,7 +920,7 @@ class Polytope:
 
         # grab labels, and then map to indices
         labels = self.points_to_labels(points, is_optimal=is_optimal)
-        inds = self.points(labels, as_indices=True)
+        inds = self.points(which=labels, as_indices=True)
         
         # get/return the indices
         if single_pt and len(inds):
@@ -1084,13 +1084,14 @@ class Polytope:
 
         # return, if we just figured it out
         if self._faces is not None:
-            return (self._faces[d] if (d is not None) else self._faces)
+            return self.faces(d)
 
         # have to calculate from scratch...
         # ---------------------------------
         # get vertices
         verts = [tuple(pt) for pt in self.vertices()]
-        vert_labels = [label for label,pt in self._labels2optPts.items() if pt in verts]
+        vert_labels = [label for label,pt in self._labels2optPts.items()\
+                                                                if pt in verts]
         vert_pts = [self._labels2inputPts[label] for label in vert_labels]
         vert_sat = [self._pts_saturating[label] for label in vert_labels]
         vert_legacy = list(zip(vert_pts, vert_sat))
@@ -1106,7 +1107,7 @@ class Polytope:
         # if polytope is 0-dimensional, we're done!
         if self.dim() == 0:
             self._faces = tuple(self._faces)
-            return (self._faces[d] if (d is not None) else self._faces)
+            return self.faces(d)
 
         # not done... construct the codim>0 faces
         #
@@ -1150,12 +1151,14 @@ class Polytope:
             ineq2pts_prev = ineq2pts
         
         # Finally add vertices
-        self._faces.append([PolytopeFace(self, self.points_to_labels([pt[0]], pt[1]), dim=0)\
-                                                        for pt in vert_legacy])
+        self._faces.append([PolytopeFace(self,
+                                         self.points_to_labels([pt[0]]),
+                                         pt[1],
+                                         dim=0) for pt in vert_legacy])
 
         # reverse order (to increasing with dimension)
         self._faces = tuple(tuple(ff) for ff in self._faces[::-1])
-        return (self._faces[d] if d is not None else self._faces)
+        return self.faces(d)
 
     def _faces4d(self) -> tuple:
         """
@@ -1242,8 +1245,10 @@ class Polytope:
             tmp_vert = self.points_to_labels([pt[0] for pt in vert_legacy if f.issubset(pt[1])])
             onefaces_obj_list.append(PolytopeFace(self, tmp_vert, f, dim=1))
 
-        zerofaces_obj_list = [PolytopeFace(self, self.points_to_labels([pt[0]]), pt[1], dim=0)
-                              for pt in vert_legacy]
+        zerofaces_obj_list = [PolytopeFace(self,
+                                           self.points_to_labels([pt[0]]),
+                                           pt[1],
+                                           dim=0) for pt in vert_legacy]
 
         # organize in tuple and return
         organized_faces = (tuple(zerofaces_obj_list), tuple(onefaces_obj_list),
