@@ -94,11 +94,12 @@ class PolytopeFace:
         # A 3-dimensional face of a 4-dimensional polytope in ZZ^4
         ```
         """
-        # grab inputs
+        # grab required inputs
         self._ambient_poly = ambient_poly
         self._vert_labels = vert_labels
         self._saturated_ineqs = saturated_ineqs
 
+        # grab/compute optional inputs
         if dim is not None:
             self._dim = dim
         else:
@@ -109,13 +110,37 @@ class PolytopeFace:
             self._dim = np.linalg.matrix_rank(vert_ext)-1
 
         # Initialize remaining variables
-        self._points_sat = None
-        self._interior_points = None
-        self._boundary_points = None
-        self._polytope = None
-        self._dual_face = None
-        self._faces = None
+        self.clear_cache()
 
+    # defaults
+    # ========
+    def __repr__(self):
+        """
+        **Description:**
+        Returns a string describing the face.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        *(str)* A string describing the face.
+
+        **Example:**
+        This function can be used to convert the face to a string or to print
+        information about the face.
+        ```python {3,4}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        f = p.faces(3)[0]
+        face_info = str(f) # Converts to string
+        print(f) # Prints face info
+        ```
+        """
+        return (f"A {self.dim()}-dimensional face of a "
+                f"{self._ambient_poly.dim()}-dimensional polytope in "
+                f"ZZ^{self.ambient_dim()}")
+
+    # caching
+    # =======
     def clear_cache(self):
         """
         **Description:**
@@ -138,88 +163,56 @@ class PolytopeFace:
         pts = f.points() # Find the lattice points again
         ```
         """
-        self._points_sat = None
+        self._labels = None
+        self._saturating = None
         self._interior_points = None
         self._boundary_points = None
         self._polytope = None
         self._dual_face = None
         self._faces = None
 
-    def __repr__(self):
-        """
-        **Description:**
-        Returns a string describing the face.
+    # getters
+    # =======
+    @property
+    def labels(self):
+        if self._labels is None:
+            self._pts_saturated()
 
-        **Arguments:**
-        None.
+        return self._labels
 
-        **Returns:**
-        *(str)* A string describing the face.
+    @property
+    def saturating(self):
+        if self._saturating is None:
+            self._pts_saturated()
 
-        **Example:**
-        This function can be used to convert the face to a string or to print
-        information about the face.
-        ```python {3,4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        f = p.faces(3)[0]
-        face_info = str(f) # Converts to string
-        print(f) # Prints face info
-        ```
-        """
-        return (f"A {self._dim}-dimensional face of a "
-                f"{self._ambient_poly._dim}-dimensional polytope in "
-                f"ZZ^{self.ambient_dim()}")
+        return self._saturating
 
+    # points
+    # ======
     def _pts_saturated(self):
         """
         **Description:**
-        Computes the lattice points of the face along with the indices of the
-        hyperplane inequalities that they saturate.
-
-        :::note notes
-        - Points are sorted in the same way as for the
-            [`_points_saturated`](./polytope#_points_saturated) function of the
-            [`Polytope`](./polytope) class.
-        - Typically this function should not be called by the user. Instead, it
-            is called by various other functions in the PolytopeFace class.
-        :::
+        Grabs the labels of the lattice points of the fae along with the
+        indices of the hyperplane inequalities that they saturate.
 
         **Arguments:**
         None.
 
         **Returns:**
-        *(list)* A list of tuples. The first component of each tuple is the list
-            of coordinates of the point and the second component is a
-            `frozenset` of the hyperplane inequalities that it saturates.
-
-        **Example:**
-        We construct a face and compute the lattice points along with the
-        inequalities that they saturate. We print the second point and the
-        inequalities that it saturates.
-        ```python {2}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        f = p.faces(3)[0]
-        pts_sat = f._pts_saturated()
-        print(pts_sat[1])
-        # ((0, 0, 0, 1), frozenset({0, 1, 2, 4}))
-        p.inequalities()[list(pts_sat[1][1])]
-        # array([[ 4, -1, -1, -1,  1],
-        #        [-1,  4, -1, -1,  1],
-        #        [-1, -1,  4, -1,  1],
-        #        [-1, -1, -1,  4,  1]])
-        ```
+        Nothing.
         """
-        if self._points_sat is None:
-            self._points_sat = []
+        self._labels = []
+        self._saturating = []
 
-            # inherit the calculation from the ambient polytope
-            for label in self._ambient_poly.labels:
-                saturating = self._ambient_poly._pts_saturating[label]
+        # inherit the calculation from the ambient polytope
+        for label in self._ambient_poly.labels:
+            saturating = self._ambient_poly._pts_saturating[label]
 
-                if self._saturated_ineqs.issubset(saturating):
-                    self._points_sat.append((label,saturating))
+            if self._saturated_ineqs.issubset(saturating):
+                self._labels.append(label)
+                self._saturating.append(saturating)
 
-        return copy.copy(self._points_sat)
+        self._labels = tuple(self._labels)
 
     def points(self, as_indices=False):
         """
@@ -248,7 +241,7 @@ class PolytopeFace:
         #        [ 0,  1,  0,  0]])
         ```
         """
-        return self._ambient_poly.points(which=[pt[0] for pt in self._pts_saturated()],
+        return self._ambient_poly.points(which=self.labels,
                                          as_indices=as_indices)
     # aliases
     pts = points
@@ -279,8 +272,11 @@ class PolytopeFace:
         ```
         """
         if self._interior_points is None:
-            self._interior_points = [pt[0] for pt in self._pts_saturated()
-                                    if len(pt[1])==len(self._saturated_ineqs)]
+            self._interior_points = []
+
+            for label, sat in zip(self.labels, self.saturating):
+                if len(sat) == len(self._saturated_ineqs):
+                    self._interior_points.append(label)
         
         return self._ambient_poly.points(which=self._interior_points, as_indices=as_indices)
     # aliases
@@ -314,11 +310,39 @@ class PolytopeFace:
         ```
         """
         if self._boundary_points is None:
-            self._boundary_points = [pt[0] for pt in self._pts_saturated()
-                                    if len(pt[1])>len(self._saturated_ineqs)]
+            self._boundary_points = []
+
+            for label, sat in zip(self.labels, self.saturating):
+                if len(sat) > len(self._saturated_ineqs):
+                    self._boundary_points.append(label)
+
         return self._ambient_poly.points(which=self._boundary_points, as_indices=as_indices)
     # aliases
     boundary_pts = boundary_points
+
+    def vertices(self):
+        """
+        **Description:**
+        Returns the vertices of the face.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        *(numpy.ndarray)* The list of vertices of the face.
+
+        **Example:**
+        We construct a face from a polytope and find its vertices.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        f = p.faces(2)[0] # Pick one of the 2-faces
+        f.vertices()
+        # array([[-1, -1, -1, -1],
+        #        [ 0,  0,  0,  1],
+        #        [ 0,  0,  1,  0]])
+        ```
+        """
+        return self._ambient_poly.points(which=self._vert_labels)
 
     def as_polytope(self):
         """
@@ -422,30 +446,6 @@ class PolytopeFace:
         return self._dual_face
     # aliases
     dual = dual_face
-
-    def vertices(self):
-        """
-        **Description:**
-        Returns the vertices of the face.
-
-        **Arguments:**
-        None.
-
-        **Returns:**
-        *(numpy.ndarray)* The list of vertices of the face.
-
-        **Example:**
-        We construct a face from a polytope and find its vertices.
-        ```python {3}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        f = p.faces(2)[0] # Pick one of the 2-faces
-        f.vertices()
-        # array([[-1, -1, -1, -1],
-        #        [ 0,  0,  0,  1],
-        #        [ 0,  0,  1,  0]])
-        ```
-        """
-        return self._ambient_poly.points(which=self._vert_labels)
 
     def faces(self, d=None):
         """
