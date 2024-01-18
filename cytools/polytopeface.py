@@ -94,11 +94,11 @@ class PolytopeFace:
         # A 3-dimensional face of a 4-dimensional polytope in ZZ^4
         ```
         """
+        # grab inputs
         self._ambient_poly = ambient_poly
-        self._ambient_dim = self._ambient_poly.ambient_dim()
         self._vert_labels = vert_labels
-
         self._saturated_ineqs = saturated_ineqs
+
         if dim is not None:
             self._dim = dim
         else:
@@ -107,7 +107,9 @@ class PolytopeFace:
             vert_ext[:,:-1] = verts
             vert_ext[:,-1] = 1
             self._dim = np.linalg.matrix_rank(vert_ext)-1
-        # Initialize remaining hidden attributes
+
+        # Initialize remaining variables
+        self._ambient_dim = self._ambient_poly.ambient_dim()
         self._points_sat = None
         self._points = None
         self._interior_points = None
