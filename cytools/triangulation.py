@@ -70,9 +70,9 @@ class Triangulation:
     :::
 
     **Arguments:**
-    - `pts`: The list of points to be triangulated.
     - `poly`: The ambient polytope of the points to be triangulated. If not
         specified, it's constructed as the convex hull of the given points.
+    - `pts`: The list of points to be triangulated. Specified by labels.
     - `heights`: The heights specifying the regular triangulation. When not
         specified, construct based off of the backend:
             - (CGAL) Delaunay triangulation,
@@ -115,7 +115,6 @@ class Triangulation:
     def __init__(self,
                  poly: "Polytope",
                  pts: ArrayLike,
-                 labels: list = None,
                  heights: list = None,
                  make_star: bool = False,
                  simplices: ArrayLike = None,
@@ -128,10 +127,8 @@ class Triangulation:
         Initializes a `Triangulation` object.
 
         **Arguments:**
-        - `pts`: The list of points to be triangulated.
-        - `labels`: Labels for the points. CURRENTLY UNUSED!
-        - `poly`: The ambient polytope of the points to be triangulated. If not
-            specified, it's constructed as the convex hull of the given points.
+        - `poly`: The ambient polytope of the points to be triangulated.
+        - `pts`: The list of points to be triangulated. Specified by labels.
         - `heights`: The heights specifying the regular triangulation. When not
             specified, construct based off of the backend:
                 - (CGAL) Delaunay triangulation,
@@ -187,7 +184,8 @@ class Triangulation:
         self._backend = backend
 
         # points (keep as temporary object for now)
-        tmp_pts = np.array(pts, dtype=int)        # cast to int
+        self._pt_labels = pts
+        tmp_pts = np.array(poly.points(which=pts), dtype=int) # cast to int
         tmp_pts = {tuple(pt) for pt in tmp_pts}   # keep unique
         if len(tmp_pts) == 0:
             raise ValueError("Need at least 1 point.")
@@ -931,7 +929,7 @@ class Triangulation:
         # If the triangulation is presumably regular, then we can check if
         # heights inside the secondary cone yield the same triangulation.
         if self.is_regular(backend=backend):
-            tmp_triang = Triangulation(self.polytope(), self.points(),\
+            tmp_triang = Triangulation(self.polytope(), self._pt_labels,\
                                        heights=self.heights(), make_star=False)
 
             simps1 = sorted(sorted(s) for s in self.simplices().tolist())
@@ -1659,7 +1657,7 @@ class Triangulation:
                 continue
 
             # construct and check triangulation
-            tri = Triangulation(self._poly, self._pts, simplices=t,
+            tri = Triangulation(self._poly, self._pt_labels, simplices=t,
                                 check_input_simplices=False)
             if only_fine and (not tri.is_fine()):
                 continue
@@ -1803,7 +1801,7 @@ class Triangulation:
                 new_simps[j] = flipped[1]
 
                 # construct the triangulation
-                tri = Triangulation(self._poly, self._pts,\
+                tri = Triangulation(self._poly, self._pt_labels,\
                                     simplices=new_simps,\
                                     check_input_simplices=False)
 
@@ -2150,7 +2148,7 @@ def _topcom_triangulate(points: ArrayLike) -> np.ndarray:
 
 
 def all_triangulations(poly: "Polytope",
-                       points: ArrayLike,
+                       pts: ArrayLike,
                        only_fine: bool = False,
                        only_regular: bool = False,
                        only_star: bool = False,
@@ -2170,7 +2168,7 @@ def all_triangulations(poly: "Polytope",
 
     **Arguments:**
     - `poly`: The ambient polytope.
-    - `points`: The list of points (as labels) to be triangulated.
+    - `pts`: The list of points to be triangulated. Specified by labels.
     - `only_fine`: Restricts to only fine triangulations.
     - `only_regular`: Restricts to only regular triangulations.
     - `only_star`: Restricts to only star triangulations.
@@ -2211,7 +2209,7 @@ def all_triangulations(poly: "Polytope",
     ```
     """
     # input checking/parsing
-    if len(points) == 0:
+    if len(pts) == 0:
         raise ValueError("List of points cannot be empty.")
 
     if only_star and star_origin is None:
@@ -2219,20 +2217,18 @@ def all_triangulations(poly: "Polytope",
                          "restricting to star triangulations.")
 
     # ensure points are appropriately sorted (for Triangulation inputs)
+    triang_pts = poly.points(which=pts)
     if raw_output:
         backend = "topcom"
-        points = np.array(points, dtype=int)
-    else:
-        points = poly.points()[sorted(set(poly.points_to_indices(points)))]
 
     # if not full-dimenstional, find better representation
     # (only performs affine transformation, so can treat the new points as if
     # they were the original ones)
-    dim = np.linalg.matrix_rank([tuple(pt)+(1,) for pt in points])-1
+    dim = np.linalg.matrix_rank([tuple(pt)+(1,) for pt in triang_pts])-1
     if dim == points.shape[1]:
         optimal_pts = points
     else:
-        optimal_pts = lll_reduce([pt - points[0] for pt in points])[:,-dim:]
+        optimal_pts = lll_reduce([pt - points[0] for pt in triang_pts])[:,-dim:]
 
     # prep for TOPCOM
     topcom_bin = config.topcom_path
@@ -2267,7 +2263,7 @@ def all_triangulations(poly: "Polytope",
         if raw_output:
             yield t
             continue
-        tri = Triangulation(poly, points, simplices=t, make_star=False,
+        tri = Triangulation(poly, pts, simplices=t, make_star=False,
                                                 check_input_simplices=False)
         if not only_regular or tri.is_regular(backend=backend):
             yield tri
@@ -2302,7 +2298,8 @@ def random_triangulations_fast_generator(poly: "Polytope",
     :::
 
     **Arguments:**
-    - `pts`: The list of points to be triangulated.
+    - `poly`: The ambient polytope.
+    - `pts`: The list of points to be triangulated. Specified by labels.
     - `N`: Number of desired unique triangulations. If not specified, it will
         generate as many triangulations as it can find until it has to retry
         more than max_retries times to obtain a new triangulation.
@@ -2317,7 +2314,6 @@ def random_triangulations_fast_generator(poly: "Polytope",
     - `only_fine`: Restricts to fine triangulations.
     - `backend`: Specifies the backend used to compute the triangulation. The
         available options are "cgal" and "qhull".
-    - `poly`: The ambient polytope. It is constructed if not specified.
     - `seed`: A seed for the random number generator. This can be used to
         obtain reproducible results.
     - `verbosity`: The verbosity level.
@@ -2349,9 +2345,6 @@ def random_triangulations_fast_generator(poly: "Polytope",
     if seed is not None:
         np.random.seed(seed)
 
-    pts = np.array(pts)
-
-
     triang_hashes = set()
     n_retries = 0
     while True:
@@ -2365,7 +2358,7 @@ def random_triangulations_fast_generator(poly: "Polytope",
             return
 
         # generate random heights, make the triangulation
-        heights= [pt.dot(pt) + np.random.normal(0,c) for pt in pts]
+        heights= [pt.dot(pt) + np.random.normal(0,c) for pt in poly.points(which=pts)]
         t = Triangulation(poly, pts, heights=heights,
                           make_star=make_star, backend=backend,
                           check_heights=False)
@@ -2425,7 +2418,8 @@ def random_triangulations_fair_generator(poly: "Polytope",
     :::
 
     **Arguments:**
-    - `pts`: The list of points to be triangulated.
+    - `poly`: The ambient polytope.
+    - `pts`: The list of points to be triangulated. Specified by labels.
     - `N`: Number of desired unique triangulations. If not specified, it will
         generate as many triangulations as it can find until it has to retry
         more than max_retries times to obtain a new triangulation.
@@ -2449,7 +2443,6 @@ def random_triangulations_fair_generator(poly: "Polytope",
         triangulations.
     - `backend`: Specifies the backend used to compute the triangulation. The
         available options are "cgal" and "qhull".
-    - `poly`: The ambient polytope. It is constructed if not specified.
     - `seed`: A seed for the random number generator. This can be used to
         obtain reproducible results.
 
@@ -2482,11 +2475,11 @@ def random_triangulations_fair_generator(poly: "Polytope",
     desired balance between speed and fairness of the sampling.
     """
     # input parsing
-    pts = np.array(pts)
+    traing_pts = poly.points(which=pts)
     num_points = len(pts)
 
-    dim = np.linalg.matrix_rank([tuple(pt)+(1,) for pt in pts])-1
-    if dim != pts.shape[1]:
+    dim = np.linalg.matrix_rank([tuple(pt)+(1,) for pt in traing_pts])-1
+    if dim != traing_pts.shape[1]:
         raise Exception("Point configuration must be full-dimensional.")
 
     if seed is not None:
@@ -2494,7 +2487,7 @@ def random_triangulations_fair_generator(poly: "Polytope",
     
     # Obtain random Delaunay triangulation by picking random point as origin
     rand_ind = np.random.randint(0,len(pts))
-    points_shifted = [p-pts[rand_ind] for p in pts]
+    points_shifted = [p-traing_pts[rand_ind] for p in traing_pts]
 
     delaunay_heights = [walk_step_size*(np.dot(p,p)) for p in points_shifted]
     start_pt = delaunay_heights

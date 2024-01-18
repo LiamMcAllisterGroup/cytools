@@ -1955,8 +1955,8 @@ class Polytope:
         - `include_points_interior_to_facets`: Whether to include points
             interior to facets from the triangulation. If not specified, it is
             set to False for reflexive polytopes and True otherwise.
-        - `points`: The list of indices of the points that will be used. Note
-            that if this option is used then the parameter
+        - `points`: List of point labels that will be used. Note that if this
+            option is used then the parameter
             `include_points_interior_to_facets` is ignored.
         - `simplices`: A list of simplices specifying the triangulation. This
             is useful when a triangulation was previously computed and it needs
@@ -2026,9 +2026,6 @@ class Polytope:
                                   "reflexive."
                 raise ValueError(error_msg)
 
-        # get relevant points
-        triang_pts = self.points(which=points)
-
         # if heights are provided for all points, trim them
         if (heights is not None) and (len(heights) == len(self.points())):
             pts_inds = self.points(which=points,as_indices=True)
@@ -2047,7 +2044,7 @@ class Polytope:
             make_star = False
 
         # return triangulation
-        return Triangulation(self, triang_pts, heights=triang_heights,
+        return Triangulation(self, points, heights=triang_heights,
                              make_star=make_star, simplices=simplices,
                              check_input_simplices=check_input_simplices,
                              backend=backend, verbosity=verbosity)
@@ -2096,8 +2093,8 @@ class Polytope:
         - `include_points_interior_to_facets`: Whether to include points
             interior to facets from the triangulation. If not specified, it is
             set to False for reflexive polytopes and True otherwise.
-        - `points`: The list of indices of the points that will be used. Note
-            that if this option is used then the parameter
+        - `points`: List of point labels that will be used. Note that if this
+            option is used then the parameter
             `include_points_interior_to_facets` is ignored.
         - `backend`: Specifies the backend used to compute the triangulation.
             The available options are "cgal" and "qhull".
@@ -2141,12 +2138,11 @@ class Polytope:
         else:
             points = self._triang_labels(include_points_interior_to_facets)
 
-        triang_pts = [tuple(pt) for pt in self.points(which=points)]
         if make_star is None:
             make_star = self.is_reflexive()
         if self._label_origin not in points:
             make_star = False
-        g = random_triangulations_fast_generator(self, triang_pts, N=N, c=c,
+        g = random_triangulations_fast_generator(self, points, N=N, c=c,
                 max_retries=max_retries, make_star=make_star,
                 only_fine=only_fine, backend=backend, seed=seed)
         if not as_list:
@@ -2235,8 +2231,8 @@ class Polytope:
         - `include_points_interior_to_facets`: Whether to include points
             interior to facets from the triangulation. If not specified, it is
             set to False for reflexive polytopes and True otherwise.
-        - `points`: The list of indices of the points that will be used. Note
-            that if this option is used then the parameter
+        - `points`: List of point labels that will be used. Note that if this
+            option is used then the parameter
             `include_points_interior_to_facets` is ignored.
         - `backend`: Specifies the backend used to compute the triangulation.
             The available options are "cgal" and "qhull".
@@ -2287,7 +2283,6 @@ class Polytope:
             points = tuple(sorted(set(points)))
         else:
             points = self._triang_labels(include_points_interior_to_facets)
-        triang_pts = [tuple(pt) for pt in self.points(which=points)]
         if make_star is None:
             make_star =  self.is_reflexive()
         if self._label_origin not in points:
@@ -2299,7 +2294,7 @@ class Polytope:
         if initial_walk_steps is None:
             initial_walk_steps = 2*len(self.points())//10 + 10
         g = random_triangulations_fair_generator(
-                self, triang_pts, N=N, n_walk=n_walk, n_flip=n_flip,
+                self, points, N=N, n_walk=n_walk, n_flip=n_flip,
                 initial_walk_steps=initial_walk_steps,
                 walk_step_size=walk_step_size,
                 max_steps_to_wall=max_steps_to_wall,
@@ -2322,12 +2317,12 @@ class Polytope:
         return triangs_list
 
     def all_triangulations(self,
+                           points: ArrayLike = None,
                            only_fine: bool = True,
                            only_regular: bool = True,
                            only_star: bool = None,
                            star_origin: int = None,
                            include_points_interior_to_facets: bool = None,
-                           points: ArrayLike = None,
                            backend: str = None,
                            as_list: bool = False,
                            raw_output: bool = False) -> "generator | list":
@@ -2352,8 +2347,8 @@ class Polytope:
             otherwise it must be specified.
         - `include_points_interior_to_facets`: Whether to include points
             interior to facets from the triangulation.
-        - `points`: The list of indices of the points that will be used. Note
-            that if this option is used then the parameter
+        - `points`: List of point labels that will be used. Note that if this
+            option is used then the parameter
             `include_points_interior_to_facets` is ignored.
         - `backend`: The optimizer used to check regularity computation. The
             available options are the backends of the
@@ -2425,8 +2420,7 @@ class Polytope:
                           "have too many triangulations, so this function may "
                           "take too long or run out of memory.")
 
-        triang_pts = [tuple(pt) for pt in self.points(which=points)]
-        triangs = all_triangulations(self, triang_pts,
+        triangs = all_triangulations(self, points,
                                      only_fine=only_fine,
                                      only_regular=only_regular,
                                      only_star=only_star,
