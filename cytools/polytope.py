@@ -553,7 +553,7 @@ class Polytope:
     # -------------
     def _process_points(self,
                         pts_input: ArrayLike,
-                        labels: ArrayLike=None) -> None:
+                        labels: ArrayLike = None) -> None:
         """
         **Description:**
         Internal function for processing input points. Should only be called
@@ -795,6 +795,7 @@ class Polytope:
             which = self._pts_order
         elif isinstance(which, np.ndarray):
             print(f"ERROR! which={which}... can't be numpy array")
+            print("maybe you passed the point coordinates???")
             return
         elif which in self._pts_order:
             which = [which]
