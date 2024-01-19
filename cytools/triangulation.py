@@ -196,7 +196,7 @@ class Triangulation:
 
         # points
         # (ordered to match poly.label ordering...)
-        self._pt_labels = [label for label in poly.labels if label in pts]
+        self._labels = [label for label in poly.labels if label in pts]
 
         # dimension
         self._dim_ambient  = poly.ambient_dim()
@@ -215,7 +215,7 @@ class Triangulation:
 
         # Parse points
         # ------------
-        self._pts = self._poly.points(which=self._pt_labels)
+        self._pts = self.poly.points(which=self.labels)
 
         pts_tup = [tuple(pt) for pt in self._pts]
 
@@ -229,7 +229,7 @@ class Triangulation:
 
         # find index of origin
         try:
-            self._origin_index = pts_tup.index((0,)*self._poly.dim())
+            self._origin_index = pts_tup.index((0,)*self.poly.dim())
         except ValueError:
             # origin wasn't in pts_tup
             self._origin_index = -1
@@ -239,7 +239,7 @@ class Triangulation:
         self._pts_dict = {pt:i for i, pt in enumerate(pts_tup)}
 
         # map triang_idx->poly_idx
-        self._pts_triang_to_poly = {i:self._poly.points_to_indices(pt) for\
+        self._pts_triang_to_poly = {i:self.poly.points_to_indices(pt) for\
                                         i, pt in enumerate(self._pts)}
 
         # Save input triangulation, or construct it
@@ -540,11 +540,12 @@ class Triangulation:
         self._restricted_simplices = dict()
 
         if recursive:
-            self._poly.clear_cache()
+            self.poly.clear_cache()
 
     # getters
     # =======
-    def polytope(self) -> "Polytope":
+    @property
+    def poly(self):
         """
         **Description:**
         Returns the polytope being triangulated.
@@ -554,27 +555,39 @@ class Triangulation:
 
         **Returns:**
         The ambient polytope.
-
-        **Example:**
-        We construct a triangulation and check that the polytope that this
-        function returns is the same as the one we used to construct it.
-        ```python {3}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        t = p.triangulate()
-        t.polytope() is p
-        # True
-        ```
         """
         return self._poly
+    polytope = lambda self:self.poly
 
-    def points(self) -> np.ndarray:
+    @property
+    def labels(self):
+        """
+        **Description:**
+        Returns the labels of lattice points in the triangulation.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        The labels of lattice points in the triangulation.
+        """
+        return self._labels
+
+    def points(self,
+               which = None,
+               optimal: bool = False,
+               as_indices: bool = False) -> np.ndarray:
         """
         **Description:**
         Returns the points of the triangulation. Note that these are not
         necessarily equal to the lattice points of the polytope they define.
 
         **Arguments:**
-        None.
+        - `which`: Which points to return. Specified by a (list of) labels.
+            NOT INDICES!!!
+        - `optimal`: Whether to return the points in their optimal coordinates.
+        - `as_indices`: Return the points as indices of the full list of points
+            of the polytope.
 
         **Returns:**
         The points of the triangulation.
@@ -599,7 +612,20 @@ class Triangulation:
         #        [ 0,  0, -2, -3]])
         ```
         """
-        return np.array(self._pts)
+        # get the labels of the relevant points
+        if which is None:
+            # use all points in the face
+            which = self.labels
+        else:
+            # check if the input labels
+            if not set(which).issubset(self.labels):
+                raise ValueError(f"Specified labels ({which}) aren't subset "\
+                                 f"of the face lables ({self.labels})...")
+
+        # return
+        return self.poly.points(which=which,
+                                optimal=optimal,
+                                as_indices=as_indices)
     # aliases
     pts = points
 
@@ -653,7 +679,7 @@ class Triangulation:
         # 4
         ```
         """
-        return self._poly._dim_ambient
+        return self.poly.ambient_dim()
     # aliases
     ambient_dim = ambient_dimension
 
@@ -931,7 +957,7 @@ class Triangulation:
         # If the triangulation is presumably regular, then we can check if
         # heights inside the secondary cone yield the same triangulation.
         if self.is_regular(backend=backend):
-            tmp_triang = Triangulation(self.polytope(), self._pt_labels,\
+            tmp_triang = Triangulation(self.polytope(), self.labels,\
                                        heights=self.heights(), make_star=False)
 
             simps1 = sorted(sorted(s) for s in self.simplices().tolist())
@@ -1062,7 +1088,7 @@ class Triangulation:
         # input parsing
         if (on_faces_dim is None) and (on_faces_codim is None):
             if as_labels:
-                out = [[self._poly.labels[i] for i in simp] for simp in self._simplices]
+                out = [[self.poly.labels[i] for i in simp] for simp in self._simplices]
             else:
                 out = self._simplices
 
@@ -1103,7 +1129,7 @@ class Triangulation:
 
         # map to labels, if desired
         if as_labels:
-            out = [[[self._poly.labels[i] for i in simp] for simp in self._simplices] for face in self._restricted_simplices[faces_dim]]
+            out = [[[self.poly.labels[i] for i in simp] for simp in self._simplices] for face in self._restricted_simplices[faces_dim]]
         else:
             out = self._restricted_simplices[faces_dim]
 
@@ -1670,7 +1696,7 @@ class Triangulation:
                 continue
 
             # construct and check triangulation
-            tri = Triangulation(self._poly, self._pt_labels, simplices=t,
+            tri = Triangulation(self.poly, self.labels, simplices=t,
                                 check_input_simplices=False)
             if only_fine and (not tri.is_fine()):
                 continue
@@ -1814,7 +1840,7 @@ class Triangulation:
                 new_simps[j] = flipped[1]
 
                 # construct the triangulation
-                tri = Triangulation(self._poly, self._pt_labels,\
+                tri = Triangulation(self.poly, self.labels,\
                                     simplices=new_simps,\
                                     check_input_simplices=False)
 
@@ -1991,12 +2017,12 @@ def _to_star(triang: Triangulation) -> np.ndarray:
     Nothing.
     """
     # reflexivity check
-    assert triang._poly.is_reflexive()
+    assert triang.poly.is_reflexive()
 
     # preliminary
     # (use boundary pts b/c pts interior to facets aren't normally included)
     facets = [[triang._pts_dict[tuple(pt)] for pt in f.boundary_points()]\
-                                                for f in triang._poly.facets()]
+                                                for f in triang.poly.facets()]
     dim = len(triang._simplices[0]) - 1
 
     # map the simplices to being star
