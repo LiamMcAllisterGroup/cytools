@@ -1597,6 +1597,8 @@ class CalabiYau:
         Computes the volume of the basis divisors at a location in the Kähler
         cone.
 
+        The volume of the ith divisor is 0.5*kappa_{ijk} t^j t^k.
+
         **Arguments:**
         - `tloc` *(array_like)*: A vector specifying a location in the Kähler
             cone.
