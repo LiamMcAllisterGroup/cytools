@@ -115,11 +115,9 @@ class Triangulation:
     def __init__(self,
                  poly: "Polytope",
                  pts: ArrayLike,
-                 heights: list = None,
                  make_star: bool = False,
-                 simplices: ArrayLike = None,
-                 check_input_simplices: bool = True,
-                 check_heights: bool = True,
+                 simplices: ArrayLike=None, check_input_simplices: bool=True,
+                 heights: list = None,      check_heights: bool = True,
                  backend: str = "cgal",
                  verbosity: int = 1) -> None:
         """
@@ -129,13 +127,6 @@ class Triangulation:
         **Arguments:**
         - `poly`: The ambient polytope of the points to be triangulated.
         - `pts`: The list of points to be triangulated. Specified by labels.
-        - `heights`: The heights specifying the regular triangulation. When not
-            specified, construct based off of the backend:
-                - (CGAL) Delaunay triangulation,
-                - (QHULL) triangulation from random heights near Delaunay, or
-                - (TOPCOM) placing triangulation.
-            Heights can only be specified when using CGAL or QHull as the
-            backend.
         - `make_star`: Whether to turn the triangulation into a star
             triangulation by deleting internal lines and connecting all points
             to the origin, or equivalently, by decreasing the height of the
@@ -146,6 +137,13 @@ class Triangulation:
             again. Note that the ordering of the points needs to be consistent.
         - `check_input_simplices`: Whether to check if the input simplices
             define a valid triangulation.
+        - `heights`: The heights specifying the regular triangulation. When not
+            specified, construct based off of the backend:
+                - (CGAL) a Delaunay triangulation,
+                - (QHULL) triangulation from random heights near Delaunay, or
+                - (TOPCOM) placing triangulation.
+            Heights can only be specified when using CGAL or QHull as the
+            backend.
         - `check_heights`: Whether to check if the input/default heights define
             a valid/unique triangulation.
         - `backend`: The backend used to compute the triangulation. Options are
@@ -171,11 +169,15 @@ class Triangulation:
         # configuration with 7 points in ZZ^4
         ```
         """
-        # initialize hidden attributes
-        self.clear_cache()
+        # input checking
+        # --------------
+        # points
+        pts_set = set(pts)
+        if len(pts_set)==0:
+            raise ValueError("Need at least 1 point.")
+        elif not pts_set.issubset(poly.labels):
+            raise ValueError("All point labels must exist in the polytope.")
 
-        # Grab inputs
-        # -----------
         # backend
         backend = backend.lower()
         if backend not in ['qhull', 'cgal', 'topcom', None]:
@@ -183,17 +185,28 @@ class Triangulation:
                              f"Options: {['qhull', 'cgal', 'topcom', None]}.")
         self._backend = backend
 
-        # points (keep as temporary object for now)
-        self._pt_labels = pts
-        tmp_pts = np.array(poly.points(which=pts), dtype=int) # cast to int
-        tmp_pts = {tuple(pt) for pt in tmp_pts}   # keep unique
-        if len(tmp_pts) == 0:
-            raise ValueError("Need at least 1 point.")
-        
+        # initialize attributes
+        # ---------------------
+        self.clear_cache()
+
+        # process the inputs
+        # ------------------
         # polytope
         self._poly = poly
 
+        # points
+        # (ordered to match poly.label ordering...)
+        self._pt_labels = [label for label in poly.labels if label in pts]
+
+        # dimension
+        self._dim_ambient  = poly.ambient_dim()
+        self._dim = np.linalg.matrix_rank([list(pt)+[1] for pt in\
+                                                    poly.points(which=pts)])-1
+        self._is_fulldim = (self._dim == self._dim_ambient)
+
         # simplices
+        # (NM: move from specifying simplices by indices to labels...
+        #      this is an interface change, though, so delay it...)
         if simplices is not None:
             self._simplices = sorted([sorted(s) for s in simplices])
             self._simplices = np.asarray(self._simplices, dtype=int)
@@ -202,20 +215,9 @@ class Triangulation:
 
         # Parse points
         # ------------
-        # reorder to match Polytope class ordering
-        # (the check `if pt in tmp_pts` is relevant if the
-        #  triangulation is non-fine. Then there could be pt in poly_pts but
-        #  not in tmp_pts)
-        poly_pts = [tuple(pt) for pt in self._poly.points()]
-        self._pts = [pt for pt in poly_pts if pt in tmp_pts]
-        self._pts = np.asarray(self._pts)
+        self._pts = self._poly.points(which=self._pt_labels)
 
         pts_tup = [tuple(pt) for pt in self._pts]
-
-        # grab dimension info
-        self._ambient_dim  = len( next(iter(tmp_pts)) )
-        self._dim = np.linalg.matrix_rank([pt+(1,) for pt in tmp_pts])-1
-        self._is_fulldim = (self._dim == self._ambient_dim)
 
         # if point config isn't full-dim, find better representation of points
         if self._is_fulldim:
