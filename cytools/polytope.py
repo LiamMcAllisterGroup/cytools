@@ -762,7 +762,7 @@ class Polytope:
             NOT INDICES!!!
         - `optimal`: Whether to return the points in their optimal coordinates.
         - `as_indices`: Return the points as indices of the full list of points
-        of the polytope.
+            of the polytope.
 
         **Returns:**
         The list of lattice points of the polytope.
