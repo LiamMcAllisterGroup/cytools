@@ -291,7 +291,10 @@ class PolytopeFace:
         self._labels = tuple(self._labels)
         self._saturating = tuple(self._saturating)
 
-    def points(self, as_indices: bool = False) -> ArrayLike:
+    def points(self,
+               which = None,
+               optimal: bool = False,
+               as_indices: bool = False) -> np.ndarray:
         """
         **Description:**
         Returns the lattice points of the face.
@@ -318,7 +321,19 @@ class PolytopeFace:
         #        [ 0,  1,  0,  0]])
         ```
         """
-        return self.ambient_poly.points(which=self.labels,
+        # get the labels of the relevant points
+        if which is None:
+            # use all points in the face
+            which = self.labels
+        else:
+            # check if the input labels
+            if not set(which).issubset(self.labels):
+                raise ValueError(f"Specified labels ({which}) aren't subset "\
+                                 f"of the face lables ({self.labels})...")
+
+        # return
+        return self.ambient_poly.points(which=which,
+                                        optimal=optimal,
                                         as_indices=as_indices)
     # aliases
     pts = points
