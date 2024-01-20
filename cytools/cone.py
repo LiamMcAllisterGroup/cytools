@@ -607,8 +607,11 @@ class Cone:
         **Returns:**
         Whether pt is in the (strict) interior.
         """
-        gaps = pt@self.hyperplanes().T
-        return min(gaps) >= eps
+        if len(self._hyperplanes):
+            gaps = pt@self.hyperplanes().T
+            return min(gaps) >= eps
+        else:
+            return True
 
     def dual_cone(self):
         """
