@@ -219,15 +219,6 @@ class Triangulation:
 
         pts_tup = [tuple(pt) for pt in self._pts]
 
-        # if point config isn't full-dim, find better representation of points
-        #if self._is_fulldim:
-        #    self._pts_optimal = self._pts
-        #else:
-        #    self._pts_optimal = self._pts-self._pts[0]
-        #    self._pts_optimal = lll_reduce(self._pts_optimal)
-        #    self._pts_optimal = self._pts_optimal[:,-self._dim:]
-        self._pts_optimal = self.points(optimal=True)
-
         # find index of origin
         try:
             self._origin_index = pts_tup.index((0,)*self.poly.dim())
@@ -971,7 +962,7 @@ class Triangulation:
         # triangulation. This can be quite slow for large polytopes.
 
         # append a 1 to each point
-        pts = self._pts_optimal
+        pts = self.points(optimal=True)
         pts_ext = [list(pt)+[1,] for pt in pts]
 
         # We first check if the volumes add up to the volume of the polytope
@@ -1211,7 +1202,7 @@ class Triangulation:
             return self._secondary_cone[args_id]
 
         if backend == "native":
-            pts_ext = [list(pt)+[1,] for pt in self._pts_optimal]
+            pts_ext = [list(pt)+[1,] for pt in self.points(optimal=True)]
 
             m = np.zeros((self.dim()+1, self.dim()+2), dtype=int)
             full_v = np.zeros(len(pts_ext), dtype=int)
@@ -1653,7 +1644,7 @@ class Triangulation:
             return self._fine_neighbors_2d()
 
         # prep TOPCOM input
-        pts_str = str([list(pt)+[1] for pt in self._pts_optimal])
+        pts_str = str([list(pt)+[1] for pt in self.points(optimal=True)])
         triang_str = str([list(s) for s in self._simplices])
         triang_str = triang_str.replace("[","{").replace("]","}")
         flips_str = "(-1)"
@@ -1885,7 +1876,7 @@ class Triangulation:
             return np.array(self._gkz_phi)
 
         # calculate the answer
-        pts_ext = [list(pt)+[1,] for pt in self._pts_optimal]
+        pts_ext = [list(pt)+[1,] for pt in self.points(optimal=True)]
         phi = np.zeros(len(pts_ext), dtype=int)
 
         for s in self._simplices:
