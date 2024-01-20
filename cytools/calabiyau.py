@@ -1234,13 +1234,19 @@ class CalabiYau:
         #   [-3  9]]]
         ```
         """
-        if format not in ("dok", "coo", "dense"):
-            raise ValueError("Options for format are \"dok\", \"coo\", \"dense\".")
+        # input checking
+        formats = ["dok", "coo", "dense"]
+        if format not in formats:
+            raise ValueError(f"Options for format are {formats}.")
+
+        #
         if in_basis:
             zero_as_anticanonical = False
         args_id = (zero_as_anticanonical, in_basis, exact_arithmetic, format)
         if args_id in self._intersection_numbers:
             return copy.copy(self._intersection_numbers[args_id])
+
+        # do the calculation
         if ((False,False,False,"dok") not in self._intersection_numbers
                 or ((False,False,True,"dok") not in self._intersection_numbers
                     and exact_arithmetic)):
