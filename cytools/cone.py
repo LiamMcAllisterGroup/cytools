@@ -843,6 +843,10 @@ class Cone:
             print(f"dimension ({self.ambient_dim()}) of the problem...")
 
         # find the tip of the stretched cone
+        if len(self._hyperplanes) == 0:
+            # trivial
+            return np.ones(self._ambient_dim)
+
         if backend == "glop":
             solution = self.find_interior_point(c, backend="glop",
                                                    verbose=verbose)
@@ -883,7 +887,7 @@ class Cone:
 
                 print("For more info, re-run with verbose=True")
             return
-        if check and len(G):
+        if check:
             res = max(G.dot(solution)) + c
             if res > constraint_error_tol:
                 warnings.warn(f"The solution that was found is invalid: {res} > {constraint_error_tol}")
