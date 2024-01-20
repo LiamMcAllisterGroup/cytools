@@ -594,7 +594,7 @@ class Cone:
 
         return np.array(self._hyperplanes)
 
-    def contains(self, pt: "list-like", strict: bool = False) -> bool:
+    def contains(self, pt: "list-like", eps: float = 0) -> bool:
         """
         **Description:**
         Checks if a point is in the (strict) interior.
@@ -608,11 +608,7 @@ class Cone:
         Whether pt is in the (strict) interior.
         """
         gaps = pt@self.hyperplanes().T
-
-        if strict:
-            return min(gaps)>0
-        else:
-            return min(gaps)>=0
+        return min(gaps) >= eps
 
     def dual_cone(self):
         """
