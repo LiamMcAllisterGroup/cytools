@@ -220,12 +220,13 @@ class Triangulation:
         pts_tup = [tuple(pt) for pt in self._pts]
 
         # if point config isn't full-dim, find better representation of points
-        if self._is_fulldim:
-            self._pts_optimal = self._pts
-        else:
-            self._pts_optimal = self._pts-self._pts[0]
-            self._pts_optimal = lll_reduce(self._pts_optimal)
-            self._pts_optimal = self._pts_optimal[:,-self._dim:]
+        #if self._is_fulldim:
+        #    self._pts_optimal = self._pts
+        #else:
+        #    self._pts_optimal = self._pts-self._pts[0]
+        #    self._pts_optimal = lll_reduce(self._pts_optimal)
+        #    self._pts_optimal = self._pts_optimal[:,-self._dim:]
+        self._pts_optimal = self.points(optimal=True)
 
         # find index of origin
         try:
@@ -322,7 +323,7 @@ class Triangulation:
 
             # Now run the appropriate triangulation function
             if backend == "qhull":
-                self._simplices = _qhull_triangulate(self._pts_optimal,\
+                self._simplices = _qhull_triangulate(self.points(optimal = not self._is_fulldim),\
                                                      self._heights)
 
                 # convert to star
@@ -330,7 +331,7 @@ class Triangulation:
                     _to_star(self)
 
             elif backend == "cgal":
-                self._simplices = _cgal_triangulate(self._pts_optimal,\
+                self._simplices = _cgal_triangulate(self.points(optimal = not self._is_fulldim),\
                                                     self._heights)
                 
                 # can obtain star more quickly than in QHull by setting height
@@ -344,10 +345,10 @@ class Triangulation:
                     
                     while self._simplices[:,0].any():
                         self._heights[0] -= origin_step
-                        self._simplices = _cgal_triangulate(self._pts_optimal,\
+                        self._simplices = _cgal_triangulate(self.points(optimal = not self._is_fulldim),\
                                                             self._heights)
             else: # Use TOPCOM
-                self._simplices = _topcom_triangulate(self._pts_optimal)
+                self._simplices = _topcom_triangulate(self.points(optimal = not self._is_fulldim))
 
                 # convert to star
                 if make_star:
