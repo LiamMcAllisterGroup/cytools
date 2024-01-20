@@ -712,7 +712,7 @@ class Triangulation:
 
         # calculate the answer
         N_used_pts = len(set.union(*[set(s) for s in self._simplices]))
-        self._is_fine = (N_used_pts == len(self._pts))
+        self._is_fine = (N_used_pts == len(self.labels))
 
         # return
         return self._is_fine
