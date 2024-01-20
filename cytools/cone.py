@@ -846,7 +846,7 @@ class Cone:
             print(f"dimension ({self.ambient_dim()}) of the problem...")
 
         # find the tip of the stretched cone
-        if len(self._hyperplanes) == 0:
+        if len(self.hyperplanes()) == 0:
             # trivial
             return np.ones(self._ambient_dim)
 
