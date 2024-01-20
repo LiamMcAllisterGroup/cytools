@@ -883,7 +883,7 @@ class Cone:
 
                 print("For more info, re-run with verbose=True")
             return
-        if check:
+        if check and len(G):
             res = max(G.dot(solution)) + c
             if res > constraint_error_tol:
                 warnings.warn(f"The solution that was found is invalid: {res} > {constraint_error_tol}")
