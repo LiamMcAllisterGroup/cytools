@@ -197,6 +197,7 @@ class Triangulation:
         # points
         # (ordered to match poly.label ordering...)
         self._labels = [label for label in poly.labels if label in pts]
+        self._labels2inds = {v:i for i,v in enumerate(self._labels)}
 
         # dimension
         self._dim_ambient  = poly.ambient_dim()
@@ -565,62 +566,6 @@ class Triangulation:
         """
         return self._labels
 
-    def points(self,
-               which = None,
-               optimal: bool = False,
-               as_indices: bool = False) -> np.ndarray:
-        """
-        **Description:**
-        Returns the points of the triangulation. Note that these are not
-        necessarily equal to the lattice points of the polytope they define.
-
-        **Arguments:**
-        - `which`: Which points to return. Specified by a (list of) labels.
-            NOT INDICES!!!
-        - `optimal`: Whether to return the points in their optimal coordinates.
-        - `as_indices`: Return the points as indices of the full list of points
-            of the polytope.
-
-        **Returns:**
-        The points of the triangulation.
-
-        **Aliases:**
-        `pts`.
-
-        **Example:**
-        We construct a triangulation and print the points in the point
-        configuration. Note that since the polytope is reflexive, then by
-        default only the lattice points not interior to facets were used.
-        ```python {3}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        t.points()
-        # array([[ 0,  0,  0,  0],
-        #        [-1, -1, -6, -9],
-        #        [ 0,  0,  0,  1],
-        #        [ 0,  0,  1,  0],
-        #        [ 0,  1,  0,  0],
-        #        [ 1,  0,  0,  0],
-        #        [ 0,  0, -2, -3]])
-        ```
-        """
-        # get the labels of the relevant points
-        if which is None:
-            # use all points in the face
-            which = self.labels
-        else:
-            # check if the input labels
-            if not set(which).issubset(self.labels):
-                raise ValueError(f"Specified labels ({which}) aren't subset "\
-                                 f"of the face lables ({self.labels})...")
-
-        # return
-        return self.poly.points(which=which,
-                                optimal=optimal,
-                                as_indices=as_indices)
-    # aliases
-    pts = points
-
     def dimension(self) -> int:
         """
         **Description:**
@@ -826,6 +771,70 @@ class Triangulation:
 
     # points
     # ======
+    def points(self,
+               which = None,
+               optimal: bool = False,
+               as_poly_indices: bool = False,
+               as_triang_indices: bool = False) -> np.ndarray:
+        """
+        **Description:**
+        Returns the points of the triangulation. Note that these are not
+        necessarily equal to the lattice points of the polytope they define.
+
+        **Arguments:**
+        - `which`: Which points to return. Specified by a (list of) labels.
+            NOT INDICES!!!
+        - `optimal`: Whether to return the points in their optimal coordinates.
+        - `as_indices`: Return the points as indices of the full list of points
+            of the polytope.
+
+        **Returns:**
+        The points of the triangulation.
+
+        **Aliases:**
+        `pts`.
+
+        **Example:**
+        We construct a triangulation and print the points in the point
+        configuration. Note that since the polytope is reflexive, then by
+        default only the lattice points not interior to facets were used.
+        ```python {3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        t = p.triangulate()
+        t.points()
+        # array([[ 0,  0,  0,  0],
+        #        [-1, -1, -6, -9],
+        #        [ 0,  0,  0,  1],
+        #        [ 0,  0,  1,  0],
+        #        [ 0,  1,  0,  0],
+        #        [ 1,  0,  0,  0],
+        #        [ 0,  0, -2, -3]])
+        ```
+        """
+        if as_poly_indices and as_triang_indices:
+            raise ValueError("Both as_poly_indices and as_triang_indices "+\
+                             "can't be set to True.")
+
+        # get the labels of the relevant points
+        if which is None:
+            # use all points in the face
+            which = self.labels
+        else:
+            # check if the input labels
+            if not set(which).issubset(self.labels):
+                raise ValueError(f"Specified labels ({which}) aren't subset "\
+                                 f"of the face lables ({self.labels})...")
+
+        # return
+        if as_triang_indices:
+            return [self._labels2inds[label] for label in which]
+        else:
+            return self.poly.points(which=which,
+                                    optimal=optimal,
+                                    as_indices=as_poly_indices)
+    # aliases
+    pts = points
+
     def points_to_labels(self,
                          points: ArrayLike,
                          is_optimal: bool = False) -> "list | None":
@@ -844,46 +853,59 @@ class Triangulation:
         The list of labels corresponding to the given points, or the label of
         the point if only one is given.
         """
-        return self.poly.points_to_labels(points, is_optimal)
+        return self.poly.points_to_labels(points, is_optimal=is_optimal)
 
-    def points_to_indices(self, points: ArrayLike) -> "np.ndarray | int":
+    def points_to_indices(self,
+                          points: ArrayLike,
+                          is_optimal: bool = False,
+                          as_poly_indices: bool = False) -> "np.ndarray | int":
         """
         **Description:**
         Returns the list of indices corresponding to the given points. It also
         accepts a single point, in which case it returns the corresponding
-        index. Note that these indices are not necessarily equal to the
-        corresponding indices in the polytope.
+        index.
 
         **Arguments:**
         - `points`: A point or a list of points.
+        - `is_optimal`: Whether the points argument represents points in the
+            optimal (True) or input (False) basis
 
         **Returns:**
         The list of indices corresponding to the given points, or the index of
         the point if only one is given.
 
         **Example:**
-        We construct a triangulation and find the indices of some of its points.
-        ```python {3,5}
+        We construct a polytope and find the indices of some of its points.
+        ```python {2,4}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        t.points_to_indices([-1,-1,-6,-9]) # We input a single point, so a single index is returned
+        p.points_to_indices([-1,-1,-6,-9]) # We input a single point, so a single index is returned
         # 1
-        t.points_to_indices([[-1,-1,-6,-9],[0,0,0,0],[0,0,1,0]]) # We input a list of points, so a list of indices is returned
+        p.points_to_indices([[-1,-1,-6,-9],[0,0,0,0],[0,0,1,0]]) # We input a list of points, so a list of indices is returned
         # array([1, 0, 3])
         ```
         """
-        if len(np.array(points).shape) == 1:
-            if np.array(points).shape[0] == 0:
-                # 0 points
-                return np.zeros(0, dtype=int)
-            else:
-                # 1 point
-                return self._pts_dict[tuple(points)]
+        # check for empty input
+        if len(points)==0:
+            return np.asarray([],dtype=int)
 
-        # >1 points
-        return np.array([self._pts_dict[tuple(pt)] for pt in points])
+        # map single-point input into list case
+        single_pt = (len(np.array(points).shape) == 1)
+        if single_pt:
+            points = [points]
 
-    def points_to_poly_indices(self, points: ArrayLike)->"np.ndarray|int":
+        # grab labels, and then map to indices
+        labels = self.points_to_labels(points, is_optimal=is_optimal)
+        inds = self.points(which=labels,
+                           as_poly_indices=as_poly_indices,
+                           as_triang_indices=not as_poly_indices)
+        
+        # get/return the indices
+        if single_pt and len(inds):
+            return inds[0]  # just return the single index
+        else:
+            return inds     # return a list of indices
+
+    def triangulation_to_polytope_indices(self, inds) -> "np.ndarray | int":
         """
         **Description:**
         Takes a list of indices of points of the triangulation and it returns
@@ -896,33 +918,10 @@ class Triangulation:
         **Returns:**
         The list of indices corresponding to the given points. Or the index of
         the point if only one is given.
-
-        **Example:**
-        We construct a triangulation and convert from indices of the
-        triangulation to indices of the polytope. Since the indices of the two
-        classes usually match, we will construct a triangulation that does not
-        include the origin, so that indices will be shifted by one.
-        ```python {7,9}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate(points=[1,2,3,4,5,6,7,8,9]) # We exclude point 0, which is the origin
-        t.points_to_indices([-1,-1,-6,-9]) # We get the index of a point in the triangulation
-        # 0
-        p.points_to_indices([-1,-1,-6,-9]) # The same point corresponds to a different index in the polytope
-        # 1
-        t.triangulation_to_polytope_indices(0) # We can convert an index with this function
-        # 1
-        t.triangulation_to_polytope_indices([0,1,2,3,4,5,6,7,8]) # And we can convert multiple indices in the same way
-        # array([1, 2, 3, 4, 5, 6, 7, 8, 9])
-        ```
         """
-        if len(np.array(points).shape) == 0:
-            # <= 1 point
-            return self._pts_triang_to_poly[points]
-
-        # >1 points
-        return np.array([self._pts_triang_to_poly[pt] for pt in points])
-    # aliases
-    triangulation_to_polytope_indices = points_to_poly_indices
+        return self.points(which=[self._labels[i] for i in inds],
+                           as_poly_indices=True)
+    points_to_poly_indices = triangulation_to_polytope_indices
 
     # triangulation
     # =============
