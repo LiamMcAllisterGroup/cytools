@@ -20,6 +20,7 @@
 
 # 'standard' imports
 import ast
+from collections.abc import Iterable
 import copy
 import itertools
 import math
@@ -221,10 +222,10 @@ class Triangulation:
         pts_tup = [tuple(pt) for pt in self._pts]
 
         # find index of origin
-        try:
-            self._origin_index = pts_tup.index((0,)*self.poly.dim())
-        except ValueError:
-            # origin wasn't in pts_tup
+        if self.poly._label_origin in self.labels:
+            self._origin_index = self.labels.index(self.poly._label_origin)
+        else:
+            # triangulation doesn't include origin
             self._origin_index = -1
             make_star = False
 
@@ -683,10 +684,9 @@ class Triangulation:
 
         # calculate the answer
         if self._is_star is None:
-            try:
-                star_origin = self.points_to_indices([0]*self.dim())
-                self._is_star = all(star_origin in s for s in self._simplices)
-            except:
+            if self._origin_index != -1:
+                self._is_star = all(self._origin_index in s for s in self._simplices)
+            else:
                 self._is_star = False
 
         # return
@@ -1477,8 +1477,10 @@ class Triangulation:
         if automorphism is None:
             orbit_id = (None, faces_dim)
         else:
-            try:    orbit_id = (tuple(automorphism), faces_dim)
-            except: orbit_id = ((automorphism,), faces_dim)
+            if isinstance(automorphism,Iterable):
+                orbit_id = (tuple(automorphism), faces_dim)
+            else:
+                orbit_id = ((automorphism,), faces_dim)
 
         # return answer if known
         if orbit_id in self._automorphism_orbit:
