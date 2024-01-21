@@ -826,6 +826,26 @@ class Triangulation:
 
     # points
     # ======
+    def points_to_labels(self,
+                         points: ArrayLike,
+                         is_optimal: bool = False) -> "list | None":
+        """
+        **Description:**
+        Returns the list of labels corresponding to the given points. It also
+        accepts a single point, in which case it returns the corresponding
+        label.
+
+        **Arguments:**
+        - `points`: A point or a list of points.
+        - `is_optimal`: Whether the points argument represents points in the
+            optimal (True) or input (False) basis
+
+        **Returns:**
+        The list of labels corresponding to the given points, or the label of
+        the point if only one is given.
+        """
+        return self.poly.points_to_labels(points, is_optimal)
+
     def points_to_indices(self, points: ArrayLike) -> "np.ndarray | int":
         """
         **Description:**
