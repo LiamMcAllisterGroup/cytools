@@ -820,6 +820,10 @@ class Triangulation:
             # use all points in the face
             which = self.labels
         else:
+            # if which is a single label, wrap it in an iterable
+            if which in self.labels:
+                which = [which]
+
             # check if the input labels
             if not set(which).issubset(self.labels):
                 raise ValueError(f"Specified labels ({which}) aren't subset "\
