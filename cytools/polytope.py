@@ -1954,12 +1954,11 @@ class Polytope:
             return tuple(sorted(self._labels_not_facets))
 
     def triangulate(self,
-                    heights: ArrayLike = None,
-                    make_star: bool = None,
                     include_points_interior_to_facets: bool = None,
                     points: ArrayLike = None,
-                    simplices: ArrayLike = None,
-                    check_input_simplices: bool = True,
+                    make_star: bool = None,
+                    simplices: ArrayLike=None,check_input_simplices: bool=True,
+                    heights: ArrayLike = None,check_heights: bool = True,
                     backend: str = "cgal",
                     verbosity: int = 1) -> Triangulation:
         """
@@ -2076,10 +2075,15 @@ class Polytope:
             make_star = False
 
         # return triangulation
-        return Triangulation(self, points, heights=triang_heights,
-                             make_star=make_star, simplices=simplices,
+        return Triangulation(self,
+                             points,
+                             make_star=make_star,
+                             simplices=simplices,
                              check_input_simplices=check_input_simplices,
-                             backend=backend, verbosity=verbosity)
+                             heights=triang_heights,
+                             check_heights=check_heights,
+                             backend=backend,
+                             verbosity=verbosity)
 
     def random_triangulations_fast(self,
                                    N: int = None,
