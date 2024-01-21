@@ -1120,12 +1120,19 @@ class Triangulation:
             full_simp = [frozenset(s) for s in self._simplices]
 
             # get face information
-            faces = self.polytope().faces(faces_dim)
+            faces_labels = []
+            faces_inds = []
+            faces_pts = []
+            for face in self.polytope().faces(faces_dim):
+                # calculate relevant quantities
+                labels = [l for l in face.labels if l in self._labels]
+                inds   = frozenset(self.points(labels, as_triang_indices=True))
+                pts    = self.points(labels)
 
-            faces_pts = [[pt for pt in face.points()\
-                            if tuple(pt) in self._pts_dict] for face in faces]
-            faces_inds = [frozenset(self.points_to_indices(pts)) for pts\
-                                                                in faces_pts]
+                # store them
+                faces_labels.append(labels)
+                faces_inds.append(inds)
+                faces_pts.append(pts)
 
             # actually restrict            
             restricted = []
