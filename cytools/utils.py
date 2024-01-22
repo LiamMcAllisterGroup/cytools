@@ -200,7 +200,7 @@ def array_from_flint(arr: np.ndarray, t=None) -> np.ndarray:
     """
     # get the type of arr
     if t is None:
-        t = type(next(iter(M.flatten())))
+        t = type(next(iter(arr.flatten())))
 
     # convert
     if t == flint.fmpz:
