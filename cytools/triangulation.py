@@ -184,7 +184,6 @@ class Triangulation:
         if backend not in ['qhull', 'cgal', 'topcom', None]:
             raise ValueError(f"Invalid backend, {backend}. "+\
                              f"Options: {['qhull', 'cgal', 'topcom', None]}.")
-        self._backend = backend
 
         # initialize attributes
         # ---------------------
@@ -192,6 +191,9 @@ class Triangulation:
 
         # process the inputs
         # ------------------
+        # backend
+        self._backend = backend
+
         # polytope
         self._poly = poly
 
@@ -252,16 +254,6 @@ class Triangulation:
                     error_msg = f"A simplex had index, {max(simp_inds)}, " +\
                                 f"out of range [0,{len(self.points())-1}]"
                     raise ValueError(error_msg)
-
-                # Check if the indices are in a sensible range
-                # (i.e., [0,npts-1])
-                # (this check is only sensical for fine triangulations)
-                #if set(self._simplices.flatten()) != {*range(len(self.points()))}:
-                #    simp_inds = sorted(set(self._simplices.flatten()))
-                #    npts = len(self.points())
-                #    error_msg = f"Indices in simplices, {simp_inds}, " +\
-                #                f"don't span range(len(self.points())={npts})..."
-                #    raise ValueError(error_msg)
 
             # convert simplices to star
             if make_star:
