@@ -388,7 +388,7 @@ class Polytope:
         #self._labels_facet      = None
         #self._labels_bdry       = None
         #self._labels_codim2     = None
-        #self._labels_not_facets = None
+        #self._labels_not_facet = None
         self._labels_vertices   = None
 
         # others
@@ -516,6 +516,30 @@ class Polytope:
         Returns the point labels, in order.
         """
         return self._pts_order
+
+    @property
+    def label_origin(self):
+        return self._label_origin
+
+    @property
+    def labels_int(self):
+        return self._labels_int
+
+    @property
+    def labels_facet(self):
+        return self._labels_facet
+
+    @property
+    def labels_bdry(self):
+        return self._labels_bdry
+    
+    @property
+    def labels_codim2(self):
+        return self._labels_codim2
+
+    @property
+    def labels_not_facet(self):
+        return self._labels_not_facet
     
     def inequalities(self) -> np.ndarray:
         """
@@ -673,7 +697,9 @@ class Polytope:
             self._nSat_to_labels[len(saturating[i])].append(label)
 
         # save order of labels
-        self._pts_order = sum(self._nSat_to_labels[1:][::-1], self._nSat_to_labels[0])
+        self._pts_order = sum(self._nSat_to_labels[1:][::-1],
+                              self._nSat_to_labels[0])
+        self._pts_order = tuple(self._pts_order)
 
         # dictionary from labels to input coordinates
         pts_input_all = self._optimal_to_input(self.points(optimal=True))
@@ -700,7 +726,14 @@ class Polytope:
         self._labels_bdry   = sum(self._nSat_to_labels[1:][::-1],[])
         self._labels_codim2 = sum(self._nSat_to_labels[2:][::-1],[])
 
-        self._labels_not_facets = self._labels_int + self._labels_codim2
+        self._labels_not_facet = self._labels_int + self._labels_codim2
+
+        # store as tuples
+        self._labels_int        = tuple(self._labels_int)
+        self._labels_facet      = tuple(self._labels_facet)
+        self._labels_bdry       = tuple(self._labels_bdry)
+        self._labels_codim2     = tuple(self._labels_codim2)
+        self._labels_not_facet  = tuple(self._labels_not_facet)
 
     def _optimal_to_input(self, pts_opt: ArrayLike) -> np.array:
         """
@@ -827,7 +860,7 @@ class Polytope:
     pts_codim2 = lambda self, as_indices=False:\
                 self.pts(which=self._labels_codim2,     as_indices=as_indices)
     pts_not_facets = lambda self, as_indices=False:\
-                self.pts(which=self._labels_not_facets, as_indices=as_indices)
+                self.pts(which=self._labels_not_facet, as_indices=as_indices)
 
     # aliases
     interior_points           = pts_int;    interior_pts            = pts_int
@@ -1949,9 +1982,9 @@ class Polytope:
             include_points_interior_to_facets = self.is_reflexive()
 
         if include_points_interior_to_facets:
-            return tuple(sorted(self._pts_order))
+            return self.labels
         else:
-            return tuple(sorted(self._labels_not_facets))
+            return self.labels_not_facet
 
     def triangulate(self,
                     include_points_interior_to_facets: bool = None,
