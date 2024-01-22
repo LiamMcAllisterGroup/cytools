@@ -1103,20 +1103,16 @@ class Triangulation:
         if faces_dim not in self._restricted_simplices:
             full_simp = [frozenset(s) for s in self._simplices]
 
-            # get face information
-            faces_labels = []
+            # get face indices
             faces_inds = []
-            faces_pts = []
             for face in self.polytope().faces(faces_dim):
-                # calculate relevant quantities
-                labels = [l for l in face.labels if l in self._labels]
-                inds   = frozenset(self.points(labels, as_triang_indices=True))
-                pts    = self.points(labels)
+                labels = [l for l in face.labels if l in self.labels]
+                inds   = frozenset(self.points(labels,
+                                               as_triang_indices=True,
+                                               check_labels=False))
 
-                # store them
-                faces_labels.append(labels)
+                # store the indices
                 faces_inds.append(inds)
-                faces_pts.append(pts)
 
             # actually restrict            
             restricted = []
@@ -1472,7 +1468,6 @@ class Triangulation:
 
         # collect automorphisms of polytope that are also automorphisms of
         # the triangulation point configuration
-        pts = [tuple(pt) for pt in self.polytope().points()]
         good_autos = []
         for i in range(len(autos)):
             for j,k in autos[i].items():
@@ -1482,7 +1477,7 @@ class Triangulation:
                     # non-trivial automorphism that isn't specifically allowed
                     break
 
-                # check if pts[j] and pts[k] are either both in the
+                # check if jth and kth points are either both in the
                 # triangulation, or both not in it
                 if (self.poly.labels[j] in self.labels) !=\
                                         (self.poly.labels[k] in self.labels):
@@ -1507,10 +1502,10 @@ class Triangulation:
             for j,jj in autos[i].items():
                 if (self.poly.labels[j] in self.labels) and\
                                         (self.poly.labels[jj] in self.labels):
-                    idx_j   = self.points(self.poly.labels[j],
-                                          as_triang_indices=True)[0]
-                    idx_jj  = self.points(self.poly.labels[jj],
-                                          as_triang_indices=True)[0]
+                    tmp_labels = [self.poly.labels[j], self.poly.labels[jj]]
+                    idx_j,idx_jj = self.points(tmp_labels,
+                                               as_triang_indices=True,
+                                               check_labels=False)
                     temp[idx_j] = idx_jj
             autos[i] = temp
 
@@ -1839,10 +1834,12 @@ class Triangulation:
                 
                 # (and if the edge is 'internal')
                 other = s1.union(s2)-inter
-                labels_inter = [self._labels[i] for i in inter]
-                labels_other = [self._labels[i] for i in other]
-                if (sum(self.points(which=labels_inter)) !=\
-                    sum(self.points(which=labels_other))).any():
+
+                pts_inter = self.points([self.labels[i] for i in inter],
+                                        check_labels=False)
+                pts_other = self.points([self.labels[i] for i in other],
+                                        check_labels=False)
+                if (sum(pts_inter) != sum(pts_other)).any():
                     continue
                 
                 # flip the inner diagonal
