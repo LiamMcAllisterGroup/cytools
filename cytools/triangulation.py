@@ -199,7 +199,7 @@ class Triangulation:
 
         # points
         # (ordered to match poly.label ordering...)
-        self._labels = tuple([label for label in poly.labels if label in pts])
+        self._labels = pts
         self._labels2inds = {v:i for i,v in enumerate(self._labels)}
 
         # dimension
