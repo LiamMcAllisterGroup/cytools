@@ -296,17 +296,16 @@ class Triangulation:
                 self._heights = np.asarray(heights)
 
             # Now run the appropriate triangulation function
+            triang_pts = self.points(optimal = not self._is_fulldim)
             if backend == "qhull":
-                self._simplices = _qhull_triangulate(self.points(optimal = not self._is_fulldim),\
-                                                     self._heights)
+                self._simplices = _qhull_triangulate(triang_pts, self._heights)
 
                 # convert to star
                 if make_star:
                     _to_star(self)
 
             elif backend == "cgal":
-                self._simplices = _cgal_triangulate(self.points(optimal = not self._is_fulldim),\
-                                                    self._heights)
+                self._simplices = _cgal_triangulate(triang_pts, self._heights)
                 
                 # can obtain star more quickly than in QHull by setting height
                 # of origin to be much lower than others
@@ -319,10 +318,10 @@ class Triangulation:
                     
                     while self._simplices[:,0].any():
                         self._heights[0] -= origin_step
-                        self._simplices = _cgal_triangulate(self.points(optimal = not self._is_fulldim),\
+                        self._simplices = _cgal_triangulate(triang_pts,\
                                                             self._heights)
             else: # Use TOPCOM
-                self._simplices = _topcom_triangulate(self.points(optimal = not self._is_fulldim))
+                self._simplices = _topcom_triangulate(triang_pts)
 
                 # convert to star
                 if make_star:
