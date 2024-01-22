@@ -199,7 +199,7 @@ class Triangulation:
 
         # points
         # (ordered to match poly.label ordering...)
-        self._labels = [label for label in poly.labels if label in pts]
+        self._labels = tuple([label for label in poly.labels if label in pts])
         self._labels2inds = {v:i for i,v in enumerate(self._labels)}
 
         # dimension
@@ -744,7 +744,6 @@ class Triangulation:
         ```
         """
         return self.get_toric_variety().get_cy(nef_partition)
-
     # aliases
     compute_cy = get_cy
     cy = get_cy
