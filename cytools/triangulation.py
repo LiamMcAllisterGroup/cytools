@@ -903,6 +903,7 @@ class Triangulation:
         The list of indices corresponding to the given points. Or the index of
         the point if only one is given.
         """
+        # (NM: remove this... use labels instead...)
         return self.points(which=[self._labels[i] for i in inds],
                            as_poly_indices=True)
     points_to_poly_indices = triangulation_to_polytope_indices
@@ -952,13 +953,12 @@ class Triangulation:
         # If the triangulation is presumably regular, then we can check if
         # heights inside the secondary cone yield the same triangulation.
         if self.is_regular(backend=backend):
-            tmp_triang = Triangulation(self.polytope(), self.labels,\
-                                       heights=self.heights(), make_star=False)
+            tmp_triang = Triangulation(self.polytope(),
+                                       self.labels,
+                                       heights=self.heights(),
+                                       make_star=False)
 
-            simps1 = sorted(sorted(s) for s in self.simplices().tolist())
-            simps2 = sorted(sorted(s) for s in tmp_triang.simplices().tolist())
-
-            self._is_valid = (simps1==simps2)
+            self._is_valid = (self==tmp_triang)
             return self._is_valid
 
         # If it is not regular, then we check this using the definition of a
