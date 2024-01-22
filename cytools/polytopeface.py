@@ -209,6 +209,52 @@ class PolytopeFace:
         return self._labels
 
     @property
+    def labels_bdry(self) -> tuple:
+        """
+        **Description:**
+        Returns the labels of boundary lattice points in the face.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        The labels of boundary lattice points in the face.
+        """
+        if self._labels_bdry is None:
+            self._labels_bdry = []
+
+            for label, sat in zip(self.labels, self.saturating):
+                if len(sat) > len(self._saturated_ineqs):
+                    self._labels_bdry.append(label)
+
+            self._labels_bdry = tuple(self._labels_bdry)
+
+        return self._labels_bdry
+
+    @property
+    def labels_int(self) -> tuple:
+        """
+        **Description:**
+        Returns the labels of interior lattice points in the face.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        The labels of interior lattice points in the face.
+        """
+        if self._labels_int is None:
+            self._labels_int = []
+
+            for label, sat in zip(self.labels, self.saturating):
+                if len(sat) == len(self._saturated_ineqs):
+                    self._labels_int.append(label)
+
+            self._labels_int = tuple(self._labels_int)
+
+        return self._labels_int
+
+    @property
     def saturating(self) -> tuple:
         """
         **Description:**
@@ -363,16 +409,7 @@ class PolytopeFace:
         #        [ 0,  0,  0, -1]])
         ```
         """
-        # get labels of interior points
-        if self._labels_int is None:
-            self._labels_int = []
-
-            for label, sat in zip(self.labels, self.saturating):
-                if len(sat) == len(self._saturated_ineqs):
-                    self._labels_int.append(label)
-        
-        # return the points
-        return self.ambient_poly.points(which=self._labels_int,
+        return self.ambient_poly.points(which=self.labels_int,
                                         as_indices=as_indices)
     # aliases
     interior_pts = interior_points
@@ -404,16 +441,7 @@ class PolytopeFace:
         #        [ 0,  1,  0,  0]])
         ```
         """
-        # get labels of interior points
-        if self._labels_bdry is None:
-            self._labels_bdry = []
-
-            for label, sat in zip(self.labels, self.saturating):
-                if len(sat) > len(self._saturated_ineqs):
-                    self._labels_bdry.append(label)
-
-        # return the points
-        return self.ambient_poly.points(which=self._labels_bdry,
+        return self.ambient_poly.points(which=self.labels_bdry,
                                         as_indices=as_indices)
     # aliases
     boundary_pts = boundary_points
