@@ -229,9 +229,6 @@ class Triangulation:
             self._origin_index = -1
             make_star = False
 
-        # map pt->triang_idx
-        self._pts_dict = {pt:i for i, pt in enumerate(pts_tup)}
-
         # map triang_idx->poly_idx
         self._pts_triang_to_poly = {i:self.poly.points_to_indices(pt) for\
                                         i, pt in enumerate(self._pts)}
@@ -1504,7 +1501,8 @@ class Triangulation:
 
                 # check if pts[j] and pts[k] are either both in the
                 # triangulation, or both not in it
-                if (pts[j] in self._pts_dict) != (pts[k] in self._pts_dict):
+                if (self.poly.labels[j] in self.labels) !=\
+                                        (self.poly.labels[k] in self.labels):
                     # oops! One pt is in the triangulation while other isn't!
                     break
             else:
@@ -1524,8 +1522,13 @@ class Triangulation:
             # it's a 'good' automorphism
             temp = {}
             for j,jj in autos[i].items():
-                if (pts[j] in self._pts_dict) and (pts[jj] in self._pts_dict):
-                    temp[self._pts_dict[pts[j]]] = self._pts_dict[pts[jj]]
+                if (self.poly.labels[j] in self.labels) and\
+                                        (self.poly.labels[jj] in self.labels):
+                    idx_j   = self.points(self.poly.labels[j],
+                                          as_triang_indices=True)[0]
+                    idx_jj  = self.points(self.poly.labels[jj],
+                                          as_triang_indices=True)[0]
+                    temp[idx_j] = idx_jj
             autos[i] = temp
 
         # define helper function
