@@ -217,10 +217,6 @@ class Triangulation:
 
         # Parse points
         # ------------
-        self._pts = self.poly.points(which=self.labels)
-
-        pts_tup = [tuple(pt) for pt in self._pts]
-
         # find index of origin
         if self.poly._label_origin in self.labels:
             self._origin_index = self.labels.index(self.poly._label_origin)
@@ -228,10 +224,6 @@ class Triangulation:
             # triangulation doesn't include origin
             self._origin_index = -1
             make_star = False
-
-        # map triang_idx->poly_idx
-        self._pts_triang_to_poly = {i:self.poly.points_to_indices(pt) for\
-                                        i, pt in enumerate(self._pts)}
 
         # Save input triangulation, or construct it
         # -----------------------------------------
@@ -296,9 +288,9 @@ class Triangulation:
                 # CGAL then they are not perturbed.
                 if backend == "qhull":
                     heights = [np.dot(p,p) + np.random.normal(0,0.05)\
-                                                    for p in self._pts]
+                                                    for p in self.points()]
                 elif backend == "cgal":
-                    heights = [np.dot(p,p) for p in self._pts]
+                    heights = [np.dot(p,p) for p in self.points()]
                 else: # TOPCOM
                     heights = None
             else:
@@ -390,7 +382,7 @@ class Triangulation:
 
         return (f"A " + fine_str + regular_str + star_str +\
                 f" triangulation of a {self.dim()}-dimensional " +\
-                f"point configuration with {len(self._pts)} points " +\
+                f"point configuration with {len(self.labels)} points " +\
                 f"in ZZ^{self.ambient_dim()}")
 
     def __eq__(self, other: "Triangulation") -> bool:
@@ -1392,7 +1384,7 @@ class Triangulation:
             return heights_out.astype(int if integral else float)
 
         # need to calculate the heights
-        Npts = self._pts.shape[0]
+        Npts = len(self.labels)
         if (self._simplices.shape[0]==1) and (self._simplices.shape[1]==Npts):
             # If the triangulation is trivial we just return a vector of zeros
             self._heights = np.zeros(Npts, dtype=(int if integral else float))
@@ -1856,8 +1848,10 @@ class Triangulation:
                 
                 # (and if the edge is 'internal')
                 other = s1.union(s2)-inter
-                if (sum(map(lambda ind:self._pts[ind], inter)) !=\
-                    sum(map(lambda ind:self._pts[ind], other))).any():
+                labels_inter = [self._labels[i] for i in inter]
+                labels_other = [self._labels[i] for i in other]
+                if (sum(self.points(which=labels_inter)) !=\
+                    sum(self.points(which=labels_other))).any():
                     continue
                 
                 # flip the inner diagonal
@@ -1968,7 +1962,7 @@ class Triangulation:
                                       "full-dimensional star triangulations.")
 
         # prep-work
-        points = set(range(len(self._pts))) - {self._origin_index}
+        points = set(range(len(self.labels))) - {self._origin_index}
         simplices = [[i for i in s if i != self._origin_index] for s in\
                                                             self.simplices()]
 
