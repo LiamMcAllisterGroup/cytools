@@ -754,7 +754,8 @@ class Triangulation:
                which = None,
                optimal: bool = False,
                as_poly_indices: bool = False,
-               as_triang_indices: bool = False) -> np.ndarray:
+               as_triang_indices: bool = False,
+               check_labels: bool = True) -> np.ndarray:
         """
         **Description:**
         Returns the points of the triangulation. Note that these are not
@@ -804,7 +805,7 @@ class Triangulation:
                 which = [which]
 
             # check if the input labels
-            if not set(which).issubset(self.labels):
+            if check_labels and (not set(which).issubset(self.labels)):
                 raise ValueError(f"Specified labels ({which}) aren't subset "\
                                  f"of the face lables ({self.labels})...")
 
