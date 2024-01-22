@@ -2048,7 +2048,7 @@ def _to_star(triang: Triangulation) -> np.ndarray:
 
     # preliminary
     # (use boundary pts b/c pts interior to facets aren't normally included)
-    facets = [[triang._pts_dict[tuple(pt)] for pt in f.boundary_points()]\
+    facets = [triang.points(which=f.labels_bdry, as_triang_indices=True)\
                                                 for f in triang.poly.facets()]
     dim = len(triang._simplices[0]) - 1
 
