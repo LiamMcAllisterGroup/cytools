@@ -522,6 +522,10 @@ class Polytope:
         return self._label_origin
 
     @property
+    def labels_vertices(self):
+        return self._labels_vertices
+
+    @property
     def labels_int(self):
         return self._labels_int
 
@@ -1042,6 +1046,9 @@ class Polytope:
         if self._labels_vertices is None:
             self._labels_vertices =self.points_to_labels(verts,is_optimal=True)
 
+        # map to tuple
+        self._labels_vertices = tuple(self._labels_vertices)
+
         # return
         return self.vertices(as_indices=as_indices)
 
@@ -1121,20 +1128,18 @@ class Polytope:
 
         # have to calculate from scratch...
         # ---------------------------------
-        # get vertices
+        # get vertices, along with their saturated inequalities
         verts = [tuple(pt) for pt in self.vertices()]
-        vert_labels = [label for label,pt in self._labels2optPts.items()\
-                                                                if pt in verts]
-        vert_pts = [self._labels2inputPts[label] for label in vert_labels]
-        vert_sat = [self._pts_saturating[label] for label in vert_labels]
-        vert_legacy = list(zip(vert_pts, vert_sat))
+        vert_sat = [self._pts_saturating[label] for label in\
+                                                        self.labels_vertices]
+        vert_legacy = list(zip(verts, vert_sat))
 
         # construct faces in reverse order (decreasing dim)
         self._faces = []
 
         # full-dim face
         self._faces.append( (PolytopeFace(self, \
-                                          vert_labels, \
+                                          self.labels_vertices, \
                                           frozenset(), \
                                           dim=self.dim()), ) )
         # if polytope is 0-dimensional, we're done!
@@ -1156,7 +1161,7 @@ class Polytope:
             if dd == self.dim()-1:
                 # facets... for f-th facet, just collect all points saturating
                 # said inequality
-                for pt in zip(vert_pts,vert_sat):
+                for pt in vert_legacy:
                     for f in pt[1]:
                         ineq2pts[frozenset([f])].add(pt)
             else:
@@ -1226,10 +1231,9 @@ class Polytope:
 
         # get vertices, along with their saturated inequalities
         verts = [tuple(pt) for pt in self.vertices()]
-        vert_labels = [label for label,pt in self._labels2inputPts.items() if pt in verts]
-        vert_pts = [self._labels2inputPts[label] for label in vert_labels]
-        vert_sat = [self._pts_saturating[label] for label in vert_labels]
-        vert_legacy = list(zip(vert_pts, vert_sat))
+        vert_sat = [self._pts_saturating[label] for label in \
+                                                        self.labels_vertices]
+        vert_legacy = list(zip(verts, vert_sat))
 
         # facets
         facets = defaultdict(set)
@@ -1261,7 +1265,10 @@ class Polytope:
                     onefaces[f3] = inter
 
         # now, construct all formal face objects
-        fourface_obj_list = [PolytopeFace(self, vert_labels, frozenset(), dim=4)]
+        fourface_obj_list = [PolytopeFace(self,
+                                          self.labels_vertices,
+                                          frozenset(),
+                                          dim=4)]
 
         facets_obj_list = []
         for f in facets.keys():
