@@ -10,7 +10,7 @@ curl -s https://api.github.com/repos/LiamMcAllisterGroup/cytools/tags \
 | grep "tarball_url" \
 | grep -Eo 'https://[^\"]*' \
 | sed -n '1p' \
-| xargs wget -q -O - \
+| xargs curl -sL \
 | tar -xz --strip-components 1
 
 # Default value of whether to install optional packages
