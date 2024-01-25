@@ -302,7 +302,6 @@ class PolytopeFace:
 
         **Aliases:**
         `ambient_dim`.
-        ```
         """
         return self.ambient_poly.ambient_dimension()
     # aliases
