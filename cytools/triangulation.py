@@ -200,7 +200,7 @@ class Triangulation:
         # points
         # (ordered to match poly.label ordering...)
         self._labels = pts
-        self._labels2inds = {v:i for i,v in enumerate(self._labels)}
+        self._labels2inds = None
 
         # dimension
         self._dim_ambient  = poly.ambient_dim()
@@ -213,7 +213,7 @@ class Triangulation:
         #      this is an interface change, though, so delay it...)
         if simplices is not None:
             self._simplices = sorted([sorted(s) for s in simplices])
-            self._simplices = np.asarray(self._simplices, dtype=int)
+            self._simplices = np.asarray(self._simplices)
         else:
             self._simplices = None
 
@@ -333,7 +333,23 @@ class Triangulation:
 
         # Make sure that the simplices are sorted
         self._simplices = sorted([sorted(s) for s in self._simplices])
-        self._simplices = np.array(self._simplices)
+
+        # select the data-type carefully, as the simplices are some of the
+        # biggest data stored in this class...
+        max_label = max(self.poly.labels)
+        if isinstance(max_label,int):
+            if max_label<2**8:
+                dtype = np.uint8
+            elif max_label<2**16:
+                dtype = np.uint16
+            elif max_label<2**32:
+                dtype = np.uint32
+            else:
+                dtype = np.uint64
+
+            self._simplices = np.array(self._simplices,dtype=dtype)
+        else:
+            self._simplices = np.array(self._simplices)
 
     # defaults
     # ========
@@ -811,6 +827,8 @@ class Triangulation:
 
         # return
         if as_triang_indices:
+            if self._labels2inds is None:
+                self._labels2inds =  {v:i for i,v in enumerate(self._labels)}
             return [self._labels2inds[label] for label in which]
         else:
             return self.poly.points(which=which,

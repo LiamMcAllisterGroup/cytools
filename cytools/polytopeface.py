@@ -221,13 +221,7 @@ class PolytopeFace:
         The labels of boundary lattice points in the face.
         """
         if self._labels_bdry is None:
-            self._labels_bdry = []
-
-            for label, sat in zip(self.labels, self.saturating):
-                if len(sat) > len(self._saturated_ineqs):
-                    self._labels_bdry.append(label)
-
-            self._labels_bdry = tuple(self._labels_bdry)
+            self._process_points()
 
         return self._labels_bdry
 
@@ -244,32 +238,9 @@ class PolytopeFace:
         The labels of interior lattice points in the face.
         """
         if self._labels_int is None:
-            self._labels_int = []
-
-            for label, sat in zip(self.labels, self.saturating):
-                if len(sat) == len(self._saturated_ineqs):
-                    self._labels_int.append(label)
-
-            self._labels_int = tuple(self._labels_int)
-
-        return self._labels_int
-
-    @property
-    def saturating(self) -> tuple:
-        """
-        **Description:**
-        Returns the indices of saturated hyperplanes, for each point.
-
-        **Arguments:**
-        None.
-
-        **Returns:**
-        The indices of saturated hyperplanes, for each point.
-        """
-        if self._saturating is None:
             self._process_points()
 
-        return self._saturating
+        return self._labels_int
 
     def dimension(self) -> int:
         """
@@ -322,7 +293,7 @@ class PolytopeFace:
         Nothing.
         """
         self._labels = []
-        self._saturating = []
+        _saturating = []
 
         # inherit the calculation from the ambient polytope
         for label in self.ambient_poly.labels:
@@ -330,11 +301,23 @@ class PolytopeFace:
 
             if self._saturated_ineqs.issubset(saturating):
                 self._labels.append(label)
-                self._saturating.append(saturating)
+                _saturating.append(saturating)
 
         # save it!
         self._labels = tuple(self._labels)
-        self._saturating = tuple(self._saturating)
+
+        # get interior, boundary points
+        self._labels_int = []
+        self._labels_bdry = []
+
+        for label, sat in zip(self.labels, _saturating):
+            if len(sat) == len(self._saturated_ineqs):
+                self._labels_int.append(label)
+            elif len(sat) > len(self._saturated_ineqs):
+                self._labels_bdry.append(label)
+
+        self._labels_int = tuple(self._labels_int)
+        self._labels_bdry = tuple(self._labels_bdry)
 
     def points(self,
                which = None,
