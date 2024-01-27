@@ -210,6 +210,38 @@ class Polytope:
                 f"{('reflexive ' if self.is_reflexive() else '')}"
                 f"lattice polytope in ZZ^{self.ambient_dim()}")
 
+    def __getstate__(self):
+        """
+        **Description:**
+        Gets the state of the class instance, for pickling
+
+        **Arguments:**
+        None
+
+        **Returns:**
+        Nothing.
+        """
+        state = self.__dict__.copy()
+        # delete the instanced_lru_cache since it doesn't play nicely
+        state['_cache'] = None 
+        return state
+
+    def __setstate__(self, state: dict):
+        """
+        **Description:**
+        Gets the state of the class instance, for pickling
+
+        **Arguments:**
+        - `state`: The dictionary of the instance state, read from pickle.
+
+        **Returns:**
+        Nothing.
+        """
+        self.__dict__.update(state)
+        # re-initialize the instanced_lru_cache
+        # (needed since we check if self has _cache, which it is now None)
+        self._cache = {}
+
     def __eq__(self, other: "Polytope") -> bool:
         """
         **Description:**
