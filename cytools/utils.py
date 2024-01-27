@@ -51,11 +51,12 @@ def instanced_lru_cache(maxsize=128):
                 self._cache = {}
 
             # store function cache in class cache
-            if func not in self._cache:
-                self._cache[func] = functools.lru_cache(maxsize=maxsize)(func)
+            fname = func.__name__
+            if fname not in self._cache:
+                self._cache[fname] = functools.lru_cache(maxsize=maxsize)(func)
 
             # use cached result
-            return self._cache[func](self, *args, **kwargs)
+            return self._cache[fname](self, *args, **kwargs)
         return wrapper
     return decorator
 
