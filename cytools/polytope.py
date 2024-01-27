@@ -371,7 +371,6 @@ class Polytope:
         self._is_reflexive  = None
 
         # input, optimal points (DON'T CLEAR! Set in init...)
-        #self._nSat_to_labels
         #self._labels2inputPts
         #self._labels2optPts
         #self._pts_saturating
@@ -592,7 +591,7 @@ class Polytope:
             self._poly_optimal,
             self._ineqs_optimal, self._ineqs_input,
             self._labels2optPts, self._labels2inputPts,
-            self._pts_saturating, self._nSat_to_labels,
+            self._pts_saturating,
             self._pts_order, and self._pts_indices
 
         **Arguments:**
@@ -676,7 +675,7 @@ class Polytope:
         # save info to useful variables/dictionaries
         self._labels2optPts = dict()
         self._pts_saturating = dict()
-        self._nSat_to_labels = [[] for _ in range(len(self._ineqs_optimal)+1)]
+        nSat_to_labels = [[] for _ in range(len(self._ineqs_optimal)+1)]
 
         if labels is None:
             labels = []
@@ -698,11 +697,11 @@ class Polytope:
             # save it!
             self._labels2optPts[label] = pt
             self._pts_saturating[label] = saturating[i]
-            self._nSat_to_labels[len(saturating[i])].append(label)
+            nSat_to_labels[len(saturating[i])].append(label)
 
         # save order of labels
-        self._pts_order = sum(self._nSat_to_labels[1:][::-1],
-                              self._nSat_to_labels[0])
+        self._pts_order = sum(nSat_to_labels[1:][::-1],
+                              nSat_to_labels[0])
         self._pts_order = tuple(self._pts_order)
 
         # dictionary from labels to input coordinates
@@ -724,11 +723,11 @@ class Polytope:
         else:
             self._label_origin = None
 
-        self._labels_int    = self._nSat_to_labels[0]
-        self._labels_facet  = self._nSat_to_labels[1]
+        self._labels_int    = nSat_to_labels[0]
+        self._labels_facet  = nSat_to_labels[1]
 
-        self._labels_bdry   = sum(self._nSat_to_labels[1:][::-1],[])
-        self._labels_codim2 = sum(self._nSat_to_labels[2:][::-1],[])
+        self._labels_bdry   = sum(nSat_to_labels[1:][::-1],[])
+        self._labels_codim2 = sum(nSat_to_labels[2:][::-1],[])
 
         self._labels_not_facet = self._labels_int + self._labels_codim2
 
@@ -830,12 +829,7 @@ class Polytope:
         # get the labels of the points to return
         if which is None:
             which = self._pts_order
-        elif isinstance(which, np.ndarray):
-            print(f"Polytope.points received which={which}...")
-            print("`which` should be a list of point labels, not "+\
-                  "point coordinates... returning...")
-            return
-        elif which in self._pts_order:
+        elif (not isinstance(which,np.ndarray)) and (which in self._pts_order):
             which = [which]
 
         # return the answer in the desired format
@@ -912,7 +906,6 @@ class Polytope:
 
         # get/return the indices
         labels = [relevant_map[tuple(pt)] for pt in points]
-
         if single_pt and len(labels):
             return labels[0]    # just return the single label
         else:
@@ -1001,7 +994,7 @@ class Polytope:
 
         elif self._backend == "qhull":
             if self.dim() == 1: # QHull cannot handle 1D polytopes
-                self._labels_vertices = self._nSat_to_labels[1]
+                self._labels_vertices = self._labels_facet
             else:
                 verts = self._poly_optimal.points[self._poly_optimal.vertices]
         else:

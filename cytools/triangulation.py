@@ -221,7 +221,7 @@ class Triangulation:
         # ------------
         # find index of origin
         if self.poly._label_origin in self.labels:
-            self._origin_index = self.labels.index(self.poly._label_origin)
+            self._origin_index=list(self.labels).index(self.poly._label_origin)
         else:
             # triangulation doesn't include origin
             self._origin_index = -1
@@ -817,13 +817,19 @@ class Triangulation:
             which = self.labels
         else:
             # if which is a single label, wrap it in an iterable
-            if which in self.labels:
+            if (not isinstance(which,Iterable)) and (which in self.labels):
                 which = [which]
 
             # check if the input labels
-            if check_labels and (not set(which).issubset(self.labels)):
-                raise ValueError(f"Specified labels ({which}) aren't subset "\
-                                 f"of the face lables ({self.labels})...")
+            if check_labels:
+                try:
+                    if not set(which).issubset(self.labels):
+                        raise ValueError(f"Specified labels ({which}) aren't "\
+                                           "subset of triangulation lables "\
+                                          f"({self.labels})...")
+                except:
+                    raise ValueError(f"Specified labels, {which}, likely "\
+                                      "aren't hashable.")
 
         # return
         if as_triang_indices:
