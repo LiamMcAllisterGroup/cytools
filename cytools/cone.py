@@ -977,11 +977,11 @@ class Cone:
                 point //= gcd_list(point)
             else:
                 # looks like the point is all zeros
-                if self.hyperplanes().shape==(0,):
+                if np.prod(self.hyperplanes().shape)==0:
                     # trivial cone... all space
                     point = [0 for _ in range(self._ambient_dim)]
                     point[0] = 1
-                    point = np.asarray(point)
+                    return np.asarray(point)
                 else:
                     raise Exception(f"Unexpected error in finding point in cone with rays = {self._rays}")
 
