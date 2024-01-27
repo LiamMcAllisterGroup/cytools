@@ -353,7 +353,7 @@ class Triangulation:
 
         # also set the heights data structure
         if self._heights is not None:
-            self._heights /= gcd_list(self._heights)
+            self._heights = self._heights/gcd_list(self._heights)
             self._heights -= min(self._heights)
 
             max_h = max(abs(self._heights))
