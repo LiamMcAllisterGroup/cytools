@@ -313,7 +313,7 @@ class Triangulation:
                 if make_star:
                     assert self._origin_index == 0
 
-                    origin_step = max(100, (max(self._heights[1:]) -\
+                    origin_step = max(10, (max(self._heights[1:]) -\
                                                     min(self._heights[1:])))
                     
                     while self._simplices[:,0].any():
@@ -1408,7 +1408,10 @@ class Triangulation:
                                             "solve LP problem in this case...")
                 heights_out = np.rint(heights_out/gcd_list(heights_out))
 
-            return heights_out.astype(int if integral else float)
+            if integral:
+                return heights_out.astype(int)
+            else:
+                return heights_out
 
         # need to calculate the heights
         Npts = len(self.labels)
