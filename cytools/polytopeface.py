@@ -596,7 +596,8 @@ class PolytopeFace:
                     heights: list = None,
                     simplices: ArrayLike = None,
                     check_input_simplices: bool = True,
-                    backend: str = "cgal") -> "Triangulation":
+                    backend: str = "cgal",
+                    verbosity=0) -> "Triangulation":
         """
         **Description:**
         Returns a single regular triangulation of the face.
@@ -621,6 +622,7 @@ class PolytopeFace:
         - `backend`: Specifies the backend used to compute the triangulation.
             The available options are "qhull", "cgal", and "topcom". CGAL is
             the default one as it is very fast and robust.
+        - `verbosity`: The verbosity level.
 
         **Returns:**
         A [`Triangulation`](./triangulation) object describing a triangulation
@@ -629,7 +631,8 @@ class PolytopeFace:
         # check if we're just grabbing the Delaunay triangulation
         if (simplices is None) and (heights is None):
             return Triangulation(self.as_polytope(), self.labels,
-                                 make_star=False, backend=backend)
+                                 make_star=False, backend=backend,
+                                 verbosity=verbosity)
 
         # user input simplices or heights... must do work reordering points
         # since polytopes may reorder points...
@@ -657,4 +660,5 @@ class PolytopeFace:
                              heights=heights_permuted,
                              simplices=simps_permuted,
                              check_input_simplices=check_input_simplices,
-                             backend=backend)
+                             backend=backend,
+                             verbosity=verbosity)

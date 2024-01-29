@@ -260,8 +260,10 @@ class Triangulation:
                 _to_star(self)
 
             # ensure simplices define valid triangulation
-            if check_input_simplices and not self.is_valid():
-                raise ValueError("Simplices don't form valid triangulation.")
+            if check_input_simplices:
+                if not self.is_valid(verbosity=verbosity-1):
+                    msg = "Simplices don't form valid triangulation."
+                    raise ValueError(msg)
         else:
             # self._simplices==None... construct simplices from heights
 
@@ -952,7 +954,9 @@ class Triangulation:
     # =============
     # sanity checks
     # -------------
-    def is_valid(self, backend: str = None) -> bool:
+    def is_valid(self,
+                 backend: str = None,
+                 verbosity: int = 0) -> bool:
         """
         **Description:**
         Returns True if the presumed triangulation meets all requirements to be
@@ -964,6 +968,7 @@ class Triangulation:
             options are the backends of the [`is_solid`](./cone#is_solid)
             function of the [`Cone`](./cone) class. If not specified, it will
             be picked automatically.
+        - `verbosity`: The verbosity level.
 
         **Returns:**
         The truth value of the triangulation being valid.
@@ -999,6 +1004,9 @@ class Triangulation:
                                        make_star=False)
 
             self._is_valid = (self==tmp_triang)
+            if verbosity>=1:
+                msg = f"By regularity, returning valid={self._is_valid}"
+                print(msg)
             return self._is_valid
 
         # If it is not regular, then we check this using the definition of a
@@ -1015,6 +1023,9 @@ class Triangulation:
 
             if tmp_v == 0:
                 self._is_valid = False
+                if verbosity>=1:
+                    msg = f"By simp volume, returning valid={self._is_valid}"
+                    print(msg)
                 return self._is_valid
 
             v += tmp_v
@@ -1022,6 +1033,10 @@ class Triangulation:
         poly_vol = int(round(ConvexHull(pts).volume*math.factorial(self._dim)))
         if v != poly_vol:
             self._is_valid = False
+            if verbosity>=1:
+                msg = "Simp volume != poly volume... " +\
+                     f"returning valid={self._is_valid}"
+                print(msg)
             return self._is_valid
 
         # Finally, check if simplices have full-dimensional intersections
