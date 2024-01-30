@@ -655,7 +655,8 @@ class PolytopeFace:
             heights_permuted = None
             simps_permuted = [list(map(f_perm, simp)) for simp in simplices]
 
-        return Triangulation(self.as_polytope(), self.labels,
+        return Triangulation(self.as_polytope(),
+                             self.as_polytope().labels,
                              make_star=False,
                              heights=heights_permuted,
                              simplices=simps_permuted,
