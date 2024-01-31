@@ -764,6 +764,22 @@ class Cone:
         self._ext_rays = rays[list(ext_rays),:]
         return self._ext_rays
 
+    def extremal_hyperplanes(self, tol=1e-4, verbose=False):
+        """
+        **Description:**
+        Returns the extremal hyperplanes of the cone.
+
+        **Arguments:**
+        - `tol` *(float, optional, default=1e-4)*: Specifies the tolerance for
+            deciding whether a ray is extremal or not.
+        - verbose *(bool, optional, default=False)*: When set to True it show
+            the progress while finding the extremal rays.
+
+        **Returns:**
+        *(numpy.ndarray)* The list of extremal hyperplanes of the cone.
+        """
+        return self.dual().extremal_rays(tol=tol, verbose=verbose)
+
     def tip_of_stretched_cone(self, c, backend=None, check=True,
                               constraint_error_tol=5e-2, max_iter=10**6,
                               show_hints=True, verbose=False):
