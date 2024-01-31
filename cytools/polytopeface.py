@@ -28,6 +28,7 @@ from numpy.typing import ArrayLike
 
 # CYTools imports
 from cytools.triangulation import Triangulation
+from cytools.utils import lll_reduce
 
 class PolytopeFace:
     """
@@ -360,6 +361,14 @@ class PolytopeFace:
                                  f"of the face lables ({self.labels})...")
 
         # return
+        if optimal and (not as_indices):
+            dim_diff =  self.ambient_dim()-self.dim()
+            if dim_diff>0:
+                # asking for optimal points, where the optimal value may
+                # differ from the entire polytope
+                return lll_reduce(self.points(which=which))[:,dim_diff:]
+        
+        # normal case
         return self.ambient_poly.points(which=which,
                                         optimal=optimal,
                                         as_indices=as_indices)
@@ -628,38 +637,11 @@ class PolytopeFace:
         A [`Triangulation`](./triangulation) object describing a triangulation
         of the polytope.
         """
-        # check if we're just grabbing the Delaunay triangulation
-        if (simplices is None) and (heights is None):
-            return Triangulation(self.as_polytope(), self.labels,
-                                 make_star=False, backend=backend,
-                                 verbosity=verbosity)
-
-        # user input simplices or heights... must do work reordering points
-        # since polytopes may reorder points...
-        polypts = self.as_polytope().points()
-
-        # calculate the permutation from face points to poly points
-        sort_poly = np.lexsort(polypts.T[::-1])
-        sort_face = np.lexsort(self.points().T[::-1])
-        #unsort_poly = np.argsort(sort_poly)
-        unsort_face = np.argsort(sort_face)
-        p = sort_poly[unsort_face]
-
-        # apply the permutation
-        if heights is not None:
-            heights_permuted = np.asarray(heights)[p]
-            simps_permuted = None
-        else:
-            f_perm = lambda ind:p[ind]
-
-            heights_permuted = None
-            simps_permuted = [list(map(f_perm, simp)) for simp in simplices]
-
-        return Triangulation(self.as_polytope(),
-                             self.as_polytope().labels,
+        return Triangulation(self.ambient_poly,
+                             self.labels,
                              make_star=False,
-                             heights=heights_permuted,
-                             simplices=simps_permuted,
+                             heights=heights,
+                             simplices=simplices,
                              check_input_simplices=check_input_simplices,
                              backend=backend,
                              verbosity=verbosity)

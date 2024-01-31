@@ -855,6 +855,14 @@ class Triangulation:
                 self._labels2inds =  {v:i for i,v in enumerate(self._labels)}
             return [self._labels2inds[label] for label in which]
         else:
+            if optimal and (not as_poly_indices):
+                dim_diff =  self.ambient_dim()-self.dim()
+                if dim_diff>0:
+                    # asking for optimal points, where the optimal value may
+                    # differ from the entire polytope
+                    return lll_reduce(self.points(which=which))[:,dim_diff:]
+
+            # normal case
             return self.poly.points(which=which,
                                     optimal=optimal,
                                     as_indices=as_poly_indices)
