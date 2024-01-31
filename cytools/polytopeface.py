@@ -366,7 +366,8 @@ class PolytopeFace:
             if dim_diff>0:
                 # asking for optimal points, where the optimal value may
                 # differ from the entire polytope
-                return lll_reduce(self.points(which=which))[:,dim_diff:]
+                pts = self.points(which=which)
+                return lll_reduce(pts-pts[0])[:,dim_diff:]
         
         # normal case
         return self.ambient_poly.points(which=which,
