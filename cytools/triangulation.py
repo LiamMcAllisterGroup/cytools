@@ -1158,7 +1158,7 @@ class Triangulation:
         # input parsing
         if (on_faces_dim is None) and (on_faces_codim is None):
             if as_labels:
-                out = [[self.poly.labels[i] for i in simp] for simp in self._simplices]
+                out = [[self.labels[i] for i in simp] for simp in self._simplices]
             else:
                 out = self._simplices
 
@@ -1202,7 +1202,7 @@ class Triangulation:
 
         # map to labels, if desired
         if as_labels:
-            out = [[[self.poly.labels[i] for i in simp] for simp in self._simplices] for face in self._restricted_simplices[faces_dim]]
+            out = [{frozenset(self.labels[i] for i in simp) for simp in self._simplices} for face in self._restricted_simplices[faces_dim]]
         else:
             out = self._restricted_simplices[faces_dim]
 
