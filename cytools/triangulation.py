@@ -201,6 +201,7 @@ class Triangulation:
         # (ordered to match poly.label ordering...)
         self._labels = pts
         self._labels2inds = None
+        self._labels2optPts = None
 
         # dimension
         self._dim_ambient  = poly.ambient_dim()
@@ -860,8 +861,18 @@ class Triangulation:
                 if dim_diff>0:
                     # asking for optimal points, where the optimal value may
                     # differ from the entire polytope
-                    pts = self.points(which=which)
-                    return lll_reduce(pts-pts[0])[:,dim_diff:]
+
+                    # calculate the map from labels to optimal points
+                    if self._labels2optPts is None:
+                        pts_opt = self.points()
+                        pts_opt = lll_reduce(pts_opt-pts_opt[0])[:,dim_diff:]
+
+                        self._labels2optPts = dict()
+                        for label,pt in zip(self.labels,pts_opt):
+                            self._labels2optPts[label] = tuple(pt)
+
+                    # return the relevant points
+                    return np.array([self._labels2optPts[l] for l in which])
 
             # normal case
             return self.poly.points(which=which,
