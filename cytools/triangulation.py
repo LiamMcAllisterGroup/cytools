@@ -314,13 +314,17 @@ class Triangulation:
                 # of origin to be much lower than others
                 # (can't do this in QHull since it sometimes causes errors...)
                 if make_star:
-                    assert self._origin_index == 0
+                    # get max/min of all heights other than the origin...
+                    origin_mask = np.zeros(self._heights.size, dtype=bool)
+                    origin_mask[self._origin_index] = True
+                    heights_masked = np.ma.array(self._heights, mask=origin_mask)
 
-                    origin_step = max(10, (max(self._heights[1:]) -\
-                                                    min(self._heights[1:])))
+                    origin_step = max(10, (max(heights_masked[1:]) -\
+                                                    min(heights_masked[1:])))
                     
-                    while self._simplices[:,0].any():
-                        self._heights[0] -= origin_step
+                    # reduce height of origin until it's in all simplices
+                    while any(self._origin_index not in s for s in self._simplices):
+                        self._heights[self._origin_index] -= origin_step
                         self._simplices = _cgal_triangulate(triang_pts,\
                                                             self._heights)
             else: # Use TOPCOM
@@ -401,10 +405,10 @@ class Triangulation:
             regular_str = ", "
             regular_str += "regular" if self._is_regular else "irregular"
 
-        star_str = ""
-        if self.polytope().is_reflexive():
-            star_str = ", "
-            star_str += "star" if self.is_star() else "non-star"
+        #star_str = ""
+        #if self.polytope().is_reflexive():
+        star_str = ", "
+        star_str += "star" if self.is_star() else "non-star"
 
         return (f"A " + fine_str + regular_str + star_str +\
                 f" triangulation of a {self.dim()}-dimensional " +\
