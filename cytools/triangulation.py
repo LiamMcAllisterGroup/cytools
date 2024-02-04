@@ -1290,7 +1290,7 @@ class Triangulation:
 
             if self.is_star():
                 # star triangulations all share 0th point, the origin
-                star_origin = self.points_to_indices([0]*self.dim())
+                star_origin = self.points_to_indices([0]*self.ambient_dim())
                 simps = [set(s)-{star_origin} for s in self._simplices]
                 dim = self.dim()-1
                 m[:,-1] = pts_ext[star_origin]
