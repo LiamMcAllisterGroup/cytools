@@ -243,6 +243,20 @@ class PolytopeFace:
 
         return self._labels_int
 
+    @property
+    def labels_vertices(self) -> tuple:
+        """
+        **Description:**
+        Returns the labels of vertices in the face.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        The labels of vertices in the face.
+        """
+        return self._labels_vertices
+
     def dimension(self) -> int:
         """
         **Description:**
