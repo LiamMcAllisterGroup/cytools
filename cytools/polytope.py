@@ -2229,8 +2229,9 @@ class Polytope:
         ```
         """
         if self.ambient_dim() > self.dim():
-            raise NotImplementedError("Only triangulations of full-dimensional polytopes"
-                                      "are supported.")
+            raise NotImplementedError("Only triangulations of "
+                                      "full-dimensional polytopes are "
+                                      "supported.")
         if N is None and as_list:
             raise ValueError("Number of triangulations must be specified when "
                              "returning a list.")
