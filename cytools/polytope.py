@@ -2228,11 +2228,11 @@ class Polytope:
         rand_triangs = p.random_triangulations_fast(N=10, as_list=True) # Produces the list of 10 triangulations very quickly
         ```
         """
-        if self.ambient_dim() > self.dim():
-            raise NotImplementedError("Only triangulations of "
-                                      "full-dimensional polytopes are "
-                                      "supported.")
-        if N is None and as_list:
+        #if self.ambient_dim() > self.dim():
+        #    raise NotImplementedError("Only triangulations of "
+        #                              "full-dimensional polytopes are "
+        #                              "supported.")
+        if (N is None) and as_list:
             raise ValueError("Number of triangulations must be specified when "
                              "returning a list.")
 
