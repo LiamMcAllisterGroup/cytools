@@ -1013,100 +1013,25 @@ class Cone:
             else:
                 backend = "glop"
 
+        if backend in ("glop", "scip", "cpsat"):
+            solution = feasibility(hyperplanes=self._hyperplanes,
+                                   c=c,
+                                   ambient_dim=self._ambient_dim,
+                                   backend=backend,
+                                   verbose=verbose)
+        else:
+            solution = self.tip_of_stretched_cone(c,
+                                                  backend=backend,
+                                                  show_hints=show_hints,
+                                                  verbose=verbose)
+        if solution is None:
+            return None
+
+        # function to take dot products
         if isinstance(self._hyperplanes, (list, np.ndarray)):
-            self._hyperplanes = np.asarray(self._hyperplanes)
-            hp_iter = enumerate
             dot = lambda hp,x: hp.dot(x)
         else:
-            hp_iter = lambda hp:hp.items()
-            dot = lambda hp,x: sum([val*x[ind] for ind,val in hp_iter(hp)])
-
-        if backend in ("glop", "scip"):
-            solver = pywraplp.Solver.CreateSolver(backend.upper())
-
-            if verbose:
-                # enable solver to print output
-                solver.EnableOutput()
-
-            # define variables
-            var = []
-            var_type = (solver.NumVar if backend=="glop" else solver.IntVar)
-            for i in range(self._ambient_dim):
-                var.append((var_type)(-solver.infinity(), solver.infinity(),\
-                                                                    f"x_{i}"))
-
-            # define constraints
-            cons_list = []
-            for v in self._hyperplanes:
-                cons_list.append(solver.Constraint(c, solver.infinity()))
-                for ind,val in hp_iter(v):
-                    cons_list[-1].SetCoefficient(var[ind], float(val))
-
-            # define objective
-            obj = solver.Objective()
-            obj.SetMinimization()
-
-            obj_vec = self._hyperplanes.sum(axis=0)/len(self._hyperplanes)
-            for i in range(self._ambient_dim):
-                obj.SetCoefficient(var[i], obj_vec[i])
-
-            # solve and parse solution
-            status = solver.Solve()
-            if status in (solver.FEASIBLE, solver.OPTIMAL):
-                solution = np.array([x.solution_value() for x in var])
-            elif status == solver.INFEASIBLE:
-                if verbose:
-                    warnings.warn("Solver returned status INFEASIBLE.")
-                return None
-            else:
-                status_list = [
-                    "OPTIMAL",
-                    "FEASIBLE",
-                    "INFEASIBLE",
-                    "UNBOUNDED",
-                    "ABNORMAL",
-                    "MODEL_INVALID",
-                    "NOT_SOLVED"]
-                warnings.warn(f"Solver returned status {status_list[status]}.")
-                return None
-
-        elif backend == "cpsat":
-            solver = cp_model.CpSolver()
-            model = cp_model.CpModel()
-
-            # define variables
-            var = []
-            for i in range(self._ambient_dim):
-                var.append(model.NewIntVar(cp_model.INT32_MIN,\
-                                                cp_model.INT32_MAX, f"x_{i}"))
-
-            # define constraints
-            for v in self._hyperplanes:
-                model.Add(sum(ii*var[i] for i,ii in enumerate(v)) >= c)
-
-            # define objective
-            obj_vec = self._hyperplanes.sum(axis=0)
-            obj_vec //= gcd_list(obj_vec)
-
-            obj = 0
-            for i in range(self._ambient_dim):
-                obj += var[i]*obj_vec[i]
-
-            model.Minimize(obj)
-
-            # solve and parse solution
-            status = solver.Solve(model)
-            if status in (cp_model.FEASIBLE, cp_model.OPTIMAL):
-                solution = np.array([solver.Value(x) for x in var])
-            elif status == cp_model.INFEASIBLE:
-                return None
-            else:
-                warnings.warn("Solver returned status "
-                                            f"{solver.StatusName(status)}.")
-        else:
-            solution = self.tip_of_stretched_cone(c, backend=backend, show_hints=show_hints, verbose=verbose)
-            if solution is None:
-                return None
+            dot = lambda hp,x: sum([val*x[ind] for ind,val in hp.items()])
 
         # Make sure that the solution is valid
         if check and any(dot(v,solution) <= 0 for v in self._hyperplanes):
@@ -1696,3 +1621,113 @@ def is_extremal(A, b, i=None, q=None, tol=1e-4):
         if q is not None:
             q.put((i,None))
         return
+
+def feasibility(hyperplanes: "ArrayLike",
+                c: float,
+                ambient_dim: int,
+                backend: str,
+                verbose: bool = False):
+    """
+    **Description:**
+    Solve a feasibility problem Ax>=c.
+
+    **Arguments:**
+    - `hyperplanes`: The constraining hyperplanes, A.
+    - `c`: The 'stretching'.
+    - `ambient_dim`: The ambient dimension... A.shape[1].
+    - `backend`: The backend to use. "glop", "scip", or "cpsat"
+    - `verbose`: Whether to print extra diagnostic info.
+
+    **Returns:**
+    A feasible point, if it exists. Else, None.
+    """
+    if isinstance(hyperplanes, (list, np.ndarray)):
+        hyperplanes = np.asarray(hyperplanes)
+        hp_iter = enumerate
+    else:
+        hp_iter = lambda hp:hp.items()
+
+    if backend in ("glop", "scip"):
+        solver = pywraplp.Solver.CreateSolver(backend.upper())
+
+        if verbose:
+            # enable solver to print output
+            solver.EnableOutput()
+
+        # define variables
+        var = []
+        var_type = (solver.NumVar if backend=="glop" else solver.IntVar)
+        for i in range(ambient_dim):
+            var.append((var_type)(-solver.infinity(), solver.infinity(),\
+                                                                f"x_{i}"))
+
+        # define constraints
+        cons_list = []
+        for v in hyperplanes:
+            cons_list.append(solver.Constraint(c, solver.infinity()))
+            for ind,val in hp_iter(v):
+                cons_list[-1].SetCoefficient(var[ind], float(val))
+
+        # define objective
+        obj = solver.Objective()
+        obj.SetMinimization()
+
+        obj_vec = hyperplanes.sum(axis=0)/len(hyperplanes)
+        for i in range(ambient_dim):
+            obj.SetCoefficient(var[i], obj_vec[i])
+
+        # solve and parse solution
+        status = solver.Solve()
+        if status in (solver.FEASIBLE, solver.OPTIMAL):
+            solution = np.array([x.solution_value() for x in var])
+        elif status == solver.INFEASIBLE:
+            if verbose:
+                warnings.warn("Solver returned status INFEASIBLE.")
+            return None
+        else:
+            status_list = [
+                "OPTIMAL",
+                "FEASIBLE",
+                "INFEASIBLE",
+                "UNBOUNDED",
+                "ABNORMAL",
+                "MODEL_INVALID",
+                "NOT_SOLVED"]
+            warnings.warn(f"Solver returned status {status_list[status]}.")
+            return None
+
+    else:
+        solver = cp_model.CpSolver()
+        model = cp_model.CpModel()
+
+        # define variables
+        var = []
+        for i in range(ambient_dim):
+            var.append(model.NewIntVar(cp_model.INT32_MIN,\
+                                            cp_model.INT32_MAX, f"x_{i}"))
+
+        # define constraints
+        for v in hyperplanes:
+            model.Add(sum(ii*var[i] for i,ii in enumerate(v)) >= c)
+
+        # define objective
+        obj_vec = hyperplanes.sum(axis=0)
+        obj_vec //= gcd_list(obj_vec)
+
+        obj = 0
+        for i in range(ambient_dim):
+            obj += var[i]*obj_vec[i]
+
+        model.Minimize(obj)
+
+        # solve and parse solution
+        status = solver.Solve(model)
+        if status in (cp_model.FEASIBLE, cp_model.OPTIMAL):
+            solution = np.array([solver.Value(x) for x in var])
+        elif status == cp_model.INFEASIBLE:
+            return None
+        else:
+            warnings.warn("Solver returned status "
+                                        f"{solver.StatusName(status)}.")
+
+    return solution
