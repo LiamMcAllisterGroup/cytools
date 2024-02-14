@@ -1071,8 +1071,8 @@ class Polytope:
         if self._labels_vertices is None:
             self._labels_vertices =self.points_to_labels(verts,is_optimal=True)
 
-        # map to tuple
-        self._labels_vertices = tuple(self._labels_vertices)
+        # sort, map to tuple
+        self._labels_vertices = tuple(sorted(self._labels_vertices))
 
         # return
         return self.vertices(as_indices=as_indices)
