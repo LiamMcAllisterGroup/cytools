@@ -1696,7 +1696,7 @@ def feasibility(hyperplanes: "ArrayLike",
             warnings.warn(f"Solver returned status {status_list[status]}.")
             return None
 
-    else:
+    elif backend=="cpsat":
         solver = cp_model.CpSolver()
         model = cp_model.CpModel()
 
