@@ -554,6 +554,9 @@ class Polytope:
 
     @property
     def labels_vertices(self):
+        if self._labels_vertices:
+            # generate the labels
+            self.vertices()
         return self._labels_vertices
 
     @property
@@ -990,12 +993,15 @@ class Polytope:
         else:
             return inds     # return a list of indices
 
-    def vertices(self, as_indices: bool = False) -> np.ndarray:
+    def vertices(self,
+                 optimal: bool = False,
+                 as_indices: bool = False) -> np.ndarray:
         """
         **Description:**
         Returns the vertices of the polytope.
 
         **Arguments:**
+        - `optimal`: Whether to return the points in their optimal coordinates.
         - `as_indices`: Return the points as indices of the full list
             of points of the polytope.
 
@@ -1017,7 +1023,9 @@ class Polytope:
         """
         # return the answer if known
         if self._labels_vertices is not None:
-            return self.pts(which=self._labels_vertices,as_indices=as_indices)
+            return self.pts(which=self._labels_vertices,
+                            optimal=optimal,
+                            as_indices=as_indices)
 
         # calculate the answer
         if self.dim() == 0:
@@ -1075,7 +1083,7 @@ class Polytope:
         self._labels_vertices = tuple(sorted(self._labels_vertices))
 
         # return
-        return self.vertices(as_indices=as_indices)
+        return self.vertices(optimal=optimal, as_indices=as_indices)
 
     # faces
     # =====
