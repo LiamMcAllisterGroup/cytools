@@ -28,7 +28,7 @@ updateCYTools() {
   tmp_dir="cytools-update-$RANDOM"
   mkdir $tmp_dir
   cd $tmp_dir
-  curl -s https://api.github.com/repos/LiamMcAllisterGroup/cytools/tags | grep "tarball_url" | grep -Eo 'https://[^\"]*' | sed -n '1p' | xargs wget -q -O - | tar -xz --strip-components 1
+  curl -s https://api.github.com/repos/LiamMcAllisterGroup/cytools/tags | grep "tarball_url" | grep -Eo 'https://[^\"]*' | sed -n '1p' | xargs curl -s -L -o - | tar -xz --strip-components 1
   make install
   cd /tmp/
   rm -rf $tmp_dir
@@ -40,7 +40,7 @@ updateCYToolsFast() {
   tmp_dir="cytools-update-$RANDOM"
   mkdir $tmp_dir
   cd $tmp_dir
-  curl -s https://api.github.com/repos/LiamMcAllisterGroup/cytools/tags | grep "tarball_url" | grep -Eo 'https://[^\"]*' | sed -n '1p' | xargs wget -q -O - | tar -xz --strip-components 1
+  curl -s https://api.github.com/repos/LiamMcAllisterGroup/cytools/tags | grep "tarball_url" | grep -Eo 'https://[^\"]*' | sed -n '1p' | xargs curl -s -L -o - | tar -xz --strip-components 1
   make build-fast
   cd /tmp/
   rm -rf $tmp_dir
