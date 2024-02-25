@@ -1,0 +1,54 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cytools"
+version = "1.1.1"
+description = "A software package for analyzing Calabi-Yau hypersurfaces in toric varieties."
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [
+  {name = "Liam McAllister Group", email = ""}
+]
+requires-python = ">=3.8"
+dependencies = [
+    "numpy",
+    "scipy",
+    "cvxopt",
+    "python-flint",
+    "pplpy",
+    "ortools"
+]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Scientific/Engineering :: Mathematics",
+  "Topic :: Scientific/Engineering :: Physics"
+]
+
+[project.optional-dependencies]
+mosek = [
+  "Mosek"
+]
+
+[project.urls]
+Homepage = "https://cy.tools"
+Documentation = "https://cy.tools/docs/documentation/"
+Repository = "https://github.com/LiamMcAllisterGroup/cytools"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cytools"]
