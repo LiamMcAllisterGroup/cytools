@@ -17,7 +17,7 @@ miscfundocstrings = [[] for i in range(len(filenames))]
 
 def main(in_dir, out_dir):
     for n in range(len(filenames)):
-        f = open(in_dir+f"/{filenames[n]}.py", "r")
+        f = open(in_dir+f"{filenames[n]}.py", "r")
         lines = list(f.readlines())
         f.close()
         in_class = False
