@@ -1,5 +1,5 @@
-# Start from Debian Bullseye
-FROM python:3.11-bullseye
+# Start from Ubuntu Jammy
+FROM ubuntu:jammy
 
 # Define build arguments
 ARG USERNAME
@@ -12,6 +12,29 @@ ARG PORT_ARG
 ENV ALLOW_ROOT=$ALLOW_ROOT_ARG
 ENV PORT=$PORT_ARG
 ARG OPTIONAL_PKGS=0
+
+# Use noninteractive to avoid interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install Python 3.11
+RUN apt-get update && \
+    apt-get install -y software-properties-common && \
+    add-apt-repository ppa:deadsnakes/ppa && \
+    apt-get update && \
+    apt-get install -y python3.11 python3.11-venv python3.11-distutils python3.11-dev && \
+    ln -fs /usr/share/zoneinfo/Etc/UTC /etc/localtime && \
+    apt-get install -y tzdata && \
+    dpkg-reconfigure --frontend noninteractive tzdata && \
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 && \
+    update-alternatives --set python3 /usr/bin/python3.11 && \
+    python3 -m ensurepip && \
+    rm -rf /var/lib/apt/lists/*
+
+# Reset DEBIAN_FRONTEND variable to its default value
+ENV DEBIAN_FRONTEND=
+
+# Set python3 as the default python
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 1
 
 # Install dependencies
 RUN apt-get -yqq update

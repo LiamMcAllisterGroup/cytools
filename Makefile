@@ -43,7 +43,7 @@ get-sudo-credentials:
 # Common build steps for non-root build types
 build-common:
 	@echo "Building CYTools image for user $(USERID_N)..."
-	@{ sudo docker pull python:3.11-bullseye && \
+	@{ sudo docker pull ubuntu:jammy && \
 	   sudo docker build $(DOCKER_BUILD_OPTS) -t cytools:uid-$(USERID) \
 		--build-arg USERNAME=cytools --build-arg USERID=$(USERID) \
 		--build-arg ARCH=$(ARCH) --build-arg AARCH=$(AARCH) \
@@ -78,7 +78,7 @@ build-with-root-user:
 	@echo "Deleting old CYTools image..."
 	@sudo docker rmi cytools:root > /dev/null 2>&1 && echo "done!" || echo "old CYTools image does not exist or cannot be deleted..."
 	@echo "Building CYTools image for root user..."
-	@{ sudo docker pull python:3.11-bullseye && \
+	@{ sudo docker pull ubuntu:jammy && \
 	   sudo docker build -t cytools:root \
 		--build-arg USERNAME=root --build-arg USERID=0 \
 		--build-arg ARCH=$(ARCH) --build-arg AARCH=$(AARCH) \
