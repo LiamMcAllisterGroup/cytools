@@ -36,7 +36,7 @@ jobs:
       - name: Install Python requirements
         run: pip install -r requirements.txt
       - name: Generate documentation
-        run: python3 ./docs/documentation/produce_doc.py ./code/cytools/
+        run: python3 ./docs/documentation/produce_doc.py ./code/src/cytools/
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
