@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: >- 
+  If you use this software, please cite it as below.
+title: >-
+  CYTools: A Software Package for Analyzing Calabi-Yau Manifolds
+authors:
+  - family-names: Demirtas
+    given-names: Mehmet
+    orcid: https://orcid.org/0000-0002-0164-1382
+  - family-names: Rios-Tascon
+    given-names: Andres
+    orcid: https://orcid.org/0000-0003-3282-2634
+  - family-names: McAllister
+    given-names: Liam
+    orcid: https://orcid.org/0000-0001-5830-5577
+type: software
+identifiers:
+  - type: other
+    value: 'arXiv:2211.03823'
+    description: The ArXiv preprint of the paper
+repository-code: 'https://github.com/LiamMcAllisterGroup/cytools'
+url: 'https://cy.tools'
+license: GPL-3.0
