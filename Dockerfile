@@ -109,7 +109,7 @@ RUN wget https://github.com/LiamMcAllisterGroup/cytools/releases/download/v1.0.0
 # Copy code and installer
 COPY . /opt/cytools/
 WORKDIR /opt/cytools/
-RUN python3 setup.py install
+RUN pip3 install .
 
 # Create CGAL code for different dimensions and compile
 WORKDIR /opt/cytools/external/cgal
