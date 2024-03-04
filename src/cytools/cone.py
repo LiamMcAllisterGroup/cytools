@@ -780,7 +780,7 @@ class Cone:
         """
         return self.dual().extremal_rays(tol=tol, verbose=verbose)
 
-    def tip_of_stretched_cone(self, c, backend=None, check=True,
+    def tip_of_stretched_cone(self, c=1, backend=None, check=True,
                               constraint_error_tol=5e-2, max_iter=10**6,
                               show_hints=True, verbose=False):
         """
