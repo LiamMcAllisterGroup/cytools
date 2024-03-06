@@ -1647,6 +1647,10 @@ def feasibility(hyperplanes: "ArrayLike",
     else:
         hp_iter = lambda hp:hp.items()
 
+    # accomodate trivial hyperplanes
+    if len(hyperplanes)==0:
+        return np.ones(ambient_dim)
+
     if backend in ("glop", "scip"):
         solver = pywraplp.Solver.CreateSolver(backend.upper())
 
