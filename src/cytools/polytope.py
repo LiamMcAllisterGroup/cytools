@@ -674,10 +674,10 @@ class Polytope:
         # Get the lattice points and their saturated inequalities
         # -------------------------------------------------------
         pts_optimal = [tuple(pt) for pt in pts_optimal]
-        pts_optimal_all, saturating = lattice_pts(pts_optimal,
-                                                  self._ineqs_optimal,
-                                                  self.dim(),
-                                                  self._backend)
+        pts_optimal_all, saturating = saturating_lattice_pts(pts_optimal,
+                                                        self._ineqs_optimal,
+                                                        self.dim(),
+                                                        self._backend)
 
         # undo LLL transformation, to get points in original basis
         pts_input_all = self._optimal_to_input(pts_optimal_all)
@@ -3382,7 +3382,10 @@ class Polytope:
                                                 or not compute_hodge_numbers
                                             else self._nef_parts.get(args_id)[0])
 
-def poly_v_to_h(pts: ArrayLike, backend: str) -> (ArrayLike, None):
+# utils
+# -----
+def poly_v_to_h(pts: ArrayLike,
+                backend: str) -> (ArrayLike, None):
     """
     **Description:**
     Generate the H-representation of a polytope, given the V-representation.
@@ -3489,10 +3492,10 @@ def poly_v_to_h(pts: ArrayLike, backend: str) -> (ArrayLike, None):
 
     return ineqs, poly
 
-def lattice_pts(pts_in: [tuple],
-                ineqs: ArrayLike = None,
-                dim: int = None,
-                backend: str = None) -> (ArrayLike, [frozenset]):
+def saturating_lattice_pts(pts_in: [tuple],
+                           ineqs: ArrayLike = None,
+                           dim: int = None,
+                           backend: str = None) -> (ArrayLike, [frozenset]):
     """
     **Description:**
     Computes the lattice points contained in conv(pts), along with the indices
