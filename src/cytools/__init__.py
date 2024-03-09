@@ -59,7 +59,7 @@ def check_for_updates():
 
         # find/check the version in this file
         for l in p.text.split("\n"):
-            if not checked_version and "version =" in l:
+            if (not checked_version) and ("version =" in l):
                 checked_version = True
 
                 # parse version
@@ -67,17 +67,20 @@ def check_for_updates():
                 ver = tuple(int(c) for c in version.split("."))
 
                 # check
-                if latest_ver <= ver: continue
+                if latest_ver <= ver:
+                  continue
 
                 # local version is old -> print warning
                 print("\nInfo: A more recent version of CYTools is available: "
                       f"v{ver[0]}.{ver[1]}.{ver[2]} -> "
                       f"v{latest_ver[0]}.{latest_ver[1]}.{latest_ver[2]}.\n"
                       "We recommend upgrading before continuing.\n"
-                      "On Linux and macOS you can update CYTools by running 'cytools --update'\n"
-                      "and on Windows you can do this by running the updater tool.\n")
+                      "On Linux and macOS you can update CYTools by running "
+                      "'cytools --update'\n"
+                      "and on Windows you can do this by running the updater "
+                      "tool.\n")
 
-            elif not checked_bugs and "versions_with_serious_bugs =" in l:
+            elif (not checked_bugs) and ("versions_with_serious_bugs =" in l):
                 checked_bugs = True
                 bad_versions = literal_eval(l.split("=")[1].strip())
                 if version in bad_versions:
