@@ -1223,6 +1223,73 @@ class Triangulation:
     # aliases
     simps = simplices
 
+    def restrict(self,
+                 restrict_to: ["PolytopeFace"] = None,
+                 restrict_dim: int = 2,
+                 as_face_inds: bool = False,
+                 as_poly: bool = False,
+                 verbosity: int = 0):
+        """
+        **Description:**
+        Restrict the triangulation to some face(s).
+
+        **Arguments:**
+        - `restrict_to`: The face(s) to restrict to.  If none provided, gives
+            restriction to each dim-face (see next argument).
+        - `restrict_dim`: If restrict_to is None, sets the dimension of the
+            faces to restrict to. *** Only used if restrict_to == None. ***
+        - `as_face_inds`: Whether the simplices should be in terms of face
+            indices.
+
+        **Returns:**
+        The restrictions
+        """
+        # determine what to restrict to
+        if restrict_to is None:
+            # default as each dim-face
+            restrict_to = self.polytope().faces(restrict_dim)
+
+        if isinstance(restrict_to, Iterable):
+            # recursivesly call for each face given
+            return [self.restrict(restrict_to=f,
+                                  as_face_inds=as_face_inds,
+                                  as_poly=as_poly,
+                                  verbosity=verbosity) for f in restrict_to]
+
+        # if above checks failed, then single face was input...
+
+        # output variable
+        face_simps = set()
+
+        # grab basic information
+        dim = restrict_to.dim()
+
+        # find the labels in our face
+        label_set = set(restrict_to.labels)
+
+        # map from label to index (if as_face_inds=True)
+        if as_poly or as_face_inds:
+            l2i = {l:i for i,l in enumerate(restrict_to.labels)}
+
+        # find restriction of simplices to our faces
+        for simp in self.simplices(as_labels=True):
+            restricted = label_set.intersection(simp)
+
+            if len(restricted)==(dim+1):
+                # full dimension restriction
+                if as_poly or as_face_inds:
+                    # needed for as_poly since, currently, Triangulation only
+                    # accepts simplices input as indices
+                    face_simps.add(tuple([l2i[l] for l in restricted]))
+                else:
+                    face_simps.add(tuple(restricted))
+
+        if as_poly:
+            return restrict_to.triangulate(simplices=face_simps,
+                                           verbosity=verbosity-1)
+        else:
+            return [list(simp) for simp in face_simps]
+
     # regularity
     # ----------
     def secondary_cone(self,
