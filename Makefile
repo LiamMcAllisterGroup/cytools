@@ -16,6 +16,12 @@ USERID_N := $(shell id -u -n)
 # Option to install additional packages, set to 0/false by default
 OPTIONAL_PKGS ?= 0
 
+# Option to install Macaulay2
+INSTALL_M2 ?= 0
+
+# Option to install Sage
+INSTALL_SAGE ?= 0
+
 # Default build type is set to 'build'
 BUILD_TYPE := build
 
@@ -50,6 +56,8 @@ build-common:
 		--build-arg VIRTUAL_ENV=/home/cytools/cytools-venv/ \
 		--build-arg ALLOW_ROOT_ARG=" " \
 		--build-arg OPTIONAL_PKGS=$(OPTIONAL_PKGS) \
+		--build-arg INSTALL_M2=$(INSTALL_M2) \
+		--build-arg INSTALL_SAGE=$(INSTALL_SAGE) \
 		--build-arg PORT_ARG=$$(( $(USERID) + 2875 )) .; } > build.log
 	@echo "Successfully built CYTools image for user $(USERID_N)"
 
@@ -85,6 +93,8 @@ build-with-root-user:
 		--build-arg VIRTUAL_ENV=/opt/cytools/cytools-venv/ \
 		--build-arg ALLOW_ROOT_ARG="--allow-root" \
 		--build-arg OPTIONAL_PKGS=$(OPTIONAL_PKGS) \
+		--build-arg INSTALL_M2=$(INSTALL_M2) \
+		--build-arg INSTALL_SAGE=$(INSTALL_SAGE) \
 		--build-arg PORT_ARG=2875 .; } > build.log
 	@echo "Successfully built CYTools image with root user."
 

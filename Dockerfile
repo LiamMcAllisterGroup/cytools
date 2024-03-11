@@ -11,10 +11,24 @@ ARG ALLOW_ROOT_ARG
 ARG PORT_ARG
 ENV ALLOW_ROOT=$ALLOW_ROOT_ARG
 ENV PORT=$PORT_ARG
+
+# Arguments for optinal packages
 ARG OPTIONAL_PKGS=0
+ARG INSTALL_M2=0
+ARG INSTALL_SAGE=0
 
 # Use noninteractive to avoid interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
+
+# Add Macaulay2 repo
+# (MUST BE DONE BEFORE Python 3.11)
+RUN if [ "$INSTALL_M2" = "1" ]; then \
+        apt-get update; \
+        apt-get install -y --no-install-recommends gpg-agent; \
+        apt-get install -y --no-install-recommends software-properties-common apt-transport-https; \
+        add-apt-repository ppa:macaulay2/macaulay2; \
+        apt-get update && apt-get clean; \
+    fi
 
 # Install Python 3.11
 RUN apt-get update && \
@@ -44,6 +58,17 @@ RUN apt-get -yqq install autoconf build-essential nano cmake libgmp-dev libcgal-
                          libc6 libcdd0d libgmp10 libgmpxx4ldbl libstdc++6 palp\
                          libflint-dev libflint-arb-dev curl\
                          wget libmath-libm-perl normaliz libqsopt-ex2
+RUN apt-get -yqq install nodejs
+
+# Install Macaulay2 (optional)
+RUN if [ "$INSTALL_M2" = "1" ]; then \
+        apt-get -yqq install macaulay2; \
+    fi
+
+# Install Sage (optional)
+RUN if [ "$INSTALL_SAGE" = "1" ]; then \
+        apt-get -yqq install sagemath; \
+    fi
 
 # Make a soft link to the arb library and flint headers so that python-flint can install
 RUN ln -s /usr/lib/${AARCH}-linux-gnu/libflint-arb.so /usr/lib/${AARCH}-linux-gnu/libarb.so
