@@ -139,4 +139,4 @@ WORKDIR /home/$USERNAME/mounted_volume
 
 # Start jupyter lab by default
 USER $USERNAME
-CMD jupyter lab --ip 0.0.0.0 --port $PORT --no-browser $ALLOW_ROOT
+CMD PYDEVD_DISABLE_FILE_VALIDATION=1 jupyter-lab --ip 0.0.0.0 --port $PORT --no-browser $ALLOW_ROOT
