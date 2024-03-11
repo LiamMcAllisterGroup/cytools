@@ -93,8 +93,12 @@ class Cone:
     ```
     """
 
-    def __init__(self, rays=None, hyperplanes=None, parse_inputs=True,\
-                                                        check=True, copy=True):
+    def __init__(self,
+                 rays: "ArrayLike"=None,
+                 hyperplanes: "ArrayLike"=None,
+                 parse_inputs: bool=True,
+                 check: bool=True,
+                 copy: bool=True):
         """
         **Description:**
         Initializes a `Cone` object.
