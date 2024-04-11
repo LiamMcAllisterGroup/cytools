@@ -1038,7 +1038,7 @@ class Triangulation:
 
         # append a 1 to each point
         pts = self.points(optimal=True)
-        pts_ext = [list(pt)+[1,] for pt in pts]
+        pts_ext = np.array([list(pt)+[1,] for pt in pts])
 
         # We first check if the volumes add up to the volume of the polytope
         v = 0
