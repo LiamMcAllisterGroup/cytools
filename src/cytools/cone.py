@@ -765,7 +765,11 @@ class Cone:
             warnings.warn("Minimization failed after multiple attempts. "
                           "Some rays may not be extremal.")
 
-        self._ext_rays = rays[list(ext_rays),:]
+        try:
+            self._ext_rays = rays[list(ext_rays),:]
+        except IndexError as e:
+            raise Exception(f"Dimension/indexing error rays={rays}; "+\
+                            f"ext_rays={ext_rays}") from e
         return self._ext_rays
 
     def extremal_hyperplanes(self, tol=1e-4, verbose=False):
