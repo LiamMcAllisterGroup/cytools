@@ -2019,7 +2019,7 @@ class Polytope:
         ```
         """
         if include_points_interior_to_facets is None:
-            include_points_interior_to_facets = self.is_reflexive()
+            include_points_interior_to_facets = not self.is_reflexive()
 
         if include_points_interior_to_facets:
             return self.labels
