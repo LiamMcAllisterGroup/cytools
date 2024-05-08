@@ -2117,7 +2117,7 @@ class Polytope:
             simps_labels = tuple(sorted({i for simp in simplices for i in simp}))
 
             # index mismatch... Raise error
-            if len( set(simps_labels).difference(set(points)) ) > 0:
+            if len( set(simps_labels).difference(set(range(len(self.labels)))) ) > 0:
                 error_msg = f"Simplices spanned {simps_labels}, which differs " +\
                             f"from labels of relevant points, {points}. " +\
                              "Check include_points_interior_to_facets... it "+\
