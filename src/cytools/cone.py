@@ -605,8 +605,7 @@ class Cone:
 
         **Arguments:**
         - `pt`: The point of interest.
-        - `strict`: Whether to check if pt is in the strict interior (True) or
-        not (False).
+        - `eps`: Check H@pt >= eps.
 
         **Returns:**
         Whether pt is in the (strict) interior.
