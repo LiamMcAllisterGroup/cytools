@@ -1642,7 +1642,7 @@ def feasibility(hyperplanes: "ArrayLike",
     - `hyperplanes`: The constraining hyperplanes, A.
     - `c`: The 'stretching'.
     - `ambient_dim`: The ambient dimension... A.shape[1].
-    - `backend`: The backend to use. "glop", "scip", or "cpsat"
+    - `backend`: The backend to use. Options are "glop", "scip", or "cpsat".
     - `verbose`: Whether to print extra diagnostic info.
 
     **Returns:**
