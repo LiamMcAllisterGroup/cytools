@@ -66,12 +66,14 @@ class Polytope:
     :::
 
     **Arguments:**
-    - `points`: A list of lattice points defining the polytope as their convex
-        hull.
-    - `labels`: A list of labels for the points, optional.
+    - `points`: A list of lattice points defining the polytope as their
+        convex hull.
+    - `labels`: A list of labels to specify the points. I.e., points[i] is
+        labelled/accessed as labels[i]. If no labels are provided, then the
+        points are given semi-arbitrary default labels.
     - `backend`: A string that specifies the backend used to construct the
-        convex hull. The available options are "ppl", "qhull", or "palp". When
-        not specified, it uses PPL for dimensions up to four, and palp
+        convex hull. The available options are "ppl", "qhull", or "palp".
+        When not specified, it uses PPL for dimensions up to four, and palp
         otherwise.
 
     **Example:**
@@ -103,7 +105,9 @@ class Polytope:
         **Arguments:**
         - `points`: A list of lattice points defining the polytope as their
             convex hull.
-        - `labels`: A list of labels for the points, optional.
+        - `labels`: A list of labels to specify the points. I.e., points[i] is
+            labelled/accessed as labels[i]. If no labels are provided, then the
+            points are given semi-arbitrary default labels.
         - `backend`: A string that specifies the backend used to construct the
             convex hull. The available options are "ppl", "qhull", or "palp".
             When not specified, it uses PPL for dimensions up to four, and palp
@@ -128,11 +132,11 @@ class Polytope:
         # input checking
         # --------------
         # check that points are unique
-        N_pts = len(points)
+        N_input_pts = len(points)
         N_unique_pts = len({tuple(pt) for pt in points})
-        if N_pts != N_unique_pts:
-            msg = f"Points must all be unique! There were {N_pts}, "
-            msg +=f"{N_unique_pts} of them were unique...\n"
+        if N_input_pts != N_unique_pts:
+            msg = f"Points must all be unique! Out of {N_input_pts} points, "
+            msg +=f"only {N_unique_pts} of them were unique...\n"
             msg +=f"Points = {points}..."
 
             raise ValueError(msg)
@@ -147,9 +151,9 @@ class Polytope:
                                 f"There were {N_labels}, {N_unique_labels} "+\
                                  "of them were unique...")
 
-            if N_labels != N_pts:
+            if N_labels != N_input_pts:
                 raise ValueError(f"Count of labels, {N_labels}, must match " +\
-                                 f"the count of points, {N_pts}")
+                                 f"the count of points, {N_input_pts}")
 
         # check that backend is allowed
         backends = ["ppl", "qhull", "palp", None]
@@ -188,7 +192,33 @@ class Polytope:
     def __repr__(self) -> str:
         """
         **Description:**
-        Returns a string describing the polytope.
+        Returns an umabiguous string describing the polytope.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        A string describing the polytope.
+
+        **Example:**
+        This function can be used to convert the polytope to a string or to
+        print information about the polytope.
+        ```python {2,3}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        print(repr(p)) # Prints polytope info
+        # A 4-dimensional reflexive lattice polytope in ZZ^4
+        ```
+        """
+        return (f"A {self.dim()}-dimensional "
+                f"{('reflexive ' if self.is_reflexive() else '')}"
+                f"lattice polytope in ZZ^{self.ambient_dim()} "
+                f"with points {self._inputpts2labels.keys()} "
+                f"which are labelled {self._inputpts2labels.values()}")
+
+    def __str__(self) -> str:
+        """
+        **Description:**
+        Returns a human-readable string describing the polytope.
 
         **Arguments:**
         None.
@@ -213,7 +243,7 @@ class Polytope:
     def __getstate__(self):
         """
         **Description:**
-        Gets the state of the class instance, for pickling
+        Gets the state of the class instance, for pickling.
 
         **Arguments:**
         None
@@ -222,14 +252,14 @@ class Polytope:
         Nothing.
         """
         state = self.__dict__.copy()
-        # delete the instanced_lru_cache since it doesn't play nicely
+        # delete instanced_lru_cache since it doesn't play nicely with pickle
         state['_cache'] = None 
         return state
 
     def __setstate__(self, state: dict):
         """
         **Description:**
-        Gets the state of the class instance, for pickling
+        Gets the state of the class instance, for pickling.
 
         **Arguments:**
         - `state`: The dictionary of the instance state, read from pickle.
@@ -2131,8 +2161,8 @@ class Polytope:
                 raise ValueError(error_msg)
 
         # if heights are provided for all points, trim them
-        if (heights is not None) and (len(heights) == len(self.points())):
-            pts_inds = self.points(which=points,as_indices=True)
+        if (heights is not None) and (len(heights) == len(self.labels)):
+            pts_inds = self.points(which=points, as_indices=True)
             triang_heights = np.array(heights)[list(pts_inds)]
         else:
             triang_heights = heights
