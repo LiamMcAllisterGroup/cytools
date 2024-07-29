@@ -241,7 +241,7 @@ class Cone:
                     if False in mask:
                         warnings.warn("Extremely small gcd found... "
                                       "Computations may be incorrect!")
-                    data = (data[mask]/gcds[mask].reshape(-1,1)).astype(int)
+                    data = np.rint(data[mask]/gcds[mask].reshape(-1,1)).astype(int)
             else:
                 data = data.astype(int)
 
