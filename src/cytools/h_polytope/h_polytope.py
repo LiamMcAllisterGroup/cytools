@@ -86,7 +86,10 @@ class HPolytope(Polytope):
         # get the contained lattice points
         points = lattice_points(self._real_vertices, self._ineqs)
         if len(points)==0:
-            raise ValueError("No lattice points in Polytope!")
+            error_msg = "No lattice points in the Polytope! "\
+                      +f"The real-valued vertices are {self._real_vertices.tolist()}..., "\
+                      +f"defined from inequalities {self._ineqs.tolist()}..."
+            raise ValueError(error_msg)
 
         # run Polytope initializer
         super().__init__(points=points, backend=backend)
@@ -113,7 +116,7 @@ def poly_h_to_v(hypers: "ArrayLike",
     **Returns:**
     The associated points of the polytope and the formal convex hull.
     """
-    hypers = np.asarray(hypers)
+    hypers = np.array(hypers) # don't use .asarray so as to ensure we copy them
     
     # preliminary
     dim = len(hypers[0])-1
@@ -172,7 +175,7 @@ def lattice_points(verts: "ArrayLike",
     Also ***non-lattice polytopes are allowed.***
 
     **Arguments:**
-    - `pts`: The lattice points (each row is a point).
+    - `verts`: The vertices of the polytope.
     - `ineqs`: The hyperplanes inequalities. Of the form
         [[c_00, ... , c0(n-1), c0n], ...] which signifies
         c_00 r[0] + ... + c_0(n-1) r[n-1] + c_0n >= 0
