@@ -85,6 +85,8 @@ class HPolytope(Polytope):
 
         # get the contained lattice points
         points = lattice_points(self._real_vertices, self._ineqs)
+        if len(points)==0:
+            raise ValueError("No lattice points in Polytope!")
 
         # run Polytope initializer
         super().__init__(points=points, backend=backend)
