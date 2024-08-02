@@ -142,6 +142,10 @@ def poly_h_to_v(hypers: "ArrayLike",
     poly = ppl.C_Polyhedron(cs)
     pts = []
     for pt in poly.minimized_generators():
+        if not pt.is_point():
+            print(f"Error: A generator, {pt}, was not a point...")
+            return
+
         div = int(pt.divisor())
         if div==1:
             # handle this separately to maintain integer typing
