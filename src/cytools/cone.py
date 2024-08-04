@@ -349,10 +349,16 @@ class Cone:
 
         if (self._rays is not None and other._rays is not None and
             sorted(self._rays.tolist()) == sorted(other._rays.tolist())):
+            # rays trivially match
+            # N.B.: doesn't check for non-trivial equivalence. E.g.,
+            # self._rays  = {e_1, -e_1, e2, -e_2}
+            # other._rays = {e_1+e_2, -(e_1+e_2), e_1-e_2, -(e_1-e_2)}
             return True
         if (self._hyperplanes is not None and other._hyperplanes is not None
                 and sorted(self._hyperplanes.tolist()) ==
                                         sorted(other._hyperplanes.tolist())):
+            # hyperplanes trivially match
+            # N.B.: doesn't check for non-trivial equivalence. Same as above
             return True
         if self.is_pointed() ^ other.is_pointed():
             return False
@@ -365,9 +371,11 @@ class Cone:
             return (sorted(self.dual().extremal_rays().tolist())
                     == sorted(other.dual().extremal_rays().tolist()))
 
-        warnings.warn("The comparison of cones that are not pointed, and "
-                      "whose duals are also not pointed, is not supported.")
-        return NotImplemented
+        # ugly method... check if each ray self is contained in other
+        # (and vice-versa)
+        self_contained_in_other = np.all(other.hyperplanes()@self.rays().transpose()>=0)
+        other_contained_in_self = np.all(self.hyperplanes()@other.rays().transpose()>=0)
+        return self_contained_in_other and other_contained_in_self
 
     def __ne__(self, other):
         """
