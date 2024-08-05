@@ -767,11 +767,9 @@ class Polytope:
         # save order of labels
         self._pts_order = sum(nSat_to_labels[1:][::-1],
                               nSat_to_labels[0])
-        if hasattr(self._pts_order[0], 'item'):
-            # convert numpy types to ordinary ones
-            self._pts_order = tuple([i.item() for i in self._pts_order])
-        else:
-            self._pts_order = tuple([i for i in self._pts_order])
+        
+        self._pts_order = tuple([i.item() if hasattr(i, 'item') else i for i in self._pts_order])
+            
 
         # dictionary from labels to input coordinates
         pts_input_all = self._optimal_to_input(self.points(optimal=True))
