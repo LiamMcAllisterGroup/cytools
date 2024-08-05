@@ -769,9 +769,9 @@ class Polytope:
                               nSat_to_labels[0])
         if hasattr(self._pts_order[0], 'item'):
             # convert numpy types to ordinary ones
-            self._pts_order = (i.item() for i in self._pts_order)
+            self._pts_order = tuple([i.item() for i in self._pts_order])
         else:
-            self._pts_order = (i for i in self._pts_order)
+            self._pts_order = tuple([i for i in self._pts_order])
 
         # dictionary from labels to input coordinates
         pts_input_all = self._optimal_to_input(self.points(optimal=True))
