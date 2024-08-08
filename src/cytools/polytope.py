@@ -212,8 +212,8 @@ class Polytope:
         return (f"A {self.dim()}-dimensional "
                 f"{('reflexive ' if self.is_reflexive() else '')}"
                 f"lattice polytope in ZZ^{self.ambient_dim()} "
-                f"with points {self._inputpts2labels.keys()} "
-                f"which are labelled {self._inputpts2labels.values()}")
+                f"with points {list(self._inputpts2labels.keys())} "
+                f"which are labelled {list(self._inputpts2labels.values())}")
 
     def __str__(self) -> str:
         """
@@ -767,9 +767,13 @@ class Polytope:
         # save order of labels
         self._pts_order = sum(nSat_to_labels[1:][::-1],
                               nSat_to_labels[0])
-        
-        self._pts_order = tuple([i.item() if hasattr(i, 'item') else i for i in self._pts_order])
-            
+        #if hasattr(self._pts_order[0], 'item'):
+        #    # convert numpy types to ordinary ones
+        #    self._pts_order = tuple([i.item() for i in self._pts_order])
+        #else:
+        #    self._pts_order = tuple([i for i in self._pts_order])
+        self._pts_order = tuple([i.item() if hasattr(i, 'item') else i\
+                                                    for i in self._pts_order])
 
         # dictionary from labels to input coordinates
         pts_input_all = self._optimal_to_input(self.points(optimal=True))
