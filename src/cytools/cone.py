@@ -612,15 +612,30 @@ class Cone:
         Checks if a point is in the (strict) interior.
 
         **Arguments:**
-        - `pt`: The point of interest.
+        - `pt`: The point(s) of interest.
         - `eps`: Check H@pt >= eps.
 
         **Returns:**
         Whether pt is in the (strict) interior.
         """
-        if len(self.hyperplanes()):
-            gaps = pt@self.hyperplanes().T
-            return min(gaps) >= eps
+        H = self.hyperplanes()
+
+        if len(H):
+            pt = np.array(pt)
+
+            # cast to 2D array, transpose
+            if len(pt.shape) == 1:
+                pt = pt.reshape(-1,1)
+            else:
+                # transpose so columns are points
+                pt = pt.transpose()
+
+            contained = np.all(H@pt >= eps, axis=0)
+
+            if len(contained)==1:
+                return contained[0]
+            else:
+                return tuple(contained)
         else:
             return True
 
