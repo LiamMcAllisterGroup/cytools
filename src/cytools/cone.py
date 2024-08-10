@@ -620,24 +620,26 @@ class Cone:
         """
         H = self.hyperplanes()
 
-        if len(H):
-            pt = np.array(pt)
+        pt = np.array(pt)
 
-            # cast to 2D array, transpose
-            if len(pt.shape) == 1:
-                pt = pt.reshape(-1,1)
-            else:
-                # transpose so columns are points
-                pt = pt.transpose()
-
-            contained = np.all(H@pt >= eps, axis=0)
-
-            if len(contained)==1:
-                return contained[0]
-            else:
-                return tuple(contained)
+        # cast to 2D array, transpose
+        if len(pt.shape) == 1:
+            pt = pt.reshape(-1,1)
         else:
-            return True
+            # transpose so columns are points
+            pt = pt.transpose()
+
+        # compute which points are in the cone
+        if len(H):
+            contained = np.all(H@pt >= eps, axis=0)
+        else:
+            contained = [True for _ in pt]
+        
+        # return
+        if len(contained)==1:
+            return contained[0]
+        else:
+            return tuple(contained)
 
     def dual_cone(self):
         """
