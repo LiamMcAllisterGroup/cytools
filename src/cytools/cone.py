@@ -633,7 +633,7 @@ class Cone:
         if len(H):
             contained = np.all(H@pt >= eps, axis=0)
         else:
-            contained = [True for _ in pt]
+            contained = [True for _ in pt.shape[1]]
         
         # return
         if len(contained)==1:
