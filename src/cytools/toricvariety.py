@@ -902,7 +902,7 @@ class ToricVariety:
             elif ii[1] == ii[2]:
                 if (ii[0],ii[1],ii[3]) not in curve_dict.keys():
                     curve_dict[(ii[0],ii[1],ii[3])] = curve_ctr
-                    curve_sparse_list.append([curve_ctr,ii[2],ii[-1]])
+                    curve_sparse_list.append([curve_ctr,ii[2],intnums[ii]])
                     curve_ctr += 1
                 else:
                     curve_sparse_list.append([curve_dict[(ii[0],ii[1],ii[3])],ii[2],intnums[ii]])
