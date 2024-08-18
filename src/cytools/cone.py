@@ -625,9 +625,11 @@ class Cone:
         # cast to 2D array, transpose
         if len(pt.shape) == 1:
             pt = pt.reshape(-1,1)
+            return_list = False
         else:
             # transpose so columns are points
             pt = pt.transpose()
+            return_list = True
 
         # compute which points are in the cone
         if len(H):
@@ -636,10 +638,10 @@ class Cone:
             contained = [True for _ in range(pt.shape[1])]
         
         # return
-        if len(contained)==1:
-            return contained[0]
-        else:
+        if return_list:
             return tuple(contained)
+        else:
+            return contained[0]
 
     def dual_cone(self):
         """

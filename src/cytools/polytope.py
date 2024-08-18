@@ -2064,10 +2064,12 @@ class Polytope:
 
     def triangulate(self,
                     include_points_interior_to_facets: bool = None,
-                    points: ArrayLike = None,
+                    points: "ArrayLike" = None,
                     make_star: bool = None,
-                    simplices: ArrayLike=None,check_input_simplices: bool=True,
-                    heights: ArrayLike = None,check_heights: bool = True,
+                    simplices: "ArrayLike" = None,
+                    check_input_simplices: bool=True,
+                    heights: "ArrayLike" = None,
+                    check_heights: bool = True,
                     backend: str = "cgal",
                     verbosity: int = 1) -> Triangulation:
         """
@@ -2147,13 +2149,14 @@ class Polytope:
             points = tuple(sorted(set(points)))
         else:
             points = self._triang_labels(use_pts_in_facets)
+            points = sorted(points)
 
         # if simplices are provided, check if they span the relevant points
         if simplices is not None:
             simps_labels = tuple(sorted({i for simp in simplices for i in simp}))
 
             # index mismatch... Raise error
-            if len( set(simps_labels).difference(set(range(len(self.labels)))) ) > 0:
+            if any([l not in points for l in simps_labels]):
                 error_msg = f"Simplices spanned {simps_labels}, which differs " +\
                             f"from labels of relevant points, {points}. " +\
                              "Check include_points_interior_to_facets... it "+\
