@@ -606,21 +606,27 @@ class Cone:
 
         return np.array(self._hyperplanes)
 
-    def contains(self, pt: "list-like", eps: float = 0) -> bool:
+    def contains(self, other, eps: float = 0) -> bool:
         """
         **Description:**
         Checks if a point is in the (strict) interior.
 
         **Arguments:**
-        - `pt`: The point(s) of interest.
+        - `other`: The object to check containment of. Can be a 1D array, which
+            is treated as a point. Can be a 2D array, which is treated as a
+            list of points. Can be a Cone.
         - `eps`: Check H@pt >= eps.
 
         **Returns:**
         Whether pt is in the (strict) interior.
         """
-        H = self.hyperplanes()
+        if isinstance(other, Cone):
+            # just check if we contain all of other's rays...
+            return all(self.contains(other.rays(), eps=eps))
 
-        pt = np.array(pt)
+        # other was a point(s)
+        H = self.hyperplanes()
+        pt = np.array(other)
 
         # cast to 2D array, transpose
         if len(pt.shape) == 1:
