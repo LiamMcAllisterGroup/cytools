@@ -1013,6 +1013,7 @@ class Triangulation:
 
         # calculate the answer
         simps = self.simplices()
+        simps = np.array([self.points(s, as_triang_indices=True) for s in simps])
         
         if simps.shape[0] == 1:
             # triangulation is trivial
@@ -1285,8 +1286,10 @@ class Triangulation:
                     face_simps.add(tuple(restricted))
 
         if as_poly:
-            return restrict_to.triangulate(simplices=face_simps,
-                                           verbosity=verbosity-1)
+            restricted = restrict_to.triangulate(simplices=face_simps,
+                                                 verbosity=verbosity-1)
+            restricted._ambient_triangulation = self
+            return restricted
         else:
             return [list(simp) for simp in face_simps]
 
@@ -1294,28 +1297,54 @@ class Triangulation:
     # ----------
     def secondary_cone(self,
                        backend: str = None,
-                       include_points_not_in_triangulation: bool = True) -> Cone:
+                       include_points_not_in_triangulation: bool = True,
+                       as_cone: bool = True,
+                       on_faces_dim: int = None,
+                       use_cache: bool = True) -> Cone:
         """
         **Description:**
-        Computes the secondary cone of the triangulation (also called the cone
-        of strictly convex piecewise linear functions). It is computed by
-        finding the defining hyperplane equations. The triangulation is regular
-        if and only if this cone is solid (i.e. full-dimensional), in which
-        case the points in the interior correspond to heights that give rise to
-        the triangulation.
+        Computes the (hyperplanes defining the) secondary cone of the
+        triangulation. This cone is also called the 'cone of strictly convex
+        piecewise linear functions'.
+
+        The triangulation is regular if and only if this cone is solid (i.e.
+        full-dimensional), in which case the points in the strict interior
+        correspond to heights that give rise to the triangulation.
+
+
+        Also, allow calculation of the 'secondary cone of the N-skeleton'. This
+        cone is defined as
+            1) the intersection of the secondary cones of all N-dim faces of
+               this triangulation or, equivalently,
+            2) the union of all secondary cones arising from triangulations
+               with the same N-face restrictions.
+        Any point in the strict interior of this cone correspond to heights
+        which generate a triangulation with the imposed N-face restrictions.
+        Set N via argument `on_faces_dim`.
+
+        Some cases of interest:
+            1) N=self.dim() -> return the secondary cone of the triangulation
+            2) N=2          -> return the union of all secondary cones arising
+                               from triangulations with the same 2-face
+                               restrictions. Akin to Kcup.
 
         **Arguments:**
-        - `backend` *(str, optional)*: Specifies how the cone is computed.
-            Options are "native", which uses a native implementation of an
-            algorithm by Berglund, Katz and Klemm, or "topcom" which uses
-            differences of GKZ vectors for the computation.
+        - `backend`: The backend to use. Options are "native", which uses a
+            native implementation of an algorithm by Berglund, Katz and Klemm,
+            or "topcom" which uses differences of GKZ vectors.computation.
         - `include_points_not_in_triangulation`: This flag allows the exclusion
             of points that are not part of the triangulation. This can be done
             to check regularity faster, but this cannot be used if the actual
             cone in the secondary fan is needed.
+        - `as_cone`: Return a cone or just the defining hyperplanes.
+        - `on_faces_dim`: Compute the secondary cone for each face with this
+            dimension and then take their intersection. This has the
+            interpretation of enforcing the triangulations on each of these
+            faces, but being agnostic to the rest of the structure.
+        - `use_cache`: Whether to use cached values of the secondary cone.
 
         **Returns:**
-        *(Cone)* The secondary cone.
+        The secondary cone.
 
         **Aliases:**
         `cpl_cone`.
@@ -1329,7 +1358,11 @@ class Triangulation:
         # A rational polyhedral cone in RR^7 defined by 3 hyperplanes normals
         ```
         """
-        # set the backend
+        # input sanitization
+        # ------------------
+        args_id = int(include_points_not_in_triangulation)
+
+        # set backend
         backends = (None, "native", "topcom")
         if backend not in backends:
             raise ValueError(f"Options for backend are: {backends}")
@@ -1347,28 +1380,100 @@ class Triangulation:
                           "TOPCOM...")
             backend = "topcom"
 
-        # calculate the secondary cone
-        args_id = int(include_points_not_in_triangulation)
+        # set on_faces_dim
+        if on_faces_dim is None:
+            on_faces_dim = self.dim()
 
-        if self._secondary_cone[args_id] is not None:
-            return self._secondary_cone[args_id]
+        # compute the cone
+        # ----------------
+        # want the secondary cone of the N-skeleton for N<dim
+        if on_faces_dim<self.dim():
+            if backend == "topcom":
+                print("Only native backend is currently supported for skeletons")
+                backend = "native"
+            
+            # intersect the hyperplanes for each N-face
+            hyps = []
+            for face in self.restrict(restrict_dim=on_faces_dim, as_poly=True):
+                hyps += face.secondary_cone(backend=backend,
+                                            include_points_not_in_triangulation=include_points_not_in_triangulation,
+                                            as_cone=False,
+                                            use_cache=False)
 
-        if backend == "native":
-            pts_ext = [list(pt)+[1,] for pt in self.points(optimal=True)]
+            # restrict to unique hyperplanes
+            hyps = sorted(set(hyps))
 
-            m = np.zeros((self.dim()+1, self.dim()+2), dtype=int)
-            full_v = np.zeros(len(pts_ext), dtype=int)
+            # return in the desired format
+            if as_cone:
+                # clean up empty hyperplanes
+                if len(hyps) == 0:
+                    hyps = np.zeros((0,len(self.labels)), dtype=int)
 
-            if self.is_star():
-                # star triangulations all share 0th point, the origin
-                star_origin = self.points_to_indices([0]*self.ambient_dim())
-                simps = [set(s)-{star_origin} for s in self._simplices]
-                dim = self.dim()-1
-                m[:,-1] = pts_ext[star_origin]
+                return Cone(hyperplanes=hyps, check=False)
             else:
-                simps = [set(s) for s in self._simplices]
-                dim = self.dim()
+                return hyps
 
+        # want the secondary cone of the triangulation
+        if use_cache and (self._secondary_cone[args_id] is not None):
+            # we already know the answer!
+            hyps = self._secondary_cone[args_id]
+
+            # return in the desired format
+            if as_cone:
+                # clean up empty hyperplanes
+                if len(hyps) == 0:
+                    hyps = np.zeros((0,len(self.labels)), dtype=int)
+
+                return Cone(hyperplanes=hyps, check=False)
+            else:
+                return self._secondary_cone[args_id]
+
+        # we don't yet know the answer... calculate it now!
+        if backend == "topcom":
+            # calculate hyperplanes via GKZ-vectors from neighboring
+            # triangulations
+            hyps = []
+            for t in self.neighbor_triangulations(only_fine=False,\
+                                                  only_regular=False,\
+                                                  only_star=False):
+                hyps.append(t.gkz_phi()-self.gkz_phi())
+
+        elif backend == "native":
+            # calculate hyperplanes via the null-space of a homogenization of
+            # the points in adjacent simplcies
+
+            # get the ambient labels
+            if hasattr(self, '_ambient_triangulation'):
+                ambient_labels = self._ambient_triangulation.labels
+            else:
+                ambient_labels = self.labels
+
+            # get the ambient dimension and a map from labels to indices
+            ambient_dim = len(ambient_labels)
+            labels2inds = {v:i for i,v in enumerate(ambient_labels)}
+
+            # get the simplices and the actual dimension
+            simps = [set(s) for s in self.simplices(as_labels=True)]
+            dim = self.dim()
+            
+            # container for matrix
+            m = np.zeros((dim+1, dim+2), dtype=int)
+            m[-1,:] = 1 # (homogenization)
+            
+            # container for hyperplane normal
+            full_v = np.zeros(ambient_dim, dtype=int)
+
+            # small optimization
+            # (star triangulations all share 0th point, the origin, so it can
+            #  be removed from consideration, effectively reducing dimension)
+            if self.is_star():
+                star_origin = self.points_to_labels([0]*self.ambient_dim())
+                simps = [s-{star_origin} for s in simps]
+                dim -= 1
+                
+                m[:-1,-1] = self.points(which=star_origin, optimal=True)
+            
+            # calculate the hyperplanes
             null_vecs = set()
             for i,s1 in enumerate(simps):
                 for s2 in simps[i+1:]:
@@ -1377,10 +1482,12 @@ class Triangulation:
                     if len(comm_pts) != dim:
                         continue
 
+                    # organize the diff
                     diff_pts = list(s1 ^ s2)
                     comm_pts = list(comm_pts)
-                    for j,pt in enumerate(diff_pts):    m[:,j] = pts_ext[pt]
-                    for j,pt in enumerate(comm_pts):    m[:,j+2] = pts_ext[pt]
+                    
+                    m[:-1, :2]        = self.points(which=diff_pts, optimal=True).T
+                    m[:-1, 2:(2+dim)] = self.points(which=comm_pts, optimal=True).T
 
                     # calculate nullspace/hyperplane ineq
                     v = flint.fmpz_mat(m.tolist()).nullspace()[0]
@@ -1397,43 +1504,34 @@ class Triangulation:
 
                     # Construct the full vector (including all points)
                     # (could get some more performance by allowing sparse vectors as Cone argument...)
-                    for i,pt in enumerate(diff_pts):    full_v[pt] = v[i]
-                    for i,pt in enumerate(comm_pts):    full_v[pt] = v[i+2]
+                    for i,pt in enumerate(diff_pts):
+                        full_v[labels2inds[pt]] = v[i]
+                    for i,pt in enumerate(comm_pts):   
+                        full_v[labels2inds[pt]] = v[i+2]
+
                     if self.is_star():
-                        full_v[star_origin] = v[-1]
+                        full_v[labels2inds[star_origin]] = v[-1]
 
                     null_vecs.add(tuple(full_v))
-                    
-                    for i,pt in enumerate(diff_pts):    full_v[pt] = 0
-                    for i,pt in enumerate(comm_pts):    full_v[pt] = 0
-                    if self.is_star():
-                        full_v[star_origin] = v[-1]
 
-            # define the secondary cone
-            null_vecs = list(null_vecs)
+                    # clear full_v
+                    for i,pt in enumerate(diff_pts):
+                        full_v[labels2inds[pt]] = 0
+                    for i,pt in enumerate(comm_pts):
+                        full_v[labels2inds[pt]] = 0
 
-            if len(null_vecs):
-                hyps = null_vecs
-            else:
-                hyps = np.zeros((0,len(pts_ext)), dtype=int)
+            # organize the hyperplanes
+            hyps = list(null_vecs)
 
-            self._secondary_cone[args_id] = Cone(hyperplanes=hyps,\
-                                                 check=False)
+        # save the answer
+        self._secondary_cone[args_id] = hyps
 
-            # return
-            return self._secondary_cone[args_id]
+        # return
+        # (do via calling the same function to use above cached answer)
+        return self.secondary_cone(backend=backend,
+                                   include_points_not_in_triangulation=include_points_not_in_triangulation,
+                                   as_cone=as_cone)
 
-        # Otherwise we compute this cone by using differences of GKZ vectors.
-        gkz_phi = self.gkz_phi()
-        diffs = []
-        for t in self.neighbor_triangulations(only_fine=False,\
-                                              only_regular=False,\
-                                              only_star=False):
-            diffs.append(t.gkz_phi()-gkz_phi)
-
-        self._secondary_cone[args_id] = Cone(hyperplanes=diffs)
-
-        return self._secondary_cone[args_id]
     # aliases
     cpl_cone = secondary_cone
 
