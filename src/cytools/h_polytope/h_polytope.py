@@ -33,8 +33,12 @@ from cytools.utils import gcd_list
 class HPolytope(Polytope):
     """
     This class handles all computations relating to H-polytopes. These are not
-    always lattice, so the calculations will be performed on the convex hull
-    of the contained lattice points
+    always lattice. There are two primary methods for making them lattice:
+        1) study their integer hull. This is the convex hull of their
+           contained lattice points.
+        2) study their smallest dilation such that they become lattice.
+           This is a normally equivalent polytope.
+    These notions both agree with the original polytope iff it was lattice.
 
     ## Constructor
 
@@ -50,6 +54,9 @@ class HPolytope(Polytope):
             c[i][0]*x_0 + ... + c[0][dim-1]*x_{dim-1} + c[0][dim] >= 0
         If the corresponding vertices are rational, then convex hull of the
         contained lattice points will be stored.
+    - `dilate`: Whether to dilate the rational polytope into a normally
+        equivalent integer polytope or not. If False, then just compute the
+        integer hull (convex hull of contained lattice points) instead.
     - `backend`: A string that specifies the backend used to construct the
         convex hull. The available options are "ppl", "qhull", or "palp". When
         not specified, it uses PPL for dimensions up to four, and palp
@@ -58,7 +65,9 @@ class HPolytope(Polytope):
 
     def __init__(self,
                  ineqs: "ArrayLike" = None,
-                 backend: str=None) -> None:
+                 dilate: bool = False,
+                 backend: str=None,
+                 verbosity: int=None) -> None:
         """
         **Description:**
         Initializes a `HPolytope` object describing a lattice polytope.
@@ -83,13 +92,28 @@ class HPolytope(Polytope):
         # compute the vertices
         self._real_vertices, _ = poly_h_to_v(self._ineqs)
 
-        # get the contained lattice points
-        points = lattice_points(self._real_vertices, self._ineqs)
-        if len(points)==0:
-            error_msg = "No lattice points in the Polytope! "\
-                      +f"The real-valued vertices are {self._real_vertices.tolist()}..., "\
-                      +f"defined from inequalities {self._ineqs.tolist()}..."
-            raise ValueError(error_msg)
+        # convert this into a lattice polytope
+        if self._real_vertices.dtype == int:
+            if verbosity > 0:
+                print("HPolytope was naturally a lattice polytope!")
+
+            points = self._real_vertices
+        else:
+            if verbosity > 0:
+                print("Converting rational polytope to lattice polytope...")
+
+            if dilate:
+                # dilate so that the vertices are all integral
+                gcd    = gcd_list(self._real_vertices.flatten())
+                points = np.rint(self._real_vertices/gcd).astype(int)
+            else:
+                # get the contained lattice points
+                points = lattice_points(self._real_vertices, self._ineqs)
+                if len(points)==0:
+                    error_msg = "No lattice points in the Polytope! "\
+                              +f"The real-valued vertices are {self._real_vertices.tolist()}..., "\
+                              +f"defined from inequalities {self._ineqs.tolist()}..."
+                    raise ValueError(error_msg)
 
         # run Polytope initializer
         super().__init__(points=points, backend=backend)
