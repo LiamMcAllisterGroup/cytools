@@ -67,7 +67,7 @@ class HPolytope(Polytope):
                  ineqs: "ArrayLike" = None,
                  dilate: bool = False,
                  backend: str=None,
-                 verbosity: int=None) -> None:
+                 verbosity: int=0) -> None:
         """
         **Description:**
         Initializes a `HPolytope` object describing a lattice polytope.
