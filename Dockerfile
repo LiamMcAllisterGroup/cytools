@@ -1,5 +1,5 @@
-# Start from Ubuntu Jammy
-FROM ubuntu:jammy
+# Start from Ubuntu Noble
+FROM ubuntu:noble
 
 # Define build arguments
 ARG USERNAME
@@ -56,7 +56,7 @@ RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get -y install tzdata
 RUN apt-get -yqq install autoconf build-essential nano cmake libgmp-dev libcgal-dev\
                          libmpc-dev libsuitesparse-dev libppl-dev libeigen3-dev\
                          libc6 libcdd0d libgmp10 libgmpxx4ldbl libstdc++6 palp\
-                         libflint-dev libflint-arb-dev curl\
+                         libflint-dev curl\
                          wget libmath-libm-perl normaliz libqsopt-ex2
 RUN apt-get -yqq install nodejs
 
@@ -94,7 +94,7 @@ COPY ./requirements.txt /opt/cytools/requirements.txt
 COPY ./c.txt /opt/cytools/c.txt
 RUN pip3 install Cython==0.29.34
 RUN PIP_CONSTRAINT=c.txt pip3 install -r requirements.txt
-RUN pip3 install python-flint==0.3.0
+RUN pip3 install python-flint==0.6.0
 RUN pip3 install -f https://download.mosek.com/stable/wheel/index.html Mosek
 ENV MOSEKLM_LICENSE_FILE=/home/$USERNAME/mounted_volume/mosek/mosek.lic
 
