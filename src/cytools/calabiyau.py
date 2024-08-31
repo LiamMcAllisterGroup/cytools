@@ -1945,7 +1945,8 @@ class CalabiYau:
                          grading_vec: "ArrayLike"=None,
                          max_deg: bool=None,
                          min_points: bool=None,
-                         format="dok"):
+                         basis: "ArrayLike"=None,
+                         format: str=None):
         """
         **Description:**
         Wrapper for cygv GV and GW computations. A method of cytools.CalabiYau
@@ -1961,6 +1962,8 @@ class CalabiYau:
             iff min_points=None.
         - `min_points`: The minimum number of GVs/GWs to compute. Must be
             specified iff max_deg=None.
+        - 'basis': An array specifying a new basis to represent the charges in.
+        - 'format': A string to request 'dok' or 'coo' formats.
 
         **Returns:**
         The GV/GW invariants.
@@ -1984,28 +1987,38 @@ class CalabiYau:
             fct = cygv.compute_gv
         else:
             fct = cygv.compute_gw
-        gvs = fct(generators = mori.rays(),
-                  grading_vector = grading_vec,
-                  q = self.curve_basis(include_origin=False, as_matrix=True),
-                  intnums = self.intersection_numbers(in_basis=True, format='dok'),
-                  max_deg = max_deg,
-                  min_points = min_points)
+        invariants = fct(generators = mori.rays(),
+                         grading_vector = grading_vec,
+                         q = self.curve_basis(include_origin=False, as_matrix=True),
+                         intnums = self.intersection_numbers(in_basis=True, format='dok'),
+                         max_deg = max_deg,
+                         min_points = min_points)
         
         # format/return the GVs
-        if format=='dok':
-            gvs = dict(gvs)
-        elif format=='coo':
-            gvs = [list(charge_gv[0])+[charge_gv[1]] for charge_gv in gvs]
-        else:
-            raise ValueError(f"format '{format}' is not recognized...")
+        if format=='coo':
+            return [list(r[0])+[r[1]] for r in invariants]
+        
+        # convert to dok for subsequent processing
+        invariants = dict(invariants)
 
-        return gvs
+        if format=='dok':
+            return invariants
+
+        # return in Invariant class
+        invariants = Invariants(gv_or_gw,
+                                invariants,
+                                grading_vec,
+                                max_deg,
+                                calabiyau=self,
+                                basis=basis)
+
+        return invariants
 
     def compute_gvs(self,
                     grading_vec: "ArrayLike"=None,
                     max_deg: bool=None,
                     min_points: bool=None,
-                    format: str=format):
+                    format: str=None):
         """
         **Description:**
         Wrapper for cygv GV computations. A method of cytools.CalabiYau
@@ -2017,6 +2030,7 @@ class CalabiYau:
             min_points=None.
         - `min_points`: The minimum number of GVs/GWs to compute. Must be
             specified iff max_deg=None.
+        - 'format': A string to request 'dok' or 'coo' formats.
 
         **Returns:**
         The GV invariants.
@@ -2027,7 +2041,7 @@ class CalabiYau:
                     grading_vec=None,
                     max_deg=None,
                     min_points=None,
-                    format: str=format):
+                    format: str=None):
         """
         **Description:**
         Wrapper for cygv GW computations. A method of cytools.CalabiYau
@@ -2039,8 +2053,291 @@ class CalabiYau:
             min_points=None.
         - `min_points`: The minimum number of GWs to compute. Must be specified
             iff max_deg=None.
+        - 'format': A string to request 'dok' or 'coo' formats.
 
         **Returns:**
         The GW invariants.
         """
         return self._compute_gvs_gws('gw', grading_vec, max_deg, min_points, format)
+
+class Invariants():
+    """
+    This class contains GV or GW-information.
+    """
+    def __init__(self,
+                 invariant_type: str,
+                 charge2invariant,
+                 grading_vec: "ArrayLike"=None,
+                 cutoff: int=None,
+                 calabiyau: "CalabiYau"=None,
+                 basis: "ArrayLike"=None):
+        """
+        **Description:**
+        Container for GV or GW invariant information
+
+        **Arguments:**
+        - `invariant_type`: Either 'gv' or 'gw'
+        - `charge2invariant`: The invariants, in dok or coo format
+        - `min_points`: The minimum number of GWs to compute. Must be specified
+            iff max_deg=None.
+
+        **Returns:**
+        The GW invariants.
+        """
+        if invariant_type not in ['gv','gw']:
+            raise ValueError(f"Invariant type '{invariant_type}' not recognized")
+        self._type = invariant_type
+
+        if isinstance(charge2invariant,dict):
+            self._charge2invariant = charge2invariant
+        else:
+            # assume charge2invariant is of coo format
+            self._charge2invariant = {tuple(r[:-1]):r[-1] for r in charge2invariant}
+
+        self._grading_vec = grading_vec
+        self._cutoff = cutoff
+        self._cy = calabiyau
+        self._basis = basis
+
+        if basis is not None:
+            charges = self._charge2invariant.keys()
+            invariants = self._charge2invariant.values()
+            charges = np.array(list(charges))@basis.T
+            self._charge2invariant = {tuple(r):_gv for r, _gv in zip(charges, invariants)}
+
+    # standard methods
+    # ----------------
+    def __str__(self):
+        out_str = f"N={self.size} {self._type}-invariants calculated for a "
+
+        # CY
+        if self._cy is not None:
+            out_str += str(self._cy)[2:]
+        else:
+            out_str += "unknown CY"
+
+        # grading vector
+        out_str += " using grading_vec="
+
+        if self._grading_vec is not None:
+            out_str += str(self._grading_vec)
+        else:
+            out_str += "?"
+
+        # cutoff
+        out_str += " and cutoff="
+        
+        if self._cutoff is not None:
+            out_str += str(self._cutoff)
+        else:
+            out_str += "?"
+
+        return(out_str) 
+ 
+    def __repr__(self):
+        return(str(self))
+
+    # getters
+    # -------
+    @property
+    def grading_vec(self):
+        """
+        **Description:**
+        Get a (copy of) the grading vector used.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        *(vector-like)* The grading vector.
+        """
+        if self._grading_vec is None:
+            return None
+        else:
+            return self._grading_vec.copy()
+
+    @property
+    def cutoff(self):
+        """
+        **Description:**
+        Get the cutoff used.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        *(numeric)* The cutoff.
+        """
+        return self._cutoff
+
+    def charges(self, by_deg=False, as_np_arr=False):
+        """
+        **Description:**
+        Get the charges.
+
+        **Arguments:**
+        - `by_deg` *(bool, optional)*: Whether to organize charges in a
+            dictionary, with the keys being charge degree.
+
+        **Returns:**
+        *(set-like or dictionary)* The charges
+        """
+        out = None
+        if not by_deg:
+            out = self._charge2invariant.keys()
+            if as_np_arr:
+                return np.asarray(list(out))
+            else:
+                return out
+
+        # group by degree
+        if self._grading_vec is None:
+            raise ValueError("Can't group charges by degree if no grading vector is known")
+        return _group_by_deg(self._charge2invariant.keys(),
+                             self._grading_vec,
+                             as_np_arr=as_np_arr)
+
+    def cone(self):
+        """
+        **Description:**
+        Get the "GV-cone".
+
+        This is the V-cone over the charges with nonzero GVs.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        *(Cone)* The GV-cone
+        """
+        return Cone(self.charges(as_np_arr=True))
+
+    @property    
+    def gvs(self) -> set:
+        """
+        **Description:**
+        Get the GVs.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        The GV invariants.
+        """
+        if self._type=='gv':
+            return set(self._charge2invariant.values())
+        else:
+            return None
+    @property
+    def gws(self) -> set:
+        """
+        **Description:**
+        Get the GWs.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        he GW invariants.
+        """
+        if self._type=='gw':
+            return set(self._charge2invariant.values())
+        else:
+            return None
+
+    def invariant(self, charge, check_deg=True):
+        """
+        **Description:**
+        Get the GVs invariant for a specific charge.
+
+        **Arguments:**
+        - `charge` *(vector-like)*: The charge of interest.
+        - `check_deg` *(bool, optional)*: Whether to check if a charge has 0 GV
+            (i.e., if it's not in self.charges() but its degree is less than
+            self.cutoff())
+
+        **Returns:**
+        *(int)* The GV invariant.
+        """
+        out = self._charge2invariant.get(tuple(charge),None)
+
+        if check_deg and (out is None):
+            if np.dot(charge,self._grading_vec)<=self._cutoff:
+                out = 0 # deg<=cutoff but not in dict -> 0 GV
+
+        return out
+
+    def gv(self, charge, check_deg=True):
+        if self._type=='gv':
+            return self.invariant(charge, check_deg)
+        else:
+            return None
+    def gw(self, charge, check_deg=True):
+        if self._type=='gw':
+            return self.invariant(charge, check_deg)
+        else:
+            return None
+
+    # old formats
+    # -----------
+    @property
+    def dok(self):
+        return self._charge2invariant.copy()
+
+    @property
+    def coo(self):
+        return np.array([list(k)+[v] for k,v in self._charge2invariant.items()])
+
+    # misc others
+    # -----------
+    @property
+    def size(self):
+        """
+        **Description:**
+        Get the number of charges/GVs.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        *(int)* The number of charges/GVs.
+        """
+        return len(self._charge2invariant)
+
+def _group_by_deg(charges: "Iterable",
+                 grading_vec: "ArrayLike",
+                 as_np_arr: bool=False):
+    """
+    **Description:**
+    Organize the charges by their degrees.
+
+    **Arguments:**
+    - `charges`: The charges.
+    - `grading_vec`: The grading vector.
+    - `as_np_arr`: Whether to map charges to np.array  (True) or leave as set (False).
+
+    **Returns:**
+    *(dictionary)* Dictionary mapping degree to charges.
+    """
+    charges = np.asarray(sorted(charges))
+    degs = charges@grading_vec
+
+    # sort degrees
+    sort_inds = np.argsort(degs)
+    charges, degs = charges[sort_inds], degs[sort_inds]
+
+    # organize as dict
+    charges_by_deg = dict()
+    if as_np_arr:
+        for charge,deg in zip(charges,degs):
+            charges_by_deg[deg] = charges_by_deg.get(deg,[]) + [charge]
+        
+        # map to numpy arrays
+        for k,v in charges_by_deg.items():
+            charges_by_deg[k] = np.asarray(v,dtype=int)
+    else:
+        for charge,deg in zip(charges,degs):
+            charges_by_deg[deg] = charges_by_deg.get(deg,set())
+            charges_by_deg[deg].add(tuple(charge))
+
+    return charges_by_deg
