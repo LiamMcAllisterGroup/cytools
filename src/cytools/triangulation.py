@@ -848,7 +848,7 @@ class Triangulation:
                 try:
                     if not set(which).issubset(self.labels):
                         raise ValueError(f"Specified labels ({which}) aren't "\
-                                           "subset of triangulation lables "\
+                                           "subset of triangulation labels "\
                                           f"({self.labels})...")
                 except:
                     raise ValueError(f"Specified labels, {which}, likely "\
@@ -1012,7 +1012,7 @@ class Triangulation:
             return self._is_valid
 
         # calculate the answer
-        simps = self.simplices()
+        simps = self.simplices(as_labels=True)
         simps = np.array([self.points(s, as_triang_indices=True) for s in simps])
         
         if simps.shape[0] == 1:
