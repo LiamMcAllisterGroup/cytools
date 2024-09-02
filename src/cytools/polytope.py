@@ -584,7 +584,7 @@ class Polytope:
 
     @property
     def labels_vertices(self):
-        if self._labels_vertices:
+        if self._labels_vertices is None:
             # generate the labels
             self.vertices()
         return self._labels_vertices
@@ -2153,12 +2153,12 @@ class Polytope:
 
         # if simplices are provided, check if they span the relevant points
         if simplices is not None:
-            simps_labels = tuple(sorted({i for simp in simplices for i in simp}))
+            simps_inds = tuple(sorted({i for simp in simplices for i in simp}))
 
             # index mismatch... Raise error
-            if any([l not in points for l in simps_labels]):
-                error_msg = f"Simplices spanned {simps_labels}, which differs " +\
-                            f"from labels of relevant points, {points}. " +\
+            if len(simps_inds) > len(points):
+                error_msg = f"Simplices spanned {simps_inds}, which is "+\
+                            f"longer than length of points, {points}. " +\
                              "Check include_points_interior_to_facets... it "+\
                             f"was set to {include_points_interior_to_facets}"
 
