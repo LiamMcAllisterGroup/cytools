@@ -2036,6 +2036,7 @@ class CalabiYau:
         The GV invariants.
         """
         return self._compute_gvs_gws('gv', grading_vec, max_deg, min_points, format)
+    compute_gv = compute_gvs
 
     def compute_gws(self,
                     grading_vec=None,
@@ -2059,6 +2060,7 @@ class CalabiYau:
         The GW invariants.
         """
         return self._compute_gvs_gws('gw', grading_vec, max_deg, min_points, format)
+    compute_gw = compute_gws
 
 class Invariants():
     """
