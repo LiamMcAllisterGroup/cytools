@@ -1740,7 +1740,10 @@ class ToricVariety:
                      and all((self.triangulation().points() == self.triangulation().polytope().points_not_interior_to_facets()).flat))
                     or (self.triangulation().points().shape == self.triangulation().polytope().points().shape
                         and all((self.triangulation().points() == self.triangulation().polytope().points()).flat))):
-                raise ValueError("Calabi-Yau hypersurfaces must be constructed either from points not interior to facets or using all points.")
+                error_msg = "Calabi-Yau hypersurfaces must be constructed either from points not interior to facets or using all points.\n"
+                error_msg += f"Triangulation points = {self.triangulation().points().tolist()} (labels = {self.triangulation().labels})\n"
+                error_msg += f"Polytope points = {self.triangulation().polytope().points().tolist()} (labels = {self.triangulation().polytope().labels})\n"
+                raise ValueError(error_msg)
             self._cy = CalabiYau(self)
             self._nef_part = nef_partition
         return self._cy
