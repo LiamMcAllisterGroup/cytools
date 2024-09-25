@@ -3,8 +3,8 @@ from cytools import Polytope, Cone, fetch_polytopes
 # Here we simply run most functions with most parameter combinations to see if anything crashes
 
 print("Testing polytope functions...")
-p = Polytope([[0],[1]])
-p = Polytope([[1,1],[2,1]])
+p = Polytope([[0], [1]])
+p = Polytope([[1, 1], [2, 1]])
 p = next(fetch_polytopes(dim=5, h11=100, lattice="N"))
 p = next(fetch_polytopes(h11=11, h21=491, lattice="N"))
 poly_pts = p.points()
@@ -21,7 +21,7 @@ for b in ["ppl", "qhull", "palp"]:
     p.ambient_dim()
     p.dim()
     p.is_solid()
-    #p._pts_saturated()
+    # p._pts_saturated()
     p.points()
     p.interior_points()
     p.boundary_points()
@@ -36,16 +36,16 @@ for b in ["ppl", "qhull", "palp"]:
     p.boundary_points_not_interior_to_facets(as_indices=True)
     p.points_not_interior_to_facets(as_indices=True)
     p.is_reflexive()
-    p.hpq(0,0,lattice="N")
-    p.hpq(0,1,lattice="N")
-    p.hpq(1,1,lattice="N")
-    p.hpq(1,2,lattice="N")
-    p.hpq(2,2,lattice="N")
-    p.hpq(0,0,lattice="M")
-    p.hpq(0,1,lattice="M")
-    p.hpq(1,1,lattice="M")
-    p.hpq(1,2,lattice="M")
-    p.hpq(2,2,lattice="M")
+    p.hpq(0, 0, lattice="N")
+    p.hpq(0, 1, lattice="N")
+    p.hpq(1, 1, lattice="N")
+    p.hpq(1, 2, lattice="N")
+    p.hpq(2, 2, lattice="N")
+    p.hpq(0, 0, lattice="M")
+    p.hpq(0, 1, lattice="M")
+    p.hpq(1, 1, lattice="M")
+    p.hpq(1, 2, lattice="M")
+    p.hpq(2, 2, lattice="M")
     p.h11(lattice="N")
     p.h21(lattice="N")
     p.h22(lattice="N")
@@ -73,7 +73,9 @@ for b in ["ppl", "qhull", "palp"]:
     p.glsm_charge_matrix(include_origin=False, include_points_interior_to_facets=True)
     p.glsm_linear_relations()
     p.glsm_linear_relations(include_points_interior_to_facets=True)
-    p.glsm_linear_relations(include_origin=False, include_points_interior_to_facets=True)
+    p.glsm_linear_relations(
+        include_origin=False, include_points_interior_to_facets=True
+    )
     p.glsm_basis()
     p.glsm_basis(include_points_interior_to_facets=True)
     p.glsm_basis(include_origin=False, include_points_interior_to_facets=True)
@@ -101,9 +103,82 @@ for b in ["cgal", "qhull", "topcom"]:
     p.triangulate(backend=b, make_star=False)
     p.triangulate(backend=b, include_points_interior_to_facets=True)
     p.triangulate(backend=b, make_star=False)
-    p.triangulate(backend=b, heights=[-9.2,2.7,2.7,4.5,4.6,5.4,2.2,-0.5,-2.2,-1.7,-2.8,-1.7,-2.5,-1.5,-1.2,1.2], verbosity=0)
-    p.triangulate(backend=b, heights=[10,2,2,4,4,5,2,0,-2,-1,-2,-1,-2,-1,-1,1], verbosity=0)
-    t = p.triangulate(backend=b, simplices=[[0,1,3,4,5],[0,1,3,4,15],[0,1,3,5,15],[0,1,4,5,13],[0,1,4,13,15],[0,1,5,11,13],[0,1,5,11,14],[0,1,5,14,15],[0,1,6,7,9],[0,1,6,7,11],[0,1,6,9,11],[0,1,7,8,9],[0,1,7,8,11],[0,1,8,9,10],[0,1,8,10,11],[0,1,9,10,13],[0,1,9,11,13],[0,1,10,11,12],[0,1,10,12,13],[0,1,11,12,14],[0,1,12,13,14],[0,1,13,14,15],[0,2,3,4,5],[0,2,3,4,15],[0,2,3,5,15],[0,2,4,5,13],[0,2,4,13,15],[0,2,5,11,13],[0,2,5,11,14],[0,2,5,14,15],[0,2,6,7,9],[0,2,6,7,11],[0,2,6,9,11],[0,2,7,8,9],[0,2,7,8,11],[0,2,8,9,10],[0,2,8,10,11],[0,2,9,10,13],[0,2,9,11,13],[0,2,10,11,12],[0,2,10,12,13],[0,2,11,12,14],[0,2,12,13,14],[0,2,13,14,15]])
+    p.triangulate(
+        backend=b,
+        heights=[
+            -9.2,
+            2.7,
+            2.7,
+            4.5,
+            4.6,
+            5.4,
+            2.2,
+            -0.5,
+            -2.2,
+            -1.7,
+            -2.8,
+            -1.7,
+            -2.5,
+            -1.5,
+            -1.2,
+            1.2,
+        ],
+        verbosity=0,
+    )
+    p.triangulate(
+        backend=b,
+        heights=[10, 2, 2, 4, 4, 5, 2, 0, -2, -1, -2, -1, -2, -1, -1, 1],
+        verbosity=0,
+    )
+    t = p.triangulate(
+        backend=b,
+        simplices=[
+            [0, 1, 3, 4, 5],
+            [0, 1, 3, 4, 15],
+            [0, 1, 3, 5, 15],
+            [0, 1, 4, 5, 13],
+            [0, 1, 4, 13, 15],
+            [0, 1, 5, 11, 13],
+            [0, 1, 5, 11, 14],
+            [0, 1, 5, 14, 15],
+            [0, 1, 6, 7, 9],
+            [0, 1, 6, 7, 11],
+            [0, 1, 6, 9, 11],
+            [0, 1, 7, 8, 9],
+            [0, 1, 7, 8, 11],
+            [0, 1, 8, 9, 10],
+            [0, 1, 8, 10, 11],
+            [0, 1, 9, 10, 13],
+            [0, 1, 9, 11, 13],
+            [0, 1, 10, 11, 12],
+            [0, 1, 10, 12, 13],
+            [0, 1, 11, 12, 14],
+            [0, 1, 12, 13, 14],
+            [0, 1, 13, 14, 15],
+            [0, 2, 3, 4, 5],
+            [0, 2, 3, 4, 15],
+            [0, 2, 3, 5, 15],
+            [0, 2, 4, 5, 13],
+            [0, 2, 4, 13, 15],
+            [0, 2, 5, 11, 13],
+            [0, 2, 5, 11, 14],
+            [0, 2, 5, 14, 15],
+            [0, 2, 6, 7, 9],
+            [0, 2, 6, 7, 11],
+            [0, 2, 6, 9, 11],
+            [0, 2, 7, 8, 9],
+            [0, 2, 7, 8, 11],
+            [0, 2, 8, 9, 10],
+            [0, 2, 8, 10, 11],
+            [0, 2, 9, 10, 13],
+            [0, 2, 9, 11, 13],
+            [0, 2, 10, 11, 12],
+            [0, 2, 10, 12, 13],
+            [0, 2, 11, 12, 14],
+            [0, 2, 12, 13, 14],
+            [0, 2, 13, 14, 15],
+        ],
+    )
     t.__repr__()
     t == t
     t != t
@@ -156,7 +231,7 @@ cy.triangulation()
 cy.polytope()
 cy.ambient_dim()
 cy.dim()
-cy.hpq(1,1)
+cy.hpq(1, 1)
 cy.h11()
 cy.h12()
 cy.h13()

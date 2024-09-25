@@ -34,9 +34,13 @@ topcom_path = "/usr/bin/"
 palp_path = "/usr/bin/"
 
 # Mosek license
-_mosek_license = f"/home/{'root' if os.geteuid()==0 else 'cytools'}/mounted_volume/mosek/mosek.lic"
+_mosek_license = (
+    f"/home/{'root' if os.geteuid()==0 else 'cytools'}/mounted_volume/mosek/mosek.lic"
+)
 _mosek_is_activated = None
 _mosek_error = ""
+
+
 def check_mosek_license(silent=False):
     """
     **Description:**
@@ -64,21 +68,27 @@ def check_mosek_license(silent=False):
     global _mosek_is_activated
     try:
         import mosek
-        mosek.Env().Task(0,0).optimize()
+
+        mosek.Env().Task(0, 0).optimize()
         _mosek_is_activated = True
         if not silent:
             print("Mosek was successfully activated.")
     except mosek.Error as e:
-        _mosek_error = ("Info: Mosek is not activated. "
-                        "An alternative optimizer will be used.\n"
-                        f"Error encountered: {e}")
+        _mosek_error = (
+            "Info: Mosek is not activated. "
+            "An alternative optimizer will be used.\n"
+            f"Error encountered: {e}"
+        )
         _mosek_is_activated = False
     except:
-        _mosek_error = ("Info: There was a problem with Mosek. "
-                        "An alternative optimizer will be used.")
+        _mosek_error = (
+            "Info: There was a problem with Mosek. "
+            "An alternative optimizer will be used."
+        )
         _mosek_is_activated = False
     if not silent:
         print(_mosek_error)
+
 
 def mosek_is_activated():
     global _mosek_error
@@ -87,6 +97,7 @@ def mosek_is_activated():
     if _mosek_is_activated is None:
         check_mosek_license(silent=True)
     return _mosek_is_activated
+
 
 def set_mosek_path(path):
     """
@@ -115,8 +126,10 @@ def set_mosek_path(path):
     _mosek_license = path
     check_mosek_license()
 
+
 # Lock experimental features by default.
 _exp_features_enabled = False
+
 
 def enable_experimental_features():
     """
@@ -139,8 +152,10 @@ def enable_experimental_features():
     """
     global _exp_features_enabled
     _exp_features_enabled = True
-    warnings.warn("\n**************************************************************\n"
-                  "Warning: You have enabled experimental features of CYTools.\n"
-                  "Some of these features may be broken or not fully tested,\n"
-                  "and they may undergo significant changes in future versions.\n"
-                  "**************************************************************\n")
+    warnings.warn(
+        "\n**************************************************************\n"
+        "Warning: You have enabled experimental features of CYTools.\n"
+        "Some of these features may be broken or not fully tested,\n"
+        "and they may undergo significant changes in future versions.\n"
+        "**************************************************************\n"
+    )

@@ -38,10 +38,14 @@ from tqdm import tqdm
 # CYTools imports
 from cytools import config
 from cytools.polytopeface import PolytopeFace
-from cytools.triangulation import (Triangulation, all_triangulations,
-                                   random_triangulations_fast_generator,
-                                   random_triangulations_fair_generator)
+from cytools.triangulation import (
+    Triangulation,
+    all_triangulations,
+    random_triangulations_fast_generator,
+    random_triangulations_fair_generator,
+)
 from cytools.utils import gcd_list, lll_reduce, instanced_lru_cache
+
 
 class Polytope:
     """
@@ -89,10 +93,9 @@ class Polytope:
     ```
     """
 
-    def __init__(self,
-                 points: ArrayLike,
-                 labels: ArrayLike = None,
-                 backend: str=None) -> None:
+    def __init__(
+        self, points: ArrayLike, labels: ArrayLike = None, backend: str = None
+    ) -> None:
         """
         **Description:**
         Initializes a `Polytope` object describing a lattice polytope.
@@ -136,8 +139,8 @@ class Polytope:
         N_unique_pts = len({tuple(pt) for pt in points})
         if N_input_pts != N_unique_pts:
             msg = f"Points must all be unique! Out of {N_input_pts} points, "
-            msg +=f"only {N_unique_pts} of them were unique...\n"
-            msg +=f"Points = {points}..."
+            msg += f"only {N_unique_pts} of them were unique...\n"
+            msg += f"Points = {points}..."
 
             raise ValueError(msg)
 
@@ -147,19 +150,24 @@ class Polytope:
             N_unique_labels = len(set(labels))
 
             if N_labels != N_unique_labels:
-                raise ValueError("Labels must all be unique! " +\
-                                f"There were {N_labels}, {N_unique_labels} "+\
-                                 "of them were unique...")
+                raise ValueError(
+                    "Labels must all be unique! "
+                    + f"There were {N_labels}, {N_unique_labels} "
+                    + "of them were unique..."
+                )
 
             if N_labels != N_input_pts:
-                raise ValueError(f"Count of labels, {N_labels}, must match " +\
-                                 f"the count of points, {N_input_pts}")
+                raise ValueError(
+                    f"Count of labels, {N_labels}, must match "
+                    + f"the count of points, {N_input_pts}"
+                )
 
         # check that backend is allowed
         backends = ["ppl", "qhull", "palp", None]
         if backend not in backends:
-            raise ValueError(f"Invalid backend, {backend}."+\
-                                                f" Options are {backends}.")
+            raise ValueError(
+                f"Invalid backend, {backend}." + f" Options are {backends}."
+            )
 
         # initialize attributes
         # ---------------------
@@ -169,8 +177,8 @@ class Polytope:
         # ------------------
         # dimension
         self._dim_ambient = len(points[0])
-        self._dim = np.linalg.matrix_rank([list(pt)+[1] for pt in points]) - 1
-        self._dim_diff = self.ambient_dim()-self.dim()
+        self._dim = np.linalg.matrix_rank([list(pt) + [1] for pt in points]) - 1
+        self._dim_diff = self.ambient_dim() - self.dim()
 
         # backend
         if backend is None:
@@ -179,7 +187,7 @@ class Polytope:
             else:
                 backend = "palp"
 
-        if self.dim() == 0: # 0-dimensional polytopes are finicky
+        if self.dim() == 0:  # 0-dimensional polytopes are finicky
             backend = "palp"
 
         self._backend = backend
@@ -209,11 +217,13 @@ class Polytope:
         # A 4-dimensional reflexive lattice polytope in ZZ^4
         ```
         """
-        return (f"A {self.dim()}-dimensional "
-                f"{('reflexive ' if self.is_reflexive() else '')}"
-                f"lattice polytope in ZZ^{self.ambient_dim()} "
-                f"with points {list(self._inputpts2labels.keys())} "
-                f"which are labelled {list(self._inputpts2labels.values())}")
+        return (
+            f"A {self.dim()}-dimensional "
+            f"{('reflexive ' if self.is_reflexive() else '')}"
+            f"lattice polytope in ZZ^{self.ambient_dim()} "
+            f"with points {list(self._inputpts2labels.keys())} "
+            f"which are labelled {list(self._inputpts2labels.values())}"
+        )
 
     def __str__(self) -> str:
         """
@@ -236,9 +246,11 @@ class Polytope:
         # A 4-dimensional reflexive lattice polytope in ZZ^4
         ```
         """
-        return (f"A {self.dim()}-dimensional "
-                f"{('reflexive ' if self.is_reflexive() else '')}"
-                f"lattice polytope in ZZ^{self.ambient_dim()}")
+        return (
+            f"A {self.dim()}-dimensional "
+            f"{('reflexive ' if self.is_reflexive() else '')}"
+            f"lattice polytope in ZZ^{self.ambient_dim()}"
+        )
 
     def __getstate__(self):
         """
@@ -253,7 +265,7 @@ class Polytope:
         """
         state = self.__dict__.copy()
         # delete instanced_lru_cache since it doesn't play nicely with pickle
-        state['_cache'] = None 
+        state["_cache"] = None
         return state
 
     def __setstate__(self, state: dict):
@@ -297,7 +309,7 @@ class Polytope:
 
         our_verts = self.vertices().tolist()
         other_verts = other.vertices().tolist()
-        return(sorted(our_verts) == sorted(other_verts))
+        return sorted(our_verts) == sorted(other_verts)
 
     def __ne__(self, other: "Polytope") -> bool:
         """
@@ -319,7 +331,7 @@ class Polytope:
         # False
         ```
         """
-        return(not self.__eq__(other))
+        return not self.__eq__(other)
 
     def __hash__(self) -> int:
         """
@@ -414,70 +426,70 @@ class Polytope:
         # basics
         # ------
         # inputs                (DON'T CLEAR! Set in init...)
-        #self._backend
+        # self._backend
 
         # simple properties
-        self._hash      = None
-        self._volume    = None
+        self._hash = None
+        self._volume = None
 
         # points
         # ------
         # LLL-reduction         (DON'T CLEAR! Set in init...)
-        #self._transf_mat_inv
-        #self._transl_vector
+        # self._transf_mat_inv
+        # self._transl_vector
 
         # H-rep                 (DON'T CLEAR! Set in init...)
-        #self._ineqs_input
-        #self._ineqs_optimal
-        #self._poly_optimal
-        self._is_reflexive  = None
+        # self._ineqs_input
+        # self._ineqs_optimal
+        # self._poly_optimal
+        self._is_reflexive = None
 
         # input, optimal points (DON'T CLEAR! Set in init...)
-        #self._labels2inputPts
-        #self._labels2optPts
-        #self._pts_saturating
+        # self._labels2inputPts
+        # self._labels2optPts
+        # self._pts_saturating
 
-        #self._pts_order
+        # self._pts_order
 
-        #self._inputpts2labels
-        #self._optimalpts2labels
-        #self._labels2inds
+        # self._inputpts2labels
+        # self._optimalpts2labels
+        # self._labels2inds
 
         # groups of points
-        #self._label_origin      = None
-        #self._labels_int        = None
-        #self._labels_facet      = None
-        #self._labels_bdry       = None
-        #self._labels_codim2     = None
-        #self._labels_not_facet = None
-        self._labels_vertices   = None
+        # self._label_origin      = None
+        # self._labels_int        = None
+        # self._labels_facet      = None
+        # self._labels_bdry       = None
+        # self._labels_codim2     = None
+        # self._labels_not_facet = None
+        self._labels_vertices = None
 
         # others
         # ------
         # dimension             (DON'T CLEAR! Set in init...)
-        #self._dim
-        #self._dim_ambient
-        #self._dim_diff
+        # self._dim
+        # self._dim_ambient
+        # self._dim_diff
 
         # dual, faces, H-rep
-        self._dual   = None
-        self._faces  = None
+        self._dual = None
+        self._faces = None
 
         # symmetries
-        self._autos = [None]*4
+        self._autos = [None] * 4
 
         # hodge
         self._chi = None
-        self._is_favorable  = None
+        self._is_favorable = None
 
         # glsm
-        self._glsm_basis            = dict()
-        self._glsm_charge_matrix    = dict()
-        self._glsm_linrels          = dict()
-        
+        self._glsm_basis = dict()
+        self._glsm_charge_matrix = dict()
+        self._glsm_linrels = dict()
+
         # misc
-        self._nef_parts     = dict()
-        self._normal_form   = [None]*3
+        self._nef_parts = dict()
+        self._normal_form = [None] * 3
 
     # getters
     # =======
@@ -519,6 +531,7 @@ class Polytope:
         ```
         """
         return self._dim_ambient
+
     # aliases
     ambient_dim = ambient_dimension
 
@@ -545,6 +558,7 @@ class Polytope:
         ```
         """
         return self._dim
+
     # aliases
     dim = dimension
 
@@ -568,7 +582,7 @@ class Polytope:
         # False
         ```
         """
-        return(self.ambient_dim() == self.dim())
+        return self.ambient_dim() == self.dim()
 
     @property
     def labels(self):
@@ -600,7 +614,7 @@ class Polytope:
     @property
     def labels_bdry(self):
         return self._labels_bdry
-    
+
     @property
     def labels_codim2(self):
         return self._labels_codim2
@@ -608,15 +622,15 @@ class Polytope:
     @property
     def labels_not_facet(self):
         return self._labels_not_facet
-    
+
     def inequalities(self) -> np.ndarray:
         """
         **Description:**
         Returns the inequalities giving the hyperplane representation of the
         polytope. The inequalities are given in the form
-        
+
         $c_0x_0 + \cdots + c_{d-1}x_{d-1} + c_d \geq 0$.
-        
+
         Note, however, that equalities are not included.
 
         **Arguments:**
@@ -643,9 +657,7 @@ class Polytope:
     # ======
     # internal/prep
     # -------------
-    def _process_points(self,
-                        pts_input: ArrayLike,
-                        labels: ArrayLike = None) -> None:
+    def _process_points(self, pts_input: ArrayLike, labels: ArrayLike = None) -> None:
         """
         **Description:**
         Internal function for processing input points. Should only be called
@@ -673,11 +685,11 @@ class Polytope:
             self._transl_vector = np.zeros(self.ambient_dim(), dtype=int)
         else:
             self._transl_vector = pts_input[0]
-        pts_optimal = np.array(pts_input)-self._transl_vector
+        pts_optimal = np.array(pts_input) - self._transl_vector
 
         # LLL-reduction (allows reduction in dimension)
-        pts_optimal, transf =lll_reduce(pts_optimal, transform=True)
-        pts_optimal = pts_optimal[:, self._dim_diff:]
+        pts_optimal, transf = lll_reduce(pts_optimal, transform=True)
+        pts_optimal = pts_optimal[:, self._dim_diff :]
         transf_mat, self._transf_mat_inv = transf
 
         # Calculate the polytope, inequalities
@@ -687,27 +699,27 @@ class Polytope:
 
         # convert to input representation
         shape_opt = self._ineqs_optimal.shape
-        shape = (shape_opt[0], shape_opt[1]+self._dim_diff)
+        shape = (shape_opt[0], shape_opt[1] + self._dim_diff)
 
         self._ineqs_input = np.zeros(shape, dtype=int)
-        self._ineqs_input[:,self._dim_diff:] = self._ineqs_optimal
-        self._ineqs_input[:,:-1]=transf_mat.T.dot(self._ineqs_input[:,:-1].T).T
+        self._ineqs_input[:, self._dim_diff :] = self._ineqs_optimal
+        self._ineqs_input[:, :-1] = transf_mat.T.dot(self._ineqs_input[:, :-1].T).T
 
         if self.is_solid():
-            self._ineqs_input[:,-1] = self._ineqs_optimal[:,-1]
+            self._ineqs_input[:, -1] = self._ineqs_optimal[:, -1]
         else:
             # this method is always correct, just a bit slower
-            for i,v in enumerate(self._ineqs_input):
-                self._ineqs_input[i,-1] = self._ineqs_optimal[i,-1] \
-                                            - v[:-1].dot(self._transl_vector)
+            for i, v in enumerate(self._ineqs_input):
+                self._ineqs_input[i, -1] = self._ineqs_optimal[i, -1] - v[:-1].dot(
+                    self._transl_vector
+                )
 
         # Get the lattice points and their saturated inequalities
         # -------------------------------------------------------
         pts_optimal = [tuple(pt) for pt in pts_optimal]
-        pts_optimal_all, saturating = saturating_lattice_pts(pts_optimal,
-                                                        self._ineqs_optimal,
-                                                        self.dim(),
-                                                        self._backend)
+        pts_optimal_all, saturating = saturating_lattice_pts(
+            pts_optimal, self._ineqs_optimal, self.dim(), self._backend
+        )
 
         # undo LLL transformation, to get points in original basis
         pts_input_all = self._optimal_to_input(pts_optimal_all)
@@ -728,7 +740,7 @@ class Polytope:
             if len(saturating[ind]) > 0:
                 out.append(-len(saturating[ind]))
             else:
-                out.append(-float('inf'))
+                out.append(-float("inf"))
 
             # the coordinates
             out += list(pts_input_all[ind])
@@ -740,7 +752,7 @@ class Polytope:
         # save info to useful variables/dictionaries
         self._labels2optPts = dict()
         self._pts_saturating = dict()
-        nSat_to_labels = [[] for _ in range(len(self._ineqs_optimal)+1)]
+        nSat_to_labels = [[] for _ in range(len(self._ineqs_optimal) + 1)]
 
         if labels is None:
             labels = []
@@ -750,10 +762,10 @@ class Polytope:
             pt = tuple(pts_optimal_all[i])
 
             # find the label to use
-            if (labels!=[]) and (pt in pts_optimal):
+            if (labels != []) and (pt in pts_optimal):
                 label = labels[pts_optimal.index(pt)]
             else:
-                label = last_default_label+1
+                label = last_default_label + 1
 
                 while (label in self._labels2optPts) or (label in labels):
                     label += 1
@@ -765,49 +777,50 @@ class Polytope:
             nSat_to_labels[len(saturating[i])].append(label)
 
         # save order of labels
-        self._pts_order = sum(nSat_to_labels[1:][::-1],
-                              nSat_to_labels[0])
-        #if hasattr(self._pts_order[0], 'item'):
+        self._pts_order = sum(nSat_to_labels[1:][::-1], nSat_to_labels[0])
+        # if hasattr(self._pts_order[0], 'item'):
         #    # convert numpy types to ordinary ones
         #    self._pts_order = tuple([i.item() for i in self._pts_order])
-        #else:
+        # else:
         #    self._pts_order = tuple([i for i in self._pts_order])
-        self._pts_order = tuple([i.item() if hasattr(i, 'item') else i\
-                                                    for i in self._pts_order])
+        self._pts_order = tuple(
+            [i.item() if hasattr(i, "item") else i for i in self._pts_order]
+        )
 
         # dictionary from labels to input coordinates
         pts_input_all = self._optimal_to_input(self.points(optimal=True))
-        self._labels2inputPts = {label:tuple(pt) for label,pt in \
-                                        zip(self._pts_order, pts_input_all)}
+        self._labels2inputPts = {
+            label: tuple(pt) for label, pt in zip(self._pts_order, pts_input_all)
+        }
 
         # reverse dictionaries
-        self._inputpts2labels   ={v:k for k,v in self._labels2inputPts.items()}
-        self._optimalpts2labels ={v:k for k,v in self._labels2optPts.items()}
+        self._inputpts2labels = {v: k for k, v in self._labels2inputPts.items()}
+        self._optimalpts2labels = {v: k for k, v in self._labels2optPts.items()}
 
-        self._labels2inds       ={v:i for i,v in enumerate(self._pts_order)}
+        self._labels2inds = {v: i for i, v in enumerate(self._pts_order)}
 
         # common sets of labels
         # ---------------------
-        origin = (0,)*self.ambient_dim()
+        origin = (0,) * self.ambient_dim()
         if origin in self._inputpts2labels:
             self._label_origin = self._inputpts2labels[origin]
         else:
             self._label_origin = None
 
-        self._labels_int    = nSat_to_labels[0]
-        self._labels_facet  = nSat_to_labels[1]
+        self._labels_int = nSat_to_labels[0]
+        self._labels_facet = nSat_to_labels[1]
 
-        self._labels_bdry   = sum(nSat_to_labels[1:][::-1],[])
-        self._labels_codim2 = sum(nSat_to_labels[2:][::-1],[])
+        self._labels_bdry = sum(nSat_to_labels[1:][::-1], [])
+        self._labels_codim2 = sum(nSat_to_labels[2:][::-1], [])
 
         self._labels_not_facet = self._labels_int + self._labels_codim2
 
         # store as tuples
-        self._labels_int        = tuple(self._labels_int)
-        self._labels_facet      = tuple(self._labels_facet)
-        self._labels_bdry       = tuple(self._labels_bdry)
-        self._labels_codim2     = tuple(self._labels_codim2)
-        self._labels_not_facet  = tuple(self._labels_not_facet)
+        self._labels_int = tuple(self._labels_int)
+        self._labels_facet = tuple(self._labels_facet)
+        self._labels_bdry = tuple(self._labels_bdry)
+        self._labels_codim2 = tuple(self._labels_codim2)
+        self._labels_not_facet = tuple(self._labels_not_facet)
 
     def _optimal_to_input(self, pts_opt: ArrayLike) -> np.array:
         """
@@ -833,25 +846,24 @@ class Polytope:
 
         # pad points with 0s, to make width match original dim
         points_orig = np.empty((len(pts_opt), self.ambient_dim()), dtype=int)
-        points_orig[:,self._dim_diff:] = pts_opt
-        points_orig[:,:self._dim_diff] = 0
+        points_orig[:, self._dim_diff :] = pts_opt
+        points_orig[:, : self._dim_diff] = 0
 
         # undo the LLL-reduction
         points_orig = self._transf_mat_inv.dot(points_orig.T).T
 
         # undo the translation, if applicable
         if not self.is_solid():
-            for i in range(len( points_orig )):
-                points_orig[i,:] += self._transl_vector
+            for i in range(len(points_orig)):
+                points_orig[i, :] += self._transl_vector
 
         return points_orig
 
     # main
     # ----
-    def points(self,
-               which = None,
-               optimal: bool = False,
-               as_indices: bool = False) -> np.ndarray:
+    def points(
+        self, which=None, optimal: bool = False, as_indices: bool = False
+    ) -> np.ndarray:
         """
         **Description:**
         Returns the lattice points of the polytope.
@@ -900,7 +912,7 @@ class Polytope:
         # get the labels of the points to return
         if which is None:
             which = self._pts_order
-        elif (not isinstance(which,np.ndarray)) and (which in self._pts_order):
+        elif (not isinstance(which, np.ndarray)) and (which in self._pts_order):
             which = [which]
 
         # return the answer in the desired format
@@ -912,39 +924,48 @@ class Polytope:
                 pts = self._labels2optPts
             else:
                 pts = self._labels2inputPts
-            
+
             # return
             return np.array([pts[label] for label in which])
+
     # aliases
     pts = points
 
     # common point grabbers
     # ---------------------
-    pts_int = lambda self, as_indices=False:\
-                self.pts(which=self._labels_int,        as_indices=as_indices)
-    pts_bdry = lambda self, as_indices=False:\
-                self.pts(which=self._labels_bdry,       as_indices=as_indices)
-    pts_facet = lambda self, as_indices=False:\
-                self.pts(which=self._labels_facet,      as_indices=as_indices)
-    pts_codim2 = lambda self, as_indices=False:\
-                self.pts(which=self._labels_codim2,     as_indices=as_indices)
-    pts_not_facets = lambda self, as_indices=False:\
-                self.pts(which=self._labels_not_facet, as_indices=as_indices)
+    pts_int = lambda self, as_indices=False: self.pts(
+        which=self._labels_int, as_indices=as_indices
+    )
+    pts_bdry = lambda self, as_indices=False: self.pts(
+        which=self._labels_bdry, as_indices=as_indices
+    )
+    pts_facet = lambda self, as_indices=False: self.pts(
+        which=self._labels_facet, as_indices=as_indices
+    )
+    pts_codim2 = lambda self, as_indices=False: self.pts(
+        which=self._labels_codim2, as_indices=as_indices
+    )
+    pts_not_facets = lambda self, as_indices=False: self.pts(
+        which=self._labels_not_facet, as_indices=as_indices
+    )
 
     # aliases
-    interior_points           = pts_int;    interior_pts            = pts_int
-    boundary_points           = pts_bdry;   bdry_points             = pts_bdry
-    points_interior_to_facets = pts_facet;  pts_interior_to_facets  = pts_facet
+    interior_points = pts_int
+    interior_pts = pts_int
+    boundary_points = pts_bdry
+    bdry_points = pts_bdry
+    points_interior_to_facets = pts_facet
+    pts_interior_to_facets = pts_facet
 
-    boundary_points_not_interior_to_facets  = pts_codim2
-    boundary_pts_not_interior_to_facets     = pts_codim2
+    boundary_points_not_interior_to_facets = pts_codim2
+    boundary_pts_not_interior_to_facets = pts_codim2
 
-    points_not_interior_to_facets           = pts_not_facets
-    pts_not_interior_to_facets              = pts_not_facets
+    points_not_interior_to_facets = pts_not_facets
+    pts_not_interior_to_facets = pts_not_facets
 
-    def points_to_labels(self,
-                         points: ArrayLike,
-                         is_optimal: bool = False) -> "list | None":
+    def points_to_labels(
+        self, points: ArrayLike, is_optimal: bool = False
+    ) -> "list | None":
         """
         **Description:**
         Returns the list of labels corresponding to the given points. It also
@@ -961,11 +982,11 @@ class Polytope:
         the point if only one is given.
         """
         # check for empty input
-        if len(points)==0:
+        if len(points) == 0:
             return []
 
         # map single-point input into list case
-        single_pt = (len(np.array(points).shape) == 1)
+        single_pt = len(np.array(points).shape) == 1
         if single_pt:
             points = [points]
 
@@ -978,13 +999,13 @@ class Polytope:
         # get/return the indices
         labels = [relevant_map[tuple(pt)] for pt in points]
         if single_pt and len(labels):
-            return labels[0]    # just return the single label
+            return labels[0]  # just return the single label
         else:
-            return labels       # return a list of labels
+            return labels  # return a list of labels
 
-    def points_to_indices(self,
-                          points: ArrayLike,
-                          is_optimal: bool = False) -> "np.ndarray | int":
+    def points_to_indices(
+        self, points: ArrayLike, is_optimal: bool = False
+    ) -> "np.ndarray | int":
         """
         **Description:**
         Returns the list of indices corresponding to the given points. It also
@@ -1011,27 +1032,25 @@ class Polytope:
         ```
         """
         # check for empty input
-        if len(points)==0:
-            return np.asarray([],dtype=int)
+        if len(points) == 0:
+            return np.asarray([], dtype=int)
 
         # map single-point input into list case
-        single_pt = (len(np.array(points).shape) == 1)
+        single_pt = len(np.array(points).shape) == 1
         if single_pt:
             points = [points]
 
         # grab labels, and then map to indices
         labels = self.points_to_labels(points, is_optimal=is_optimal)
         inds = self.points(which=labels, as_indices=True)
-        
+
         # get/return the indices
         if single_pt and len(inds):
             return inds[0]  # just return the single index
         else:
-            return inds     # return a list of indices
+            return inds  # return a list of indices
 
-    def vertices(self,
-                 optimal: bool = False,
-                 as_indices: bool = False) -> np.ndarray:
+    def vertices(self, optimal: bool = False, as_indices: bool = False) -> np.ndarray:
         """
         **Description:**
         Returns the vertices of the polytope.
@@ -1059,9 +1078,11 @@ class Polytope:
         """
         # return the answer if known
         if self._labels_vertices is not None:
-            return self.pts(which=self._labels_vertices,
-                            optimal=optimal,
-                            as_indices=as_indices)
+            return self.pts(
+                which=self._labels_vertices,
+                optimal=optimal,
+                as_indices=as_indices,
+            )
 
         # calculate the answer
         if self.dim() == 0:
@@ -1069,7 +1090,7 @@ class Polytope:
             self._labels_vertices = self._pts_order
 
         elif self._backend == "qhull":
-            if self.dim() == 1: # QHull cannot handle 1D polytopes
+            if self.dim() == 1:  # QHull cannot handle 1D polytopes
                 self._labels_vertices = self._labels_facet
             else:
                 verts = self._poly_optimal.points[self._poly_optimal.vertices]
@@ -1081,39 +1102,46 @@ class Polytope:
                     verts.append(pt.coefficients())
                 verts = np.array(verts, dtype=int)
 
-            else: # Backend is PALP
-                palp = subprocess.Popen((config.palp_path + "poly.x", "-v"),
-                                                    stdin=subprocess.PIPE,
-                                                    stdout=subprocess.PIPE,
-                                                    stderr=subprocess.PIPE,
-                                                    universal_newlines=True)
+            else:  # Backend is PALP
+                palp = subprocess.Popen(
+                    (config.palp_path + "poly.x", "-v"),
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    universal_newlines=True,
+                )
                 # prep input for PALP
                 pt_list = ""
                 pts_optimal = {tuple(pt) for pt in self.points(optimal=True)}
                 for pt in pts_optimal:
-                    pt_list += (str(pt).replace("(","").replace(")","").replace(","," ") + "\n")
+                    pt_list += (
+                        str(pt).replace("(", "").replace(")", "").replace(",", " ")
+                        + "\n"
+                    )
 
                 # do the work
-                palp_out = palp.communicate(input=f"{len(pts_optimal)} {self.dim()}\n" + pt_list + "\n")[0]
+                palp_out = palp.communicate(
+                    input=f"{len(pts_optimal)} {self.dim()}\n" + pt_list + "\n"
+                )[0]
                 if "Vertices of P" not in palp_out:
                     raise RuntimeError(f"PALP error. Full output: {palp_out}")
 
                 # read the outputs
                 palp_out = palp_out.split("\n")
-                for i,line in enumerate(palp_out):
+                for i, line in enumerate(palp_out):
                     if "Vertices of P" not in line:
                         continue
 
                     pts_shape = [int(c) for c in line.split()[:2]]
                     tmp_pts = np.empty(pts_shape, dtype=int)
                     for j in range(pts_shape[0]):
-                        tmp_pts[j,:] =[int(c) for c in palp_out[i+j+1].split()]
+                        tmp_pts[j, :] = [int(c) for c in palp_out[i + j + 1].split()]
                     break
-                verts = (tmp_pts.T if pts_shape[0] < pts_shape[1] else tmp_pts)
+                verts = tmp_pts.T if pts_shape[0] < pts_shape[1] else tmp_pts
 
         # for either ppl/PALP, map points to original representation
         if self._labels_vertices is None:
-            self._labels_vertices =self.points_to_labels(verts,is_optimal=True)
+            self._labels_vertices = self.points_to_labels(verts, is_optimal=True)
 
         # sort, map to tuple
         self._labels_vertices = tuple(sorted(self._labels_vertices))
@@ -1160,12 +1188,12 @@ class Polytope:
         ```
         """
         # input checking
-        if (d is not None) and (d not in range(self.dim()+1)):
+        if (d is not None) and (d not in range(self.dim() + 1)):
             raise ValueError(f"Polytope does not have faces of dimension {d}")
 
         # return answer if known
         if self._faces is not None:
-            return (self._faces[d] if (d is not None) else self._faces)
+            return self._faces[d] if (d is not None) else self._faces
 
         # calculate the answer
         # ====================
@@ -1177,12 +1205,11 @@ class Polytope:
 
             # codim>0 faces in increasing order of dimension
             for dim_faces in self._dual._faces[::-1][1:]:
-                self._faces.append( tuple(f.dual() for f in dim_faces) )
+                self._faces.append(tuple(f.dual() for f in dim_faces))
             # full-dim face
-            self._faces.append( (PolytopeFace(self, \
-                                              self._labels_vertices, \
-                                              frozenset(), \
-                                              dim=self._dim), ) )
+            self._faces.append(
+                (PolytopeFace(self, self._labels_vertices, frozenset(), dim=self._dim),)
+            )
 
             # cast to tuple
             self._faces = tuple(self._faces)
@@ -1199,18 +1226,16 @@ class Polytope:
         # ---------------------------------
         # get vertices, along with their saturated inequalities
         verts = [tuple(pt) for pt in self.vertices()]
-        vert_sat = [self._pts_saturating[label] for label in\
-                                                        self.labels_vertices]
+        vert_sat = [self._pts_saturating[label] for label in self.labels_vertices]
         vert_legacy = list(zip(verts, vert_sat))
 
         # construct faces in reverse order (decreasing dim)
         self._faces = []
 
         # full-dim face
-        self._faces.append( (PolytopeFace(self, \
-                                          self.labels_vertices, \
-                                          frozenset(), \
-                                          dim=self.dim()), ) )
+        self._faces.append(
+            (PolytopeFace(self, self.labels_vertices, frozenset(), dim=self.dim()),)
+        )
         # if polytope is 0-dimensional, we're done!
         if self.dim() == 0:
             self._faces = tuple(self._faces)
@@ -1223,11 +1248,11 @@ class Polytope:
         # dim-dd) to the points saturating them
         #
         # then, to get dim-(dd-1) faces, just take intersections of dim-dd ones
-        for dd in range(self.dim()-1, 0, -1):
+        for dd in range(self.dim() - 1, 0, -1):
             # map from inequalities to points saturating them
             ineq2pts = defaultdict(set)
 
-            if dd == self.dim()-1:
+            if dd == self.dim() - 1:
                 # facets... for f-th facet, just collect all points saturating
                 # said inequality
                 for pt in vert_legacy:
@@ -1235,10 +1260,10 @@ class Polytope:
                         ineq2pts[frozenset([f])].add(pt)
             else:
                 # codim>1 faces... take intersections of higher-dim faces
-                for f1, f2 in itertools.combinations(ineq2pts_prev.values(),2):
+                for f1, f2 in itertools.combinations(ineq2pts_prev.values(), 2):
                     # check if their intersection has the right dimension
                     inter = f1 & f2
-                    dim = np.linalg.matrix_rank([pt[0]+(1,) for pt in inter])-1
+                    dim = np.linalg.matrix_rank([pt[0] + (1,) for pt in inter]) - 1
                     if dim != dd:
                         continue
 
@@ -1250,18 +1275,22 @@ class Polytope:
             dd_faces = []
             for f in ineq2pts.keys():
                 tmp_vert = [pt[0] for pt in vert_legacy if f.issubset(pt[1])]
-                dd_faces.append(PolytopeFace(self, self.points_to_labels(tmp_vert), f, dim=dd))
+                dd_faces.append(
+                    PolytopeFace(self, self.points_to_labels(tmp_vert), f, dim=dd)
+                )
 
             self._faces.append(dd_faces)
 
             # store for next iteration
             ineq2pts_prev = ineq2pts
-        
+
         # Finally add vertices
-        self._faces.append([PolytopeFace(self,
-                                         self.points_to_labels([pt[0]]),
-                                         pt[1],
-                                         dim=0) for pt in vert_legacy])
+        self._faces.append(
+            [
+                PolytopeFace(self, self.points_to_labels([pt[0]]), pt[1], dim=0)
+                for pt in vert_legacy
+            ]
+        )
 
         # reverse order (to increasing with dimension)
         self._faces = tuple(tuple(ff) for ff in self._faces[::-1])
@@ -1300,8 +1329,7 @@ class Polytope:
 
         # get vertices, along with their saturated inequalities
         verts = [tuple(pt) for pt in self.vertices()]
-        vert_sat = [self._pts_saturating[label] for label in \
-                                                        self.labels_vertices]
+        vert_sat = [self._pts_saturating[label] for label in self.labels_vertices]
         vert_legacy = list(zip(verts, vert_sat))
 
         # facets
@@ -1312,17 +1340,17 @@ class Polytope:
 
         # 2-faces
         twofaces = defaultdict(set)
-        for ineqs1, ineqs2 in itertools.combinations(facets.keys(),2):
-                inter = facets[ineqs1] & facets[ineqs2]
+        for ineqs1, ineqs2 in itertools.combinations(facets.keys(), 2):
+            inter = facets[ineqs1] & facets[ineqs2]
 
-                # These intersections are 2D iff there are at least 3 vertices.
-                if len(inter) >= 3:
-                    ineqs3 = ineqs1 | ineqs2
-                    twofaces[ineqs3] = inter
+            # These intersections are 2D iff there are at least 3 vertices.
+            if len(inter) >= 3:
+                ineqs3 = ineqs1 | ineqs2
+                twofaces[ineqs3] = inter
 
         # 1-faces
         onefaces = defaultdict(set)
-        for f1, f2 in itertools.combinations(twofaces.values(),2):
+        for f1, f2 in itertools.combinations(twofaces.values(), 2):
             inter = f1 & f2
 
             # These intersections are 1D iff there are exactly 2 vertices.
@@ -1334,35 +1362,44 @@ class Polytope:
                     onefaces[f3] = inter
 
         # now, construct all formal face objects
-        fourface_obj_list = [PolytopeFace(self,
-                                          self.labels_vertices,
-                                          frozenset(),
-                                          dim=4)]
+        fourface_obj_list = [
+            PolytopeFace(self, self.labels_vertices, frozenset(), dim=4)
+        ]
 
         facets_obj_list = []
         for f in facets.keys():
-            tmp_vert = self.points_to_labels([pt[0] for pt in vert_legacy if f.issubset(pt[1])])
+            tmp_vert = self.points_to_labels(
+                [pt[0] for pt in vert_legacy if f.issubset(pt[1])]
+            )
             facets_obj_list.append(PolytopeFace(self, tmp_vert, f, dim=3))
 
         twofaces_obj_list = []
         for f in twofaces.keys():
-            tmp_vert = self.points_to_labels([pt[0] for pt in vert_legacy if f.issubset(pt[1])])
+            tmp_vert = self.points_to_labels(
+                [pt[0] for pt in vert_legacy if f.issubset(pt[1])]
+            )
             twofaces_obj_list.append(PolytopeFace(self, tmp_vert, f, dim=2))
 
         onefaces_obj_list = []
         for f in onefaces.keys():
-            tmp_vert = self.points_to_labels([pt[0] for pt in vert_legacy if f.issubset(pt[1])])
+            tmp_vert = self.points_to_labels(
+                [pt[0] for pt in vert_legacy if f.issubset(pt[1])]
+            )
             onefaces_obj_list.append(PolytopeFace(self, tmp_vert, f, dim=1))
 
-        zerofaces_obj_list = [PolytopeFace(self,
-                                           self.points_to_labels([pt[0]]),
-                                           pt[1],
-                                           dim=0) for pt in vert_legacy]
+        zerofaces_obj_list = [
+            PolytopeFace(self, self.points_to_labels([pt[0]]), pt[1], dim=0)
+            for pt in vert_legacy
+        ]
 
         # organize in tuple and return
-        organized_faces = (tuple(zerofaces_obj_list), tuple(onefaces_obj_list),
-                           tuple(twofaces_obj_list), tuple(facets_obj_list),
-                           tuple(fourface_obj_list))
+        organized_faces = (
+            tuple(zerofaces_obj_list),
+            tuple(onefaces_obj_list),
+            tuple(twofaces_obj_list),
+            tuple(facets_obj_list),
+            tuple(fourface_obj_list),
+        )
         return organized_faces
 
     def facets(self) -> tuple[PolytopeFace]:
@@ -1383,7 +1420,7 @@ class Polytope:
         facets = p.facets()
         ```
         """
-        return self.faces(self.dim()-1)
+        return self.faces(self.dim() - 1)
 
     # H-rep, dual
     # ===========
@@ -1428,13 +1465,15 @@ class Polytope:
 
         # calculate the answer
         if not self.is_reflexive():
-            raise NotImplementedError("Duality of non-reflexive polytopes "+\
-                                                        "is not supported.")
+            raise NotImplementedError(
+                "Duality of non-reflexive polytopes " + "is not supported."
+            )
 
-        pts = np.array(self._ineqs_input[:,:-1])
+        pts = np.array(self._ineqs_input[:, :-1])
         self._dual = Polytope(pts, backend=self._backend)
         self._dual._dual = self
         return self._dual
+
     # aliases
     dual = dual_polytope
     polar_polytope = dual_polytope
@@ -1464,18 +1503,21 @@ class Polytope:
             return self._is_reflexive
 
         # calculate the answer
-        self._is_reflexive = self.is_solid() and\
-                                all(c == 1 for c in self._ineqs_input[:,-1])
+        self._is_reflexive = self.is_solid() and all(
+            c == 1 for c in self._ineqs_input[:, -1]
+        )
 
         # return
         return self._is_reflexive
 
     # symmetries
     # ==========
-    def automorphisms(self,
-                      square_to_one: bool = False,
-                      action: str = "right",
-                      as_dictionary: bool = False) -> "np.ndarray | dict":
+    def automorphisms(
+        self,
+        square_to_one: bool = False,
+        action: str = "right",
+        as_dictionary: bool = False,
+    ) -> "np.ndarray | dict":
         """
         **Description:**
         Returns the $SL^{\pm}(d,\mathbb{Z})$ matrices that leave the polytope
@@ -1550,14 +1592,16 @@ class Polytope:
         """
         # check that this is sensical
         if self.dim() != self.ambient_dim():
-            raise NotImplementedError("Automorphisms can only be computed " +\
-                                            "for full-dimensional polytopes.")
-        
+            raise NotImplementedError(
+                "Automorphisms can only be computed "
+                + "for full-dimensional polytopes."
+            )
+
         if action not in ("right", "left"):
-            raise ValueError("Options for action are \"right\" or \"left\".")
+            raise ValueError('Options for action are "right" or "left".')
 
         # check if we know the answer
-        args_id = 1*square_to_one + 2*as_dictionary
+        args_id = 1 * square_to_one + 2 * as_dictionary
         if self._autos[args_id] is not None:
             if as_dictionary:
                 return copy.deepcopy(self._autos[args_id])
@@ -1571,15 +1615,17 @@ class Polytope:
             vert_set = set(tuple(pt) for pt in self.vertices())
 
             # get the facet with minimum number of vertices
-            f_min = min(self.facets(), key=lambda f:len(f.vertices()))
-            f_min_vert_rref = np.array(fmpz_mat(f_min.vertices().T.tolist()).hnf().tolist(), dtype=int)
+            f_min = min(self.facets(), key=lambda f: len(f.vertices()))
+            f_min_vert_rref = np.array(
+                fmpz_mat(f_min.vertices().T.tolist()).hnf().tolist(), dtype=int
+            )
 
             pivots = []
             for v in f_min_vert_rref:
                 if not any(v):
                     continue
 
-                for i,ii in enumerate(v):
+                for i, ii in enumerate(v):
                     if ii != 0:
                         pivots.append(i)
                         break
@@ -1595,15 +1641,22 @@ class Polytope:
             autos2 = []
             for im in images:
                 image = fmpz_mat(im)
-                m = basis_inverse*image
+                m = basis_inverse * image
                 if not all(abs(c.q) == 1 for c in np.array(m.tolist()).flatten()):
                     continue
-                m = np.array([[int(c.p)//int(c.q) for c in r] # just in case c.q==-1 by some weird reason
-                            for r in np.array(m.tolist())], dtype=int)
+                m = np.array(
+                    [
+                        [
+                            int(c.p) // int(c.q) for c in r
+                        ]  # just in case c.q==-1 by some weird reason
+                        for r in np.array(m.tolist())
+                    ],
+                    dtype=int,
+                )
                 if set(tuple(pt) for pt in np.dot(self.vertices(), m)) != vert_set:
                     continue
                 autos.append(m)
-                if all((np.dot(m,m) == np.eye(self.dim(), dtype=int)).flatten()):
+                if all((np.dot(m, m) == np.eye(self.dim(), dtype=int)).flatten()):
                     autos2.append(m)
             self._autos[0] = np.array(autos)
             self._autos[1] = np.array(autos2)
@@ -1613,10 +1666,14 @@ class Polytope:
             pts_tup = [tuple(pt) for pt in self.points()]
             for a in self._autos[0]:
                 new_pts_tup = [tuple(pt) for pt in self.points().dot(a)]
-                autos_dict.append({i:new_pts_tup.index(ii) for i,ii in enumerate(pts_tup)})
+                autos_dict.append(
+                    {i: new_pts_tup.index(ii) for i, ii in enumerate(pts_tup)}
+                )
             for a in self._autos[1]:
                 new_pts_tup = [tuple(pt) for pt in self.points().dot(a)]
-                autos2_dict.append({i:new_pts_tup.index(ii) for i,ii in enumerate(pts_tup)})
+                autos2_dict.append(
+                    {i: new_pts_tup.index(ii) for i, ii in enumerate(pts_tup)}
+                )
             self._autos[2] = autos_dict
             self._autos[3] = autos2_dict
 
@@ -1628,9 +1685,9 @@ class Polytope:
         else:
             return np.array(self._autos[args_id])
 
-    def normal_form(self,
-                    affine_transform: bool = False,
-                    backend: str = "palp") -> np.ndarray:
+    def normal_form(
+        self, affine_transform: bool = False, backend: str = "palp"
+    ) -> np.ndarray:
         """
         **Description:**
         Returns the normal form of the polytope as defined by Kreuzer-Skarke.
@@ -1676,33 +1733,41 @@ class Polytope:
 
         # process backend
         if backend not in ("native", "palp"):
-            raise ValueError("Error: options for backend are \"native\" and "
-                             "\"palp\".")
+            raise ValueError('Error: options for backend are "native" and ' '"palp".')
 
         if backend == "palp":
             if not self.is_solid():
-                warnings.warn("PALP doesn't support polytopes that are not "
-                              "full-dimensional. Using native backend.")
+                warnings.warn(
+                    "PALP doesn't support polytopes that are not "
+                    "full-dimensional. Using native backend."
+                )
                 backend = "native"
 
         # check if we know the answer
-        args_id = 1*affine_transform + affine_transform*(backend=="native")*1
+        args_id = 1 * affine_transform + affine_transform * (backend == "native") * 1
         if self._normal_form[args_id] is not None:
             return np.array(self._normal_form[args_id])
 
         # PALP backend
         # ------------
         if backend == "palp":
-            palp = subprocess.Popen((config.palp_path + "poly.x", ("-A" if affine_transform else "-N")),
-                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE, universal_newlines=True)
-            
+            palp = subprocess.Popen(
+                (
+                    config.palp_path + "poly.x",
+                    ("-A" if affine_transform else "-N"),
+                ),
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=True,
+            )
+
             # prep the command
             pt_list = ""
             pts_optimal = {tuple(pt) for pt in self.points(optimal=True)}
             for pt in pts_optimal:
-                pt_str = str(pt).replace("(","").replace(")","")
-                pt_str = pt_str.replace(","," ")
+                pt_str = str(pt).replace("(", "").replace(")", "")
+                pt_str = pt_str.replace(",", " ")
                 pt_list += pt_str + "\n"
             palp_in = f"{len(pts_optimal)} {self.dim()}\n{pt_list}\n"
 
@@ -1719,9 +1784,9 @@ class Polytope:
                 pts_shape = [int(c) for c in palp_out[i].split()[:2]]
                 tmp_pts = np.empty(pts_shape, dtype=int)
                 for j in range(pts_shape[0]):
-                    tmp_pts[j,:] = [int(c) for c in palp_out[i+j+1].split()]
+                    tmp_pts[j, :] = [int(c) for c in palp_out[i + j + 1].split()]
                 break
-            points = (tmp_pts.T if pts_shape[0] < pts_shape[1] else tmp_pts)
+            points = tmp_pts.T if pts_shape[0] < pts_shape[1] else tmp_pts
 
             # cache it and return
             self._normal_form[args_id] = points
@@ -1734,10 +1799,10 @@ class Polytope:
             tmp_m = np.eye(n, dtype=int)
             if u == v:
                 return tmp_m
-            tmp_m[u-1,u-1] = 0
-            tmp_m[v-1,v-1] = 0
-            tmp_m[u-1,v-1] = 1
-            tmp_m[v-1,u-1] = 1
+            tmp_m[u - 1, u - 1] = 0
+            tmp_m[v - 1, v - 1] = 0
+            tmp_m[u - 1, v - 1] = 1
+            tmp_m[v - 1, u - 1] = 1
             return tmp_m
 
         V = self.vertices()
@@ -1745,38 +1810,43 @@ class Polytope:
         n_f = len(self._ineqs_input)
         PM = np.array([n[:-1].dot(V.T) + n[-1] for n in self._ineqs_input])
         n_s = 1
-        prm = {0 : [np.eye(n_f, dtype=int), np.eye(n_v, dtype=int)]}
+        prm = {0: [np.eye(n_f, dtype=int), np.eye(n_v, dtype=int)]}
         for j in range(n_v):
-            m = np.argmax([PM[0,prm[0][1].dot(range(n_v))][i] for i in range(j, n_v)])
+            m = np.argmax([PM[0, prm[0][1].dot(range(n_v))][i] for i in range(j, n_v)])
             if m > 0:
-                prm[0][1] = PGE(n_v, j+1, m+j+1).dot(prm[0][1])
+                prm[0][1] = PGE(n_v, j + 1, m + j + 1).dot(prm[0][1])
         first_row = list(PM[0])
         # Arrange other rows one by one and compare with first row
         for k in range(1, n_f):
             # Error for k == 1 already!
             prm[n_s] = [np.eye(n_f, dtype=int), np.eye(n_v, dtype=int)]
-            m = np.argmax(PM[:,prm[n_s][1].dot(range(n_v))][k])
+            m = np.argmax(PM[:, prm[n_s][1].dot(range(n_v))][k])
             if m > 0:
-                prm[n_s][1] = PGE(n_v, 1, m+1).dot(prm[n_s][1])
-            d = PM[k,prm[n_s][1].dot(range(n_v))][0] - prm[0][1].dot(first_row)[0]
+                prm[n_s][1] = PGE(n_v, 1, m + 1).dot(prm[n_s][1])
+            d = PM[k, prm[n_s][1].dot(range(n_v))][0] - prm[0][1].dot(first_row)[0]
             if d < 0:
                 # The largest elt of this row is smaller than largest elt
                 # in 1st row, so nothing to do
                 continue
             # otherwise:
             for i in range(1, n_v):
-                m = np.argmax([PM[k,prm[n_s][1].dot(range(n_v))][j] for j in range(i, n_v)])
+                m = np.argmax(
+                    [PM[k, prm[n_s][1].dot(range(n_v))][j] for j in range(i, n_v)]
+                )
                 if m > 0:
-                    prm[n_s][1] = PGE(n_v, i+1, m+i+1).dot(prm[n_s][1])
+                    prm[n_s][1] = PGE(n_v, i + 1, m + i + 1).dot(prm[n_s][1])
                 if d == 0:
-                    d = PM[k,prm[n_s][1].dot(range(n_v))][i] - prm[0][1].dot(first_row)[i]
+                    d = (
+                        PM[k, prm[n_s][1].dot(range(n_v))][i]
+                        - prm[0][1].dot(first_row)[i]
+                    )
                     if d < 0:
                         break
             if d < 0:
                 # This row is smaller than 1st row, so nothing to do
                 del prm[n_s]
                 continue
-            prm[n_s][0] =  PGE(n_f, 1, k+1).dot(prm[n_s][0])
+            prm[n_s][0] = PGE(n_f, 1, k + 1).dot(prm[n_s][0])
             if d == 0:
                 # This row is the same, so we have a symmetry!
                 n_s += 1
@@ -1786,31 +1856,31 @@ class Polytope:
                 first_row = list(PM[k])
                 prm = {0: prm[n_s]}
                 n_s = 1
-        prm = {k:prm[k] for k in prm if k < n_s}
-        b = PM[prm[0][0].dot(range(n_f)),:][:,prm[0][1].dot(range(n_v))][0]
+        prm = {k: prm[k] for k in prm if k < n_s}
+        b = PM[prm[0][0].dot(range(n_f)), :][:, prm[0][1].dot(range(n_v))][0]
         # Work out the restrictions the current permutations
         # place on other permutations as a automorphisms
         # of the first row
         # The array is such that:
         # S = [i, 1, ..., 1 (ith), j, i+1, ..., i+1 (jth), k ... ]
         # describes the "symmetry blocks"
-        S = list(range(1, n_v+1))
+        S = list(range(1, n_v + 1))
         for i in range(1, n_v):
-            if b[i-1] == b[i]:
-                S[i] = S[i-1]
-                S[S[i]-1] += 1
+            if b[i - 1] == b[i]:
+                S[i] = S[i - 1]
+                S[S[i] - 1] += 1
             else:
                 S[i] = i + 1
         # We determine the other rows of PM_max in turn by use of perms and
         # aut on previous rows.
-        for l in range(1, n_f-1):
+        for l in range(1, n_f - 1):
             n_s = len(prm)
             n_s_bar = n_s
             cf = 0
-            l_r = [0]*n_v
+            l_r = [0] * n_v
             # Search for possible local permutations based off previous
             # global permutations.
-            for k in range(n_s_bar-1, -1, -1):
+            for k in range(n_s_bar - 1, -1, -1):
                 # number of local permutations associated with current global
                 n_p = 0
                 ccf = cf
@@ -1820,34 +1890,40 @@ class Polytope:
                 # between 0 and S(0)
                 for s in range(l, n_f):
                     for j in range(1, S[0]):
-                        v = PM[prmb[n_p][0].dot(range(n_f)),:][:,prmb[n_p][1].dot(range(n_v))][s]
+                        v = PM[prmb[n_p][0].dot(range(n_f)), :][
+                            :, prmb[n_p][1].dot(range(n_v))
+                        ][s]
                         if v[0] < v[j]:
-                            prmb[n_p][1] = PGE(n_v, 1, j+1).dot(prmb[n_p][1])
+                            prmb[n_p][1] = PGE(n_v, 1, j + 1).dot(prmb[n_p][1])
                     if ccf == 0:
-                        l_r[0] = PM[prmb[n_p][0].dot(range(n_f)),:][:,prmb[n_p][1].dot(range(n_v))][s,0]
-                        prmb[n_p][0] = PGE(n_f, l+1, s+1).dot(prmb[n_p][0])
+                        l_r[0] = PM[prmb[n_p][0].dot(range(n_f)), :][
+                            :, prmb[n_p][1].dot(range(n_v))
+                        ][s, 0]
+                        prmb[n_p][0] = PGE(n_f, l + 1, s + 1).dot(prmb[n_p][0])
                         n_p += 1
                         ccf = 1
                         prmb[n_p] = copy.copy(prm[k])
                     else:
-                        d1 = PM[prmb[n_p][0].dot(range(n_f)),:][:,prmb[n_p][1].dot(range(n_v))][s,0]
+                        d1 = PM[prmb[n_p][0].dot(range(n_f)), :][
+                            :, prmb[n_p][1].dot(range(n_v))
+                        ][s, 0]
                         d = d1 - l_r[0]
                         if d < 0:
                             # We move to the next line
                             continue
                         if d == 0:
                             # Maximal values agree, so possible symmetry
-                            prmb[n_p][0] = PGE(n_f, l+1, s+1).dot(prmb[n_p][0])
+                            prmb[n_p][0] = PGE(n_f, l + 1, s + 1).dot(prmb[n_p][0])
                             n_p += 1
                             prmb[n_p] = copy.copy(prm[k])
                         else:
                             # We found a greater maximal value for first entry.
                             # It becomes our new reference:
                             l_r[0] = d1
-                            prmb[n_p][0] = PGE(n_f, l+1, s+1).dot(prmb[n_p][0])
+                            prmb[n_p][0] = PGE(n_f, l + 1, s + 1).dot(prmb[n_p][0])
                             # Forget previous work done
                             cf = 0
-                            prmb = {0:copy.copy(prmb[n_p])}
+                            prmb = {0: copy.copy(prmb[n_p])}
                             n_p = 1
                             prmb[n_p] = copy.copy(prm[k])
                             n_s = k + 1
@@ -1858,23 +1934,29 @@ class Polytope:
                     ccf = cf
                     # Now let us find out where the end of the
                     # next symmetry block is:
-                    if  h < c+1:
-                        h = S[h-1]
+                    if h < c + 1:
+                        h = S[h - 1]
                     s = n_p
                     # Check through this block for each possible permutation
                     while s > 0:
                         s -= 1
                         # Find the largest value in this symmetry block
-                        for j in range(c+1, h):
-                            v = PM[prmb[s][0].dot(range(n_f)),:][:,prmb[s][1].dot(range(n_v))][l]
+                        for j in range(c + 1, h):
+                            v = PM[prmb[s][0].dot(range(n_f)), :][
+                                :, prmb[s][1].dot(range(n_v))
+                            ][l]
                             if v[c] < v[j]:
-                                prmb[s][1] = PGE(n_v, c+1, j+1).dot(prmb[s][1])
+                                prmb[s][1] = PGE(n_v, c + 1, j + 1).dot(prmb[s][1])
                         if ccf == 0:
                             # Set reference and carry on to next permutation
-                            l_r[c] = PM[prmb[s][0].dot(range(n_f)),:][:,prmb[s][1].dot(range(n_v))][l,c]
+                            l_r[c] = PM[prmb[s][0].dot(range(n_f)), :][
+                                :, prmb[s][1].dot(range(n_v))
+                            ][l, c]
                             ccf = 1
                         else:
-                            d1 = PM[prmb[s][0].dot(range(n_f)),:][:,prmb[s][1].dot(range(n_v))][l,c]
+                            d1 = PM[prmb[s][0].dot(range(n_f)), :][
+                                :, prmb[s][1].dot(range(n_v))
+                            ][l, c]
                             d = d1 - l_r[c]
                             if d < 0:
                                 n_p -= 1
@@ -1888,35 +1970,35 @@ class Polytope:
                                 n_p = s + 1
                                 n_s = k + 1
                 # Update permutations
-                if n_s-1 > k:
-                    prm[k] = copy.copy(prm[n_s-1])
+                if n_s - 1 > k:
+                    prm[k] = copy.copy(prm[n_s - 1])
                 n_s -= 1
                 for s in range(n_p):
                     prm[n_s] = copy.copy(prmb[s])
                     n_s += 1
                 cf = n_s
-            prm = {k:prm[k] for k in prm if k < n_s}
+            prm = {k: prm[k] for k in prm if k < n_s}
             # If the automorphisms are not already completely restricted,
             # update them
-            if S != list(range(1, n_v+1)):
+            if S != list(range(1, n_v + 1)):
                 # Take the old automorphisms and update by
                 # the restrictions the last worked out
                 # row imposes.
                 c = 0
-                M = PM[prm[0][0].dot(range(n_f)),:][:,prm[0][1].dot(range(n_v))][l]
+                M = PM[prm[0][0].dot(range(n_f)), :][:, prm[0][1].dot(range(n_v))][l]
                 while c < n_v:
                     s = S[c] + 1
                     S[c] = c + 1
                     c += 1
-                    while c < s-1:
-                        if M[c] == M[c-1]:
-                            S[c] = S[c-1]
-                            S[S[c]-1] += 1
+                    while c < s - 1:
+                        if M[c] == M[c - 1]:
+                            S[c] = S[c - 1]
+                            S[S[c] - 1] += 1
                         else:
                             S[c] = c + 1
                         c += 1
         # Now we have the perms, we construct PM_max using one of them
-        PM_max = PM[prm[0][0].dot(range(n_f)),:][:,prm[0][1].dot(range(n_v))]
+        PM_max = PM[prm[0][0].dot(range(n_f)), :][:, prm[0][1].dot(range(n_v))]
         # Perform a translation if necessary
         if affine_transform:
             v0 = copy.copy(V[0])
@@ -1928,26 +2010,32 @@ class Polytope:
         S_max = [sum([PM_max[i][j] for i in range(n_f)]) for j in range(n_v)]
         for i in range(n_v):
             k = i
-            for j in range(i+1, n_v):
-                if M_max[j] < M_max[k] or (M_max[j] == M_max[k] and S_max[j] < S_max[k]):
+            for j in range(i + 1, n_v):
+                if M_max[j] < M_max[k] or (
+                    M_max[j] == M_max[k] and S_max[j] < S_max[k]
+                ):
                     k = j
             if not k == i:
                 M_max[i], M_max[k] = M_max[k], M_max[i]
                 S_max[i], S_max[k] = S_max[k], S_max[i]
-                p_c = PGE(n_v, 1+i, 1+k).dot(p_c)
+                p_c = PGE(n_v, 1 + i, 1 + k).dot(p_c)
         # Create array of possible NFs.
         prm = [p_c.dot(l[1]) for l in prm.values()]
-        Vs = [np.array(fmpz_mat(V.T[:,sig.dot(range(n_v))].tolist()).hnf().tolist(), dtype=int).tolist() for sig in prm]
+        Vs = [
+            np.array(
+                fmpz_mat(V.T[:, sig.dot(range(n_v))].tolist()).hnf().tolist(),
+                dtype=int,
+            ).tolist()
+            for sig in prm
+        ]
         Vmin = min(Vs)
         if affine_transform:
-            self._normal_form[args_id] = np.array(Vmin).T[:,:self.dim()]
+            self._normal_form[args_id] = np.array(Vmin).T[:, : self.dim()]
         else:
             self._normal_form[args_id] = np.array(Vmin).T
         return np.array(self._normal_form[args_id])
 
-    def is_linearly_equivalent(self,
-                               other: "Polytope",
-                               backend: str="palp") -> bool:
+    def is_linearly_equivalent(self, other: "Polytope", backend: str = "palp") -> bool:
         """
         **Description:**
         Returns True if the polytopes can be transformed into each other by an
@@ -1971,16 +2059,16 @@ class Polytope:
         # True
         ```
         """
-        our_normal_form = self.normal_form(affine_transform=False,\
-                                                    backend=backend).tolist()
-        other_normal_form = other.normal_form(affine_transform=False,\
-                                                    backend=backend).tolist()
+        our_normal_form = self.normal_form(
+            affine_transform=False, backend=backend
+        ).tolist()
+        other_normal_form = other.normal_form(
+            affine_transform=False, backend=backend
+        ).tolist()
 
-        return(our_normal_form == other_normal_form)
+        return our_normal_form == other_normal_form
 
-    def is_affinely_equivalent(self,
-                               other: "Polytope",
-                               backend: str="palp") -> bool:
+    def is_affinely_equivalent(self, other: "Polytope", backend: str = "palp") -> bool:
         """
         **Description:**
         Returns True if the polytopes can be transformed into each other by an
@@ -2004,17 +2092,20 @@ class Polytope:
         # True
         ```
         """
-        our_normal_form = self.normal_form(affine_transform=True,\
-                                                    backend=backend).tolist()
-        other_normal_form = other.normal_form(affine_transform=True,\
-                                                    backend=backend).tolist()
+        our_normal_form = self.normal_form(
+            affine_transform=True, backend=backend
+        ).tolist()
+        other_normal_form = other.normal_form(
+            affine_transform=True, backend=backend
+        ).tolist()
 
-        return(our_normal_form == other_normal_form)
+        return our_normal_form == other_normal_form
 
     # triangulating
     # =============
-    def _triang_labels(self,
-                       include_points_interior_to_facets:bool=None) -> tuple[int]:
+    def _triang_labels(
+        self, include_points_interior_to_facets: bool = None
+    ) -> tuple[int]:
         """
         **Description:**
         Constructs the list of point labels of the points that will be used in
@@ -2062,16 +2153,18 @@ class Polytope:
         else:
             return self.labels_not_facet
 
-    def triangulate(self,
-                    include_points_interior_to_facets: bool = None,
-                    points: "ArrayLike" = None,
-                    make_star: bool = None,
-                    simplices: "ArrayLike" = None,
-                    check_input_simplices: bool=True,
-                    heights: "ArrayLike" = None,
-                    check_heights: bool = True,
-                    backend: str = "cgal",
-                    verbosity: int = 1) -> Triangulation:
+    def triangulate(
+        self,
+        include_points_interior_to_facets: bool = None,
+        points: "ArrayLike" = None,
+        make_star: bool = None,
+        simplices: "ArrayLike" = None,
+        check_input_simplices: bool = True,
+        heights: "ArrayLike" = None,
+        check_heights: bool = True,
+        backend: str = "cgal",
+        verbosity: int = 1,
+    ) -> Triangulation:
         """
         **Description:**
         Returns a single regular triangulation of the polytope.
@@ -2157,16 +2250,20 @@ class Polytope:
 
             # index mismatch... Raise error
             if len(simps_inds) > len(points):
-                error_msg = f"Simplices spanned {simps_inds}, which is "+\
-                            f"longer than length of points, {points}. " +\
-                             "Check include_points_interior_to_facets... it "+\
-                            f"was set to {include_points_interior_to_facets}"
+                error_msg = (
+                    f"Simplices spanned {simps_inds}, which is "
+                    + f"longer than length of points, {points}. "
+                    + "Check include_points_interior_to_facets... it "
+                    + f"was set to {include_points_interior_to_facets}"
+                )
 
                 if include_points_interior_to_facets is None:
-                    error_msg += f" and then to {use_pts_in_facets} b/c " +\
-                                  "the polytope is " +\
-                                  ("" if self.is_reflexive() else "not ") +\
-                                  "reflexive."
+                    error_msg += (
+                        f" and then to {use_pts_in_facets} b/c "
+                        + "the polytope is "
+                        + ("" if self.is_reflexive() else "not ")
+                        + "reflexive."
+                    )
                 raise ValueError(error_msg)
 
         # if heights are provided for all points, trim them
@@ -2187,28 +2284,32 @@ class Polytope:
             make_star = False
 
         # return triangulation
-        return Triangulation(self,
-                             points,
-                             make_star=make_star,
-                             simplices=simplices,
-                             check_input_simplices=check_input_simplices,
-                             heights=triang_heights,
-                             check_heights=check_heights,
-                             backend=backend,
-                             verbosity=verbosity)
+        return Triangulation(
+            self,
+            points,
+            make_star=make_star,
+            simplices=simplices,
+            check_input_simplices=check_input_simplices,
+            heights=triang_heights,
+            check_heights=check_heights,
+            backend=backend,
+            verbosity=verbosity,
+        )
 
-    def random_triangulations_fast(self,
-                                   N: int = None,
-                                   c: float = 0.2,
-                                   max_retries: int = 500,
-                                   make_star: bool = True,
-                                   only_fine: bool = True,
-                                   include_points_interior_to_facets:bool=None,
-                                   points: ArrayLike = None,
-                                   backend: str = "cgal",
-                                   as_list: bool = False,
-                                   progress_bar: bool = True,
-                                   seed: int = None) -> "generator | list":
+    def random_triangulations_fast(
+        self,
+        N: int = None,
+        c: float = 0.2,
+        max_retries: int = 500,
+        make_star: bool = True,
+        only_fine: bool = True,
+        include_points_interior_to_facets: bool = None,
+        points: ArrayLike = None,
+        backend: str = "cgal",
+        as_list: bool = False,
+        progress_bar: bool = True,
+        seed: int = None,
+    ) -> "generator | list":
         """
         **Description:**
         Constructs pseudorandom regular (optionally fine and star)
@@ -2275,13 +2376,14 @@ class Polytope:
         rand_triangs = p.random_triangulations_fast(N=10, as_list=True) # Produces the list of 10 triangulations very quickly
         ```
         """
-        #if self.ambient_dim() > self.dim():
+        # if self.ambient_dim() > self.dim():
         #    raise NotImplementedError("Only triangulations of "
         #                              "full-dimensional polytopes are "
         #                              "supported.")
         if (N is None) and as_list:
-            raise ValueError("Number of triangulations must be specified when "
-                             "returning a list.")
+            raise ValueError(
+                "Number of triangulations must be specified when " "returning a list."
+            )
 
         if points is not None:
             points = tuple(sorted(set(points)))
@@ -2292,9 +2394,17 @@ class Polytope:
             make_star = self.is_reflexive()
         if self._label_origin not in points:
             make_star = False
-        g = random_triangulations_fast_generator(self, points, N=N, c=c,
-                max_retries=max_retries, make_star=make_star,
-                only_fine=only_fine, backend=backend, seed=seed)
+        g = random_triangulations_fast_generator(
+            self,
+            points,
+            N=N,
+            c=c,
+            max_retries=max_retries,
+            make_star=make_star,
+            only_fine=only_fine,
+            backend=backend,
+            seed=seed,
+        )
         if not as_list:
             return g
         if progress_bar:
@@ -2304,29 +2414,31 @@ class Polytope:
             try:
                 triangs_list.append(next(g))
                 if progress_bar:
-                    pbar.update(len(triangs_list)-pbar.n)
+                    pbar.update(len(triangs_list) - pbar.n)
             except StopIteration:
                 if progress_bar:
-                    pbar.update(N-pbar.n)
+                    pbar.update(N - pbar.n)
                 break
         return triangs_list
 
-    def random_triangulations_fair(self,
-                                   N: int = None,
-                                   n_walk: int = None,
-                                   n_flip: int = None,
-                                   initial_walk_steps: int = None,
-                                   walk_step_size: float = 1e-2,
-                                   max_steps_to_wall: int = 25,
-                                   fine_tune_steps: int = 8,
-                                   max_retries: int = 50,
-                                   make_star: bool = None,
-                                   include_points_interior_to_facets:bool=None,
-                                   points: ArrayLike = None,
-                                   backend: str = "cgal",
-                                   as_list: bool = False,
-                                   progress_bar: bool = True,
-                                   seed: int = None) -> "generator | list":
+    def random_triangulations_fair(
+        self,
+        N: int = None,
+        n_walk: int = None,
+        n_flip: int = None,
+        initial_walk_steps: int = None,
+        walk_step_size: float = 1e-2,
+        max_steps_to_wall: int = 25,
+        fine_tune_steps: int = 8,
+        max_retries: int = 50,
+        make_star: bool = None,
+        include_points_interior_to_facets: bool = None,
+        points: ArrayLike = None,
+        backend: str = "cgal",
+        as_list: bool = False,
+        progress_bar: bool = True,
+        seed: int = None,
+    ) -> "generator | list":
         """
         **Description:**
         Constructs pseudorandom regular (optionally star) triangulations of a
@@ -2424,32 +2536,42 @@ class Polytope:
         desired balance between speed and fairness of the sampling.
         """
         if self.ambient_dim() > self.dim():
-            raise NotImplementedError("Only triangulations of full-dimensional polytopes"
-                                      "are supported.")
+            raise NotImplementedError(
+                "Only triangulations of full-dimensional polytopes" "are supported."
+            )
         if N is None and as_list:
-            raise ValueError("Number of triangulations must be specified when "
-                             "returning a list.")
+            raise ValueError(
+                "Number of triangulations must be specified when " "returning a list."
+            )
         if points is not None:
             points = tuple(sorted(set(points)))
         else:
             points = self._triang_labels(include_points_interior_to_facets)
         if make_star is None:
-            make_star =  self.is_reflexive()
+            make_star = self.is_reflexive()
         if self._label_origin not in points:
             make_star = False
         if n_walk is None:
-            n_walk = len(self.points())//10 + 10
+            n_walk = len(self.points()) // 10 + 10
         if n_flip is None:
-            n_flip = len(self.points())//10 + 10
+            n_flip = len(self.points()) // 10 + 10
         if initial_walk_steps is None:
-            initial_walk_steps = 2*len(self.points())//10 + 10
+            initial_walk_steps = 2 * len(self.points()) // 10 + 10
         g = random_triangulations_fair_generator(
-                self, points, N=N, n_walk=n_walk, n_flip=n_flip,
-                initial_walk_steps=initial_walk_steps,
-                walk_step_size=walk_step_size,
-                max_steps_to_wall=max_steps_to_wall,
-                fine_tune_steps=fine_tune_steps, max_retries=max_retries,
-                make_star=make_star, backend=backend, seed=seed)
+            self,
+            points,
+            N=N,
+            n_walk=n_walk,
+            n_flip=n_flip,
+            initial_walk_steps=initial_walk_steps,
+            walk_step_size=walk_step_size,
+            max_steps_to_wall=max_steps_to_wall,
+            fine_tune_steps=fine_tune_steps,
+            max_retries=max_retries,
+            make_star=make_star,
+            backend=backend,
+            seed=seed,
+        )
         if not as_list:
             return g
         if progress_bar:
@@ -2459,23 +2581,25 @@ class Polytope:
             try:
                 triangs_list.append(next(g))
                 if progress_bar:
-                    pbar.update(len(triangs_list)-pbar.n)
+                    pbar.update(len(triangs_list) - pbar.n)
             except StopIteration:
                 if progress_bar:
-                    pbar.update(N-pbar.n)
+                    pbar.update(N - pbar.n)
                 break
         return triangs_list
 
-    def all_triangulations(self,
-                           points: ArrayLike = None,
-                           only_fine: bool = True,
-                           only_regular: bool = True,
-                           only_star: bool = None,
-                           star_origin: int = None,
-                           include_points_interior_to_facets: bool = None,
-                           backend: str = None,
-                           as_list: bool = False,
-                           raw_output: bool = False) -> "generator | list":
+    def all_triangulations(
+        self,
+        points: ArrayLike = None,
+        only_fine: bool = True,
+        only_regular: bool = True,
+        only_star: bool = None,
+        star_origin: int = None,
+        include_points_interior_to_facets: bool = None,
+        backend: str = None,
+        as_list: bool = False,
+        raw_output: bool = False,
+    ) -> "generator | list":
         """
         **Description:**
         Computes all triangulations of the polytope using TOPCOM. There is the
@@ -2535,49 +2659,57 @@ class Polytope:
         # 6
         ```
         """
-        if len(self.points()) == self.dim()+1:
+        if len(self.points()) == self.dim() + 1:
             # simplex... trivial
             triangs = None
             if raw_output:
-                triangs = [self.points(as_indices=True)[None,:]]
+                triangs = [self.points(as_indices=True)[None, :]]
             else:
                 triangs = [Triangulation(self, self.labels)]
 
             if as_list:
                 return triangs
             else:
+
                 def gen():
                     for triang in triangs:
-                        yield(triang)
+                        yield (triang)
 
                 return gen()
-        
+
         if only_star is None:
             only_star = self.is_reflexive()
         if only_star and star_origin is None:
             if self.is_reflexive():
                 star_origin = self._label_origin
             else:
-                raise ValueError("The star_origin parameter must be specified "
-                                 "when finding star triangulations of "
-                                 "non-reflexive polytopes.")
+                raise ValueError(
+                    "The star_origin parameter must be specified "
+                    "when finding star triangulations of "
+                    "non-reflexive polytopes."
+                )
         if points is not None:
             points = tuple(sorted(set(points)))
         else:
             points = self._triang_labels(include_points_interior_to_facets)
 
         if len(points) >= 17:
-            warnings.warn("Polytopes with more than around 17 points usually "
-                          "have too many triangulations, so this function may "
-                          "take too long or run out of memory.")
+            warnings.warn(
+                "Polytopes with more than around 17 points usually "
+                "have too many triangulations, so this function may "
+                "take too long or run out of memory."
+            )
 
-        triangs = all_triangulations(self, points,
-                                     only_fine=only_fine,
-                                     only_regular=only_regular,
-                                     only_star=only_star,
-                                     star_origin=star_origin,
-                                     backend=backend,
-                                     raw_output=raw_output)
+        triangs = all_triangulations(
+            self,
+            points,
+            only_fine=only_fine,
+            only_regular=only_regular,
+            only_star=only_star,
+            star_origin=star_origin,
+            backend=backend,
+            raw_output=raw_output,
+        )
         if as_list:
             return list(triangs)
         return triangs
@@ -2624,55 +2756,61 @@ class Polytope:
         """
         # check that we support hodge-number calculations for this polytope
         d = self.dim()
-        if not self.is_reflexive() or d not in (2,3,4,5):
-            raise ValueError("Only reflexive polytopes of dimension 2-5 are "
-                             "currently supported.")
-        
+        if not self.is_reflexive() or d not in (2, 3, 4, 5):
+            raise ValueError(
+                "Only reflexive polytopes of dimension 2-5 are " "currently supported."
+            )
+
         # check lattice/configure p accordingly
         if lattice == "M":
-            p = d-p-1
+            p = d - p - 1
         elif lattice != "N":
-            raise ValueError("Lattice must be specified. "
-                             "Options are: \"N\" or \"M\".")
+            raise ValueError("Lattice must be specified. " 'Options are: "N" or "M".')
 
         # assume p,q ordered such that q>p
         if p > q:
-            p,q = q,p
+            p, q = q, p
 
         # easy answers
-        if (p > d-1) or (q > d-1) or (p < 0) or (q < 0) or (p+q > d-1):
+        if (p > d - 1) or (q > d - 1) or (p < 0) or (q < 0) or (p + q > d - 1):
             return 0
-        elif (p in (0,d-1)) or (q in (0,d-1)):
-            if (p == q) or ((p,q) == (0,d-1)):
+        elif (p in (0, d - 1)) or (q in (0, d - 1)):
+            if (p == q) or ((p, q) == (0, d - 1)):
                 return 1
             return 0
 
         #
-        if p >= d//2:
+        if p >= d // 2:
             tmp_p = p
-            p = d-q-1
-            q = d-tmp_p-1
+            p = d - q - 1
+            q = d - tmp_p - 1
 
         # calculate hpq
         hpq = 0
         if p == 1:
-            for f in self.faces(d-q-1):
-                hpq += len(f.interior_points())*len(f.dual().interior_points())
+            for f in self.faces(d - q - 1):
+                hpq += len(f.interior_points()) * len(f.dual().interior_points())
             if q == 1:
                 hpq += len(self.points_not_interior_to_facets()) - d - 1
-            if q == d-2:
+            if q == d - 2:
                 hpq += len(self.dual().points_not_interior_to_facets()) - d - 1
             return hpq
         elif p == 2:
-            hpq = 44 + 4*self.h11(lattice="N") - 2*self.h12(lattice="N") +\
-                                                        4*self.h13(lattice="N")
+            hpq = (
+                44
+                + 4 * self.h11(lattice="N")
+                - 2 * self.h12(lattice="N")
+                + 4 * self.h13(lattice="N")
+            )
             return hpq
         raise RuntimeError("Error computing Hodge numbers.")
 
-    h11 = lambda self,lattice: self.hpq(1,1,lattice=lattice)
-    h12 = lambda self,lattice: self.hpq(1,2,lattice=lattice); h21 = h12
-    h13 = lambda self,lattice: self.hpq(1,3,lattice=lattice); h31 = h13
-    h22 = lambda self,lattice: self.hpq(2,2,lattice=lattice)
+    h11 = lambda self, lattice: self.hpq(1, 1, lattice=lattice)
+    h12 = lambda self, lattice: self.hpq(1, 2, lattice=lattice)
+    h21 = h12
+    h13 = lambda self, lattice: self.hpq(1, 3, lattice=lattice)
+    h31 = h13
+    h22 = lambda self, lattice: self.hpq(2, 2, lattice=lattice)
 
     def chi(self, lattice: str) -> int:
         """
@@ -2705,14 +2843,14 @@ class Polytope:
         ```
         """
         # check that we support hodge-number calculations for this polytope
-        if not self.is_reflexive() or self.dim() not in (2,3,4,5):
-            raise ValueError("Only reflexive polytopes of dimension 2-5 are "
-                             "currently supported.")
+        if not self.is_reflexive() or self.dim() not in (2, 3, 4, 5):
+            raise ValueError(
+                "Only reflexive polytopes of dimension 2-5 are " "currently supported."
+            )
 
         # input checking
-        if lattice not in ("N","M"):
-            raise ValueError("Lattice must be specified. "
-                             "Options are: \"N\" or \"M\".")
+        if lattice not in ("N", "M"):
+            raise ValueError("Lattice must be specified. " 'Options are: "N" or "M".')
 
         # punt the answer if lattice "M"
         if lattice == "M":
@@ -2728,10 +2866,13 @@ class Polytope:
         elif self.dim() == 3:
             self._chi = self.h11(lattice=lattice) + 4
         elif self.dim() == 4:
-            self._chi = 2*(self.h11(lattice=lattice)-self.h21(lattice=lattice))
+            self._chi = 2 * (self.h11(lattice=lattice) - self.h21(lattice=lattice))
         elif self.dim() == 5:
-            self._chi = 48 + 6*(self.h11(lattice=lattice) -\
-                        self.h12(lattice=lattice) + self.h13(lattice=lattice))
+            self._chi = 48 + 6 * (
+                self.h11(lattice=lattice)
+                - self.h12(lattice=lattice)
+                + self.h13(lattice=lattice)
+            )
 
         # return
         return self._chi
@@ -2765,24 +2906,27 @@ class Polytope:
         # False
         ```
         """
-        if lattice=="N":
+        if lattice == "N":
             if self._is_favorable is None:
-                self._is_favorable = (len(self.points_not_interior_to_facets())
-                                      == self.h11(lattice="N")+self.dim()+1)
+                self._is_favorable = (
+                    len(self.points_not_interior_to_facets())
+                    == self.h11(lattice="N") + self.dim() + 1
+                )
             return self._is_favorable
-        elif lattice=='M':
+        elif lattice == "M":
             return self.dual().is_favorable(lattice="N")
 
-        raise ValueError("Lattice must be specified. "
-                        "Options are: \"N\" or \"M\".")
+        raise ValueError("Lattice must be specified. " 'Options are: "N" or "M".')
 
     # glsm
     # ====
-    def glsm_charge_matrix(self,
-                          include_origin: bool = True,
-                          include_points_interior_to_facets: bool = False,
-                          points: ArrayLike = None,
-                          integral: bool = True) -> np.ndarray:
+    def glsm_charge_matrix(
+        self,
+        include_origin: bool = True,
+        include_points_interior_to_facets: bool = False,
+        points: ArrayLike = None,
+        integral: bool = True,
+    ) -> np.ndarray:
         """
         **Description:**
         Computes the GLSM charge matrix of the theory resulting from this
@@ -2830,14 +2974,16 @@ class Polytope:
         """
         # check that this makes sense
         if not self.is_reflexive():
-            raise ValueError("The GLSM charge matrix can only be computed for "
-                             "reflexive polytopes.")
+            raise ValueError(
+                "The GLSM charge matrix can only be computed for "
+                "reflexive polytopes."
+            )
 
         # Set up the list of points that will be used.
         if points is not None:
             # We always add the origin, but remove it later if necessary
-            pts_ind = set(list(points)+[0])
-            if (min(pts_ind)<0) or (max(pts_ind)>self.points().shape[0]):
+            pts_ind = set(list(points) + [0])
+            if (min(pts_ind) < 0) or (max(pts_ind) > self.points().shape[0]):
                 raise ValueError("An index is out of the allowed range.")
 
             include_origin = 0 in points
@@ -2848,11 +2994,11 @@ class Polytope:
         pts_ind = tuple(pts_ind)
 
         # check if we know the answer
-        if (pts_ind,integral) in self._glsm_charge_matrix:
-            out = np.array(self._glsm_charge_matrix[(pts_ind,integral)])
+        if (pts_ind, integral) in self._glsm_charge_matrix:
+            out = np.array(self._glsm_charge_matrix[(pts_ind, integral)])
 
             if (not include_origin) and (points is None):
-                return out[:,1:]
+                return out[:, 1:]
             else:
                 return out
 
@@ -2861,38 +3007,49 @@ class Polytope:
         # find a basis of columns
         if integral:
             linrel = self.points()[list(pts_ind)].T
-            sublat_ind =  int(round(np.linalg.det(np.array(fmpz_mat(linrel.tolist()).snf().tolist(), dtype=int)[:,:linrel.shape[0]])))
-            norms = [np.linalg.norm(p,1) for p in linrel.T]
+            sublat_ind = int(
+                round(
+                    np.linalg.det(
+                        np.array(fmpz_mat(linrel.tolist()).snf().tolist(), dtype=int)[
+                            :, : linrel.shape[0]
+                        ]
+                    )
+                )
+            )
+            norms = [np.linalg.norm(p, 1) for p in linrel.T]
             linrel = np.insert(linrel, 0, np.ones(linrel.shape[1], dtype=int), axis=0)
             good_exclusions = 0
             basis_exc = []
             indices = np.argsort(norms)
-            indices[:linrel.shape[0]] = np.sort(indices[:linrel.shape[0]])
+            indices[: linrel.shape[0]] = np.sort(indices[: linrel.shape[0]])
             for n_try in range(14):
                 if n_try == 1:
                     indices[:] = np.array(range(linrel.shape[1]))
                 elif n_try == 2:
-                    pts_lll = np.array(fmpz_mat(linrel[1:,:].tolist()).lll().tolist(), dtype=int)
-                    norms = [np.linalg.norm(p,1) for p in pts_lll.T]
+                    pts_lll = np.array(
+                        fmpz_mat(linrel[1:, :].tolist()).lll().tolist(),
+                        dtype=int,
+                    )
+                    norms = [np.linalg.norm(p, 1) for p in pts_lll.T]
                     indices = np.argsort(norms)
-                    indices[:linrel.shape[0]] = np.sort(indices[:linrel.shape[0]])
+                    indices[: linrel.shape[0]] = np.sort(indices[: linrel.shape[0]])
                 elif n_try == 3:
-                    indices[:] = np.array([0] + list(range(1,linrel.shape[1]))[::-1])
-                    indices[:linrel.shape[0]] = np.sort(indices[:linrel.shape[0]])
+                    indices[:] = np.array([0] + list(range(1, linrel.shape[1]))[::-1])
+                    indices[: linrel.shape[0]] = np.sort(indices[: linrel.shape[0]])
                 elif n_try > 3:
                     if n_try == 4:
                         np.random.seed(1337)
                     np.random.shuffle(indices[1:])
-                    indices[:linrel.shape[0]] = np.sort(indices[:linrel.shape[0]])
+                    indices[: linrel.shape[0]] = np.sort(indices[: linrel.shape[0]])
 
-                for ctr in range(np.prod(linrel.shape)+1):
-                    found_good_basis=True
+                for ctr in range(np.prod(linrel.shape) + 1):
+                    found_good_basis = True
                     ctr += 1
                     if ctr > 0:
-                        st = max([good_exclusions,1])
+                        st = max([good_exclusions, 1])
                         indices[st:] = np.roll(indices[st:], -1)
-                        indices[:linrel.shape[0]] = np.sort(indices[:linrel.shape[0]])
-                    linrel_rand = np.array(linrel[:,indices])
+                        indices[: linrel.shape[0]] = np.sort(indices[: linrel.shape[0]])
+                    linrel_rand = np.array(linrel[:, indices])
                     try:
                         linrel_hnf = fmpz_mat(linrel_rand.tolist()).hnf()
                     except:
@@ -2902,13 +3059,13 @@ class Polytope:
                     basis_exc = []
                     tmp_sublat_ind = 1
                     for v in linrel_rand:
-                        for i,ii in enumerate(v):
-                            if ii==0:
+                        for i, ii in enumerate(v):
+                            if ii == 0:
                                 continue
 
                             tmp_sublat_ind *= abs(ii)
                             if sublat_ind % tmp_sublat_ind == 0:
-                                v *= ii//abs(ii)
+                                v *= ii // abs(ii)
                                 good_exclusions += 1
                             else:
                                 found_good_basis = False
@@ -2922,102 +3079,133 @@ class Polytope:
                     break
 
             if not found_good_basis:
-                warnings.warn("An integral basis could not be found. "
-                              "A non-integral one will be computed. However, "
-                              "this will not be usable as a basis of divisors "
-                              "for the ToricVariety or CalabiYau classes.")
-                if pts_ind == tuple(self.points_not_interior_to_facets(as_indices=True)):
-                    warnings.warn("Please let the developers know about the "
-                                  "polytope that caused this issue. "
-                                  "Here are the vertices of the polytope: "
-                                  f"{self.vertices().tolist()}")
-                return self.glsm_charge_matrix(include_origin=include_origin,
-                                               include_points_interior_to_facets=include_points_interior_to_facets,
-                                               points=points, integral=False)
-            linrel_dict = {ii:i for i,ii in enumerate(indices)}
-            linrel = np.array(linrel_rand[:,[linrel_dict[i] for i in range(linrel_rand.shape[1])]])
-            basis_ind = np.array([i for i in range(linrel.shape[1]) if linrel_dict[i] not in basis_exc], dtype=int)
+                warnings.warn(
+                    "An integral basis could not be found. "
+                    "A non-integral one will be computed. However, "
+                    "this will not be usable as a basis of divisors "
+                    "for the ToricVariety or CalabiYau classes."
+                )
+                if pts_ind == tuple(
+                    self.points_not_interior_to_facets(as_indices=True)
+                ):
+                    warnings.warn(
+                        "Please let the developers know about the "
+                        "polytope that caused this issue. "
+                        "Here are the vertices of the polytope: "
+                        f"{self.vertices().tolist()}"
+                    )
+                return self.glsm_charge_matrix(
+                    include_origin=include_origin,
+                    include_points_interior_to_facets=include_points_interior_to_facets,
+                    points=points,
+                    integral=False,
+                )
+            linrel_dict = {ii: i for i, ii in enumerate(indices)}
+            linrel = np.array(
+                linrel_rand[:, [linrel_dict[i] for i in range(linrel_rand.shape[1])]]
+            )
+            basis_ind = np.array(
+                [i for i in range(linrel.shape[1]) if linrel_dict[i] not in basis_exc],
+                dtype=int,
+            )
             basis_exc = np.array([indices[i] for i in basis_exc])
-            glsm = np.zeros((linrel.shape[1]-linrel.shape[0],linrel.shape[1]), dtype=int)
-            glsm[:,basis_ind] = np.eye(len(basis_ind), dtype=int)
+            glsm = np.zeros(
+                (linrel.shape[1] - linrel.shape[0], linrel.shape[1]), dtype=int
+            )
+            glsm[:, basis_ind] = np.eye(len(basis_ind), dtype=int)
             for nb in basis_exc[::-1]:
-                tup = [(k,kk) for k,kk in enumerate(linrel[:,nb]) if kk]
+                tup = [(k, kk) for k, kk in enumerate(linrel[:, nb]) if kk]
                 if sublat_ind % tup[-1][1] != 0:
                     raise RuntimeError("Problem with linear relations")
-                i,ii = tup[-1]
+                i, ii = tup[-1]
                 if integral:
-                    glsm[:,nb] = -glsm.dot(linrel[i])//ii
+                    glsm[:, nb] = -glsm.dot(linrel[i]) // ii
                 else:
-                    glsm[i,:] *= ii
-                    glsm[:,nb] = -glsm.dot(linrel[i])
-        else: # Non-integral basis
-            pts = self.points()[list(pts_ind)[1:]] # Exclude the origin
-            pts_norms = [np.linalg.norm(p,1) for p in pts]
+                    glsm[i, :] *= ii
+                    glsm[:, nb] = -glsm.dot(linrel[i])
+        else:  # Non-integral basis
+            pts = self.points()[list(pts_ind)[1:]]  # Exclude the origin
+            pts_norms = [np.linalg.norm(p, 1) for p in pts]
             pts_order = np.argsort(pts_norms)
             # Find good lattice basis
             good_lattice_basis = pts_order[:1]
             current_rank = 1
             for p in pts_order:
                 tmp = pts[np.append(good_lattice_basis, p)]
-                rank = np.linalg.matrix_rank(np.dot(tmp.T,tmp))
-                if rank>current_rank:
+                rank = np.linalg.matrix_rank(np.dot(tmp.T, tmp))
+                if rank > current_rank:
                     good_lattice_basis = np.append(good_lattice_basis, p)
                     current_rank = rank
-                    if rank==self.dim():
+                    if rank == self.dim():
                         break
             good_lattice_basis = np.sort(good_lattice_basis)
             glsm_basis = [i for i in range(len(pts)) if i not in good_lattice_basis]
             M = fmpq_mat(pts[good_lattice_basis].T.tolist())
             M_inv = np.array(M.inv().tolist())
-            extra_pts = -1*np.dot(M_inv,pts[glsm_basis].T)
-            row_scalings = np.array([np.lcm.reduce([int(ii.q) for ii in i]) for i in extra_pts])
-            column_scalings = np.array([np.lcm.reduce([int(ii.q) for ii in i]) for i in extra_pts.T])
+            extra_pts = -1 * np.dot(M_inv, pts[glsm_basis].T)
+            row_scalings = np.array(
+                [np.lcm.reduce([int(ii.q) for ii in i]) for i in extra_pts]
+            )
+            column_scalings = np.array(
+                [np.lcm.reduce([int(ii.q) for ii in i]) for i in extra_pts.T]
+            )
             extra_rows = np.multiply(extra_pts, row_scalings[:, None])
             extra_rows = np.array([[int(ii.p) for ii in i] for i in extra_rows])
             extra_columns = np.multiply(extra_pts.T, column_scalings[:, None]).T
             extra_columns = np.array([[int(ii.p) for ii in i] for i in extra_columns])
             glsm = np.diag(column_scalings)
-            for p,pp in enumerate(good_lattice_basis):
+            for p, pp in enumerate(good_lattice_basis):
                 glsm = np.insert(glsm, pp, extra_columns[p], axis=1)
-            origin_column = -np.dot(glsm,np.ones(len(glsm[0])))
+            origin_column = -np.dot(glsm, np.ones(len(glsm[0])))
             glsm = np.insert(glsm, 0, origin_column, axis=1)
             linear_relations = extra_rows
-            extra_linear_relation_columns = -1*np.diag(row_scalings)
-            for p,pp in enumerate(good_lattice_basis):
-                linear_relations = np.insert(linear_relations, pp, extra_linear_relation_columns[p], axis=1)
+            extra_linear_relation_columns = -1 * np.diag(row_scalings)
+            for p, pp in enumerate(good_lattice_basis):
+                linear_relations = np.insert(
+                    linear_relations,
+                    pp,
+                    extra_linear_relation_columns[p],
+                    axis=1,
+                )
             linear_relations = np.insert(linear_relations, 0, np.ones(len(pts)), axis=0)
-            linear_relations = np.insert(linear_relations, 0, np.zeros(self.dim()+1), axis=1)
+            linear_relations = np.insert(
+                linear_relations, 0, np.zeros(self.dim() + 1), axis=1
+            )
             linear_relations[0][0] = 1
             linrel = linear_relations
             basis_ind = glsm_basis
 
         # check that everything was computed correctly
-        if (np.linalg.matrix_rank(glsm[:,basis_ind]) != len(basis_ind)
-                        or any(glsm.dot(linrel.T).flat)
-                        or any(glsm.dot(self.points()[list(pts_ind)]).flat)):
+        if (
+            np.linalg.matrix_rank(glsm[:, basis_ind]) != len(basis_ind)
+            or any(glsm.dot(linrel.T).flat)
+            or any(glsm.dot(self.points()[list(pts_ind)]).flat)
+        ):
             raise RuntimeError("Error finding basis")
 
         # cache the results
         if integral:
-            self._glsm_charge_matrix[(pts_ind,integral)] = glsm
-            self._glsm_linrels[(pts_ind,integral)] = linrel
-            self._glsm_basis[(pts_ind,integral)] = basis_ind
+            self._glsm_charge_matrix[(pts_ind, integral)] = glsm
+            self._glsm_linrels[(pts_ind, integral)] = linrel
+            self._glsm_basis[(pts_ind, integral)] = basis_ind
 
-        self._glsm_charge_matrix[(pts_ind,False)] = glsm
-        self._glsm_linrels[(pts_ind,False)] = linrel
-        self._glsm_basis[(pts_ind,False)] = basis_ind
+        self._glsm_charge_matrix[(pts_ind, False)] = glsm
+        self._glsm_linrels[(pts_ind, False)] = linrel
+        self._glsm_basis[(pts_ind, False)] = basis_ind
 
         # return
         if (not include_origin) and (points is None):
-            return np.array(self._glsm_charge_matrix[(pts_ind,integral)][:,1:])
+            return np.array(self._glsm_charge_matrix[(pts_ind, integral)][:, 1:])
         else:
-            return np.array(self._glsm_charge_matrix[(pts_ind,integral)])
+            return np.array(self._glsm_charge_matrix[(pts_ind, integral)])
 
-    def glsm_linear_relations(self,
-                              include_origin: bool = True,
-                              include_points_interior_to_facets: bool = False,
-                              points: ArrayLike = None,
-                              integral: bool = True) -> np.ndarray:
+    def glsm_linear_relations(
+        self,
+        include_origin: bool = True,
+        include_points_interior_to_facets: bool = False,
+        points: ArrayLike = None,
+        integral: bool = True,
+    ) -> np.ndarray:
         """
         **Description:**
         Computes the linear relations of the GLSM charge matrix.
@@ -3071,7 +3259,7 @@ class Polytope:
         ```
         """
         if points is not None:
-            pts_ind = tuple(set(list(points)+[0]))
+            pts_ind = tuple(set(list(points) + [0]))
             if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
                 raise ValueError("An index is out of the allowed range.")
             include_origin = 0 in points
@@ -3079,24 +3267,29 @@ class Polytope:
             pts_ind = tuple(range(self.points().shape[0]))
         else:
             pts_ind = tuple(range(self.points_not_interior_to_facets().shape[0]))
-        if (pts_ind,integral) in self._glsm_linrels:
+        if (pts_ind, integral) in self._glsm_linrels:
             if not include_origin and points is None:
-                return np.array(self._glsm_linrels[(pts_ind,integral)][1:,1:])
-            return np.array(self._glsm_linrels[(pts_ind,integral)])
+                return np.array(self._glsm_linrels[(pts_ind, integral)][1:, 1:])
+            return np.array(self._glsm_linrels[(pts_ind, integral)])
         # If linear relations are not cached we just call the GLSM charge
         # matrix function since they are computed there
-        self.glsm_charge_matrix(include_origin=True,
-                                include_points_interior_to_facets=include_points_interior_to_facets,
-                                points=points, integral=integral)
+        self.glsm_charge_matrix(
+            include_origin=True,
+            include_points_interior_to_facets=include_points_interior_to_facets,
+            points=points,
+            integral=integral,
+        )
         if not include_origin and points is None:
-            return np.array(self._glsm_linrels[(pts_ind,integral)][1:,1:])
-        return np.array(self._glsm_linrels[(pts_ind,integral)])
+            return np.array(self._glsm_linrels[(pts_ind, integral)][1:, 1:])
+        return np.array(self._glsm_linrels[(pts_ind, integral)])
 
-    def glsm_basis(self,
-                   include_origin: bool = True,
-                   include_points_interior_to_facets: bool = False,
-                   points: ArrayLike = None,
-                   integral: bool =True) -> np.ndarray:
+    def glsm_basis(
+        self,
+        include_origin: bool = True,
+        include_points_interior_to_facets: bool = False,
+        points: ArrayLike = None,
+        integral: bool = True,
+    ) -> np.ndarray:
         """
         **Description:**
         Computes a basis of columns of the GLSM charge matrix.
@@ -3135,7 +3328,7 @@ class Polytope:
         ```
         """
         if points is not None:
-            pts_ind = tuple(set(list(points)+[0]))
+            pts_ind = tuple(set(list(points) + [0]))
             if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
                 raise ValueError("An index is out of the allowed range.")
             include_origin = 0 in points
@@ -3143,18 +3336,21 @@ class Polytope:
             pts_ind = tuple(range(self.points().shape[0]))
         else:
             pts_ind = tuple(range(self.points_not_interior_to_facets().shape[0]))
-        if (pts_ind,integral) in self._glsm_basis:
+        if (pts_ind, integral) in self._glsm_basis:
             if not include_origin and points is None:
-                return np.array(self._glsm_basis[(pts_ind,integral)]) - 1
-            return np.array(self._glsm_basis[(pts_ind,integral)])
+                return np.array(self._glsm_basis[(pts_ind, integral)]) - 1
+            return np.array(self._glsm_basis[(pts_ind, integral)])
         # If basis is not cached we just call the GLSM charge matrix function
         # since it is computed there
-        self.glsm_charge_matrix(include_origin=True,
-                                include_points_interior_to_facets=include_points_interior_to_facets,
-                                points=points, integral=integral)
+        self.glsm_charge_matrix(
+            include_origin=True,
+            include_points_interior_to_facets=include_points_interior_to_facets,
+            points=points,
+            integral=integral,
+        )
         if not include_origin and points is None:
-            return np.array(self._glsm_basis[(pts_ind,integral)]) - 1
-        return np.array(self._glsm_basis[(pts_ind,integral)])
+            return np.array(self._glsm_basis[(pts_ind, integral)]) - 1
+        return np.array(self._glsm_basis[(pts_ind, integral)])
 
     # misc
     # ====
@@ -3178,8 +3374,12 @@ class Polytope:
         # A 3-dimensional reflexive lattice polytope in ZZ^3
         ```
         """
-        points = set(map(lambda verts: tuple(sum(verts)),\
-                        itertools.product(self.vertices(), other.vertices())))
+        points = set(
+            map(
+                lambda verts: tuple(sum(verts)),
+                itertools.product(self.vertices(), other.vertices()),
+            )
+        )
         return Polytope(list(points))
 
     def volume(self) -> int:
@@ -3214,12 +3414,13 @@ class Polytope:
             if self.dim() == 0:
                 self._volume = 0
             elif self.dim() == 1:
-                self._volume = max(self.points(optimal=True)) \
-                               - min(self.points(optimal=True))
+                self._volume = max(self.points(optimal=True)) - min(
+                    self.points(optimal=True)
+                )
             else:
                 self._volume = ConvexHull(self.points(optimal=True)).volume
                 self._volume *= math.factorial(self.dim())
-                self._volume = int(round( self._volume ))
+                self._volume = int(round(self._volume))
 
         # return
         return self._volume
@@ -3251,46 +3452,50 @@ class Polytope:
         dual_vert = self.dual().vertices()
         # Construct the sets S_i by finding the maximum dot product with dual
         # vertices
-        S_i = [[]]*3
+        S_i = [[]] * 3
         for p in pts:
             m = max(p.dot(v) for v in dual_vert)
-            if m in (1,2,3):
-                S_i[m-1].append(tuple(p))
+            if m in (1, 2, 3):
+                S_i[m - 1].append(tuple(p))
         # Check each of the three conditions
         gen_pts = []
         for i in range(len(S_i[0])):
             if tuple(-np.array(S_i[0][i])) in S_i[0]:
-                for j in range(i+1,len(S_i[0])):
-                    if (tuple(-np.array(S_i[0][j])) in S_i[0]
-                            and tuple(-np.array(S_i[0][i]))!=S_i[0][j]):
-                        gen_pts.append((S_i[0][i],S_i[0][j]))
+                for j in range(i + 1, len(S_i[0])):
+                    if (
+                        tuple(-np.array(S_i[0][j])) in S_i[0]
+                        and tuple(-np.array(S_i[0][i])) != S_i[0][j]
+                    ):
+                        gen_pts.append((S_i[0][i], S_i[0][j]))
         for i in range(len(S_i[1])):
-            for j in range(i+1,len(S_i[1])):
-                p = tuple(-np.array(S_i[1][i])-np.array(S_i[1][j]))
+            for j in range(i + 1, len(S_i[1])):
+                p = tuple(-np.array(S_i[1][i]) - np.array(S_i[1][j]))
                 if p in S_i[0] or p in S_i[1]:
-                    gen_pts.append((S_i[1][i],S_i[1][j]))
+                    gen_pts.append((S_i[1][i], S_i[1][j]))
         for i in range(len(S_i[2])):
-            for j in range(i+1,len(S_i[2])):
-                p = -np.array(S_i[2][i])-np.array(S_i[2][j])
-                if all(c%2 == 0 for c in p) and tuple(p//2) in S_i[0]:
-                    gen_pts.append((S_i[2][i],S_i[2][j]))
+            for j in range(i + 1, len(S_i[2])):
+                p = -np.array(S_i[2][i]) - np.array(S_i[2][j])
+                if all(c % 2 == 0 for c in p) and tuple(p // 2) in S_i[0]:
+                    gen_pts.append((S_i[2][i], S_i[2][j]))
         polys_2d = set()
-        for p1,p2 in gen_pts:
+        for p1, p2 in gen_pts:
             pts_2d = set()
             for p in pts:
-                if np.linalg.matrix_rank((p1,p2,p)) == 2:
+                if np.linalg.matrix_rank((p1, p2, p)) == 2:
                     pts_2d.add(tuple(p))
             if np.linalg.matrix_rank(list(pts_2d)) == 2:
                 polys_2d.add(tuple(sorted(pts_2d)))
         return [Polytope(pp) for pp in polys_2d]
 
-    def nef_partitions(self,
-                       keep_symmetric: bool = False,
-                       keep_products: bool = False,
-                       keep_projections: bool = False,
-                       codim: int = 2,
-                       compute_hodge_numbers: bool = True,
-                       return_hodge_numbers: bool = False) -> tuple:
+    def nef_partitions(
+        self,
+        keep_symmetric: bool = False,
+        keep_products: bool = False,
+        keep_projections: bool = False,
+        codim: int = 2,
+        compute_hodge_numbers: bool = True,
+        return_hodge_numbers: bool = False,
+    ) -> tuple:
         """
         **Description:**
         Computes the nef partitions of the polytope using PALP.
@@ -3334,16 +3539,25 @@ class Polytope:
         ```
         """
         if not config._exp_features_enabled:
-            raise Exception("The experimental features must be enabled to "
-                            "compute nef partitions.")
+            raise Exception(
+                "The experimental features must be enabled to "
+                "compute nef partitions."
+            )
         if return_hodge_numbers:
             compute_hodge_numbers = True
-        args_id = (keep_symmetric,keep_products,keep_projections,codim,
-                   compute_hodge_numbers)
-        if self._nef_parts.get(args_id,None) is not None:
-            return (self._nef_parts.get(args_id) if return_hodge_numbers
-                                                    or not compute_hodge_numbers
-                                                else self._nef_parts.get(args_id)[0])
+        args_id = (
+            keep_symmetric,
+            keep_products,
+            keep_projections,
+            codim,
+            compute_hodge_numbers,
+        )
+        if self._nef_parts.get(args_id, None) is not None:
+            return (
+                self._nef_parts.get(args_id)
+                if return_hodge_numbers or not compute_hodge_numbers
+                else self._nef_parts.get(args_id)[0]
+            )
         if not self.is_reflexive():
             raise ValueError("The polytope must be reflexive")
         flags = ("-N", "-V", "-p", f"-c{codim}")
@@ -3353,20 +3567,28 @@ class Polytope:
             flags += ("-D",)
         if keep_projections:
             flags += ("-P",)
-        palp = subprocess.Popen((config.palp_path + "nef-11d.x",)+flags,
-                                stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE, universal_newlines=True)
+        palp = subprocess.Popen(
+            (config.palp_path + "nef-11d.x",) + flags,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+        )
         vert_str = ""
         vert = [tuple(pt) for pt in self.vertices()]
         for pt in vert:
-            vert_str += (str(pt).replace("(","").replace(")","").replace(","," ") + "\n")
-        palp_out = palp.communicate(input=f"{len(vert)} {self.dim()}\n" + vert_str + "\n")[0]
+            vert_str += (
+                str(pt).replace("(", "").replace(")", "").replace(",", " ") + "\n"
+            )
+        palp_out = palp.communicate(
+            input=f"{len(vert)} {self.dim()}\n" + vert_str + "\n"
+        )[0]
         if "Vertices of P" not in palp_out:
             raise RuntimeError(f"PALP error. Full output: {palp_out}")
         palp_out = palp_out.split("\n")
         n_parts = 0
         # Read number of nef partitions and vertices to make sure it looks right
-        for i,line in enumerate(palp_out):
+        for i, line in enumerate(palp_out):
             if "#part" in line:
                 n_parts = int(line.split("=")[-1])
             if "Vertices of P" not in line:
@@ -3374,28 +3596,39 @@ class Polytope:
             pts_shape = [int(c) for c in line.split()[:2]]
             tmp_pts = np.empty(pts_shape, dtype=int)
             for j in range(pts_shape[0]):
-                tmp_pts[j,:] = [int(c) for c in palp_out[i+j+1].split()]
-            nef_part_start = i+j+2
+                tmp_pts[j, :] = [int(c) for c in palp_out[i + j + 1].split()]
+            nef_part_start = i + j + 2
             break
-        pts_out = (tmp_pts.T if pts_shape[0] < pts_shape[1] else tmp_pts)
+        pts_out = tmp_pts.T if pts_shape[0] < pts_shape[1] else tmp_pts
         nef_parts = []
         for n in range(n_parts):
-            if "V" not in palp_out[nef_part_start+n]:
+            if "V" not in palp_out[nef_part_start + n]:
                 break
             tmp_partition = []
-            for nn in range(codim-1):
+            for nn in range(codim - 1):
                 tmp_part = []
-                start = palp_out[nef_part_start+n].find(f"V{nn if codim>2 else ''}:")
-                end = palp_out[nef_part_start+n][start:].find("  ")+start
-                for s in palp_out[nef_part_start+n][start+(2 if codim==2 else 3):end].split():
+                start = palp_out[nef_part_start + n].find(f"V{nn if codim>2 else ''}:")
+                end = palp_out[nef_part_start + n][start:].find("  ") + start
+                for s in palp_out[nef_part_start + n][
+                    start + (2 if codim == 2 else 3) : end
+                ].split():
                     if "V" in s or "D" in s or "P" in s or "sec" in s:
                         break
                     tmp_part.append(int(s))
                 tmp_partition.append(tmp_part)
-            tmp_part = [i for i in range(len(vert)) if not any(i in part for part in tmp_partition)]
+            tmp_part = [
+                i
+                for i in range(len(vert))
+                if not any(i in part for part in tmp_partition)
+            ]
             tmp_partition.append(tmp_part)
             # We have to reindex to match polytope indices
-            nef_parts.append(tuple(tuple(self.points_to_indices(pts_out[part])) for part in tmp_partition))
+            nef_parts.append(
+                tuple(
+                    tuple(self.points_to_indices(pts_out[part]))
+                    for part in tmp_partition
+                )
+            )
         if compute_hodge_numbers:
             flags = ("-N", "-V", "-H", f"-c{codim}")
             if keep_symmetric:
@@ -3405,26 +3638,36 @@ class Polytope:
             if keep_projections:
                 flags += ("-P",)
             cy_dim = self.dim() - codim
-            palp = subprocess.Popen((config.palp_path + "nef-11d.x",)+flags,
-                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE, universal_newlines=True)
-            palp_out = palp.communicate(input=f"{len(vert)} {self.dim()}\n" + vert_str + "\n")[0]
+            palp = subprocess.Popen(
+                (config.palp_path + "nef-11d.x",) + flags,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=True,
+            )
+            palp_out = palp.communicate(
+                input=f"{len(vert)} {self.dim()}\n" + vert_str + "\n"
+            )[0]
             data = palp_out.split(f"h {cy_dim} {cy_dim}")[1:]
             hodge_nums = []
             for i in range(len(data)):
-                hodge_nums.append(tuple(int(h) for h in data[i].split()[:(cy_dim+1)**2]))
+                hodge_nums.append(
+                    tuple(int(h) for h in data[i].split()[: (cy_dim + 1) ** 2])
+                )
             if len(hodge_nums) != len(nef_parts):
                 raise RuntimeError("Unexpected length mismatch.")
-            nef_parts = (tuple(nef_parts),tuple(hodge_nums))
+            nef_parts = (tuple(nef_parts), tuple(hodge_nums))
         self._nef_parts[args_id] = tuple(nef_parts)
-        return (self._nef_parts.get(args_id) if return_hodge_numbers
-                                                or not compute_hodge_numbers
-                                            else self._nef_parts.get(args_id)[0])
+        return (
+            self._nef_parts.get(args_id)
+            if return_hodge_numbers or not compute_hodge_numbers
+            else self._nef_parts.get(args_id)[0]
+        )
+
 
 # utils
 # -----
-def poly_v_to_h(pts: ArrayLike,
-                backend: str) -> (ArrayLike, None):
+def poly_v_to_h(pts: ArrayLike, backend: str) -> (ArrayLike, None):
     """
     **Description:**
     Generate the H-representation of a polytope, given the V-representation.
@@ -3453,22 +3696,21 @@ def poly_v_to_h(pts: ArrayLike,
 
         # insert points to generator system
         for pt in pts:
-            ppl_pt = ppl.point(sum(pt[i]*vrs[i] for i in range(dim)))
+            ppl_pt = ppl.point(sum(pt[i] * vrs[i] for i in range(dim)))
             gs.insert(ppl_pt)
 
         # find polytope, hyperplanes
         poly = ppl.C_Polyhedron(gs)
         ineqs = []
         for ineq in poly.minimized_constraints():
-            ineqs.append(list(ineq.coefficients()) +\
-                                            [ineq.inhomogeneous_term()])
+            ineqs.append(list(ineq.coefficients()) + [ineq.inhomogeneous_term()])
         ineqs = np.array(ineqs, dtype=int)
 
     elif backend == "qhull":
         if dim == 1:
             # qhull cannot handle 1-dimensional polytopes
             poly = None
-            ineqs = np.array([[1,-min(pts)], [-1,max(pts)]])
+            ineqs = np.array([[1, -min(pts)], [-1, max(pts)]])
 
         else:
             poly = ConvexHull(pts)
@@ -3477,7 +3719,7 @@ def poly_v_to_h(pts: ArrayLike,
             ineqs = set()
             for eq in poly.equations:
                 g = abs(gcd_list(eq))
-                ineqs.add(tuple(-int(round(i/g)) for i in eq))
+                ineqs.add(tuple(-int(round(i / g)) for i in eq))
             ineqs = np.array(list(ineqs), dtype=int)
 
     elif backend == "palp":
@@ -3490,17 +3732,19 @@ def poly_v_to_h(pts: ArrayLike,
             pt_list = ""
             pts = {tuple(pt) for pt in pts}
             for pt in pts:
-                pt_str = str(pt).replace("(","").replace(")","")
-                pt_str = pt_str.replace(","," ")
+                pt_str = str(pt).replace("(", "").replace(")", "")
+                pt_str = pt_str.replace(",", " ")
                 pt_list += pt_str + "\n"
             palp_in = f"{len(pts)} {dim}\n{pt_list}\n"
 
             # execute it!
-            palp = subprocess.Popen((config.palp_path + "poly.x", "-e"),
-                                                stdin=subprocess.PIPE,
-                                                stdout=subprocess.PIPE,
-                                                stderr=subprocess.PIPE,
-                                                universal_newlines=True)
+            palp = subprocess.Popen(
+                (config.palp_path + "poly.x", "-e"),
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=True,
+            )
             palp_out = palp.communicate(input=palp_in)[0]
 
             # check for errors
@@ -3509,14 +3753,16 @@ def poly_v_to_h(pts: ArrayLike,
 
             # parse results
             palp_out = palp_out.split("\n")
-            for i,line in enumerate(palp_out):
+            for i, line in enumerate(palp_out):
                 if "Equations" not in line:
                     continue
 
-                is_reflexive = ("Vertices" in line)
+                is_reflexive = "Vertices" in line
                 ineqs_shape = [int(c) for c in line.split()[:2]]
-                ineqs = [[int(c) for c in palp_out[i+j+1].split()]
-                                                for j in range(ineqs_shape[0])]
+                ineqs = [
+                    [int(c) for c in palp_out[i + j + 1].split()]
+                    for j in range(ineqs_shape[0])
+                ]
                 break
 
             # Check if transposed
@@ -3526,15 +3772,18 @@ def poly_v_to_h(pts: ArrayLike,
                 ineqs = ineqs.T
 
             if is_reflexive:
-                col_of_1s = np.ones((ineqs.shape[0], 1),dtype=int)
-                ineqs = np.hstack((ineqs,col_of_1s))
+                col_of_1s = np.ones((ineqs.shape[0], 1), dtype=int)
+                ineqs = np.hstack((ineqs, col_of_1s))
 
     return ineqs, poly
 
-def saturating_lattice_pts(pts_in: [tuple],
-                           ineqs: ArrayLike = None,
-                           dim: int = None,
-                           backend: str = None) -> (ArrayLike, [frozenset]):
+
+def saturating_lattice_pts(
+    pts_in: [tuple],
+    ineqs: ArrayLike = None,
+    dim: int = None,
+    backend: str = None,
+) -> (ArrayLike, [frozenset]):
     """
     **Description:**
     Computes the lattice points contained in conv(pts), along with the indices
@@ -3552,14 +3801,14 @@ def saturating_lattice_pts(pts_in: [tuple],
     A list of sets of all inequalities each lattice point saturates.
     """
     # check inputs
-    if isinstance(pts_in,list) and isinstance(pts_in[0],tuple):
+    if isinstance(pts_in, list) and isinstance(pts_in[0], tuple):
         pts = pts_in
     else:
         pts = [tuple(pt) for pt in pts_in]
 
     # fill in missing inputs
     if dim is None:
-        dim = np.linalg.matrix_rank([list(pt)+[1] for pt in pts]) - 1
+        dim = np.linalg.matrix_rank([list(pt) + [1] for pt in pts]) - 1
 
     if backend is None:
         if 1 <= dim <= 4:
@@ -3567,7 +3816,7 @@ def saturating_lattice_pts(pts_in: [tuple],
         else:
             backend = "palp"
 
-    if dim == 0: # 0-dimensional polytopes are finicky
+    if dim == 0:  # 0-dimensional polytopes are finicky
         backend = "palp"
 
     if ineqs is None:
@@ -3584,18 +3833,20 @@ def saturating_lattice_pts(pts_in: [tuple],
             pt_list = ""
             pts_set = set(pts)
             for pt in pts_set:
-                pt_str = str(pt).replace("(","").replace(")","")
-                pt_str = pt_str.replace(","," ")
+                pt_str = str(pt).replace("(", "").replace(")", "")
+                pt_str = pt_str.replace(",", " ")
                 pt_list += pt_str + "\n"
             palp_in = f"{len(pts_set)} {dim}\n{pt_list}\n"
 
             # prep PALP
-            palp = subprocess.Popen((config.palp_path + "poly.x", "-p"),
-                                                stdin=subprocess.PIPE,
-                                                stdout=subprocess.PIPE,
-                                                stderr=subprocess.PIPE,
-                                                universal_newlines=True)
-            
+            palp = subprocess.Popen(
+                (config.palp_path + "poly.x", "-p"),
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=True,
+            )
+
             # do the work and read output
             palp_out = palp.communicate(input=palp_in)[0]
             if "Points of P" not in palp_out:
@@ -3603,7 +3854,7 @@ def saturating_lattice_pts(pts_in: [tuple],
 
             # parse the outputs
             palp_out = palp_out.split("\n")
-            for i,line in enumerate(palp_out):
+            for i, line in enumerate(palp_out):
                 if "Points of P" not in line:
                     continue
 
@@ -3611,7 +3862,7 @@ def saturating_lattice_pts(pts_in: [tuple],
                 pts_shape = [int(c) for c in line.split()[:2]]
                 tmp_pts = np.empty(pts_shape, dtype=int)
                 for j in range(pts_shape[0]):
-                    tmp_pts[j,:] =[int(c) for c in palp_out[i+j+1].split()]
+                    tmp_pts[j, :] = [int(c) for c in palp_out[i + j + 1].split()]
 
                 break
 
@@ -3622,8 +3873,12 @@ def saturating_lattice_pts(pts_in: [tuple],
                 pts_all = tmp_pts
 
             # find inequialities each point saturates
-            facet_ind = [frozenset(i for i,ii in enumerate(ineqs) if\
-                        ii[:-1].dot(pt) + ii[-1] == 0) for pt in pts_all]
+            facet_ind = [
+                frozenset(
+                    i for i, ii in enumerate(ineqs) if ii[:-1].dot(pt) + ii[-1] == 0
+                )
+                for pt in pts_all
+            ]
 
     # Otherwise use the algorithm by Volker Braun.
     # This is redistributed under GNU General Public License version 2+.
@@ -3641,12 +3896,12 @@ def saturating_lattice_pts(pts_in: [tuple],
         box_max = box_max[diameter_index]
 
         # Construct the inverse permutation
-        orig_dict = {j:i for i,j in enumerate(diameter_index)}
+        orig_dict = {j: i for i, j in enumerate(diameter_index)}
         orig_perm = [orig_dict[i] for i in range(dim)]
 
         # Inequalities must also have their coordinates permuted
         ineqs = ineqs.copy()
-        ineqs[:,:-1] = ineqs[:,diameter_index]
+        ineqs[:, :-1] = ineqs[:, diameter_index]
 
         # Find all lattice points and apply the inverse permutation
         pts_all = []
@@ -3654,34 +3909,35 @@ def saturating_lattice_pts(pts_in: [tuple],
         p = np.array(box_min)
 
         while True:
-            tmp_v = ineqs[:,1:-1].dot(p[1:]) + ineqs[:,-1]
+            tmp_v = ineqs[:, 1:-1].dot(p[1:]) + ineqs[:, -1]
 
             # Find the lower bound for the allowed region
-            for i_min in range(box_min[0], box_max[0]+1, 1):
-                if all(i_min*ineqs[:,0]+tmp_v >= 0):
+            for i_min in range(box_min[0], box_max[0] + 1, 1):
+                if all(i_min * ineqs[:, 0] + tmp_v >= 0):
                     break
 
             # Find the upper bound for the allowed region
-            for i_max in range(box_max[0], i_min-1, -1):
-                if all(i_max*ineqs[:,0]+tmp_v >= 0):
+            for i_max in range(box_max[0], i_min - 1, -1):
+                if all(i_max * ineqs[:, 0] + tmp_v >= 0):
                     break
             else:
                 i_max -= 1
 
             # The points i_min .. i_max are contained in the polytope
-            for i in range(i_min, i_max+1):
+            for i in range(i_min, i_max + 1):
                 p[0] = i
                 pts_all.append(np.array(p)[orig_perm])
 
-                saturated = frozenset(j for j in range(len(tmp_v))
-                                      if i*ineqs[j,0] + tmp_v[j] == 0)
+                saturated = frozenset(
+                    j for j in range(len(tmp_v)) if i * ineqs[j, 0] + tmp_v[j] == 0
+                )
                 facet_ind.append(saturated)
 
             # Increment the other entries in p to move on to next loop
             inc = 1
             if dim == 1:
                 break
-            
+
             while p[inc] == box_max[inc]:
                 p[inc] = box_min[inc]
                 inc += 1

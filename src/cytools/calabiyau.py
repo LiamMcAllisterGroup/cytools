@@ -35,11 +35,17 @@ from scipy.sparse import csr_matrix
 # CYTools imports
 from cytools import config
 from cytools.cone import Cone
-from cytools.utils import (gcd_list, array_fmpz_to_int,
-                           filter_tensor_indices,
-                           symmetric_sparse_to_dense,
-                           symmetric_dense_to_sparse, fmpq_to_float,
-                           set_divisor_basis, set_curve_basis)
+from cytools.utils import (
+    gcd_list,
+    array_fmpz_to_int,
+    filter_tensor_indices,
+    symmetric_sparse_to_dense,
+    symmetric_dense_to_sparse,
+    fmpq_to_float,
+    set_divisor_basis,
+    set_curve_basis,
+)
+
 
 class CalabiYau:
     """
@@ -128,41 +134,70 @@ class CalabiYau:
         """
         # We first make sure that the input triangulation is appropriate.
         # Regularity is not checked since it is generally slow.
+        triang = toric_var.triangulation()
+
         if nef_partition is not None:
             if not config._exp_features_enabled:
-                raise Exception("The experimental features must be enabled to "
-                                "construct CICYs.")
+                raise Exception(
+                    "The experimental features must be enabled to " "construct CICYs."
+                )
             # Verify that the input defines a nef-partition
             from cytools import Polytope
+
             pts = toric_var.polytope().points()
-            convpoly = Polytope(pts[list(set.union(*[set(ii) for ii in nef_partition]))])
+            convpoly = Polytope(
+                pts[list(set.union(*[set(ii) for ii in nef_partition]))]
+            )
             if convpoly != toric_var.polytope():
                 raise ValueError("Input data does not define a nef partition")
-            polys = [Polytope(pts[[0]+list(ii)]) for ii in nef_partition]
+            polys = [Polytope(pts[[0] + list(ii)]) for ii in nef_partition]
             sumpoly = polys[0]
-            for i in range(1,len(polys)):
+            for i in range(1, len(polys)):
                 sumpoly = sumpoly.minkowski_sum(polys[i])
             if not sumpoly.is_reflexive():
                 raise ValueError("Input data does not define a nef partition")
-            triang = toric_var.triangulation()
+
             triangpts = [tuple(pt) for pt in triang.points()]
-            parts = [tuple(triang.points_to_indices(pt) for pt in pp.points() if any(pt) and tuple(pt) in triangpts)
-                        for pp in polys]
+            parts = [
+                tuple(
+                    triang.points_to_indices(pt)
+                    for pt in pp.points()
+                    if any(pt) and tuple(pt) in triangpts
+                )
+                for pp in polys
+            ]
             self._nef_part = parts
         else:
             self._nef_part = None
-            if not toric_var.triangulation().is_fine():
+            if not triang.is_fine():
                 raise ValueError("Triangulation is non-fine.")
-            if ((toric_var.dim() != 4 or not toric_var.triangulation().polytope().is_favorable(lattice="N"))
-                    and not config._exp_features_enabled):
-                raise Exception("The experimental features must be enabled to "
-                                "construct non-favorable CYs or CYs with "
-                                "dimension other than 3.")
-            if not ((toric_var.triangulation().points().shape == toric_var.triangulation().polytope().points_not_interior_to_facets().shape
-                     and all((toric_var.triangulation().points() == toric_var.triangulation().polytope().points_not_interior_to_facets()).flat))
-                    or (toric_var.triangulation().points().shape == toric_var.triangulation().polytope().points().shape
-                        and all((toric_var.triangulation().points() == toric_var.triangulation().polytope().points()).flat))):
-                raise ValueError("Calabi-Yau hypersurfaces must be constructed either points not interior to facets or all points.")
+            if (
+                toric_var.dim() != 4 or not triang.polytope().is_favorable(lattice="N")
+            ) and not config._exp_features_enabled:
+                raise Exception(
+                    "The experimental features must be enabled to "
+                    "construct non-favorable CYs or CYs with "
+                    "dimension other than 3."
+                )
+            if not (
+                (
+                    triang.points().shape
+                    == triang.polytope().points_not_interior_to_facets().shape
+                    and all(
+                        (
+                            triang.points()
+                            == triang.polytope().points_not_interior_to_facets()
+                        ).flat
+                    )
+                )
+                or (
+                    triang.points().shape == triang.polytope().points().shape
+                    and all((triang.points() == triang.polytope().points()).flat)
+                )
+            ):
+                raise ValueError(
+                    "Calabi-Yau hypersurfaces must be constructed either points not interior to facets or all points."
+                )
         self._ambient_var = toric_var
         self._optimal_ambient_var = None
         self._is_hypersurface = nef_partition is None or len(nef_partition) == 1
@@ -177,7 +212,7 @@ class CalabiYau:
         self._divisor_basis_mat = None
         self._curve_basis = None
         self._curve_basis_mat = None
-        self._mori_cone = [None]*3
+        self._mori_cone = [None] * 3
         self._intersection_numbers = dict()
         self._prime_divs = None
         self._second_chern_class = None
@@ -229,7 +264,7 @@ class CalabiYau:
             self._divisor_basis_mat = None
             self._curve_basis = None
             self._curve_basis_mat = None
-            self._mori_cone = [None]*3
+            self._mori_cone = [None] * 3
             self._intersection_numbers = dict()
             self._prime_divs = None
             self._second_chern_class = None
@@ -265,38 +300,54 @@ class CalabiYau:
         d = self.dim()
         if self._is_hypersurface:
             if d == 2:
-                out_str = (f"A K3 hypersurface with h11={self.h11()} in a "
-                           "3-dimensional toric variety")
+                out_str = (
+                    f"A K3 hypersurface with h11={self.h11()} in a "
+                    "3-dimensional toric variety"
+                )
             elif d == 3:
-                out_str = ("A Calabi-Yau 3-fold hypersurface with "
-                           f"h11={self.h11()} and h21={self.h21()} in a "
-                           "4-dimensional toric variety")
+                out_str = (
+                    "A Calabi-Yau 3-fold hypersurface with "
+                    f"h11={self.h11()} and h21={self.h21()} in a "
+                    "4-dimensional toric variety"
+                )
             elif d == 4:
-                out_str = ("A Calabi-Yau 4-fold hypersurface with "
-                           f"h11={self.h11()}, h12={self.h12()}, "
-                           f"h13={self.h13()}, and h22={self.h22()} in a "
-                           "5-dimensional toric variety")
+                out_str = (
+                    "A Calabi-Yau 4-fold hypersurface with "
+                    f"h11={self.h11()}, h12={self.h12()}, "
+                    f"h13={self.h13()}, and h22={self.h22()} in a "
+                    "5-dimensional toric variety"
+                )
             else:
-                out_str = (f"A Calabi-Yau {d}-fold hypersurface in a "
-                           f"{d+1}-dimensional toric variety")
+                out_str = (
+                    f"A Calabi-Yau {d}-fold hypersurface in a "
+                    f"{d+1}-dimensional toric variety"
+                )
         else:
             dd = self.ambient_variety().dim()
-            if self._hodge_nums is None or d not in (2,3,4):
-                out_str = (f"A complete intersection Calabi-Yau {d}-fold in a "
-                           f"{dd}-dimensional toric variety")
+            if self._hodge_nums is None or d not in (2, 3, 4):
+                out_str = (
+                    f"A complete intersection Calabi-Yau {d}-fold in a "
+                    f"{dd}-dimensional toric variety"
+                )
             elif d == 2:
-                out_str = (f"A complete intersection K3 surface with "
-                           f"h11={self.h11()} in a "
-                           f"{dd}-dimensional toric variety")
+                out_str = (
+                    f"A complete intersection K3 surface with "
+                    f"h11={self.h11()} in a "
+                    f"{dd}-dimensional toric variety"
+                )
             elif d == 3:
-                out_str = (f"A complete intersection Calabi-Yau 3-fold with "
-                           f"h11={self.h11()} h21={self.h21()} in a "
-                           + f"{dd}-dimensional toric variety")
+                out_str = (
+                    f"A complete intersection Calabi-Yau 3-fold with "
+                    f"h11={self.h11()} h21={self.h21()} in a "
+                    + f"{dd}-dimensional toric variety"
+                )
             elif d == 4:
-                out_str = (f"A complete intersection Calabi-Yau 4-fold with "
-                           f"h11={self.h11()}, h12={self.h12()}, "
-                           f"h13={self.h13()}, and h22={self.h22()} in a "
-                           f"{dd}-dimensional toric variety")
+                out_str = (
+                    f"A complete intersection Calabi-Yau 4-fold with "
+                    f"h11={self.h11()}, h12={self.h12()}, "
+                    f"h13={self.h13()}, and h22={self.h22()} in a "
+                    f"{dd}-dimensional toric variety"
+                )
         return out_str
 
     def __eq__(self, other):
@@ -336,11 +387,13 @@ class CalabiYau:
         """
         if not isinstance(other, CalabiYau):
             return NotImplemented
-        is_triv_equiv =  self.is_trivially_equivalent(other)
+        is_triv_equiv = self.is_trivially_equivalent(other)
         if is_triv_equiv:
             return True
-        warnings.warn("The comparison of CYs should not be done with ==. "
-                      "Please use the is_trivially_equivalent function.")
+        warnings.warn(
+            "The comparison of CYs should not be done with ==. "
+            "Please use the is_trivially_equivalent function."
+        )
         return False
 
     def __ne__(self, other):
@@ -410,9 +463,9 @@ class CalabiYau:
         if self._is_hypersurface:
             self_orbit = self.triangulation().automorphism_orbit(on_faces_codim=2)
             self_orbit = tuple(tuple(tuple(s) for s in t) for t in self_orbit)
-            return hash((hash(self.triangulation().polytope()),hash(self_orbit)))
+            return hash((hash(self.triangulation().polytope()), hash(self_orbit)))
         else:
-            self._hash = hash((hash(self.ambient_variety()),hash(self._nef_part)))
+            self._hash = hash((hash(self.ambient_variety()), hash(self._nef_part)))
         return self._hash
 
     def is_trivially_equivalent(self, other):
@@ -461,7 +514,9 @@ class CalabiYau:
             return False
         self_orbit = self.triangulation().automorphism_orbit(on_faces_codim=2)
         other_orbit = other.triangulation().automorphism_orbit(on_faces_codim=2)
-        return self_orbit.shape == other_orbit.shape and all((self_orbit == other_orbit).flat)
+        return self_orbit.shape == other_orbit.shape and all(
+            (self_orbit == other_orbit).flat
+        )
 
     def ambient_variety(self):
         """
@@ -564,6 +619,7 @@ class CalabiYau:
         ```
         """
         return self.ambient_variety().dim()
+
     # aliases
     ambient_dim = ambient_dimension
 
@@ -593,11 +649,16 @@ class CalabiYau:
         """
         if self._dim is not None:
             return self._dim
+
+        tv = self.ambient_variety()
+
         if self._is_hypersurface:
-            self._dim = self.ambient_variety().dim() - 1
+            self._dim = tv.dim() - 1
         else:
-            self._dim = self.ambient_variety().triangulation().dim() - len(self._nef_part)
+            self._dim = tv.triangulation().dim() - len(self._nef_part)
+
         return self._dim
+
     # aliases
     dim = dimension
 
@@ -643,11 +704,12 @@ class CalabiYau:
         if not self._is_hypersurface:
             if self._hodge_nums is None:
                 self._compute_cicy_hodge_numbers()
-            return self._hodge_nums.get((p,q),0)
-        if self.dim() not in (2,3,4) and p!=1 and q!=1:
-            raise NotImplementedError("Only Calabi-Yaus of dimension 2-4 are "
-                                      "currently supported.")
-        return self.polytope().hpq(p,q,lattice="N")
+            return self._hodge_nums.get((p, q), 0)
+        if self.dim() not in (2, 3, 4) and p != 1 and q != 1:
+            raise NotImplementedError(
+                "Only Calabi-Yaus of dimension 2-4 are " "currently supported."
+            )
+        return self.polytope().hpq(p, q, lattice="N")
 
     def h11(self):
         """
@@ -676,10 +738,11 @@ class CalabiYau:
         ```
         """
         if not self._is_hypersurface:
-            return self.hpq(1,1)
-        if self.dim() not in (2,3,4):
-            raise NotImplementedError("Only Calabi-Yaus of dimension 2-4 are "
-                                      "currently supported.")
+            return self.hpq(1, 1)
+        if self.dim() not in (2, 3, 4):
+            raise NotImplementedError(
+                "Only Calabi-Yaus of dimension 2-4 are " "currently supported."
+            )
         return self.polytope().h11(lattice="N")
 
     def h12(self):
@@ -712,11 +775,13 @@ class CalabiYau:
         ```
         """
         if not self._is_hypersurface:
-            return self.hpq(1,2)
-        if self.dim() not in (2,3,4):
-            raise NotImplementedError("Only Calabi-Yaus of dimension 2-4 are "
-                                      "currently supported.")
+            return self.hpq(1, 2)
+        if self.dim() not in (2, 3, 4):
+            raise NotImplementedError(
+                "Only Calabi-Yaus of dimension 2-4 are " "currently supported."
+            )
         return self.polytope().h12(lattice="N")
+
     # aliases
     h21 = h12
 
@@ -750,11 +815,13 @@ class CalabiYau:
         ```
         """
         if not self._is_hypersurface:
-            return self.hpq(1,3)
-        if self.dim() not in (2,3,4):
-            raise NotImplementedError("Only Calabi-Yaus of dimension 2-4 are "
-                                      "currently supported.")
+            return self.hpq(1, 3)
+        if self.dim() not in (2, 3, 4):
+            raise NotImplementedError(
+                "Only Calabi-Yaus of dimension 2-4 are " "currently supported."
+            )
         return self.polytope().h13(lattice="N")
+
     # aliases
     h31 = h13
 
@@ -785,10 +852,11 @@ class CalabiYau:
         ```
         """
         if not self._is_hypersurface:
-            return self.hpq(2,2)
-        if self.dim() not in (2,3,4):
-            raise NotImplementedError("Only Calabi-Yaus of dimension 2-4 are "
-                                      "currently supported.")
+            return self.hpq(2, 2)
+        if self.dim() not in (2, 3, 4):
+            raise NotImplementedError(
+                "Only Calabi-Yaus of dimension 2-4 are " "currently supported."
+            )
         return self.polytope().h22(lattice="N")
 
     def chi(self):
@@ -824,20 +892,21 @@ class CalabiYau:
             if "chi" in self._hodge_nums:
                 return self._hodge_nums["chi"]
             chi = 0
-            for i in range(2*self.dim()+1):
-                ii = min(i,self.dim())
+            for i in range(2 * self.dim() + 1):
+                ii = min(i, self.dim())
                 jj = i - ii
                 while True:
-                    chi += (-1 if i%2 else 1)*self._hodge_nums[(ii,jj)]
+                    chi += (-1 if i % 2 else 1) * self._hodge_nums[(ii, jj)]
                     ii -= 1
                     jj += 1
                     if ii < 0 or jj > self.dim():
                         break
             self._hodge_nums["chi"] = chi
             return self._hodge_nums["chi"]
-        if self.dim() not in (2,3,4):
-            raise NotImplementedError("Only Calabi-Yaus of dimension 2-4 are "
-                                      "currently supported.")
+        if self.dim() not in (2, 3, 4):
+            raise NotImplementedError(
+                "Only Calabi-Yaus of dimension 2-4 are " "currently supported."
+            )
         return self.polytope().chi(lattice="N")
 
     def glsm_charge_matrix(self, include_origin=True):
@@ -866,12 +935,12 @@ class CalabiYau:
         ```
         """
         if self._glsm_charge_matrix is not None:
-            return np.array(self._glsm_charge_matrix)[:,(0 if include_origin else 1):]
-        pts = [0]+list(self.prime_toric_divisors())
+            return np.array(self._glsm_charge_matrix)[:, (0 if include_origin else 1) :]
+        pts = [0] + list(self.prime_toric_divisors())
         self._glsm_charge_matrix = self.polytope().glsm_charge_matrix(
-                                            include_origin=True,
-                                            points=pts)
-        return np.array(self._glsm_charge_matrix)[:,(0 if include_origin else 1):]
+            include_origin=True, points=pts
+        )
+        return np.array(self._glsm_charge_matrix)[:, (0 if include_origin else 1) :]
 
     def glsm_linear_relations(self, include_origin=True):
         """
@@ -903,12 +972,16 @@ class CalabiYau:
         ```
         """
         if self._glsm_linrels is not None:
-            return np.array(self._glsm_linrels)[(0 if include_origin else 1):,(0 if include_origin else 1):]
-        pts = [0]+list(self.prime_toric_divisors())
+            return np.array(self._glsm_linrels)[
+                (0 if include_origin else 1) :, (0 if include_origin else 1) :
+            ]
+        pts = [0] + list(self.prime_toric_divisors())
         self._glsm_linrels = self.polytope().glsm_linear_relations(
-                                include_origin=True,
-                                points=pts)
-        return np.array(self._glsm_linrels)[(0 if include_origin else 1):,(0 if include_origin else 1):]
+            include_origin=True, points=pts
+        )
+        return np.array(self._glsm_linrels)[
+            (0 if include_origin else 1) :, (0 if include_origin else 1) :
+        ]
 
     def divisor_basis(self, include_origin=True, as_matrix=False):
         """
@@ -950,19 +1023,24 @@ class CalabiYau:
         ```
         """
         if self._divisor_basis is None:
-            pts = [0]+list(self.prime_toric_divisors())
-            self.set_divisor_basis(self.polytope().glsm_basis(
-                                   integral=True,
-                                   include_origin=True,
-                                   points=pts))
+            pts = [0] + list(self.prime_toric_divisors())
+            self.set_divisor_basis(
+                self.polytope().glsm_basis(
+                    integral=True, include_origin=True, points=pts
+                )
+            )
         if len(self._divisor_basis.shape) == 1:
             if 0 in self._divisor_basis and not include_origin:
-                raise ValueError("The basis was requested not including the "
-                                 "origin, but it is included in the current basis.")
+                raise ValueError(
+                    "The basis was requested not including the "
+                    "origin, but it is included in the current basis."
+                )
             if as_matrix:
-                return np.array(self._divisor_basis_mat[:,(0 if include_origin else 1):])
+                return np.array(
+                    self._divisor_basis_mat[:, (0 if include_origin else 1) :]
+                )
             return np.array(self._divisor_basis) - (0 if include_origin else 1)
-        return np.array(self._divisor_basis[:,(0 if include_origin else 1):])
+        return np.array(self._divisor_basis[:, (0 if include_origin else 1) :])
 
     def set_divisor_basis(self, basis, include_origin=True):
         """
@@ -1052,19 +1130,27 @@ class CalabiYau:
         ```
         """
         if self._curve_basis is None:
-            self.set_divisor_basis(self.polytope().glsm_basis(
-                                    integral=True,
-                                    include_origin=True,
-                                    points=self.polytope().points_to_indices(self.triangulation().points()))
-                                    )
+            self.set_divisor_basis(
+                self.polytope().glsm_basis(
+                    integral=True,
+                    include_origin=True,
+                    points=self.polytope().points_to_indices(
+                        self.triangulation().points()
+                    ),
+                )
+            )
         if len(self._curve_basis.shape) == 1:
             if 0 in self._curve_basis and not include_origin:
-                raise ValueError("The basis was requested not including the "
-                                 "origin, but it is included in the current basis.")
+                raise ValueError(
+                    "The basis was requested not including the "
+                    "origin, but it is included in the current basis."
+                )
             if as_matrix:
-                return np.array(self._curve_basis_mat[:,(0 if include_origin else 1):])
+                return np.array(
+                    self._curve_basis_mat[:, (0 if include_origin else 1) :]
+                )
             return np.array(self._curve_basis) - (0 if include_origin else 1)
-        return np.array(self._curve_basis[:,(0 if include_origin else 1):])
+        return np.array(self._curve_basis[:, (0 if include_origin else 1) :])
 
     def set_curve_basis(self, basis, include_origin=True):
         """
@@ -1121,12 +1207,19 @@ class CalabiYau:
         # shared with the ToricVariety class.
         set_curve_basis(self, basis, include_origin=include_origin)
 
-    def intersection_numbers(self, in_basis=False, format="dok",
-                             zero_as_anticanonical=False, backend="all",
-                             check=True, backend_error_tol=1e-3,
-                             round_to_zero_threshold=1e-3,
-                             round_to_integer_error_tol=5e-2, verbose=0,
-                             exact_arithmetic=False):
+    def intersection_numbers(
+        self,
+        in_basis=False,
+        format="dok",
+        zero_as_anticanonical=False,
+        backend="all",
+        check=True,
+        backend_error_tol=1e-3,
+        round_to_zero_threshold=1e-3,
+        round_to_integer_error_tol=5e-2,
+        verbose=0,
+        exact_arithmetic=False,
+    ):
         """
         **Description:**
         Returns the intersection numbers of the Calabi-Yau manifold.
@@ -1248,31 +1341,53 @@ class CalabiYau:
             return copy.copy(self._intersection_numbers[args_id])
 
         # do the calculation
-        if ((False,False,False,"dok") not in self._intersection_numbers
-                or ((False,False,True,"dok") not in self._intersection_numbers
-                    and exact_arithmetic)):
+        if (False, False, False, "dok") not in self._intersection_numbers or (
+            (False, False, True, "dok") not in self._intersection_numbers
+            and exact_arithmetic
+        ):
             ambient_intnums = self.ambient_variety().intersection_numbers(
-                        in_basis=False, format="dok", backend=backend,
-                        check=check, backend_error_tol=backend_error_tol,
-                        round_to_zero_threshold=round_to_zero_threshold,
-                        round_to_integer_error_tol=round_to_integer_error_tol,
-                        verbose=verbose, exact_arithmetic=exact_arithmetic)
+                in_basis=False,
+                format="dok",
+                backend=backend,
+                check=check,
+                backend_error_tol=backend_error_tol,
+                round_to_zero_threshold=round_to_zero_threshold,
+                round_to_integer_error_tol=round_to_integer_error_tol,
+                verbose=verbose,
+                exact_arithmetic=exact_arithmetic,
+            )
             if self._is_hypersurface:
-                intnums_cy = {ii[1:]:-ambient_intnums[ii] for ii in ambient_intnums if 0 in ii}
+                intnums_cy = {
+                    ii[1:]: -ambient_intnums[ii] for ii in ambient_intnums if 0 in ii
+                }
             else:
-                triang_pts = [tuple(pt) for pt in self.ambient_variety().triangulation().points()]
+                triang_pts = [
+                    tuple(pt) for pt in self.ambient_variety().triangulation().points()
+                ]
                 parts = self._nef_part
                 ambient_dim = self.ambient_dim()
                 intnums_dict = ambient_intnums
                 for dd in range(len(parts)):
                     intnums_dict_tmp = defaultdict(lambda: 0)
                     for ii in intnums_dict:
-                        choices = set(tuple(sorted(c for i,c in enumerate(ii) if i!=j)) for j in range(ambient_dim-dd) if ii[j] in parts[dd])
+                        choices = set(
+                            tuple(sorted(c for i, c in enumerate(ii) if i != j))
+                            for j in range(ambient_dim - dd)
+                            if ii[j] in parts[dd]
+                        )
                         for c in choices:
                             intnums_dict_tmp[c] += intnums_dict[ii]
-                    intnums_dict = {ii:intnums_dict_tmp[ii] for ii in intnums_dict_tmp if abs(intnums_dict_tmp[ii]) > round_to_zero_threshold}
+                    intnums_dict = {
+                        ii: intnums_dict_tmp[ii]
+                        for ii in intnums_dict_tmp
+                        if abs(intnums_dict_tmp[ii]) > round_to_zero_threshold
+                    }
                 intnums_cy = intnums_dict
-                if all(abs(round(intnums_cy[ii])-intnums_cy[ii]) < round_to_integer_error_tol for ii in intnums_cy):
+                if all(
+                    abs(round(intnums_cy[ii]) - intnums_cy[ii])
+                    < round_to_integer_error_tol
+                    for ii in intnums_cy
+                ):
                     self._is_smooth = True
                     for ii in intnums_cy:
                         intnums_cy[ii] = int(round(intnums_cy[ii]))
@@ -1281,48 +1396,101 @@ class CalabiYau:
                 # Now we find the prime toric divisors and reindex accordingly
                 intnum_ind = set.union(*[set(ii) for ii in intnums_cy])
                 triang_inds = sorted(intnum_ind)
-                self._prime_divs = tuple(self.triangulation().triangulation_to_polytope_indices([i for i in triang_inds if i]))
-                divs_dict = {ii:i for i,ii in enumerate(self._prime_divs,1)}
+                self._prime_divs = tuple(
+                    self.triangulation().triangulation_to_polytope_indices(
+                        [i for i in triang_inds if i]
+                    )
+                )
+                divs_dict = {ii: i for i, ii in enumerate(self._prime_divs, 1)}
                 divs_dict[0] = 0
-                intnums_cy = {tuple(divs_dict[i] for i in ii):intnums_cy[ii] for ii in intnums_cy}
+                intnums_cy = {
+                    tuple(divs_dict[i] for i in ii): intnums_cy[ii] for ii in intnums_cy
+                }
                 # If there are some non-intersecting divisors we construct a better
                 # toric variety in the background
-                if len(self._prime_divs) == self.ambient_variety().triangulation().points().shape[0]-1:
+                if (
+                    len(self._prime_divs)
+                    == self.ambient_variety().triangulation().points().shape[0] - 1
+                ):
                     self._optimal_ambient_var = self._ambient_var
                 else:
                     heights = self.triangulation().heights()[triang_inds]
                     try:
-                        self._optimal_ambient_var = self.polytope().triangulate(heights=heights, points=self.polytope().points_to_indices(
-                                            self.polytope().points()[[0]+list(self._prime_divs)])).get_toric_variety()
+                        self._optimal_ambient_var = (
+                            self.polytope()
+                            .triangulate(
+                                heights=heights,
+                                points=self.polytope().points_to_indices(
+                                    self.polytope().points()[
+                                        [0] + list(self._prime_divs)
+                                    ]
+                                ),
+                            )
+                            .get_toric_variety()
+                        )
                     except:
-                        raise NotImplementedError("This type of complete intersection is not supported.")
-            self._intersection_numbers[(False,False,exact_arithmetic,"dok")] = intnums_cy
+                        raise NotImplementedError(
+                            "This type of complete intersection is not supported."
+                        )
+            self._intersection_numbers[(False, False, exact_arithmetic, "dok")] = (
+                intnums_cy
+            )
         # Now intersection numbers have been computed
         # We now compute the intersection numbers of the basis if necessary
         if zero_as_anticanonical and not in_basis:
-            self._intersection_numbers[(True,False,exact_arithmetic,"dok")] = self._intersection_numbers[(False,False,exact_arithmetic,"dok")]
-            for ii in self._intersection_numbers[(True,False,exact_arithmetic,"dok")]:
+            self._intersection_numbers[(True, False, exact_arithmetic, "dok")] = (
+                self._intersection_numbers[(False, False, exact_arithmetic, "dok")]
+            )
+            for ii in self._intersection_numbers[
+                (True, False, exact_arithmetic, "dok")
+            ]:
                 if 0 not in ii:
                     continue
-                self._intersection_numbers[(True,False,exact_arithmetic,"dok")][ii] *= (-1 if sum(jj == 0 for jj in ii)%2 == 1 else 1)
+                self._intersection_numbers[(True, False, exact_arithmetic, "dok")][
+                    ii
+                ] *= (-1 if sum(jj == 0 for jj in ii) % 2 == 1 else 1)
         elif in_basis:
             basis = self.divisor_basis()
-            if len(basis.shape) == 2: # If basis is matrix
-                self._intersection_numbers[(False,True,exact_arithmetic,"dense")] = (
-                    symmetric_sparse_to_dense(self._intersection_numbers[(False,False,exact_arithmetic,"dok")], basis))
-                self._intersection_numbers[(False,True,exact_arithmetic,"dok")] = (
-                    symmetric_dense_to_sparse(self._intersection_numbers[(False,True,exact_arithmetic,"dense")]))
+            if len(basis.shape) == 2:  # If basis is matrix
+                self._intersection_numbers[(False, True, exact_arithmetic, "dense")] = (
+                    symmetric_sparse_to_dense(
+                        self._intersection_numbers[
+                            (False, False, exact_arithmetic, "dok")
+                        ],
+                        basis,
+                    )
+                )
+                self._intersection_numbers[(False, True, exact_arithmetic, "dok")] = (
+                    symmetric_dense_to_sparse(
+                        self._intersection_numbers[
+                            (False, True, exact_arithmetic, "dense")
+                        ]
+                    )
+                )
             else:
-                self._intersection_numbers[(False,True,exact_arithmetic,"dok")] = filter_tensor_indices(
-                    self._intersection_numbers[(False,False,exact_arithmetic,"dok")], basis)
+                self._intersection_numbers[(False, True, exact_arithmetic, "dok")] = (
+                    filter_tensor_indices(
+                        self._intersection_numbers[
+                            (False, False, exact_arithmetic, "dok")
+                        ],
+                        basis,
+                    )
+                )
         # Intersection numbers of the basis are now done
         # Finally, we convert into the desired format
         if format == "coo":
-            tmpintnums = self._intersection_numbers[(zero_as_anticanonical,in_basis,exact_arithmetic,"dok")]
-            self._intersection_numbers[args_id] = np.array([list(ii)+[tmpintnums[ii]] for ii in tmpintnums])
+            tmpintnums = self._intersection_numbers[
+                (zero_as_anticanonical, in_basis, exact_arithmetic, "dok")
+            ]
+            self._intersection_numbers[args_id] = np.array(
+                [list(ii) + [tmpintnums[ii]] for ii in tmpintnums]
+            )
         elif format == "dense":
-            self._intersection_numbers[args_id] = (
-                symmetric_sparse_to_dense(self._intersection_numbers[(zero_as_anticanonical,in_basis,exact_arithmetic,"dok")]))
+            self._intersection_numbers[args_id] = symmetric_sparse_to_dense(
+                self._intersection_numbers[
+                    (zero_as_anticanonical, in_basis, exact_arithmetic, "dok")
+                ]
+            )
         return copy.copy(self._intersection_numbers[args_id])
 
     def prime_toric_divisors(self):
@@ -1356,7 +1524,9 @@ class CalabiYau:
         if self._prime_divs is not None:
             return self._prime_divs
         if self._is_hypersurface:
-            self._prime_divs = tuple(range(1,self.polytope().points_not_interior_to_facets().shape[0]))
+            self._prime_divs = tuple(
+                range(1, self.polytope().points_not_interior_to_facets().shape[0])
+            )
             self._optimal_ambient_var = self._ambient_var
         else:
             # For CICYs we have to compute intersection numbers and the
@@ -1397,7 +1567,7 @@ class CalabiYau:
         if self.dim() != 3:
             raise NotImplementedError("This function currently only supports 3-folds.")
         if self._second_chern_class is None:
-            c2 = np.zeros(len(self.prime_toric_divisors())+1, dtype=int)
+            c2 = np.zeros(len(self.prime_toric_divisors()) + 1, dtype=int)
             intnums = self.intersection_numbers(in_basis=False)
             for ii in intnums:
                 if ii[0] == 0:
@@ -1418,10 +1588,10 @@ class CalabiYau:
             self._second_chern_class = c2
         if in_basis:
             basis = self.divisor_basis()
-            if len(basis.shape) == 2: # If basis is matrix
+            if len(basis.shape) == 2:  # If basis is matrix
                 return self._second_chern_class.dot(basis.T)
             return np.array(self._second_chern_class[basis])
-        return np.array(self._second_chern_class)[(0 if include_origin else 1):]
+        return np.array(self._second_chern_class)[(0 if include_origin else 1) :]
 
     def is_smooth(self):
         """
@@ -1449,7 +1619,7 @@ class CalabiYau:
         if self._is_hypersurface:
             self._is_smooth = self.ambient_variety().canonical_divisor_is_smooth()
         else:
-            self.intersection_numbers() # The variable is set while computing intersection numbers
+            self.intersection_numbers()  # The variable is set while computing intersection numbers
         return self._is_smooth
 
     def toric_mori_cone(self, in_basis=False, include_origin=True):
@@ -1484,11 +1654,13 @@ class CalabiYau:
         ```
         """
         if self._mori_cone[0] is None:
-            if self._optimal_ambient_var is None: # Make sure self._optimal_ambient_var is set
+            if (
+                self._optimal_ambient_var is None
+            ):  # Make sure self._optimal_ambient_var is set
                 self.prime_toric_divisors()
             self._mori_cone[0] = self._optimal_ambient_var.mori_cone()
         # 0: All divs, 1: No origin, 2: In basis
-        args_id = ((not include_origin)*1 if not in_basis else 0) + in_basis*2
+        args_id = ((not include_origin) * 1 if not in_basis else 0) + in_basis * 2
         if self._mori_cone[args_id] is not None:
             return self._mori_cone[args_id]
         rays = self._mori_cone[0].rays()
@@ -1496,13 +1668,13 @@ class CalabiYau:
         if include_origin and not in_basis:
             new_rays = rays
         elif not include_origin and not in_basis:
-            new_rays = rays[:,1:]
+            new_rays = rays[:, 1:]
         else:
-            if len(basis.shape) == 2: # If basis is matrix
+            if len(basis.shape) == 2:  # If basis is matrix
                 new_rays = rays.dot(basis.T)
             else:
-                new_rays = rays[:,basis]
-        c = Cone(new_rays, check=len(basis.shape)==2)
+                new_rays = rays[:, basis]
+        c = Cone(new_rays, check=len(basis.shape) == 2)
         self._mori_cone[args_id] = c
         return self._mori_cone[args_id]
 
@@ -1555,7 +1727,7 @@ class CalabiYau:
         """
         if self._eff_cone is not None:
             return self._eff_cone
-        self._eff_cone = Cone(self.curve_basis(include_origin=False,as_matrix=True).T)
+        self._eff_cone = Cone(self.curve_basis(include_origin=False, as_matrix=True).T)
         return self._eff_cone
 
     def compute_cy_volume(self, tloc):
@@ -1582,20 +1754,18 @@ class CalabiYau:
         # 3.4999999988856496
         ```
         """
-        intnums = self.intersection_numbers(in_basis=True,
-                                            exact_arithmetic=False)
+        intnums = self.intersection_numbers(in_basis=True, exact_arithmetic=False)
         xvol = 0
         basis = self.divisor_basis()
-        if len(basis.shape) == 2: # If basis is matrix
+        if len(basis.shape) == 2:  # If basis is matrix
             tmp = np.array(intnums)
             for i in range(self.dim()):
-                tmp = np.tensordot(tmp, tloc, axes=[[self.dim()-1-i],[0]])
-            xvol = tmp/factorial(self.dim())
+                tmp = np.tensordot(tmp, tloc, axes=[[self.dim() - 1 - i], [0]])
+            xvol = tmp / factorial(self.dim())
         else:
             for ii in intnums:
-                mult = np.prod([factorial(c)
-                                   for c in Counter(ii).values()])
-                xvol += intnums[ii]*np.prod([tloc[int(j)] for j in ii])/mult
+                mult = np.prod([factorial(c) for c in Counter(ii).values()])
+                xvol += intnums[ii] * np.prod([tloc[int(j)] for j in ii]) / mult
         return xvol
 
     def compute_divisor_volumes(self, tloc, in_basis=False):
@@ -1631,7 +1801,9 @@ class CalabiYau:
         ```
         """
         if not in_basis:
-            tloc_new = np.array(tloc).dot(self.divisor_basis(as_matrix=True, include_origin=False))
+            tloc_new = np.array(tloc).dot(
+                self.divisor_basis(as_matrix=True, include_origin=False)
+            )
             intnums = self.intersection_numbers(in_basis=False, exact_arithmetic=False)
             tau = np.zeros(len(self.prime_toric_divisors()), dtype=float)
             for ii in intnums:
@@ -1639,25 +1811,32 @@ class CalabiYau:
                     continue
                 c = Counter(ii)
                 for j in c.keys():
-                    tau[j-1] += intnums[ii] * np.prod(
-                                [tloc_new[k-1]**(c[k]-(j==k))/factorial(c[k]-(j==k))
-                                    for k in c.keys()])
+                    tau[j - 1] += intnums[ii] * np.prod(
+                        [
+                            tloc_new[k - 1] ** (c[k] - (j == k))
+                            / factorial(c[k] - (j == k))
+                            for k in c.keys()
+                        ]
+                    )
             return np.array(tau)
         intnums = self.intersection_numbers(in_basis=True, exact_arithmetic=False)
         basis = self.divisor_basis()
-        if len(basis.shape) == 2: # If basis is matrix
+        if len(basis.shape) == 2:  # If basis is matrix
             tmp = np.array(intnums)
-            for i in range(1,self.dim()):
-                tmp = np.tensordot(tmp, tloc, axes=[[self.dim()-1-i],[0]])
-            tau = tmp/factorial(self.dim()-1)
+            for i in range(1, self.dim()):
+                tmp = np.tensordot(tmp, tloc, axes=[[self.dim() - 1 - i], [0]])
+            tau = tmp / factorial(self.dim() - 1)
         else:
             tau = np.zeros(len(basis), dtype=float)
             for ii in intnums:
                 c = Counter(ii)
                 for j in c.keys():
                     tau[j] += intnums[ii] * np.prod(
-                                [tloc[k]**(c[k]-(j==k))/factorial(c[k]-(j==k))
-                                    for k in c.keys()])
+                        [
+                            tloc[k] ** (c[k] - (j == k)) / factorial(c[k] - (j == k))
+                            for k in c.keys()
+                        ]
+                    )
         return np.array(tau)
 
     def compute_curve_volumes(self, tloc, only_extremal=False):
@@ -1734,28 +1913,29 @@ class CalabiYau:
             raise NotImplementedError("This function only supports Calabi-Yau 3-folds.")
         intnums = self.intersection_numbers(in_basis=True, exact_arithmetic=False)
         basis = self.divisor_basis()
-        if len(basis.shape) == 2: # If basis is matrix
-            AA = np.tensordot(intnums, tloc, axes=[[2],[0]])
+        if len(basis.shape) == 2:  # If basis is matrix
+            AA = np.tensordot(intnums, tloc, axes=[[2], [0]])
             return AA
-        AA = np.zeros((len(basis),)*2, dtype=float)
+        AA = np.zeros((len(basis),) * 2, dtype=float)
         for ii in intnums:
             ii_list = Counter(ii).most_common(3)
-            if len(ii_list)==1:
-                AA[ii_list[0][0],ii_list[0][0]] += intnums[ii]*tloc[ii_list[0][0]]
-            elif len(ii_list)==2:
-                AA[ii_list[0][0],ii_list[0][0]] += intnums[ii]*tloc[ii_list[1][0]]
-                AA[ii_list[0][0],ii_list[1][0]] += intnums[ii]*tloc[ii_list[0][0]]
-                AA[ii_list[1][0],ii_list[0][0]] += intnums[ii]*tloc[ii_list[0][0]]
-            elif len(ii_list)==3:
-                AA[ii_list[0][0],ii_list[1][0]] += intnums[ii]*tloc[ii_list[2][0]]
-                AA[ii_list[1][0],ii_list[0][0]] += intnums[ii]*tloc[ii_list[2][0]]
-                AA[ii_list[0][0],ii_list[2][0]] += intnums[ii]*tloc[ii_list[1][0]]
-                AA[ii_list[2][0],ii_list[0][0]] += intnums[ii]*tloc[ii_list[1][0]]
-                AA[ii_list[1][0],ii_list[2][0]] += intnums[ii]*tloc[ii_list[0][0]]
-                AA[ii_list[2][0],ii_list[1][0]] += intnums[ii]*tloc[ii_list[0][0]]
+            if len(ii_list) == 1:
+                AA[ii_list[0][0], ii_list[0][0]] += intnums[ii] * tloc[ii_list[0][0]]
+            elif len(ii_list) == 2:
+                AA[ii_list[0][0], ii_list[0][0]] += intnums[ii] * tloc[ii_list[1][0]]
+                AA[ii_list[0][0], ii_list[1][0]] += intnums[ii] * tloc[ii_list[0][0]]
+                AA[ii_list[1][0], ii_list[0][0]] += intnums[ii] * tloc[ii_list[0][0]]
+            elif len(ii_list) == 3:
+                AA[ii_list[0][0], ii_list[1][0]] += intnums[ii] * tloc[ii_list[2][0]]
+                AA[ii_list[1][0], ii_list[0][0]] += intnums[ii] * tloc[ii_list[2][0]]
+                AA[ii_list[0][0], ii_list[2][0]] += intnums[ii] * tloc[ii_list[1][0]]
+                AA[ii_list[2][0], ii_list[0][0]] += intnums[ii] * tloc[ii_list[1][0]]
+                AA[ii_list[1][0], ii_list[2][0]] += intnums[ii] * tloc[ii_list[0][0]]
+                AA[ii_list[2][0], ii_list[1][0]] += intnums[ii] * tloc[ii_list[0][0]]
             else:
                 raise Exception("Error: Inconsistent intersection numbers.")
         return AA
+
     # aliases
     compute_AA = compute_kappa_matrix
 
@@ -1826,7 +2006,7 @@ class CalabiYau:
         xvol = self.compute_cy_volume(tloc)
         Tau = self.compute_divisor_volumes(tloc, in_basis=True)
         AA = self.compute_AA(tloc)
-        Kinv = 4*(np.outer(Tau,Tau) - AA*xvol)
+        Kinv = 4 * (np.outer(Tau, Tau) - AA * xvol)
         return Kinv
 
     def compute_kahler_metric(self, tloc):
@@ -1897,24 +2077,33 @@ class CalabiYau:
         ```
         """
         if self._is_hypersurface:
-            raise NotImplementedError("This function should only be used for codim > 2 CICYs.")
+            raise NotImplementedError(
+                "This function should only be used for codim > 2 CICYs."
+            )
         if self._hodge_nums is not None:
-           return
+            return
         codim = self.ambient_variety().dim() - self.dim()
         poly = self.ambient_variety().polytope()
         vert_ind = poly.points_to_indices(poly.vertices())
-        nef_part_fs = frozenset(frozenset(i for i in part if i in vert_ind) for part in self._nef_part)
+        nef_part_fs = frozenset(
+            frozenset(i for i in part if i in vert_ind) for part in self._nef_part
+        )
         matched_hodge_nums = ()
+
         def search_in_cache():
             for args_id in poly._nef_parts:
                 # Search only the ones with correct codim, computed hodge numbers, and without products or projections
                 if args_id[-2] != codim or not args_id[-1] or args_id[1] or args_id[2]:
                     continue
-                for i,nef_part in enumerate(poly._nef_parts[args_id][0]):
-                    tmp_fs = frozenset(frozenset(ii for ii in part if ii in vert_ind) for part in nef_part)
+                for i, nef_part in enumerate(poly._nef_parts[args_id][0]):
+                    tmp_fs = frozenset(
+                        frozenset(ii for ii in part if ii in vert_ind)
+                        for part in nef_part
+                    )
                     if tmp_fs == nef_part_fs:
                         return poly._nef_parts[args_id][1][i]
             return ()
+
         matched_hodge_nums = search_in_cache()
         if not len(matched_hodge_nums) and not only_from_cache:
             poly.nef_partitions()
@@ -1923,15 +2112,17 @@ class CalabiYau:
             poly.nef_partitions(keep_symmetric=True)
             matched_hodge_nums = search_in_cache()
         if not len(matched_hodge_nums) and not only_from_cache:
-            raise NotImplementedError("This type of complete intersection is not supported.")
+            raise NotImplementedError(
+                "This type of complete intersection is not supported."
+            )
         if len(matched_hodge_nums):
             self._hodge_nums = dict()
             n = 0
-            for i in range(2*self.dim()+1):
-                ii = min(i,self.dim())
+            for i in range(2 * self.dim() + 1):
+                ii = min(i, self.dim())
                 jj = i - ii
                 while True:
-                    self._hodge_nums[(ii,jj)] = matched_hodge_nums[n]
+                    self._hodge_nums[(ii, jj)] = matched_hodge_nums[n]
                     n += 1
                     ii -= 1
                     jj += 1
@@ -1940,13 +2131,15 @@ class CalabiYau:
 
     # GVs
     # ---
-    def _compute_gvs_gws(self,
-                         gv_or_gw: str,
-                         grading_vec: "ArrayLike"=None,
-                         max_deg: bool=None,
-                         min_points: bool=None,
-                         basis: "ArrayLike"=None,
-                         format: str=None):
+    def _compute_gvs_gws(
+        self,
+        gv_or_gw: str,
+        grading_vec: "ArrayLike" = None,
+        max_deg: bool = None,
+        min_points: bool = None,
+        basis: "ArrayLike" = None,
+        format: str = None,
+    ):
         """
         **Description:**
         Wrapper for cygv GV and GW computations. A method of cytools.CalabiYau
@@ -1973,7 +2166,7 @@ class CalabiYau:
             raise ValueError("Either max_deg or min_points must be set!")
 
         # get basics
-        kappa = self.intersection_numbers(in_basis=True, format='coo')
+        kappa = self.intersection_numbers(in_basis=True, format="coo")
         glsm = self.curve_basis(include_origin=False, as_matrix=True)
         mori = self.toric_mori_cone(in_basis=True)
         generators = mori.rays()
@@ -1983,42 +2176,48 @@ class CalabiYau:
             grading_vec = mori.find_grading_vector()
 
         # compute the GVs
-        if gv_or_gw=='gv':
+        if gv_or_gw == "gv":
             fct = cygv.compute_gv
         else:
             fct = cygv.compute_gw
-        invariants = fct(generators = mori.rays(),
-                         grading_vector = grading_vec,
-                         q = self.curve_basis(include_origin=False, as_matrix=True),
-                         intnums = self.intersection_numbers(in_basis=True, format='dok'),
-                         max_deg = max_deg,
-                         min_points = min_points)
-        
+        invariants = fct(
+            generators=mori.rays(),
+            grading_vector=grading_vec,
+            q=self.curve_basis(include_origin=False, as_matrix=True),
+            intnums=self.intersection_numbers(in_basis=True, format="dok"),
+            max_deg=max_deg,
+            min_points=min_points,
+        )
+
         # format/return the GVs
-        if format=='coo':
-            return [list(r[0])+[r[1]] for r in invariants]
-        
+        if format == "coo":
+            return [list(r[0]) + [r[1]] for r in invariants]
+
         # convert to dok for subsequent processing
         invariants = dict(invariants)
 
-        if format=='dok':
+        if format == "dok":
             return invariants
 
         # return in Invariant class
-        invariants = Invariants(gv_or_gw,
-                                invariants,
-                                grading_vec,
-                                max_deg,
-                                calabiyau=self,
-                                basis=basis)
+        invariants = Invariants(
+            gv_or_gw,
+            invariants,
+            grading_vec,
+            max_deg,
+            calabiyau=self,
+            basis=basis,
+        )
 
         return invariants
 
-    def compute_gvs(self,
-                    grading_vec: "ArrayLike"=None,
-                    max_deg: bool=None,
-                    min_points: bool=None,
-                    format: str=None):
+    def compute_gvs(
+        self,
+        grading_vec: "ArrayLike" = None,
+        max_deg: bool = None,
+        min_points: bool = None,
+        format: str = None,
+    ):
         """
         **Description:**
         Wrapper for cygv GV computations. A method of cytools.CalabiYau
@@ -2035,14 +2234,17 @@ class CalabiYau:
         **Returns:**
         The GV invariants.
         """
-        return self._compute_gvs_gws('gv', grading_vec, max_deg, min_points, format)
+        return self._compute_gvs_gws("gv", grading_vec, max_deg, min_points, format)
+
     compute_gv = compute_gvs
 
-    def compute_gws(self,
-                    grading_vec=None,
-                    max_deg=None,
-                    min_points=None,
-                    format: str=None):
+    def compute_gws(
+        self,
+        grading_vec=None,
+        max_deg=None,
+        min_points=None,
+        format: str = None,
+    ):
         """
         **Description:**
         Wrapper for cygv GW computations. A method of cytools.CalabiYau
@@ -2059,20 +2261,25 @@ class CalabiYau:
         **Returns:**
         The GW invariants.
         """
-        return self._compute_gvs_gws('gw', grading_vec, max_deg, min_points, format)
+        return self._compute_gvs_gws("gw", grading_vec, max_deg, min_points, format)
+
     compute_gw = compute_gws
 
-class Invariants():
+
+class Invariants:
     """
     This class contains GV or GW-information.
     """
-    def __init__(self,
-                 invariant_type: str,
-                 charge2invariant,
-                 grading_vec: "ArrayLike"=None,
-                 cutoff: int=None,
-                 calabiyau: "CalabiYau"=None,
-                 basis: "ArrayLike"=None):
+
+    def __init__(
+        self,
+        invariant_type: str,
+        charge2invariant,
+        grading_vec: "ArrayLike" = None,
+        cutoff: int = None,
+        calabiyau: "CalabiYau" = None,
+        basis: "ArrayLike" = None,
+    ):
         """
         **Description:**
         Container for GV or GW invariant information
@@ -2086,15 +2293,15 @@ class Invariants():
         **Returns:**
         The GW invariants.
         """
-        if invariant_type not in ['gv','gw']:
+        if invariant_type not in ["gv", "gw"]:
             raise ValueError(f"Invariant type '{invariant_type}' not recognized")
         self._type = invariant_type
 
-        if isinstance(charge2invariant,dict):
+        if isinstance(charge2invariant, dict):
             self._charge2invariant = charge2invariant
         else:
             # assume charge2invariant is of coo format
-            self._charge2invariant = {tuple(r[:-1]):r[-1] for r in charge2invariant}
+            self._charge2invariant = {tuple(r[:-1]): r[-1] for r in charge2invariant}
 
         self._grading_vec = grading_vec
         self._cutoff = cutoff
@@ -2104,8 +2311,10 @@ class Invariants():
         if basis is not None:
             charges = self._charge2invariant.keys()
             invariants = self._charge2invariant.values()
-            charges = np.array(list(charges))@basis.T
-            self._charge2invariant = {tuple(r):_gv for r, _gv in zip(charges, invariants)}
+            charges = np.array(list(charges)) @ basis.T
+            self._charge2invariant = {
+                tuple(r): _gv for r, _gv in zip(charges, invariants)
+            }
 
     # standard methods
     # ----------------
@@ -2128,16 +2337,16 @@ class Invariants():
 
         # cutoff
         out_str += " and cutoff="
-        
+
         if self._cutoff is not None:
             out_str += str(self._cutoff)
         else:
             out_str += "?"
 
-        return(out_str) 
- 
+        return out_str
+
     def __repr__(self):
-        return(str(self))
+        return str(self)
 
     # getters
     # -------
@@ -2194,10 +2403,14 @@ class Invariants():
 
         # group by degree
         if self._grading_vec is None:
-            raise ValueError("Can't group charges by degree if no grading vector is known")
-        return _group_by_deg(self._charge2invariant.keys(),
-                             self._grading_vec,
-                             as_np_arr=as_np_arr)
+            raise ValueError(
+                "Can't group charges by degree if no grading vector is known"
+            )
+        return _group_by_deg(
+            self._charge2invariant.keys(),
+            self._grading_vec,
+            as_np_arr=as_np_arr,
+        )
 
     def cone(self):
         """
@@ -2214,7 +2427,7 @@ class Invariants():
         """
         return Cone(self.charges(as_np_arr=True))
 
-    @property    
+    @property
     def gvs(self) -> set:
         """
         **Description:**
@@ -2226,10 +2439,11 @@ class Invariants():
         **Returns:**
         The GV invariants.
         """
-        if self._type=='gv':
+        if self._type == "gv":
             return set(self._charge2invariant.values())
         else:
             return None
+
     @property
     def gws(self) -> set:
         """
@@ -2242,7 +2456,7 @@ class Invariants():
         **Returns:**
         he GW invariants.
         """
-        if self._type=='gw':
+        if self._type == "gw":
             return set(self._charge2invariant.values())
         else:
             return None
@@ -2261,21 +2475,22 @@ class Invariants():
         **Returns:**
         *(int)* The GV invariant.
         """
-        out = self._charge2invariant.get(tuple(charge),None)
+        out = self._charge2invariant.get(tuple(charge), None)
 
         if check_deg and (out is None):
-            if np.dot(charge,self._grading_vec)<=self._cutoff:
-                out = 0 # deg<=cutoff but not in dict -> 0 GV
+            if np.dot(charge, self._grading_vec) <= self._cutoff:
+                out = 0  # deg<=cutoff but not in dict -> 0 GV
 
         return out
 
     def gv(self, charge, check_deg=True):
-        if self._type=='gv':
+        if self._type == "gv":
             return self.invariant(charge, check_deg)
         else:
             return None
+
     def gw(self, charge, check_deg=True):
-        if self._type=='gw':
+        if self._type == "gw":
             return self.invariant(charge, check_deg)
         else:
             return None
@@ -2288,7 +2503,7 @@ class Invariants():
 
     @property
     def coo(self):
-        return np.array([list(k)+[v] for k,v in self._charge2invariant.items()])
+        return np.array([list(k) + [v] for k, v in self._charge2invariant.items()])
 
     # misc others
     # -----------
@@ -2306,9 +2521,10 @@ class Invariants():
         """
         return len(self._charge2invariant)
 
-def _group_by_deg(charges: "Iterable",
-                 grading_vec: "ArrayLike",
-                 as_np_arr: bool=False):
+
+def _group_by_deg(
+    charges: "Iterable", grading_vec: "ArrayLike", as_np_arr: bool = False
+):
     """
     **Description:**
     Organize the charges by their degrees.
@@ -2322,7 +2538,7 @@ def _group_by_deg(charges: "Iterable",
     *(dictionary)* Dictionary mapping degree to charges.
     """
     charges = np.asarray(sorted(charges))
-    degs = charges@grading_vec
+    degs = charges @ grading_vec
 
     # sort degrees
     sort_inds = np.argsort(degs)
@@ -2331,15 +2547,15 @@ def _group_by_deg(charges: "Iterable",
     # organize as dict
     charges_by_deg = dict()
     if as_np_arr:
-        for charge,deg in zip(charges,degs):
-            charges_by_deg[deg] = charges_by_deg.get(deg,[]) + [charge]
-        
+        for charge, deg in zip(charges, degs):
+            charges_by_deg[deg] = charges_by_deg.get(deg, []) + [charge]
+
         # map to numpy arrays
-        for k,v in charges_by_deg.items():
-            charges_by_deg[k] = np.asarray(v,dtype=int)
+        for k, v in charges_by_deg.items():
+            charges_by_deg[k] = np.asarray(v, dtype=int)
     else:
-        for charge,deg in zip(charges,degs):
-            charges_by_deg[deg] = charges_by_deg.get(deg,set())
+        for charge, deg in zip(charges, degs):
+            charges_by_deg[deg] = charges_by_deg.get(deg, set())
             charges_by_deg[deg].add(tuple(charge))
 
     return charges_by_deg

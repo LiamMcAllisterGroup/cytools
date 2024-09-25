@@ -40,6 +40,7 @@ from cytools.cone import Cone
 from cytools.toricvariety import ToricVariety
 from cytools.utils import gcd_list, lll_reduce
 
+
 class Triangulation:
     """
     This class handles triangulations of lattice polytopes. It can compute
@@ -113,14 +114,18 @@ class Triangulation:
     ```
     """
 
-    def __init__(self,
-                 poly: "Polytope",
-                 pts: ArrayLike,
-                 make_star: bool = False,
-                 simplices: ArrayLike=None, check_input_simplices: bool=True,
-                 heights: list = None,      check_heights: bool = True,
-                 backend: str = "cgal",
-                 verbosity: int = 1) -> None:
+    def __init__(
+        self,
+        poly: "Polytope",
+        pts: ArrayLike,
+        make_star: bool = False,
+        simplices: ArrayLike = None,
+        check_input_simplices: bool = True,
+        heights: list = None,
+        check_heights: bool = True,
+        backend: str = "cgal",
+        verbosity: int = 1,
+    ) -> None:
         """
         **Description:**
         Initializes a `Triangulation` object.
@@ -174,16 +179,18 @@ class Triangulation:
         # --------------
         # points
         pts_set = set(pts)
-        if len(pts_set)==0:
+        if len(pts_set) == 0:
             raise ValueError("Need at least 1 point.")
         elif not pts_set.issubset(poly.labels):
             raise ValueError("All point labels must exist in the polytope.")
 
         # backend
         backend = backend.lower()
-        if backend not in ['qhull', 'cgal', 'topcom', None]:
-            raise ValueError(f"Invalid backend, {backend}. "+\
-                             f"Options: {['qhull', 'cgal', 'topcom', None]}.")
+        if backend not in ["qhull", "cgal", "topcom", None]:
+            raise ValueError(
+                f"Invalid backend, {backend}. "
+                + f"Options: {['qhull', 'cgal', 'topcom', None]}."
+            )
 
         # initialize attributes
         # ---------------------
@@ -204,10 +211,11 @@ class Triangulation:
         self._labels2optPts = None
 
         # dimension
-        self._dim_ambient  = poly.ambient_dim()
-        self._dim = np.linalg.matrix_rank([list(pt)+[1] for pt in\
-                                                    poly.points(which=pts)])-1
-        self._is_fulldim = (self._dim == self._dim_ambient)
+        self._dim_ambient = poly.ambient_dim()
+        self._dim = (
+            np.linalg.matrix_rank([list(pt) + [1] for pt in poly.points(which=pts)]) - 1
+        )
+        self._is_fulldim = self._dim == self._dim_ambient
 
         # simplices
         if simplices is not None:
@@ -220,7 +228,7 @@ class Triangulation:
         # ------------
         # find index of origin
         if self.poly._label_origin in self.labels:
-            self._origin_index=list(self.labels).index(self.poly._label_origin)
+            self._origin_index = list(self.labels).index(self.poly._label_origin)
         else:
             # triangulation doesn't include origin
             self._origin_index = -1
@@ -233,11 +241,13 @@ class Triangulation:
             self._heights = None
 
             # check dimension
-            if self._simplices.shape[1] != self._dim+1:
-                simp_dim = self._simplices.shape[1]-1
-                error_msg = f"Dimension of simplices, ({simp_dim}), " +\
-                             "doesn't match polytope dimension (+1), "+\
-                            f"{self._dim} (+1)..."
+            if self._simplices.shape[1] != self._dim + 1:
+                simp_dim = self._simplices.shape[1] - 1
+                error_msg = (
+                    f"Dimension of simplices, ({simp_dim}), "
+                    + "doesn't match polytope dimension (+1), "
+                    + f"{self._dim} (+1)..."
+                )
                 raise ValueError(error_msg)
 
             if check_input_simplices:
@@ -247,15 +257,17 @@ class Triangulation:
                 simp_labels = set(self._simplices.flatten())
                 if any([(l not in self._labels) for l in simp_labels]):
                     unknown = simp_labels.difference(self._labels)
-                    error_msg = f"Simplices had labels {simp_labels}; " +\
-                                f"triangulation has labels {self._labels}. " +\
-                                f"Labels {unknown} are not recognized..."
+                    error_msg = (
+                        f"Simplices had labels {simp_labels}; "
+                        + f"triangulation has labels {self._labels}. "
+                        + f"Labels {unknown} are not recognized..."
+                    )
                     raise ValueError(error_msg)
-                #if min(simp_inds)<0:
+                # if min(simp_inds)<0:
                 #    error_msg = f"A simplex had index, {min(simp_inds)}, " +\
                 #                f"out of range [0,{len(self.points())-1}]"
                 #    raise ValueError(error_msg)
-                #elif max(simp_inds)>=len(self.points()):
+                # elif max(simp_inds)>=len(self.points()):
                 #    error_msg = f"A simplex had index, {max(simp_inds)}, " +\
                 #                f"out of range [0,{len(self.points())-1}]"
                 #    raise ValueError(error_msg)
@@ -266,31 +278,33 @@ class Triangulation:
 
             # ensure simplices define valid triangulation
             if check_input_simplices:
-                if not self.is_valid(verbosity=verbosity-1):
+                if not self.is_valid(verbosity=verbosity - 1):
                     msg = "Simplices don't form valid triangulation."
                     raise ValueError(msg)
         else:
             # self._simplices==None... construct simplices from heights
 
-            self._is_regular = (None if (backend == "qhull") else True)
+            self._is_regular = None if (backend == "qhull") else True
             self._is_valid = True
 
             default_triang = heights is None
             if default_triang:
                 # construct the heights
                 if backend is None:
-                    raise ValueError("Simplices must be specified when working"
-                                     "without a backend")
+                    raise ValueError(
+                        "Simplices must be specified when working" "without a backend"
+                    )
 
                 # Heights need to be perturbed around the Delaunay heights for
                 # QHull or the triangulation might not be regular. If using
                 # CGAL then they are not perturbed.
                 if backend == "qhull":
-                    heights = [np.dot(p,p) + np.random.normal(0,0.05)\
-                                                    for p in self.points()]
+                    heights = [
+                        np.dot(p, p) + np.random.normal(0, 0.05) for p in self.points()
+                    ]
                 elif backend == "cgal":
-                    heights = [np.dot(p,p) for p in self.points()]
-                else: # TOPCOM
+                    heights = [np.dot(p, p) for p in self.points()]
+                else:  # TOPCOM
                     heights = None
             else:
                 # check the heights
@@ -303,20 +317,21 @@ class Triangulation:
                 self._heights = np.asarray(heights)
 
             # Now run the appropriate triangulation function
-            triang_pts = self.points(optimal = not self._is_fulldim)
+            triang_pts = self.points(optimal=not self._is_fulldim)
             if backend == "qhull":
                 self._simplices = _qhull_triangulate(triang_pts, self._heights)
 
                 # map to labels
-                self._simplices = [[self._labels[i] for i in s] for s\
-                                                            in self._simplices]
+                self._simplices = [
+                    [self._labels[i] for i in s] for s in self._simplices
+                ]
 
                 # convert to star
                 if make_star:
                     _to_star(self)
             elif backend == "cgal":
                 self._simplices = _cgal_triangulate(triang_pts, self._heights)
-                
+
                 # can obtain star more quickly than in QHull by setting height
                 # of origin to be much lower than others
                 # (can't do this in QHull since it sometimes causes errors...)
@@ -326,24 +341,26 @@ class Triangulation:
                     origin_mask[self._origin_index] = True
                     heights_masked = np.ma.array(self._heights, mask=origin_mask)
 
-                    origin_step = max(10, (max(heights_masked[1:]) -\
-                                                    min(heights_masked[1:])))
-                    
+                    origin_step = max(
+                        10, (max(heights_masked[1:]) - min(heights_masked[1:]))
+                    )
+
                     # reduce height of origin until it's in all simplices
                     while any(self._origin_index not in s for s in self._simplices):
                         self._heights[self._origin_index] -= origin_step
-                        self._simplices = _cgal_triangulate(triang_pts,\
-                                                            self._heights)
+                        self._simplices = _cgal_triangulate(triang_pts, self._heights)
                 # map to labels
-                self._simplices = [[self._labels[i] for i in s] for s\
-                                                            in self._simplices]
+                self._simplices = [
+                    [self._labels[i] for i in s] for s in self._simplices
+                ]
 
-            else: # Use TOPCOM
+            else:  # Use TOPCOM
                 self._simplices = _topcom_triangulate(triang_pts)
 
                 # map to labels
-                self._simplices = [[self._labels[i] for i in s] for s\
-                                                            in self._simplices]
+                self._simplices = [
+                    [self._labels[i] for i in s] for s in self._simplices
+                ]
 
                 # convert to star
                 if make_star:
@@ -351,7 +368,7 @@ class Triangulation:
 
             # check that the heights uniquely define this triangulation
             if check_heights and (self._heights is not None):
-                self.check_heights(verbosity-default_triang)
+                self.check_heights(verbosity - default_triang)
 
         # Make sure that the simplices are sorted
         self._simplices = sorted([sorted(s) for s in self._simplices])
@@ -359,31 +376,31 @@ class Triangulation:
         # select the data-type carefully, as the simplices are some of the
         # biggest data stored in this class...
         max_label = max(self.poly.labels)
-        if isinstance(max_label,int):
-            if max_label<2**8:
+        if isinstance(max_label, int):
+            if max_label < 2**8:
                 dtype = np.uint8
-            elif max_label<2**16:
+            elif max_label < 2**16:
                 dtype = np.uint16
-            elif max_label<2**32:
+            elif max_label < 2**32:
                 dtype = np.uint32
             else:
                 dtype = np.uint64
 
-            self._simplices = np.array(self._simplices,dtype=dtype)
+            self._simplices = np.array(self._simplices, dtype=dtype)
         else:
             self._simplices = np.array(self._simplices)
 
         # also set the heights data structure
         if self._heights is not None:
-            self._heights = self._heights/gcd_list(self._heights)
+            self._heights = self._heights / gcd_list(self._heights)
             self._heights -= min(self._heights)
 
             max_h = max(abs(self._heights))
-            if max_h<2**8:
+            if max_h < 2**8:
                 dtype = np.uint8
-            elif max_h<2**16:
+            elif max_h < 2**16:
                 dtype = np.uint16
-            elif max_h<2**32:
+            elif max_h < 2**32:
                 dtype = np.uint32
             else:
                 dtype = np.uint64
@@ -420,15 +437,20 @@ class Triangulation:
             regular_str = ", "
             regular_str += "regular" if self._is_regular else "irregular"
 
-        #star_str = ""
-        #if self.polytope().is_reflexive():
+        # star_str = ""
+        # if self.polytope().is_reflexive():
         star_str = ", "
         star_str += "star" if self.is_star() else "non-star"
 
-        return (f"A " + fine_str + regular_str + star_str +\
-                f" triangulation of a {self.dim()}-dimensional " +\
-                f"point configuration with {len(self.labels)} points " +\
-                f"in ZZ^{self.ambient_dim()}")
+        return (
+            f"A "
+            + fine_str
+            + regular_str
+            + star_str
+            + f" triangulation of a {self.dim()}-dimensional "
+            + f"point configuration with {len(self.labels)} points "
+            + f"in ZZ^{self.ambient_dim()}"
+        )
 
     def __eq__(self, other: "Triangulation") -> bool:
         """
@@ -459,8 +481,7 @@ class Triangulation:
         our_simps = sorted(self.simplices().tolist())
         other_simps = sorted(other.simplices().tolist())
 
-        return (self.polytope() == other.polytope() and
-                                                    our_simps == other_simps)
+        return self.polytope() == other.polytope() and our_simps == other_simps
 
     def __ne__(self, other: "Triangulation") -> bool:
         """
@@ -483,7 +504,7 @@ class Triangulation:
         # False
         ```
         """
-        return(not self.__eq__(other))
+        return not self.__eq__(other)
 
     def __hash__(self) -> int:
         """
@@ -561,7 +582,7 @@ class Triangulation:
         self._is_regular = None
         self._is_star = None
         self._is_valid = None
-        self._secondary_cone = [None]*2
+        self._secondary_cone = [None] * 2
         self._sr_ideal = None
         self._toricvariety = None
 
@@ -585,7 +606,8 @@ class Triangulation:
         The ambient polytope.
         """
         return self._poly
-    polytope = lambda self:self.poly
+
+    polytope = lambda self: self.poly
 
     @property
     def labels(self):
@@ -625,6 +647,7 @@ class Triangulation:
         ```
         """
         return self._dim
+
     # aliases
     dim = dimension
 
@@ -652,6 +675,7 @@ class Triangulation:
         ```
         """
         return self.poly.ambient_dim()
+
     # aliases
     ambient_dim = ambient_dimension
 
@@ -684,12 +708,12 @@ class Triangulation:
 
         # calculate the answer
         N_used_pts = len(set.union(*[set(s) for s in self._simplices]))
-        self._is_fine = (N_used_pts == len(self.labels))
+        self._is_fine = N_used_pts == len(self.labels)
 
         # return
         return self._is_fine
 
-    def is_star(self, star_origin = None) -> bool:
+    def is_star(self, star_origin=None) -> bool:
         """
         **Description:**
         Returns True if the triangulation is star and False otherwise. The star
@@ -718,9 +742,11 @@ class Triangulation:
 
         # calculate the answer
         if self._is_star is None:
-            #if self._origin_index != -1:
+            # if self._origin_index != -1:
             if self.poly._label_origin in self.labels:
-                self._is_star = all(self.poly._label_origin in s for s in self._simplices)
+                self._is_star = all(
+                    self.poly._label_origin in s for s in self._simplices
+                )
             else:
                 self._is_star = False
 
@@ -754,11 +780,14 @@ class Triangulation:
 
         # check if the question makes sense
         if not self._is_fulldim:
-            raise NotImplementedError("Toric varieties can only be " +\
-                        "constructed from full-dimensional triangulations.")
+            raise NotImplementedError(
+                "Toric varieties can only be "
+                + "constructed from full-dimensional triangulations."
+            )
         if not self.is_star():
-            raise NotImplementedError("Toric varieties can only be " +\
-                        "constructed from star triangulations.")
+            raise NotImplementedError(
+                "Toric varieties can only be " + "constructed from star triangulations."
+            )
 
         # initialize the answer
         self._toricvariety = ToricVariety(self)
@@ -799,18 +828,21 @@ class Triangulation:
         ```
         """
         return self.get_toric_variety().get_cy(nef_partition)
+
     # aliases
     compute_cy = get_cy
     cy = get_cy
 
     # points
     # ======
-    def points(self,
-               which = None,
-               optimal: bool = False,
-               as_poly_indices: bool = False,
-               as_triang_indices: bool = False,
-               check_labels: bool = True) -> np.ndarray:
+    def points(
+        self,
+        which=None,
+        optimal: bool = False,
+        as_poly_indices: bool = False,
+        as_triang_indices: bool = False,
+        check_labels: bool = True,
+    ) -> np.ndarray:
         """
         **Description:**
         Returns the points of the triangulation. Note that these are not
@@ -847,8 +879,9 @@ class Triangulation:
         ```
         """
         if as_poly_indices and as_triang_indices:
-            raise ValueError("Both as_poly_indices and as_triang_indices "+\
-                             "can't be set to True.")
+            raise ValueError(
+                "Both as_poly_indices and as_triang_indices " + "can't be set to True."
+            )
 
         # get the labels of the relevant points
         if which is None:
@@ -856,54 +889,57 @@ class Triangulation:
             which = self.labels
         else:
             # if which is a single label, wrap it in an iterable
-            if (not isinstance(which,Iterable)) and (which in self.labels):
+            if (not isinstance(which, Iterable)) and (which in self.labels):
                 which = [which]
 
             # check if the input labels
             if check_labels:
                 try:
                     if not set(which).issubset(self.labels):
-                        raise ValueError(f"Specified labels ({which}) aren't "\
-                                           "subset of triangulation labels "\
-                                          f"({self.labels})...")
+                        raise ValueError(
+                            f"Specified labels ({which}) aren't "
+                            "subset of triangulation labels "
+                            f"({self.labels})..."
+                        )
                 except Exception as e:
-                    #print(f"Specified labels, {which}, likely aren't hashable.")
+                    # print(f"Specified labels, {which}, likely aren't hashable.")
                     raise
 
         # return
         if as_triang_indices:
             if self._labels2inds is None:
-                self._labels2inds =  {v:i for i,v in enumerate(self._labels)}
+                self._labels2inds = {v: i for i, v in enumerate(self._labels)}
             return [self._labels2inds[label] for label in which]
         else:
             if optimal and (not as_poly_indices):
-                dim_diff =  self.ambient_dim()-self.dim()
-                if dim_diff>0:
+                dim_diff = self.ambient_dim() - self.dim()
+                if dim_diff > 0:
                     # asking for optimal points, where the optimal value may
                     # differ from the entire polytope
 
                     # calculate the map from labels to optimal points
                     if self._labels2optPts is None:
                         pts_opt = self.points()
-                        pts_opt = lll_reduce(pts_opt-pts_opt[0])[:,dim_diff:]
+                        pts_opt = lll_reduce(pts_opt - pts_opt[0])[:, dim_diff:]
 
                         self._labels2optPts = dict()
-                        for label,pt in zip(self.labels,pts_opt):
+                        for label, pt in zip(self.labels, pts_opt):
                             self._labels2optPts[label] = tuple(pt)
 
                     # return the relevant points
                     return np.array([self._labels2optPts[l] for l in which])
 
             # normal case
-            return self.poly.points(which=which,
-                                    optimal=optimal,
-                                    as_indices=as_poly_indices)
+            return self.poly.points(
+                which=which, optimal=optimal, as_indices=as_poly_indices
+            )
+
     # aliases
     pts = points
 
-    def points_to_labels(self,
-                         points: ArrayLike,
-                         is_optimal: bool = False) -> "list | None":
+    def points_to_labels(
+        self, points: ArrayLike, is_optimal: bool = False
+    ) -> "list | None":
         """
         **Description:**
         Returns the list of labels corresponding to the given points. It also
@@ -921,10 +957,12 @@ class Triangulation:
         """
         return self.poly.points_to_labels(points, is_optimal=is_optimal)
 
-    def points_to_indices(self,
-                          points: ArrayLike,
-                          is_optimal: bool = False,
-                          as_poly_indices: bool = False) -> "np.ndarray | int":
+    def points_to_indices(
+        self,
+        points: ArrayLike,
+        is_optimal: bool = False,
+        as_poly_indices: bool = False,
+    ) -> "np.ndarray | int":
         """
         **Description:**
         Returns the list of indices corresponding to the given points. It also
@@ -951,25 +989,27 @@ class Triangulation:
         ```
         """
         # check for empty input
-        if len(points)==0:
-            return np.asarray([],dtype=int)
+        if len(points) == 0:
+            return np.asarray([], dtype=int)
 
         # map single-point input into list case
-        single_pt = (len(np.array(points).shape) == 1)
+        single_pt = len(np.array(points).shape) == 1
         if single_pt:
             points = [points]
 
         # grab labels, and then map to indices
         labels = self.points_to_labels(points, is_optimal=is_optimal)
-        inds = self.points(which=labels,
-                           as_poly_indices=as_poly_indices,
-                           as_triang_indices=not as_poly_indices)
-        
+        inds = self.points(
+            which=labels,
+            as_poly_indices=as_poly_indices,
+            as_triang_indices=not as_poly_indices,
+        )
+
         # get/return the indices
         if single_pt and len(inds):
             return inds[0]  # just return the single index
         else:
-            return inds     # return a list of indices
+            return inds  # return a list of indices
 
     def triangulation_to_polytope_indices(self, inds) -> "np.ndarray | int":
         """
@@ -986,17 +1026,15 @@ class Triangulation:
         the point if only one is given.
         """
         # (NM: remove this... use labels instead...)
-        return self.points(which=[self._labels[i] for i in inds],
-                           as_poly_indices=True)
+        return self.points(which=[self._labels[i] for i in inds], as_poly_indices=True)
+
     points_to_poly_indices = triangulation_to_polytope_indices
 
     # triangulation
     # =============
     # sanity checks
     # -------------
-    def is_valid(self,
-                 backend: str = None,
-                 verbosity: int = 0) -> bool:
+    def is_valid(self, backend: str = None, verbosity: int = 0) -> bool:
         """
         **Description:**
         Returns True if the presumed triangulation meets all requirements to be
@@ -1029,8 +1067,8 @@ class Triangulation:
 
         # calculate the answer
         simps = self.simplices()
-        #simps = np.array([self.points(s, as_triang_indices=True) for s in simps])
-        
+        # simps = np.array([self.points(s, as_triang_indices=True) for s in simps])
+
         if simps.shape[0] == 1:
             # triangulation is trivial
             self._is_valid = True
@@ -1039,13 +1077,15 @@ class Triangulation:
         # If the triangulation is presumably regular, then we can check if
         # heights inside the secondary cone yield the same triangulation.
         if self.is_regular(backend=backend):
-            tmp_triang = Triangulation(self.polytope(),
-                                       self.labels,
-                                       heights=self.heights(),
-                                       make_star=False)
+            tmp_triang = Triangulation(
+                self.polytope(),
+                self.labels,
+                heights=self.heights(),
+                make_star=False,
+            )
 
-            self._is_valid = (self==tmp_triang)
-            if verbosity>=1:
+            self._is_valid = self == tmp_triang
+            if verbosity >= 1:
                 msg = f"By regularity, returning valid={self._is_valid}"
                 print(msg)
             return self._is_valid
@@ -1054,10 +1094,16 @@ class Triangulation:
         # triangulation. This can be quite slow for large polytopes.
 
         # append a 1 to each point
-        pts = {l:pt for l,pt in zip(self.labels,self.points(optimal=True))}
-        pts_ext = {l:list(pts[l])+[1,] for l in self.labels}
+        pts = {l: pt for l, pt in zip(self.labels, self.points(optimal=True))}
+        pts_ext = {
+            l: list(pts[l])
+            + [
+                1,
+            ]
+            for l in self.labels
+        }
         pts_all = np.array(list(pts.values()))
-        #pts_ext = np.array([list(pt)+[1,] for pt in pts])
+        # pts_ext = np.array([list(pt)+[1,] for pt in pts])
 
         # We first check if the volumes add up to the volume of the polytope
         v = 0
@@ -1066,27 +1112,29 @@ class Triangulation:
 
             if tmp_v == 0:
                 self._is_valid = False
-                if verbosity>=1:
+                if verbosity >= 1:
                     msg = f"By simp volume, returning valid={self._is_valid}"
                     print(msg)
                 return self._is_valid
 
             v += tmp_v
 
-        poly_vol = int(round(ConvexHull(pts_all).volume*math.factorial(self._dim)))
+        poly_vol = int(round(ConvexHull(pts_all).volume * math.factorial(self._dim)))
         if v != poly_vol:
             self._is_valid = False
-            if verbosity>=1:
-                msg = f"Simp volume ({v}) != poly volume ({poly_vol})... " +\
-                      f"returning valid={self._is_valid}"
+            if verbosity >= 1:
+                msg = (
+                    f"Simp volume ({v}) != poly volume ({poly_vol})... "
+                    + f"returning valid={self._is_valid}"
+                )
                 print(msg)
             return self._is_valid
 
         # Finally, check if simplices have full-dimensional intersections
-        for i,s1 in enumerate(simps):
+        for i, s1 in enumerate(simps):
             pts_1 = [pts_ext[i] for i in s1]
 
-            for s2 in simps[i+1:]:
+            for s2 in simps[i + 1 :]:
                 pts_2 = [pts_ext[i] for i in s2]
 
                 inters = Cone(pts_1).intersection(Cone(pts_2))
@@ -1116,31 +1164,36 @@ class Triangulation:
         """
         # find hyperplanes that we are within eps of wall
         eps = 1e-6
-        hyp_dist = np.matmul(self.secondary_cone().hyperplanes(),\
-                             self._heights)
-        not_interior = hyp_dist<eps
+        hyp_dist = np.matmul(self.secondary_cone().hyperplanes(), self._heights)
+        not_interior = hyp_dist < eps
 
         # if we are close to any walls
         if not_interior.any():
             self._heights = None
 
-            if verbosity>1:
-                print(f"Triangulation: height-vector is within {eps}"+\
-                       " of a wall of the secondary cone... heights "+\
-                       "likely don't define a unique triangulation " +\
-                       "(common for Delaunay)...")
-                print("Will recalculate more appropriate heights " +\
-                      "for the (semi-arbitrarily chosen) " +\
-                      "triangulation...")
+            if verbosity > 1:
+                print(
+                    f"Triangulation: height-vector is within {eps}"
+                    + " of a wall of the secondary cone... heights "
+                    + "likely don't define a unique triangulation "
+                    + "(common for Delaunay)..."
+                )
+                print(
+                    "Will recalculate more appropriate heights "
+                    + "for the (semi-arbitrarily chosen) "
+                    + "triangulation..."
+                )
 
     # main method
     # -----------
-    def simplices(self,
-                  on_faces_dim: int = None,
-                  on_faces_codim: int = None,
-                  split_by_face: bool = False,
-                  as_np_array: bool = True,
-                  as_indices: bool = False) -> "set | np.ndarray":
+    def simplices(
+        self,
+        on_faces_dim: int = None,
+        on_faces_codim: int = None,
+        split_by_face: bool = False,
+        as_np_array: bool = True,
+        as_indices: bool = False,
+    ) -> "set | np.ndarray":
         """
         **Description:**
         Returns the simplices of the triangulation. It also has the option of
@@ -1188,7 +1241,7 @@ class Triangulation:
 
             # cast to indices
             if as_indices:
-                l2i = {l:i for i,l in enumerate(self.labels)}
+                l2i = {l: i for i, l in enumerate(self.labels)}
                 out = [[l2i[l] for l in s] for s in out]
 
             if as_np_array:
@@ -1198,9 +1251,9 @@ class Triangulation:
         elif on_faces_dim is not None:
             faces_dim = on_faces_dim
         else:
-            faces_dim = self.dim()-on_faces_codim
+            faces_dim = self.dim() - on_faces_codim
 
-        if faces_dim<0 or faces_dim>self.dim():
+        if faces_dim < 0 or faces_dim > self.dim():
             raise ValueError("Invalid face dimension.")
 
         # restrict simplices to faces
@@ -1212,13 +1265,13 @@ class Triangulation:
             for face in self.polytope().faces(faces_dim):
                 face_labels.append(frozenset(face.labels))
 
-            # actually restrict            
+            # actually restrict
             restricted = []
             for f in face_labels:
                 restricted.append(set())
                 for s in full_simp:
                     inters = f & s
-                    if len(inters) == faces_dim+1:
+                    if len(inters) == faces_dim + 1:
                         restricted[-1].add(inters)
 
             self._restricted_simplices[faces_dim] = restricted
@@ -1228,9 +1281,8 @@ class Triangulation:
 
         # cast to indices
         if as_indices:
-            l2i = {l:i for i,l in enumerate(self.labels)}
-            out = [[frozenset([l2i[l] for l in s]) for s in face]\
-                                                            for face in out]
+            l2i = {l: i for i, l in enumerate(self.labels)}
+            out = [[frozenset([l2i[l] for l in s]) for s in face] for face in out]
 
         if split_by_face:
             if as_np_array:
@@ -1239,16 +1291,19 @@ class Triangulation:
             out = set().union(*out)
             if as_np_array:
                 return np.array(sorted(sorted(s) for s in out))
-        
+
         return out
+
     # aliases
     simps = simplices
 
-    def restrict(self,
-                 restrict_to: ["PolytopeFace"] = None,
-                 restrict_dim: int = 2,
-                 as_poly: bool = False,
-                 verbosity: int = 0):
+    def restrict(
+        self,
+        restrict_to: ["PolytopeFace"] = None,
+        restrict_dim: int = 2,
+        as_poly: bool = False,
+        verbosity: int = 0,
+    ):
         """
         **Description:**
         Restrict the triangulation to some face(s).
@@ -1270,10 +1325,15 @@ class Triangulation:
 
         if isinstance(restrict_to, Iterable):
             # recursivesly call for each face given
-            return [self.restrict(restrict_to=f,
-                                  as_face_inds=as_face_inds,
-                                  as_poly=as_poly,
-                                  verbosity=verbosity) for f in restrict_to]
+            return [
+                self.restrict(
+                    restrict_to=f,
+                    as_face_inds=as_face_inds,
+                    as_poly=as_poly,
+                    verbosity=verbosity,
+                )
+                for f in restrict_to
+            ]
 
         # if above checks failed, then single face was input...
 
@@ -1290,13 +1350,14 @@ class Triangulation:
         for simp in self.simplices():
             restricted = label_set.intersection(simp)
 
-            if len(restricted)==(dim+1):
+            if len(restricted) == (dim + 1):
                 # full dimension restriction
                 face_simps.add(tuple(restricted))
 
         if as_poly:
-            restricted = restrict_to.triangulate(simplices=face_simps,
-                                                 verbosity=verbosity-1)
+            restricted = restrict_to.triangulate(
+                simplices=face_simps, verbosity=verbosity - 1
+            )
             restricted._ambient_triangulation = self
             return restricted
         else:
@@ -1304,12 +1365,14 @@ class Triangulation:
 
     # regularity
     # ----------
-    def secondary_cone(self,
-                       backend: str = None,
-                       include_points_not_in_triangulation: bool = True,
-                       as_cone: bool = True,
-                       on_faces_dim: int = None,
-                       use_cache: bool = True) -> Cone:
+    def secondary_cone(
+        self,
+        backend: str = None,
+        include_points_not_in_triangulation: bool = True,
+        as_cone: bool = True,
+        on_faces_dim: int = None,
+        use_cache: bool = True,
+    ) -> Cone:
         """
         **Description:**
         Computes the (hyperplanes defining the) secondary cone of the
@@ -1382,11 +1445,16 @@ class Triangulation:
             else:
                 backend = "topcom"
 
-        if (backend == "native" and (not self.is_fine()) and\
-                                        include_points_not_in_triangulation):
-            warnings.warn("Native backend is not supported when including "
-                          "points that are not in the triangulation. Using "
-                          "TOPCOM...")
+        if (
+            backend == "native"
+            and (not self.is_fine())
+            and include_points_not_in_triangulation
+        ):
+            warnings.warn(
+                "Native backend is not supported when including "
+                "points that are not in the triangulation. Using "
+                "TOPCOM..."
+            )
             backend = "topcom"
 
         # set on_faces_dim
@@ -1396,18 +1464,20 @@ class Triangulation:
         # compute the cone
         # ----------------
         # want the secondary cone of the N-skeleton for N<dim
-        if on_faces_dim<self.dim():
+        if on_faces_dim < self.dim():
             if backend == "topcom":
                 print("Only native backend is currently supported for skeletons")
                 backend = "native"
-            
+
             # intersect the hyperplanes for each N-face
             hyps = []
             for face in self.restrict(restrict_dim=on_faces_dim, as_poly=True):
-                hyps += face.secondary_cone(backend=backend,
-                                            include_points_not_in_triangulation=include_points_not_in_triangulation,
-                                            as_cone=False,
-                                            use_cache=False)
+                hyps += face.secondary_cone(
+                    backend=backend,
+                    include_points_not_in_triangulation=include_points_not_in_triangulation,
+                    as_cone=False,
+                    use_cache=False,
+                )
 
             # restrict to unique hyperplanes
             hyps = sorted(set(hyps))
@@ -1416,7 +1486,7 @@ class Triangulation:
             if as_cone:
                 # clean up empty hyperplanes
                 if len(hyps) == 0:
-                    hyps = np.zeros((0,len(self.labels)), dtype=int)
+                    hyps = np.zeros((0, len(self.labels)), dtype=int)
 
                 return Cone(hyperplanes=hyps, check=False)
             else:
@@ -1431,7 +1501,7 @@ class Triangulation:
             if as_cone:
                 # clean up empty hyperplanes
                 if len(hyps) == 0:
-                    hyps = np.zeros((0,len(self.labels)), dtype=int)
+                    hyps = np.zeros((0, len(self.labels)), dtype=int)
 
                 return Cone(hyperplanes=hyps, check=False)
             else:
@@ -1442,33 +1512,33 @@ class Triangulation:
             # calculate hyperplanes via GKZ-vectors from neighboring
             # triangulations
             hyps = []
-            for t in self.neighbor_triangulations(only_fine=False,\
-                                                  only_regular=False,\
-                                                  only_star=False):
-                hyps.append(t.gkz_phi()-self.gkz_phi())
+            for t in self.neighbor_triangulations(
+                only_fine=False, only_regular=False, only_star=False
+            ):
+                hyps.append(t.gkz_phi() - self.gkz_phi())
 
         elif backend == "native":
             # calculate hyperplanes via the null-space of a homogenization of
             # the points in adjacent simplcies
 
             # get the ambient labels
-            if hasattr(self, '_ambient_triangulation'):
+            if hasattr(self, "_ambient_triangulation"):
                 ambient_labels = self._ambient_triangulation.labels
             else:
                 ambient_labels = self.labels
 
             # get the ambient dimension and a map from labels to indices
             ambient_dim = len(ambient_labels)
-            labels2inds = {v:i for i,v in enumerate(ambient_labels)}
+            labels2inds = {v: i for i, v in enumerate(ambient_labels)}
 
             # get the simplices and the actual dimension
             simps = [set(s) for s in self.simplices()]
             dim = self.dim()
-            
+
             # container for matrix
-            m = np.zeros((dim+1, dim+2), dtype=int)
-            m[-1,:] = 1 # (homogenization)
-            
+            m = np.zeros((dim + 1, dim + 2), dtype=int)
+            m[-1, :] = 1  # (homogenization)
+
             # container for hyperplane normal
             full_v = np.zeros(ambient_dim, dtype=int)
 
@@ -1476,16 +1546,15 @@ class Triangulation:
             # (star triangulations all share 0th point, the origin, so it can
             #  be removed from consideration, effectively reducing dimension)
             if self.is_star():
-                simps = [s-{self.poly._label_origin} for s in simps]
+                simps = [s - {self.poly._label_origin} for s in simps]
                 dim -= 1
-                
-                m[:-1,-1] = self.points(which=self.poly._label_origin,
-                                        optimal=True)
-            
+
+                m[:-1, -1] = self.points(which=self.poly._label_origin, optimal=True)
+
             # calculate the hyperplanes
             null_vecs = set()
-            for i,s1 in enumerate(simps):
-                for s2 in simps[i+1:]:
+            for i, s1 in enumerate(simps):
+                for s2 in simps[i + 1 :]:
                     # ensure that the simps have a large enough intersection
                     comm_pts = s1 & s2
                     if len(comm_pts) != dim:
@@ -1494,9 +1563,9 @@ class Triangulation:
                     # organize the diff
                     diff_pts = list(s1 ^ s2)
                     comm_pts = list(comm_pts)
-                    
-                    m[:-1, :2]        = self.points(which=diff_pts, optimal=True).T
-                    m[:-1, 2:(2+dim)] = self.points(which=comm_pts, optimal=True).T
+
+                    m[:-1, :2] = self.points(which=diff_pts, optimal=True).T
+                    m[:-1, 2 : (2 + dim)] = self.points(which=comm_pts, optimal=True).T
 
                     # calculate nullspace/hyperplane ineq
                     v = flint.fmpz_mat(m.tolist()).nullspace()[0]
@@ -1513,10 +1582,10 @@ class Triangulation:
 
                     # Construct the full vector (including all points)
                     # (could get some more performance by allowing sparse vectors as Cone argument...)
-                    for i,pt in enumerate(diff_pts):
+                    for i, pt in enumerate(diff_pts):
                         full_v[labels2inds[pt]] = v[i]
-                    for i,pt in enumerate(comm_pts):   
-                        full_v[labels2inds[pt]] = v[i+2]
+                    for i, pt in enumerate(comm_pts):
+                        full_v[labels2inds[pt]] = v[i + 2]
 
                     if self.is_star():
                         full_v[labels2inds[self.poly._label_origin]] = v[-1]
@@ -1524,9 +1593,9 @@ class Triangulation:
                     null_vecs.add(tuple(full_v))
 
                     # clear full_v
-                    for i,pt in enumerate(diff_pts):
+                    for i, pt in enumerate(diff_pts):
                         full_v[labels2inds[pt]] = 0
-                    for i,pt in enumerate(comm_pts):
+                    for i, pt in enumerate(comm_pts):
                         full_v[labels2inds[pt]] = 0
 
             # organize the hyperplanes
@@ -1537,9 +1606,11 @@ class Triangulation:
 
         # return
         # (do via calling the same function to use above cached answer)
-        return self.secondary_cone(backend=backend,
-                                   include_points_not_in_triangulation=include_points_not_in_triangulation,
-                                   as_cone=as_cone)
+        return self.secondary_cone(
+            backend=backend,
+            include_points_not_in_triangulation=include_points_not_in_triangulation,
+            as_cone=as_cone,
+        )
 
     # aliases
     cpl_cone = secondary_cone
@@ -1581,9 +1652,7 @@ class Triangulation:
         # return
         return self._is_regular
 
-    def heights(self,
-                integral: bool = False,
-                backend: str = None) -> np.ndarray:
+    def heights(self, integral: bool = False, backend: str = None) -> np.ndarray:
         """
         **Description:**
         Returns the a height vector if the triangulation is regular. An
@@ -1616,10 +1685,12 @@ class Triangulation:
             heights_out = self._heights.copy()
 
             # convert to integral heights, if desired
-            if integral and (heights_out.dtype==float):
-                warnings.warn("Potential rounding errors... better to" +\
-                                            "solve LP problem in this case...")
-                heights_out = np.rint(heights_out/gcd_list(heights_out))
+            if integral and (heights_out.dtype == float):
+                warnings.warn(
+                    "Potential rounding errors... better to"
+                    + "solve LP problem in this case..."
+                )
+                heights_out = np.rint(heights_out / gcd_list(heights_out))
 
             if integral:
                 return heights_out.astype(int)
@@ -1628,23 +1699,24 @@ class Triangulation:
 
         # need to calculate the heights
         Npts = len(self.labels)
-        if (self._simplices.shape[0]==1) and (self._simplices.shape[1]==Npts):
+        if (self._simplices.shape[0] == 1) and (self._simplices.shape[1] == Npts):
             # If the triangulation is trivial we just return a vector of zeros
             self._heights = np.zeros(Npts, dtype=(int if integral else float))
         else:
             # Otherwise we find a point in the secondary cone
             C = self.secondary_cone(include_points_not_in_triangulation=True)
-            self._heights = C.find_interior_point(integral=integral,
-                                                  backend=backend)
+            self._heights = C.find_interior_point(integral=integral, backend=backend)
 
         return self._heights.copy()
 
     # symmetries
     # ==========
-    def automorphism_orbit(self,
-                           automorphism: "int | ArrayLike" = None,
-                           on_faces_dim: int = None,
-                           on_faces_codim: int = None) -> np.ndarray:
+    def automorphism_orbit(
+        self,
+        automorphism: "int | ArrayLike" = None,
+        on_faces_dim: int = None,
+        on_faces_codim: int = None,
+    ) -> np.ndarray:
         """
         **Description:**
         Returns all of the triangulations of the polytope that can be obtained
@@ -1695,8 +1767,10 @@ class Triangulation:
         """
         # sanity checks
         if not self._is_fulldim:
-            raise NotImplementedError("Automorphisms can only be computed " +\
-                                "for full-dimensional point configurations.")
+            raise NotImplementedError(
+                "Automorphisms can only be computed "
+                + "for full-dimensional point configurations."
+            )
 
         # input parsing
         if (on_faces_dim is None) and (on_faces_codim is None):
@@ -1704,12 +1778,12 @@ class Triangulation:
         elif on_faces_dim is not None:
             faces_dim = on_faces_dim
         else:
-            faces_dim = self.dim()-on_faces_codim
+            faces_dim = self.dim() - on_faces_codim
 
         if automorphism is None:
             orbit_id = (None, faces_dim)
         else:
-            if isinstance(automorphism,Iterable):
+            if isinstance(automorphism, Iterable):
                 orbit_id = (tuple(automorphism), faces_dim)
             else:
                 orbit_id = ((automorphism,), faces_dim)
@@ -1726,17 +1800,17 @@ class Triangulation:
         # the triangulation point configuration
         good_autos = []
         for i in range(len(autos)):
-            for j,k in autos[i].items():
+            for j, k in autos[i].items():
                 # user-input 'allowed' automorphims
-                if (orbit_id[0] is not None) and (i>0)\
-                                             and (i not in orbit_id[0]):
+                if (orbit_id[0] is not None) and (i > 0) and (i not in orbit_id[0]):
                     # non-trivial automorphism that isn't specifically allowed
                     break
 
                 # check if jth and kth points are either both in the
                 # triangulation, or both not in it
-                if (self.poly.labels[j] in self.labels) !=\
-                                        (self.poly.labels[k] in self.labels):
+                if (self.poly.labels[j] in self.labels) != (
+                    self.poly.labels[k] in self.labels
+                ):
                     # oops! One pt is in the triangulation while other isn't!
                     break
             else:
@@ -1755,25 +1829,28 @@ class Triangulation:
 
             # it's a 'good' automorphism
             temp = {}
-            for j,jj in autos[i].items():
-                if (self.poly.labels[j] in self.labels) and\
-                                        (self.poly.labels[jj] in self.labels):
+            for j, jj in autos[i].items():
+                if (self.poly.labels[j] in self.labels) and (
+                    self.poly.labels[jj] in self.labels
+                ):
                     tmp_labels = [self.poly.labels[j], self.poly.labels[jj]]
-                    idx_j,idx_jj = self.points(tmp_labels,
-                                               as_triang_indices=True,
-                                               check_labels=False)
+                    idx_j, idx_jj = self.points(
+                        tmp_labels, as_triang_indices=True, check_labels=False
+                    )
                     temp[idx_j] = idx_jj
             autos[i] = temp
 
         # define helper function
-        apply_auto = lambda auto: tuple(sorted(\
-                    tuple(sorted( [auto[i] for i in s] )) for s in simps ))
+        apply_auto = lambda auto: tuple(
+            sorted(tuple(sorted([auto[i] for i in s])) for s in simps)
+        )
 
         # apply the automorphisms
         orbit = set()
-        for j,a in enumerate(autos):
+        for j, a in enumerate(autos):
             # skip if it is a 'bad' automorphism
-            if a is None:   continue
+            if a is None:
+                continue
 
             # it's a 'good' automorphism
             orbit.add(apply_auto(a))
@@ -1799,11 +1876,13 @@ class Triangulation:
         self._automorphism_orbit[orbit_id] = np.array(sorted(orbit))
         return np.array(self._automorphism_orbit[orbit_id])
 
-    def is_equivalent(self,
-                      other: "Triangulation",
-                      use_automorphisms: bool = True,
-                      on_faces_dim: int = None,
-                      on_faces_codim: int = None) -> bool:
+    def is_equivalent(
+        self,
+        other: "Triangulation",
+        use_automorphisms: bool = True,
+        on_faces_dim: int = None,
+        on_faces_codim: int = None,
+    ) -> bool:
         """
         **Description:**
         Compares two triangulations with or without allowing automorphism
@@ -1845,29 +1924,33 @@ class Triangulation:
 
         # check via automorphisms
         if self._is_fulldim and use_automorphisms:
-            orbit1 = self.automorphism_orbit(on_faces_dim=on_faces_dim,\
-                                             on_faces_codim=on_faces_codim)
-            orbit2 = other.automorphism_orbit(on_faces_dim=on_faces_dim,\
-                                              on_faces_codim=on_faces_codim)
+            orbit1 = self.automorphism_orbit(
+                on_faces_dim=on_faces_dim, on_faces_codim=on_faces_codim
+            )
+            orbit2 = other.automorphism_orbit(
+                on_faces_dim=on_faces_dim, on_faces_codim=on_faces_codim
+            )
 
-            return (orbit1.shape==orbit2.shape) and all((orbit1==orbit2).flat)
+            return (orbit1.shape == orbit2.shape) and all((orbit1 == orbit2).flat)
 
         # check via simplices
-        simp1 = self.simplices(on_faces_dim=on_faces_dim,\
-                               on_faces_codim=on_faces_codim)
-        simp2 = other.simplices(on_faces_dim=on_faces_dim,\
-                                on_faces_codim=on_faces_codim)
+        simp1 = self.simplices(on_faces_dim=on_faces_dim, on_faces_codim=on_faces_codim)
+        simp2 = other.simplices(
+            on_faces_dim=on_faces_dim, on_faces_codim=on_faces_codim
+        )
 
-        return (simp1.shape==simp2.shape) and all((simp1==simp2).flat)
+        return (simp1.shape == simp2.shape) and all((simp1 == simp2).flat)
 
     # flips
     # =====
-    def neighbor_triangulations(self,
-                                only_fine: bool = False,
-                                only_regular: bool = False,
-                                only_star: bool = False,
-                                backend: str = None,
-                                verbose : bool = False)->list["Triangulation"]:
+    def neighbor_triangulations(
+        self,
+        only_fine: bool = False,
+        only_regular: bool = False,
+        only_star: bool = False,
+        backend: str = None,
+        verbose: bool = False,
+    ) -> list["Triangulation"]:
         """
         **Description:**
         Returns the list of triangulations that differ by one bistellar flip
@@ -1902,21 +1985,23 @@ class Triangulation:
         ```
         """
         # check for topcom bug
-        if len(self.simplices())==1:
-            warnings.warn("Triangulation.neighbor_triangulations called " + \
-                            "for trivial triangulation (1 simplex)... " + \
-                            "Returning []! Fix TOPCOM!")
+        if len(self.simplices()) == 1:
+            warnings.warn(
+                "Triangulation.neighbor_triangulations called "
+                + "for trivial triangulation (1 simplex)... "
+                + "Returning []! Fix TOPCOM!"
+            )
             return []
 
         # optimized method for 2D fine neighbors
-        if self.is_fine() and (self.dim()==2) and only_fine:
+        if self.is_fine() and (self.dim() == 2) and only_fine:
             return self._fine_neighbors_2d()
 
         # prep TOPCOM input
-        l2i = {l:i for i,l in enumerate(self.labels)}
-        pts_str = str([list(pt)+[1] for pt in self.points(optimal=True)])
+        l2i = {l: i for i, l in enumerate(self.labels)}
+        pts_str = str([list(pt) + [1] for pt in self.points(optimal=True)])
         triang_str = str([[l2i[l] for l in s] for s in self._simplices])
-        triang_str = triang_str.replace("[","{").replace("]","}")
+        triang_str = triang_str.replace("[", "{").replace("]", "}")
         flips_str = "(-1)"
 
         topcom_input = pts_str + "[]" + triang_str + flips_str
@@ -1924,13 +2009,16 @@ class Triangulation:
         # prep TOPCOM
         topcom_bin = config.topcom_path + "topcom-points2flips"
         if verbose:
-            cmd = (topcom_bin,"-v")
+            cmd = (topcom_bin, "-v")
         else:
             cmd = (topcom_bin,)
-        topcom = subprocess.Popen(cmd, stdin=subprocess.PIPE,
-                                  stdout=subprocess.PIPE,
-                                  stderr=subprocess.PIPE,
-                                  universal_newlines=True)
+        topcom = subprocess.Popen(
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+        )
 
         # do the work and read output
         topcom_res, topcom_err = topcom.communicate(input=topcom_input)
@@ -1946,22 +2034,23 @@ class Triangulation:
         if verbose:
             print(topcom_err)
 
-        if len(topcom_res)==0:
+        if len(topcom_res) == 0:
             return []
-        triangs_list = [ast.literal_eval(r) for r in\
-                                                topcom_res.strip().split("\n")]
+        triangs_list = [ast.literal_eval(r) for r in topcom_res.strip().split("\n")]
 
         # parse the outputs
         triangs = []
         for t in triangs_list:
-            if not all(len(s)==self.dim()+1 for s in t):
+            if not all(len(s) == self.dim() + 1 for s in t):
                 continue
 
             # construct and check triangulation
-            tri = Triangulation(self.poly,
-                                self.labels,
-                                simplices=[[self.labels[i] for i in s] for s in t],
-                                check_input_simplices=False)
+            tri = Triangulation(
+                self.poly,
+                self.labels,
+                simplices=[[self.labels[i] for i in s] for s in t],
+                check_input_simplices=False,
+            )
             if only_fine and (not tri.is_fine()):
                 continue
             if only_star and (not tri.is_star()):
@@ -1972,16 +2061,19 @@ class Triangulation:
             # keep it :)
             triangs.append(tri)
         return triangs
+
     # aliases
     neighbors = neighbor_triangulations
 
-    def random_flips(self,
-                     N: int,
-                     only_fine: bool = None,
-                     only_regular: bool = None,
-                     only_star: bool = None,
-                     backend: str = None,
-                     seed: int = None) -> "Triangulation":
+    def random_flips(
+        self,
+        N: int,
+        only_fine: bool = None,
+        only_regular: bool = None,
+        only_star: bool = None,
+        backend: str = None,
+        seed: int = None,
+    ) -> "Triangulation":
         """
         **Description:**
         Returns a triangulation obtained by performing N random bistellar
@@ -2029,9 +2121,9 @@ class Triangulation:
         # take random flips
         curr_triang = self
         for n in range(N):
-            neighbors = curr_triang.neighbor_triangulations(only_fine=False,\
-                                                        only_regular=False,\
-                                                        only_star=False)
+            neighbors = curr_triang.neighbor_triangulations(
+                only_fine=False, only_regular=False, only_star=False
+            )
             np.random.shuffle(neighbors)
 
             for t in neighbors:
@@ -2051,10 +2143,12 @@ class Triangulation:
 
         return curr_triang
 
-    def _fine_neighbors_2d(self,
-                           only_regular: bool = False,
-                           only_star: bool = False,
-                           backend: str = None)->list["Triangulation"]:
+    def _fine_neighbors_2d(
+        self,
+        only_regular: bool = False,
+        only_star: bool = False,
+        backend: str = None,
+    ) -> list["Triangulation"]:
         """
         **Description:**
         An optimized variant of neighbor_triangulations for triangulations that
@@ -2082,33 +2176,36 @@ class Triangulation:
 
         # for each pair of simplices
         for i, s1 in enumerate(simps_set):
-            for _j, s2 in enumerate(simps_set[i+1:]):
-                j = i+1+_j
-                
+            for _j, s2 in enumerate(simps_set[i + 1 :]):
+                j = i + 1 + _j
+
                 # check if they form a quadrilateral
                 # (i.e., if they intersect along an edge)
-                inter = s1&s2
-                if len(inter)!=2:
+                inter = s1 & s2
+                if len(inter) != 2:
                     continue
-                
+
                 # (and if the edge is 'internal')
-                other = s1.union(s2)-inter
+                other = s1.union(s2) - inter
 
                 pts_inter = self.points(inter, check_labels=False)
                 pts_other = self.points(other, check_labels=False)
                 if (sum(pts_inter) != sum(pts_other)).any():
                     continue
-                
+
                 # flip the inner diagonal
-                flipped = list(map(lambda p: sorted(other|{p}), inter))
+                flipped = list(map(lambda p: sorted(other | {p}), inter))
                 new_simps = self._simplices.copy()
                 new_simps[i] = flipped[0]
                 new_simps[j] = flipped[1]
 
                 # construct the triangulation
-                tri = Triangulation(self.poly, self.labels,\
-                                    simplices=new_simps,\
-                                    check_input_simplices=False)
+                tri = Triangulation(
+                    self.poly,
+                    self.labels,
+                    simplices=new_simps,
+                    check_input_simplices=False,
+                )
 
                 # check the triangulation
                 if only_star and (not tri.is_star()):
@@ -2150,9 +2247,14 @@ class Triangulation:
             return np.array(self._gkz_phi)
 
         # calculate the answer
-        pts_ext = {l:list(pt)+[1,] for l,pt in\
-                                zip(self.labels, self.points(optimal=True))}
-        l2i = {l:i for i,l in enumerate(self.labels)}
+        pts_ext = {
+            l: list(pt)
+            + [
+                1,
+            ]
+            for l, pt in zip(self.labels, self.points(optimal=True))
+        }
+        l2i = {l: i for i, l in enumerate(self.labels)}
         phi = np.zeros(len(pts_ext), dtype=int)
 
         for s in self._simplices:
@@ -2205,43 +2307,46 @@ class Triangulation:
 
         # check if we can answer
         if not self.is_star() or not self._is_fulldim:
-            raise NotImplementedError("SR ideals can only be computed for "+\
-                                      "full-dimensional star triangulations.")
+            raise NotImplementedError(
+                "SR ideals can only be computed for "
+                + "full-dimensional star triangulations."
+            )
 
         # prep-work
         labels = set(self.labels) - {self.poly._label_origin}
         simplices = [labels.intersection(s) for s in self.simplices()]
 
         simplex_tuples = []
-        for dd in range(1,self.dim()+1):
+        for dd in range(1, self.dim() + 1):
             simplex_tuples.append(set())
 
             for s in simplices:
-                simplex_tuples[-1].update(frozenset(tup) for tup in\
-                                                itertools.combinations(s, dd))
+                simplex_tuples[-1].update(
+                    frozenset(tup) for tup in itertools.combinations(s, dd)
+                )
 
         # calculate the SR ideal
         SR_ideal, checked = set(), set()
 
-        for i in range(len(simplex_tuples)-1):
+        for i in range(len(simplex_tuples) - 1):
             for tup in simplex_tuples[i]:
                 for j in labels:
                     k = tup.union((j,))
 
                     # skip if already checked
-                    if (k in checked) or (len(k)!=len(tup)+1):
+                    if (k in checked) or (len(k) != len(tup) + 1):
                         continue
                     else:
                         checked.add(k)
 
-                    if k in simplex_tuples[i+1]:
+                    if k in simplex_tuples[i + 1]:
                         continue
 
                     # check it
                     in_SR = False
-                    for order in range(1, i+1):
+                    for order in range(1, i + 1):
                         for t in itertools.combinations(tup, order):
-                            if frozenset(t+(j,)) in SR_ideal:
+                            if frozenset(t + (j,)) in SR_ideal:
                                 in_SR = True
                                 break
                         else:
@@ -2250,7 +2355,7 @@ class Triangulation:
                             continue
 
                         # there was a t at this order such that
-                        # frozenset(t+(j,)) was in SR_ideal for some 
+                        # frozenset(t+(j,)) was in SR_ideal for some
                         break
                     else:
                         # frozenset(t+(j,)) was not in SR_ideal for any order
@@ -2258,8 +2363,9 @@ class Triangulation:
 
         # return
         self._sr_ideal = [tuple(sorted(s)) for s in SR_ideal]
-        self._sr_ideal = tuple(sorted(self._sr_ideal, key=lambda x:(len(x),x)))
+        self._sr_ideal = tuple(sorted(self._sr_ideal, key=lambda x: (len(x), x)))
         return self._sr_ideal
+
 
 def _to_star(triang: Triangulation) -> np.ndarray:
     """
@@ -2303,6 +2409,7 @@ def _to_star(triang: Triangulation) -> np.ndarray:
     # update triang
     triang._simplices = np.array(sorted([sorted(s) for s in star_triang]))
 
+
 def _qhull_triangulate(points: ArrayLike, heights: ArrayLike) -> np.ndarray:
     """
     **Description:**
@@ -2331,19 +2438,22 @@ def _qhull_triangulate(points: ArrayLike, heights: ArrayLike) -> np.ndarray:
     # points in ZZ^4
     ```
     """
-    lifted_points = [tuple(points[i]) + (heights[i],) for i in\
-                                                            range(len(points))]
+    lifted_points = [tuple(points[i]) + (heights[i],) for i in range(len(points))]
     hull = ConvexHull(lifted_points)
 
     # We first pick the lower facets of the convex hull
-    low_fac = [hull.simplices[n] for n,nn in enumerate(hull.equations)\
-                    if nn[-2] < 0] # The -2 component is the lifting dimension
+    low_fac = [
+        hull.simplices[n] for n, nn in enumerate(hull.equations) if nn[-2] < 0
+    ]  # The -2 component is the lifting dimension
 
     # Then we only take the faces that project to full-dimensional simplices
     # in the original point configuration
     lifted_points = [pt[:-1] + (1,) for pt in lifted_points]
-    simp = [s for s in low_fac if int(round(np.linalg.det([lifted_points[i]\
-                                                        for i in s]))) != 0]
+    simp = [
+        s
+        for s in low_fac
+        if int(round(np.linalg.det([lifted_points[i] for i in s]))) != 0
+    ]
 
     return np.array(sorted([sorted(s) for s in simp]))
 
@@ -2384,14 +2494,19 @@ def _cgal_triangulate(points: ArrayLike, heights: ArrayLike) -> np.ndarray:
 
     # pass the command to CGAL
     cgal_bin = config.cgal_path
-    cgal_bin += (f"/cgal-triangulate-{dim}d" if dim in (2,3,4,5)\
-                                                    else "cgal-triangulate")
-    cgal = subprocess.Popen((cgal_bin,), stdin=subprocess.PIPE,
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                            universal_newlines=True)
+    cgal_bin += (
+        f"/cgal-triangulate-{dim}d" if dim in (2, 3, 4, 5) else "cgal-triangulate"
+    )
+    cgal = subprocess.Popen(
+        (cgal_bin,),
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
+    )
 
     # read/parse outputs
-    cgal_res, cgal_err = cgal.communicate(input=pts_str+heights_str)
+    cgal_res, cgal_err = cgal.communicate(input=pts_str + heights_str)
 
     if cgal_err != "":
         raise RuntimeError(f"CGAL error: {cgal_err}")
@@ -2434,32 +2549,40 @@ def _topcom_triangulate(points: ArrayLike) -> np.ndarray:
     """
     # prep
     topcom_bin = config.topcom_path + "/topcom-points2finetriang"
-    topcom = subprocess.Popen((topcom_bin, "--regular"), stdin=subprocess.PIPE,
-                              stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                              universal_newlines=True)
+    topcom = subprocess.Popen(
+        (topcom_bin, "--regular"),
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
+    )
 
     # do the work
-    pts_str = str([list(pt)+[1] for pt in points])
-    topcom_res, topcom_err = topcom.communicate(input=pts_str+"[]")
+    pts_str = str([list(pt) + [1] for pt in points])
+    topcom_res, topcom_err = topcom.communicate(input=pts_str + "[]")
 
     # parse the output
     try:
         simp = ast.literal_eval(topcom_res.replace("{", "[").replace("}", "]"))
     except:
-        raise RuntimeError("Error: Failed to parse TOPCOM output. "
-                           f"\nstdout: {topcom_res} \nstderr: {topcom_err}")
+        raise RuntimeError(
+            "Error: Failed to parse TOPCOM output. "
+            f"\nstdout: {topcom_res} \nstderr: {topcom_err}"
+        )
 
     return np.array(sorted([sorted(s) for s in simp]))
 
 
-def all_triangulations(poly: "Polytope",
-                       pts: ArrayLike,
-                       only_fine: bool = False,
-                       only_regular: bool = False,
-                       only_star: bool = False,
-                       star_origin: int = None,
-                       backend: str = None,
-                       raw_output: bool = False) -> "generator[Triangulation]":
+def all_triangulations(
+    poly: "Polytope",
+    pts: ArrayLike,
+    only_fine: bool = False,
+    only_regular: bool = False,
+    only_star: bool = False,
+    star_origin: int = None,
+    backend: str = None,
+    raw_output: bool = False,
+) -> "generator[Triangulation]":
     """
     **Description:**
     Computes all triangulations of the input point configuration using TOPCOM.
@@ -2518,8 +2641,10 @@ def all_triangulations(poly: "Polytope",
         raise ValueError("List of points cannot be empty.")
 
     if only_star and star_origin is None:
-        raise ValueError("The star_origin parameter must be specified when "
-                         "restricting to star triangulations.")
+        raise ValueError(
+            "The star_origin parameter must be specified when "
+            "restricting to star triangulations."
+        )
 
     # ensure points are appropriately sorted (for Triangulation inputs)
     triang_pts = poly.points(which=pts)
@@ -2529,11 +2654,11 @@ def all_triangulations(poly: "Polytope",
     # if not full-dimenstional, find better representation
     # (only performs affine transformation, so can treat the new points as if
     # they were the original ones)
-    dim = np.linalg.matrix_rank([tuple(pt)+(1,) for pt in triang_pts])-1
+    dim = np.linalg.matrix_rank([tuple(pt) + (1,) for pt in triang_pts]) - 1
     if dim == triang_pts.shape[1]:
         optimal_pts = triang_pts
     else:
-        optimal_pts = lll_reduce([pt-triang_pts[0] for pt in triang_pts])[:,-dim:]
+        optimal_pts = lll_reduce([pt - triang_pts[0] for pt in triang_pts])[:, -dim:]
 
     # prep for TOPCOM
     topcom_bin = config.topcom_path
@@ -2542,50 +2667,69 @@ def all_triangulations(poly: "Polytope",
     else:
         topcom_bin += "topcom-points2alltriangs"
 
-    reg_arg = ("--regular",) if backend=="topcom" and only_regular else ()
-    topcom = subprocess.Popen((topcom_bin,)+reg_arg,
-                              stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE, universal_newlines=True)
+    reg_arg = ("--regular",) if backend == "topcom" and only_regular else ()
+    topcom = subprocess.Popen(
+        (topcom_bin,) + reg_arg,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
+    )
 
     # do the work
-    pts_str = str([list(pt)+[1] for pt in optimal_pts])
-    topcom_res, topcom_err = topcom.communicate(input=pts_str+"[]")
+    pts_str = str([list(pt) + [1] for pt in optimal_pts])
+    topcom_res, topcom_err = topcom.communicate(input=pts_str + "[]")
 
-    #parse the output
+    # parse the output
     try:
-        triangs = [ast.literal_eval("["+ t.replace("{","[").replace("}","]") +\
-                        "]") for t in re.findall(r"\{([^\:]*)\}", topcom_res)]
+        triangs = [
+            ast.literal_eval("[" + t.replace("{", "[").replace("}", "]") + "]")
+            for t in re.findall(r"\{([^\:]*)\}", topcom_res)
+        ]
     except:
-        raise RuntimeError("Error: Failed to parse TOPCOM output. "
-                           f"\nstdout: {topcom_res} \nstderr: {topcom_err}")
+        raise RuntimeError(
+            "Error: Failed to parse TOPCOM output. "
+            f"\nstdout: {topcom_res} \nstderr: {topcom_err}"
+        )
 
     # map the triangulations to labels
     triangs = [[pts[i] for i in s] for s in triangs]
 
     # sort the triangs
-    srt_triangs = [np.array(sorted([sorted(s) for s in t])) for t in triangs
-                    if (not only_star or all(star_origin in ss for ss in t))]
+    srt_triangs = [
+        np.array(sorted([sorted(s) for s in t]))
+        for t in triangs
+        if (not only_star or all(star_origin in ss for ss in t))
+    ]
 
     # return the output
     for t in srt_triangs:
         if raw_output:
             yield t
             continue
-        tri = Triangulation(poly, pts, simplices=t, make_star=False,
-                                                check_input_simplices=False)
+        tri = Triangulation(
+            poly,
+            pts,
+            simplices=t,
+            make_star=False,
+            check_input_simplices=False,
+        )
         if not only_regular or tri.is_regular(backend=backend):
             yield tri
 
-def random_triangulations_fast_generator(poly: "Polytope",
-                                         pts: ArrayLike,
-                                         N: int = None,
-                                         c: float = 0.2,
-                                         max_retries: int = 500,
-                                         make_star: bool = False,
-                                         only_fine: bool = True,
-                                         backend: str = "cgal",
-                                         seed: int = None,
-                                         verbosity: int = 0) -> "generator[Triangulation]":
+
+def random_triangulations_fast_generator(
+    poly: "Polytope",
+    pts: ArrayLike,
+    N: int = None,
+    c: float = 0.2,
+    max_retries: int = 500,
+    make_star: bool = False,
+    only_fine: bool = True,
+    backend: str = "cgal",
+    seed: int = None,
+    verbosity: int = 0,
+) -> "generator[Triangulation]":
     """
     Constructs pseudorandom regular (optionally fine and star) triangulations
     of a given point set. This is done by picking random heights around the
@@ -2657,19 +2801,28 @@ def random_triangulations_fast_generator(poly: "Polytope",
     n_retries = 0
     while True:
         if n_retries >= max_retries:
-            if verbosity>0:
-                print("random_triangulations_fast_generator: Hit max_retries... returning")
+            if verbosity > 0:
+                print(
+                    "random_triangulations_fast_generator: Hit max_retries... returning"
+                )
             return
         if (N is not None) and (len(triang_hashes) >= N):
-            if verbosity>1:
-                print("random_triangulations_fast_generator: Generated enough triangulations... returning")
+            if verbosity > 1:
+                print(
+                    "random_triangulations_fast_generator: Generated enough triangulations... returning"
+                )
             return
 
         # generate random heights, make the triangulation
-        heights= [pt.dot(pt) + np.random.normal(0,c) for pt in poly.points(which=pts)]
-        t = Triangulation(poly, pts, heights=heights,
-                          make_star=make_star, backend=backend,
-                          check_heights=False)
+        heights = [pt.dot(pt) + np.random.normal(0, c) for pt in poly.points(which=pts)]
+        t = Triangulation(
+            poly,
+            pts,
+            heights=heights,
+            make_star=make_star,
+            backend=backend,
+            check_heights=False,
+        )
 
         # check if it's good
         if only_fine and (not t.is_fine()):
@@ -2677,7 +2830,7 @@ def random_triangulations_fast_generator(poly: "Polytope",
             continue
 
         # check that the heights aren't on a wall of the secondary cone
-        t.check_heights(verbosity-1)
+        t.check_heights(verbosity - 1)
 
         h = hash(t)
         if h in triang_hashes:
@@ -2689,19 +2842,22 @@ def random_triangulations_fast_generator(poly: "Polytope",
         n_retries = 0
         yield t
 
-def random_triangulations_fair_generator(poly: "Polytope",
-                                         pts: ArrayLike,
-                                         N: int = None,
-                                         n_walk: int = 10,
-                                         n_flip: int = 10,
-                                         initial_walk_steps: int = 20,
-                                         walk_step_size: float = 1e-2,
-                                         max_steps_to_wall: int = 10,
-                                         fine_tune_steps: int = 8,
-                                         max_retries: int = 50,
-                                         make_star: bool = False,
-                                         backend: str = "cgal",
-                                         seed: int = None) -> "generator[Triangulation]":
+
+def random_triangulations_fair_generator(
+    poly: "Polytope",
+    pts: ArrayLike,
+    N: int = None,
+    n_walk: int = 10,
+    n_flip: int = 10,
+    initial_walk_steps: int = 20,
+    walk_step_size: float = 1e-2,
+    max_steps_to_wall: int = 10,
+    fine_tune_steps: int = 8,
+    max_retries: int = 50,
+    make_star: bool = False,
+    backend: str = "cgal",
+    seed: int = None,
+) -> "generator[Triangulation]":
     """
     **Description:**
     Constructs pseudorandom regular (optionally star) triangulations of a given
@@ -2717,7 +2873,7 @@ def random_triangulations_fair_generator(poly: "Polytope",
 
     :::note notes
     - This function is not intended to be called by the end user. Instead, it
-        is used by the 
+        is used by the
         [`random_triangulations_fair`](./polytope#random_triangulations_fair)
         function of the [`Polytope`](./polytope) class.
     - This function is designed mainly for large polytopes where sampling
@@ -2786,36 +2942,36 @@ def random_triangulations_fair_generator(poly: "Polytope",
     traing_pts = poly.points(which=pts)
     num_points = len(pts)
 
-    dim = np.linalg.matrix_rank([tuple(pt)+(1,) for pt in traing_pts])-1
+    dim = np.linalg.matrix_rank([tuple(pt) + (1,) for pt in traing_pts]) - 1
     if dim != traing_pts.shape[1]:
         raise Exception("Point configuration must be full-dimensional.")
 
     if seed is not None:
         np.random.seed(seed)
-    
-    # Obtain random Delaunay triangulation by picking random point as origin
-    rand_ind = np.random.randint(0,len(pts))
-    points_shifted = [p-traing_pts[rand_ind] for p in traing_pts]
 
-    delaunay_heights = [walk_step_size*(np.dot(p,p)) for p in points_shifted]
+    # Obtain random Delaunay triangulation by picking random point as origin
+    rand_ind = np.random.randint(0, len(pts))
+    points_shifted = [p - traing_pts[rand_ind] for p in traing_pts]
+
+    delaunay_heights = [walk_step_size * (np.dot(p, p)) for p in points_shifted]
     start_pt = delaunay_heights
     old_pt = start_pt
 
-    step_size = walk_step_size*np.mean(delaunay_heights)
-    
+    step_size = walk_step_size * np.mean(delaunay_heights)
+
     # initialize for MCMC
-    step_ctr = 0            # total # of steps taken
-    step_per_tri_ctr = 0    # # of steps taken for given triangulation
-    
+    step_ctr = 0  # total # of steps taken
+    step_per_tri_ctr = 0  # # of steps taken for given triangulation
+
     n_retries = 0
     triang_hashes = set()
 
     # do the work
     while True:
         # check if we're done
-        if n_retries>=max_retries:
+        if n_retries >= max_retries:
             break
-        if (N is not None) and (len(triang_hashes)>N):
+        if (N is not None) and (len(triang_hashes) > N):
             break
 
         # find a wall
@@ -2830,10 +2986,15 @@ def random_triangulations_fair_generator(poly: "Polytope",
 
             # take steps
             for __ in range(max_steps_to_wall):
-                new_pt = in_pt + random_dir*step_size
-                temp_tri = Triangulation(poly, pts, heights=new_pt,
-                                            make_star=False, backend=backend,
-                                            verbosity=0)
+                new_pt = in_pt + random_dir * step_size
+                temp_tri = Triangulation(
+                    poly,
+                    pts,
+                    heights=new_pt,
+                    make_star=False,
+                    backend=backend,
+                    verbosity=0,
+                )
 
                 # check triang
                 if temp_tri.is_fine():
@@ -2854,11 +3015,16 @@ def random_triangulations_fair_generator(poly: "Polytope",
         # Find the location of the boundary
         fine_tune_ctr = 0
         in_pt_found = False
-        while (fine_tune_ctr<fine_tune_steps) or (not in_pt_found):
-            new_pt = (in_pt+out_pt)/2
-            temp_tri = Triangulation(poly, pts, heights=new_pt,
-                                            make_star=False, backend=backend,
-                                            verbosity=0)
+        while (fine_tune_ctr < fine_tune_steps) or (not in_pt_found):
+            new_pt = (in_pt + out_pt) / 2
+            temp_tri = Triangulation(
+                poly,
+                pts,
+                heights=new_pt,
+                make_star=False,
+                backend=backend,
+                verbosity=0,
+            )
 
             # check triang
             if temp_tri.is_fine():
@@ -2870,22 +3036,26 @@ def random_triangulations_fair_generator(poly: "Polytope",
             fine_tune_ctr += 1
 
         # Take a random walk step
-        in_pt = in_pt/np.linalg.norm(in_pt)
-        random_coef = np.random.uniform(0,1)
-        new_pt =    (random_coef*np.array(old_pt) +\
-                 (1-random_coef)*np.array(in_pt))
+        in_pt = in_pt / np.linalg.norm(in_pt)
+        random_coef = np.random.uniform(0, 1)
+        new_pt = random_coef * np.array(old_pt) + (1 - random_coef) * np.array(in_pt)
 
         # after enough steps are taken, move on to random flips
-        if (step_ctr>initial_walk_steps) and (step_per_tri_ctr>=n_walk):
-            flip_seed_tri =Triangulation(poly, pts, heights=new_pt,
-                                        make_star=make_star, backend=backend,
-                                        verbosity=0)
+        if (step_ctr > initial_walk_steps) and (step_per_tri_ctr >= n_walk):
+            flip_seed_tri = Triangulation(
+                poly,
+                pts,
+                heights=new_pt,
+                make_star=make_star,
+                backend=backend,
+                verbosity=0,
+            )
 
             # take flips
             if n_flip > 0:
-                temp_tri = flip_seed_tri.random_flips(n_flip, only_fine=True,
-                                                      only_regular=True,
-                                                      only_star=True)
+                temp_tri = flip_seed_tri.random_flips(
+                    n_flip, only_fine=True, only_regular=True, only_star=True
+                )
             else:
                 temp_tri = flip_seed_tri
 
@@ -2902,7 +3072,7 @@ def random_triangulations_fair_generator(poly: "Polytope",
             yield temp_tri
 
         # update old point
-        old_pt = new_pt/np.linalg.norm(new_pt)
+        old_pt = new_pt / np.linalg.norm(new_pt)
 
         # update counters
         step_ctr += 1

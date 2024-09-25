@@ -30,6 +30,7 @@ from numpy.typing import ArrayLike
 from cytools.triangulation import Triangulation
 from cytools.utils import lll_reduce
 
+
 class PolytopeFace:
     """
     This class handles all computations relating to faces of lattice polytopes.
@@ -69,11 +70,13 @@ class PolytopeFace:
     ```
     """
 
-    def __init__(self,
-                 ambient_poly: "Polytope",
-                 vert_labels: list,
-                 saturated_ineqs: frozenset,
-                 dim: int = None) -> None:
+    def __init__(
+        self,
+        ambient_poly: "Polytope",
+        vert_labels: list,
+        saturated_ineqs: frozenset,
+        dim: int = None,
+    ) -> None:
         """
         **Description:**
         Initializes a `PolytopeFace` object.
@@ -113,7 +116,7 @@ class PolytopeFace:
             self._dim = dim
         else:
             verts = ambient_poly.points(which=vert_labels)
-            self._dim = np.linalg.matrix_rank([list(pt)+[1] for pt in verts])-1
+            self._dim = np.linalg.matrix_rank([list(pt) + [1] for pt in verts]) - 1
 
     # defaults
     # ========
@@ -138,9 +141,11 @@ class PolytopeFace:
         print(f) # Prints face info
         ```
         """
-        return (f"A {self.dim()}-dimensional face of a "
-                f"{self.ambient_poly.dim()}-dimensional polytope in "
-                f"ZZ^{self.ambient_dim()}")
+        return (
+            f"A {self.dim()}-dimensional face of a "
+            f"{self.ambient_poly.dim()}-dimensional polytope in "
+            f"ZZ^{self.ambient_dim()}"
+        )
 
     # caching
     # =======
@@ -190,7 +195,8 @@ class PolytopeFace:
         The ambient polytope.
         """
         return self._ambient_poly
-    ambient_polytope = lambda self:self.ambient_poly
+
+    ambient_polytope = lambda self: self.ambient_poly
 
     @property
     def labels(self) -> tuple:
@@ -272,6 +278,7 @@ class PolytopeFace:
         `dim`.
         """
         return self._dim
+
     # aliases
     dim = dimension
 
@@ -290,6 +297,7 @@ class PolytopeFace:
         `ambient_dim`.
         """
         return self.ambient_poly.ambient_dimension()
+
     # aliases
     ambient_dim = ambient_dimension
 
@@ -334,10 +342,9 @@ class PolytopeFace:
         self._labels_int = tuple(self._labels_int)
         self._labels_bdry = tuple(self._labels_bdry)
 
-    def points(self,
-               which = None,
-               optimal: bool = False,
-               as_indices: bool = False) -> np.ndarray:
+    def points(
+        self, which=None, optimal: bool = False, as_indices: bool = False
+    ) -> np.ndarray:
         """
         **Description:**
         Returns the lattice points of the face.
@@ -371,22 +378,25 @@ class PolytopeFace:
         else:
             # check if the input labels
             if not set(which).issubset(self.labels):
-                raise ValueError(f"Specified labels ({which}) aren't subset "\
-                                 f"of the face lables ({self.labels})...")
+                raise ValueError(
+                    f"Specified labels ({which}) aren't subset "
+                    f"of the face lables ({self.labels})..."
+                )
 
         # return
         if optimal and (not as_indices):
-            dim_diff =  self.ambient_dim()-self.dim()
-            if dim_diff>0:
+            dim_diff = self.ambient_dim() - self.dim()
+            if dim_diff > 0:
                 # asking for optimal points, where the optimal value may
                 # differ from the entire polytope
                 pts = self.points(which=which)
-                return lll_reduce(pts-pts[0])[:,dim_diff:]
-        
+                return lll_reduce(pts - pts[0])[:, dim_diff:]
+
         # normal case
-        return self.ambient_poly.points(which=which,
-                                        optimal=optimal,
-                                        as_indices=as_indices)
+        return self.ambient_poly.points(
+            which=which, optimal=optimal, as_indices=as_indices
+        )
+
     # aliases
     pts = points
 
@@ -415,8 +425,8 @@ class PolytopeFace:
         #        [ 0,  0,  0, -1]])
         ```
         """
-        return self.ambient_poly.points(which=self.labels_int,
-                                        as_indices=as_indices)
+        return self.ambient_poly.points(which=self.labels_int, as_indices=as_indices)
+
     # aliases
     interior_pts = interior_points
 
@@ -447,8 +457,8 @@ class PolytopeFace:
         #        [ 0,  1,  0,  0]])
         ```
         """
-        return self.ambient_poly.points(which=self.labels_bdry,
-                                        as_indices=as_indices)
+        return self.ambient_poly.points(which=self.labels_bdry, as_indices=as_indices)
+
     # aliases
     boundary_pts = boundary_points
 
@@ -474,8 +484,9 @@ class PolytopeFace:
         #        [ 0,  0,  1,  0]])
         ```
         """
-        return self.ambient_poly.points(which=self._labels_vertices,
-                                        as_indices=as_indices)
+        return self.ambient_poly.points(
+            which=self._labels_vertices, as_indices=as_indices
+        )
 
     # polytope
     # ========
@@ -503,10 +514,14 @@ class PolytopeFace:
         """
         if self._polytope is None:
             from cytools.polytope import Polytope
-            self._polytope = Polytope(self.points(),
-                                      labels=self.labels,
-                                      backend=self.ambient_poly.backend)
+
+            self._polytope = Polytope(
+                self.points(),
+                labels=self.labels,
+                backend=self.ambient_poly.backend,
+            )
         return self._polytope
+
     # alias
     as_poly = as_polytope
 
@@ -553,20 +568,23 @@ class PolytopeFace:
         # perform the calculation
         dual_poly = self.ambient_poly.dual()
 
-        dual_vert = self.ambient_poly.inequalities()[
-                                            list(self._saturated_ineqs),:-1]
-        dual_ineqs = dual_poly.inequalities()[:,:-1].tolist()
-        dual_saturated_ineqs = frozenset([dual_ineqs.index(v)
-                                            for v in self.vertices().tolist()])
+        dual_vert = self.ambient_poly.inequalities()[list(self._saturated_ineqs), :-1]
+        dual_ineqs = dual_poly.inequalities()[:, :-1].tolist()
+        dual_saturated_ineqs = frozenset(
+            [dual_ineqs.index(v) for v in self.vertices().tolist()]
+        )
         dual_face_dim = self.ambient_poly._dim - self._dim - 1
-        self._dual_face = PolytopeFace(dual_poly,
-                                       dual_poly.points_to_labels(dual_vert),
-                                       dual_saturated_ineqs,
-                                       dim=dual_face_dim)
+        self._dual_face = PolytopeFace(
+            dual_poly,
+            dual_poly.points_to_labels(dual_vert),
+            dual_saturated_ineqs,
+            dim=dual_face_dim,
+        )
         self._dual_face._dual_face = self
 
         # return
         return self.dual_face()
+
     # aliases
     dual = dual_face
 
@@ -602,13 +620,18 @@ class PolytopeFace:
 
         # return answer if known
         if self._faces is not None:
-            return (self._faces[d] if d is not None else self._faces)
+            return self._faces[d] if d is not None else self._faces
 
         # calculate the answer
         faces = []
         for dd in range(self._dim + 1):
-            faces.append(tuple(f for f in self.ambient_poly.faces(dd)
-                        if self._saturated_ineqs.issubset(f._saturated_ineqs)))
+            faces.append(
+                tuple(
+                    f
+                    for f in self.ambient_poly.faces(dd)
+                    if self._saturated_ineqs.issubset(f._saturated_ineqs)
+                )
+            )
         self._faces = tuple(faces)
 
         # return
@@ -616,12 +639,14 @@ class PolytopeFace:
 
     # triangulating
     # =============
-    def triangulate(self,
-                    heights: list = None,
-                    simplices: ArrayLike = None,
-                    check_input_simplices: bool = True,
-                    backend: str = "cgal",
-                    verbosity=0) -> "Triangulation":
+    def triangulate(
+        self,
+        heights: list = None,
+        simplices: ArrayLike = None,
+        check_input_simplices: bool = True,
+        backend: str = "cgal",
+        verbosity=0,
+    ) -> "Triangulation":
         """
         **Description:**
         Returns a single regular triangulation of the face.
@@ -652,11 +677,13 @@ class PolytopeFace:
         A [`Triangulation`](./triangulation) object describing a triangulation
         of the polytope.
         """
-        return Triangulation(self.ambient_poly,
-                             self.labels,
-                             make_star=False,
-                             heights=heights,
-                             simplices=simplices,
-                             check_input_simplices=check_input_simplices,
-                             backend=backend,
-                             verbosity=verbosity)
+        return Triangulation(
+            self.ambient_poly,
+            self.labels,
+            make_star=False,
+            heights=heights,
+            simplices=simplices,
+            check_input_simplices=check_input_simplices,
+            backend=backend,
+            verbosity=verbosity,
+        )

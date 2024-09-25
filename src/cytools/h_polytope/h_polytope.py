@@ -30,6 +30,7 @@ import ppl
 from cytools import Polytope
 from cytools.utils import gcd_list
 
+
 class HPolytope(Polytope):
     """
     This class handles all computations relating to H-polytopes. These are not
@@ -63,11 +64,13 @@ class HPolytope(Polytope):
         otherwise.
     """
 
-    def __init__(self,
-                 ineqs: "ArrayLike" = None,
-                 dilate: bool = False,
-                 backend: str=None,
-                 verbosity: int=0) -> None:
+    def __init__(
+        self,
+        ineqs: "ArrayLike" = None,
+        dilate: bool = False,
+        backend: str = None,
+        verbosity: int = 0,
+    ) -> None:
         """
         **Description:**
         Initializes a `HPolytope` object describing a lattice polytope.
@@ -104,24 +107,26 @@ class HPolytope(Polytope):
 
             if dilate:
                 # dilate so that the vertices are all integral
-                gcd    = gcd_list(self._real_vertices.flatten())
-                points = np.rint(self._real_vertices/gcd).astype(int)
+                gcd = gcd_list(self._real_vertices.flatten())
+                points = np.rint(self._real_vertices / gcd).astype(int)
             else:
                 # get the contained lattice points
                 points = lattice_points(self._real_vertices, self._ineqs)
-                if len(points)==0:
-                    error_msg = "No lattice points in the Polytope! "\
-                              +f"The real-valued vertices are {self._real_vertices.tolist()}..., "\
-                              +f"defined from inequalities {self._ineqs.tolist()}..."
+                if len(points) == 0:
+                    error_msg = (
+                        "No lattice points in the Polytope! "
+                        + f"The real-valued vertices are {self._real_vertices.tolist()}..., "
+                        + f"defined from inequalities {self._ineqs.tolist()}..."
+                    )
                     raise ValueError(error_msg)
 
         # run Polytope initializer
         super().__init__(points=points, backend=backend)
 
+
 # utils
 # -----
-def poly_h_to_v(hypers: "ArrayLike",
-                verbosity: int = 0) -> ("ArrayLike", None):
+def poly_h_to_v(hypers: "ArrayLike", verbosity: int = 0) -> ("ArrayLike", None):
     """
     **Description:**
     Generate the V-representation of a polytope, given the H-representation.
@@ -130,7 +135,7 @@ def poly_h_to_v(hypers: "ArrayLike",
     The inequalities, c, must organized as a matrix for which each row is an
     inequality of the form
         c[i,0] * x_0 + ... + c[i,d-1] * x_{d-1} + c[i,d] >= 0
-    
+
     Only works with ppl backend, currently.
 
     **Arguments:**
@@ -140,11 +145,11 @@ def poly_h_to_v(hypers: "ArrayLike",
     **Returns:**
     The associated points of the polytope and the formal convex hull.
     """
-    hypers = np.array(hypers) # don't use .asarray so as to ensure we copy them
-    
+    hypers = np.array(hypers)  # don't use .asarray so as to ensure we copy them
+
     # preliminary
-    dim = len(hypers[0])-1
-    
+    dim = len(hypers[0]) - 1
+
     # scale hyperplanes to be integral
     if hypers.dtype != int:
         if verbosity >= 1:
@@ -152,8 +157,8 @@ def poly_h_to_v(hypers: "ArrayLike",
 
         # divide by GCD
         for i in range(len(hypers)):
-            hypers[i,:] /= gcd_list(hypers[i,:])
-        
+            hypers[i, :] /= gcd_list(hypers[i, :])
+
         # round/cast to int
         hypers = np.rint(hypers).astype(int)
 
@@ -163,7 +168,7 @@ def poly_h_to_v(hypers: "ArrayLike",
 
     # insert points to generator system
     for c in hypers:
-        cs.insert(sum(c[i]*vrs[i] for i in range(dim)) + c[-1] >= 0)
+        cs.insert(sum(c[i] * vrs[i] for i in range(dim)) + c[-1] >= 0)
 
     # find polytope, vertices
     # -----------------------
@@ -176,18 +181,18 @@ def poly_h_to_v(hypers: "ArrayLike",
             return
 
         div = int(pt.divisor())
-        if div==1:
+        if div == 1:
             # handle this separately to maintain integer typing
             pts.append([int(coeff) for coeff in pt.coefficients()])
         else:
-            pts.append([int(coeff)/div for coeff in pt.coefficients()])
+            pts.append([int(coeff) / div for coeff in pt.coefficients()])
     pts = np.array(pts)
 
     # return
     return pts, poly
 
-def lattice_points(verts: "ArrayLike",
-                   ineqs: "ArrayLike") -> "ArrayLike":
+
+def lattice_points(verts: "ArrayLike", ineqs: "ArrayLike") -> "ArrayLike":
     """
     **Description:**
     Enumerate all lattice points in a polytope with given vertices and
@@ -209,19 +214,19 @@ def lattice_points(verts: "ArrayLike",
     """
     # output variable
     _lattice_pts = []
-    
+
     # basic helper variables
     dim = len(verts[0])
-    
+
     # find bounding box for the lattice points
     box_min = np.ceil(np.min(verts, axis=0)).astype(int)
     box_max = np.floor(np.max(verts, axis=0)).astype(int)
-    
+
     # try all lattice points
     x = np.empty(dim, dtype=int)
-    for dx in itertools.product(*list(map(range, box_max-box_min+1))):
-        x = box_min+dx # the point to try
-        if all(ineqs[:,:-1]@x + ineqs[:,-1] >= 0):
+    for dx in itertools.product(*list(map(range, box_max - box_min + 1))):
+        x = box_min + dx  # the point to try
+        if all(ineqs[:, :-1] @ x + ineqs[:, -1] >= 0):
             # it passes all inequality checks!
             _lattice_pts.append(x.tolist())
 

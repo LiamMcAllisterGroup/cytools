@@ -33,12 +33,20 @@ from scipy.sparse import csr_matrix
 from cytools import config
 from cytools.calabiyau import CalabiYau
 from cytools.cone import Cone
-from cytools.utils import (gcd_list, solve_linear_system,
-                           array_float_to_fmpq,
-                           array_fmpq_to_float, filter_tensor_indices,
-                           symmetric_sparse_to_dense, float_to_fmpq,
-                           symmetric_dense_to_sparse, fmpq_to_float,
-                           set_divisor_basis, set_curve_basis)
+from cytools.utils import (
+    gcd_list,
+    solve_linear_system,
+    array_float_to_fmpq,
+    array_fmpq_to_float,
+    filter_tensor_indices,
+    symmetric_sparse_to_dense,
+    float_to_fmpq,
+    symmetric_dense_to_sparse,
+    fmpq_to_float,
+    set_divisor_basis,
+    set_curve_basis,
+)
+
 
 class ToricVariety:
     """
@@ -118,9 +126,11 @@ class ToricVariety:
         if not triang.is_star():
             raise ValueError("The input triangulation must be star.")
         if not triang.polytope().is_reflexive() and not config._exp_features_enabled:
-            raise Exception("The experimental features must be enabled to "
-                            "construct toric varieties from triangulations "
-                            "that are not from reflexive polytopes.")
+            raise Exception(
+                "The experimental features must be enabled to "
+                "construct toric varieties from triangulations "
+                "that are not from reflexive polytopes."
+            )
         self._triang = triang
         # Initialize remaining hidden attributes
         self._hash = None
@@ -130,7 +140,7 @@ class ToricVariety:
         self._divisor_basis_mat = None
         self._curve_basis = None
         self._curve_basis_mat = None
-        self._mori_cone = [None]*3
+        self._mori_cone = [None] * 3
         self._intersection_numbers = dict()
         self._prime_divs = None
         self._is_compact = None
@@ -141,8 +151,10 @@ class ToricVariety:
         self._nef_part = None
         self._cy = None
         if not self.is_compact() and not config._exp_features_enabled:
-            raise Exception("The experimental features must be enabled to "
-                            "construct non-compact varieties.")
+            raise Exception(
+                "The experimental features must be enabled to "
+                "construct non-compact varieties."
+            )
 
     def clear_cache(self, recursive=False, only_in_basis=False):
         """
@@ -186,7 +198,7 @@ class ToricVariety:
             self._divisor_basis_mat = None
             self._curve_basis = None
             self._curve_basis_mat = None
-            self._mori_cone = [None]*3
+            self._mori_cone = [None] * 3
             self._intersection_numbers = dict()
             self._prime_divs = None
             self._is_compact = None
@@ -221,10 +233,12 @@ class ToricVariety:
         # A smooth compact 4-dimensional toric variety with 5 affine patches
         ```
         """
-        out_str = (f"A {'smooth' if self.is_smooth() else 'simplicial'} "
-                    f"{'' if self.is_compact() else 'non-'}compact {self.dim()}"
-                    f"-dimensional toric variety with {len(self.triangulation().simplices())}"
-                    f" affine patches")
+        out_str = (
+            f"A {'smooth' if self.is_smooth() else 'simplicial'} "
+            f"{'' if self.is_compact() else 'non-'}compact {self.dim()}"
+            f"-dimensional toric variety with {len(self.triangulation().simplices())}"
+            f" affine patches"
+        )
         return out_str
 
     def __eq__(self, other):
@@ -309,7 +323,7 @@ class ToricVariety:
         """
         if self._hash is not None:
             return self._hash
-        self._hash = hash((1,hash(self.triangulation())))
+        self._hash = hash((1, hash(self.triangulation())))
         return self._hash
 
     def is_compact(self):
@@ -335,7 +349,9 @@ class ToricVariety:
         """
         if self._is_compact is not None:
             return self._is_compact
-        self._is_compact = (0,)*self.dim() in [tuple(pt) for pt in self.polytope().interior_points()]
+        self._is_compact = (0,) * self.dim() in [
+            tuple(pt) for pt in self.polytope().interior_points()
+        ]
         return self._is_compact
 
     def triangulation(self):
@@ -413,6 +429,7 @@ class ToricVariety:
         ```
         """
         return self.triangulation().dim()
+
     # aliases
     dim = dimension
 
@@ -466,11 +483,12 @@ class ToricVariety:
         ```
         """
         if self._glsm_charge_matrix is not None:
-            return np.array(self._glsm_charge_matrix)[:,(0 if include_origin else 1):]
+            return np.array(self._glsm_charge_matrix)[:, (0 if include_origin else 1) :]
         self._glsm_charge_matrix = self.polytope().glsm_charge_matrix(
-                                            include_origin=True,
-                                            points=self.polytope().points_to_indices(self.triangulation().points()))
-        return np.array(self._glsm_charge_matrix)[:,(0 if include_origin else 1):]
+            include_origin=True,
+            points=self.polytope().points_to_indices(self.triangulation().points()),
+        )
+        return np.array(self._glsm_charge_matrix)[:, (0 if include_origin else 1) :]
 
     def glsm_linear_relations(self, include_origin=True):
         """
@@ -508,11 +526,16 @@ class ToricVariety:
         ```
         """
         if self._glsm_linrels is not None:
-            return np.array(self._glsm_linrels)[(0 if include_origin else 1):,(0 if include_origin else 1):]
+            return np.array(self._glsm_linrels)[
+                (0 if include_origin else 1) :, (0 if include_origin else 1) :
+            ]
         self._glsm_linrels = self.polytope().glsm_linear_relations(
-                                include_origin=True,
-                                points=self.polytope().points_to_indices(self.triangulation().points()))
-        return np.array(self._glsm_linrels)[(0 if include_origin else 1):,(0 if include_origin else 1):]
+            include_origin=True,
+            points=self.polytope().points_to_indices(self.triangulation().points()),
+        )
+        return np.array(self._glsm_linrels)[
+            (0 if include_origin else 1) :, (0 if include_origin else 1) :
+        ]
 
     def divisor_basis(self, include_origin=True, as_matrix=False):
         """
@@ -554,17 +577,25 @@ class ToricVariety:
         ```
         """
         if self._divisor_basis is None:
-            self.set_divisor_basis(self.polytope().glsm_basis(
-                                    integral=True,
-                                    include_origin=True,
-                                    points=self.polytope().points_to_indices(self.triangulation().points()))
-                                    )
+            self.set_divisor_basis(
+                self.polytope().glsm_basis(
+                    integral=True,
+                    include_origin=True,
+                    points=self.polytope().points_to_indices(
+                        self.triangulation().points()
+                    ),
+                )
+            )
         if len(self._divisor_basis.shape) == 1:
             if 0 in self._divisor_basis and not include_origin:
-                raise Exception("The basis was requested not including the "
-                                "origin, but it is included in the current basis.")
+                raise Exception(
+                    "The basis was requested not including the "
+                    "origin, but it is included in the current basis."
+                )
             if as_matrix:
-                return np.array(self._divisor_basis_mat[:,(0 if include_origin else 1):])
+                return np.array(
+                    self._divisor_basis_mat[:, (0 if include_origin else 1) :]
+                )
             return np.array(self._divisor_basis) - (0 if include_origin else 1)
         return np.array(self._divisor_basis)
 
@@ -657,17 +688,25 @@ class ToricVariety:
         ```
         """
         if self._curve_basis is None:
-            self.set_divisor_basis(self.polytope().glsm_basis(
-                                    integral=True,
-                                    include_origin=True,
-                                    points=self.polytope().points_to_indices(self.triangulation().points()))
-                                    )
+            self.set_divisor_basis(
+                self.polytope().glsm_basis(
+                    integral=True,
+                    include_origin=True,
+                    points=self.polytope().points_to_indices(
+                        self.triangulation().points()
+                    ),
+                )
+            )
         if len(self._curve_basis.shape) == 1:
             if 0 in self._curve_basis and not include_origin:
-                raise Exception("The basis was requested not including the "
-                                "origin, but it is included in the current basis.")
+                raise Exception(
+                    "The basis was requested not including the "
+                    "origin, but it is included in the current basis."
+                )
             if as_matrix:
-                return np.array(self._curve_basis_mat[:,(0 if include_origin else 1):])
+                return np.array(
+                    self._curve_basis_mat[:, (0 if include_origin else 1) :]
+                )
             return np.array(self._curve_basis) - (0 if include_origin else 1)
         return np.array(self._curve_basis)
 
@@ -726,8 +765,12 @@ class ToricVariety:
         # shared with the CalabiYau class.
         set_curve_basis(self, basis, include_origin=include_origin)
 
-    def mori_cone(self, in_basis=False, include_origin=True,
-                  from_intersection_numbers=False):
+    def mori_cone(
+        self,
+        in_basis=False,
+        include_origin=True,
+        from_intersection_numbers=False,
+    ):
         """
         **Description:**
         Returns the Mori cone of the toric variety.
@@ -763,14 +806,16 @@ class ToricVariety:
         """
         if self._mori_cone[0] is None:
             if from_intersection_numbers:
-                rays = (self._compute_mori_rays_from_intersections_4d()
-                        if self.dim() == 4 else
-                        self._compute_mori_rays_from_intersections())
+                rays = (
+                    self._compute_mori_rays_from_intersections_4d()
+                    if self.dim() == 4
+                    else self._compute_mori_rays_from_intersections()
+                )
                 self._mori_cone[0] = Cone(rays)
             else:
                 self._mori_cone[0] = self.triangulation().secondary_cone().dual()
         # 0: All divs, 1: No origin, 2: In basis
-        args_id = ((not include_origin)*1 if not in_basis else 0) + in_basis*2
+        args_id = ((not include_origin) * 1 if not in_basis else 0) + in_basis * 2
         if self._mori_cone[args_id] is not None:
             return self._mori_cone[args_id]
         rays = self._mori_cone[0].rays()
@@ -778,13 +823,13 @@ class ToricVariety:
         if include_origin and not in_basis:
             new_rays = rays
         elif not include_origin and not in_basis:
-            new_rays = rays[:,1:]
+            new_rays = rays[:, 1:]
         else:
-            if len(basis.shape) == 2: # If basis is matrix
+            if len(basis.shape) == 2:  # If basis is matrix
                 new_rays = rays.dot(basis.T)
             else:
-                new_rays = rays[:,basis]
-        c = Cone(new_rays, check=len(basis.shape)==2)
+                new_rays = rays[:, basis]
+        c = Cone(new_rays, check=len(basis.shape) == 2)
         self._mori_cone[args_id] = c
         return self._mori_cone[args_id]
 
@@ -821,27 +866,29 @@ class ToricVariety:
         intnums = self.intersection_numbers(in_basis=False)
         dim = self.dim()
         num_divs = self.glsm_charge_matrix().shape[1]
-        curve_dict = defaultdict(lambda: [[],[]])
+        curve_dict = defaultdict(lambda: [[], []])
         for ii in intnums:
             if 0 in ii:
                 continue
             ctr = Counter(ii)
-            if len(ctr) < dim-1:
+            if len(ctr) < dim - 1:
                 continue
-            for comb in set(combinations(ctr.keys(),dim-1)):
+            for comb in set(combinations(ctr.keys(), dim - 1)):
                 crv = tuple(sorted(comb))
-                curve_dict[crv][0].append(int(sum([i*(ctr[i]-(i in crv)) for i in ctr])))
+                curve_dict[crv][0].append(
+                    int(sum([i * (ctr[i] - (i in crv)) for i in ctr]))
+                )
                 curve_dict[crv][1].append(intnums[ii])
         row_set = set()
         for crv in curve_dict:
             g = gcd_list(curve_dict[crv][1])
             row = np.zeros(num_divs, dtype=int)
-            for j,jj in enumerate(curve_dict[crv][0]):
-                row[jj] = int(round(curve_dict[crv][1][j]/g))
+            for j, jj in enumerate(curve_dict[crv][0]):
+                row[jj] = int(round(curve_dict[crv][1][j] / g))
             row_set.add(tuple(row))
         mori_rays = np.array(list(row_set), dtype=int)
         # Compute column corresponding to the origin
-        mori_rays[:,0] = -np.sum(mori_rays, axis=1)
+        mori_rays[:, 0] = -np.sum(mori_rays, axis=1)
         return mori_rays
 
     def _compute_mori_rays_from_intersections_4d(self):
@@ -893,68 +940,84 @@ class ToricVariety:
             if ii[0] == ii[1] and ii[2] == ii[3]:
                 continue
             if ii[0] == ii[1]:
-                if (ii[0],ii[2],ii[3]) not in curve_dict.keys():
-                    curve_dict[(ii[0],ii[2],ii[3])] = curve_ctr
-                    curve_sparse_list.append([curve_ctr,ii[1],intnums[ii]])
+                if (ii[0], ii[2], ii[3]) not in curve_dict.keys():
+                    curve_dict[(ii[0], ii[2], ii[3])] = curve_ctr
+                    curve_sparse_list.append([curve_ctr, ii[1], intnums[ii]])
                     curve_ctr += 1
                 else:
-                    curve_sparse_list.append([curve_dict[(ii[1],ii[2],ii[3])],ii[0],intnums[ii]])
+                    curve_sparse_list.append(
+                        [curve_dict[(ii[1], ii[2], ii[3])], ii[0], intnums[ii]]
+                    )
             elif ii[1] == ii[2]:
-                if (ii[0],ii[1],ii[3]) not in curve_dict.keys():
-                    curve_dict[(ii[0],ii[1],ii[3])] = curve_ctr
-                    curve_sparse_list.append([curve_ctr,ii[2],intnums[ii]])
+                if (ii[0], ii[1], ii[3]) not in curve_dict.keys():
+                    curve_dict[(ii[0], ii[1], ii[3])] = curve_ctr
+                    curve_sparse_list.append([curve_ctr, ii[2], intnums[ii]])
                     curve_ctr += 1
                 else:
-                    curve_sparse_list.append([curve_dict[(ii[0],ii[1],ii[3])],ii[2],intnums[ii]])
+                    curve_sparse_list.append(
+                        [curve_dict[(ii[0], ii[1], ii[3])], ii[2], intnums[ii]]
+                    )
             elif ii[2] == ii[3]:
-                if (ii[0],ii[1],ii[2]) not in curve_dict.keys():
-                    curve_dict[(ii[0],ii[1],ii[2])] = curve_ctr
-                    curve_sparse_list.append([curve_ctr,ii[3],intnums[ii]])
+                if (ii[0], ii[1], ii[2]) not in curve_dict.keys():
+                    curve_dict[(ii[0], ii[1], ii[2])] = curve_ctr
+                    curve_sparse_list.append([curve_ctr, ii[3], intnums[ii]])
                     curve_ctr += 1
                 else:
-                    curve_sparse_list.append([curve_dict[(ii[0],ii[1],ii[2])],ii[3],intnums[ii]])
+                    curve_sparse_list.append(
+                        [curve_dict[(ii[0], ii[1], ii[2])], ii[3], intnums[ii]]
+                    )
             else:
-                if (ii[0],ii[1],ii[2]) not in curve_dict.keys():
-                    curve_dict[(ii[0],ii[1],ii[2])] = curve_ctr
-                    curve_sparse_list.append([curve_ctr,ii[3],intnums[ii]])
+                if (ii[0], ii[1], ii[2]) not in curve_dict.keys():
+                    curve_dict[(ii[0], ii[1], ii[2])] = curve_ctr
+                    curve_sparse_list.append([curve_ctr, ii[3], intnums[ii]])
                     curve_ctr += 1
                 else:
-                    curve_sparse_list.append([curve_dict[(ii[0],ii[1],ii[2])],ii[3],intnums[ii]])
-                if (ii[0],ii[1],ii[3]) not in curve_dict.keys():
-                    curve_dict[(ii[0],ii[1],ii[3])] = curve_ctr
-                    curve_sparse_list.append([curve_ctr,ii[2],intnums[ii]])
+                    curve_sparse_list.append(
+                        [curve_dict[(ii[0], ii[1], ii[2])], ii[3], intnums[ii]]
+                    )
+                if (ii[0], ii[1], ii[3]) not in curve_dict.keys():
+                    curve_dict[(ii[0], ii[1], ii[3])] = curve_ctr
+                    curve_sparse_list.append([curve_ctr, ii[2], intnums[ii]])
                     curve_ctr += 1
                 else:
-                    curve_sparse_list.append([curve_dict[(ii[0],ii[1],ii[3])],ii[2],intnums[ii]])
-                if (ii[0],ii[2],ii[3]) not in curve_dict.keys():
-                    curve_dict[(ii[0],ii[2],ii[3])] = curve_ctr
-                    curve_sparse_list.append([curve_ctr,ii[1],intnums[ii]])
+                    curve_sparse_list.append(
+                        [curve_dict[(ii[0], ii[1], ii[3])], ii[2], intnums[ii]]
+                    )
+                if (ii[0], ii[2], ii[3]) not in curve_dict.keys():
+                    curve_dict[(ii[0], ii[2], ii[3])] = curve_ctr
+                    curve_sparse_list.append([curve_ctr, ii[1], intnums[ii]])
                     curve_ctr += 1
                 else:
-                    curve_sparse_list.append([curve_dict[(ii[0],ii[2],ii[3])],ii[1],intnums[ii]])
-                if (ii[1],ii[2],ii[3]) not in curve_dict.keys():
-                    curve_dict[(ii[1],ii[2],ii[3])] = curve_ctr
-                    curve_sparse_list.append([curve_ctr,ii[0],intnums[ii]])
+                    curve_sparse_list.append(
+                        [curve_dict[(ii[0], ii[2], ii[3])], ii[1], intnums[ii]]
+                    )
+                if (ii[1], ii[2], ii[3]) not in curve_dict.keys():
+                    curve_dict[(ii[1], ii[2], ii[3])] = curve_ctr
+                    curve_sparse_list.append([curve_ctr, ii[0], intnums[ii]])
                     curve_ctr += 1
                 else:
-                    curve_sparse_list.append([curve_dict[(ii[1],ii[2],ii[3])],ii[0],intnums[ii]])
+                    curve_sparse_list.append(
+                        [curve_dict[(ii[1], ii[2], ii[3])], ii[0], intnums[ii]]
+                    )
         row_list = [[] for i in range(curve_ctr)]
         # Remove zeros
         for ii in curve_sparse_list:
-            if ii[2]!=0:
-                row_list[ii[0]].append([ii[1],ii[2]])
+            if ii[2] != 0:
+                row_list[ii[0]].append([ii[1], ii[2]])
         # Normalize
         for row in row_list:
             g = abs(gcd_list([ii[1] for ii in row]))
             for ii in row:
-                ii[1] = int(round(ii[1]/g))
-        row_list = set(tuple(tuple(tuple(ii) for ii in sorted(row)) for row in row_list))
-        mori_rays = np.zeros((len(row_list),num_divs), dtype=int)
-        for i,row in enumerate(row_list):
+                ii[1] = int(round(ii[1] / g))
+        row_list = set(
+            tuple(tuple(tuple(ii) for ii in sorted(row)) for row in row_list)
+        )
+        mori_rays = np.zeros((len(row_list), num_divs), dtype=int)
+        for i, row in enumerate(row_list):
             for ii in row:
-                mori_rays[i,int(round(ii[0]))] = round(ii[1])
+                mori_rays[i, int(round(ii[0]))] = round(ii[1])
         # Compute column corresponding to the origin
-        mori_rays[:,0] = -np.sum(mori_rays, axis=1)
+        mori_rays[:, 0] = -np.sum(mori_rays, axis=1)
         return mori_rays
 
     def kahler_cone(self):
@@ -1009,20 +1072,27 @@ class ToricVariety:
         ```
         """
         # Origin is at index 0
-        pts_ext = np.empty((self.triangulation().points().shape[0],
-                            self.triangulation().points().shape[1]+1),
-                                dtype=int)
-        pts_ext[:,:-1] = self.triangulation().points()
-        pts_ext[:,-1] = 1
+        pts_ext = np.empty(
+            (
+                self.triangulation().points().shape[0],
+                self.triangulation().points().shape[1] + 1,
+            ),
+            dtype=int,
+        )
+        pts_ext[:, :-1] = self.triangulation().points()
+        pts_ext[:, -1] = 1
         linear_relations = self.glsm_linear_relations(include_origin=False)
         # First compute the distict intersection numbers
-        distintnum_array = sorted([
-            [c for c in simp if c!=0]
-            + [1/abs(np.linalg.det([pts_ext[p] for p in simp]))]
-                for simp in self.triangulation().simplices()])
+        distintnum_array = sorted(
+            [
+                [c for c in simp if c != 0]
+                + [1 / abs(np.linalg.det([pts_ext[p] for p in simp]))]
+                for simp in self.triangulation().simplices()
+            ]
+        )
         frst = [[c for c in s if c != 0] for s in self.triangulation().simplices()]
-        simp_2 = set([j for i in [list(combinations(f,2)) for f in frst] for j in i])
-        simp_3 = set([j for i in [list(combinations(f,3)) for f in frst] for j in i])
+        simp_2 = set([j for i in [list(combinations(f, 2)) for f in frst] for j in i])
+        simp_3 = set([j for i in [list(combinations(f, 3)) for f in frst] for j in i])
         # We construct and solve the linear system M*x + C = 0, where M is
         # a rectangular mxn matrix and C is a vector.
         ###################################################################
@@ -1031,80 +1101,97 @@ class ToricVariety:
         ## Dictionary of variables
         # Most intersection numbers are trivially zero, find the possibly
         # nonzero intersection numbers.
-        variable_array_1 = [tuple(j) for i in [[[s[0],s[0],s[1],s[2]],
-                                                [s[0],s[1],s[1],s[2]],
-                                                [s[0],s[1],s[2],s[2]]]
-                                                for s in simp_3] for j in i]
-        variable_array_2 = [tuple(j) for i in [[[s[0],s[0],s[1],s[1]],
-                                                [s[0],s[0],s[0],s[1]],
-                                                [s[0],s[1],s[1],s[1]]]
-                                                for s in simp_2] for j in i]
-        variable_array_3 = [(i,i,i,i) for i in range(1, len(pts_ext))]
-        variable_array = sorted(variable_array_1 + variable_array_2
-                                + variable_array_3)
-        variable_dict = {vv:v for v,vv in enumerate(variable_array)}
+        variable_array_1 = [
+            tuple(j)
+            for i in [
+                [
+                    [s[0], s[0], s[1], s[2]],
+                    [s[0], s[1], s[1], s[2]],
+                    [s[0], s[1], s[2], s[2]],
+                ]
+                for s in simp_3
+            ]
+            for j in i
+        ]
+        variable_array_2 = [
+            tuple(j)
+            for i in [
+                [
+                    [s[0], s[0], s[1], s[1]],
+                    [s[0], s[0], s[0], s[1]],
+                    [s[0], s[1], s[1], s[1]],
+                ]
+                for s in simp_2
+            ]
+            for j in i
+        ]
+        variable_array_3 = [(i, i, i, i) for i in range(1, len(pts_ext))]
+        variable_array = sorted(variable_array_1 + variable_array_2 + variable_array_3)
+        variable_dict = {vv: v for v, vv in enumerate(variable_array)}
         ## Dictionary to construct C
         # C is constructed by adding/subtracting distinct intersection
         # numbers.
-        c_dict = {s:[] for s in simp_3}
+        c_dict = {s: [] for s in simp_3}
         for d in distintnum_array:
-            c_dict[(d[0],d[1],d[2])] += [[d[3],d[4]]]
-            c_dict[(d[0],d[1],d[3])] += [[d[2],d[4]]]
-            c_dict[(d[0],d[2],d[3])] += [[d[1],d[4]]]
-            c_dict[(d[1],d[2],d[3])] += [[d[0],d[4]]]
+            c_dict[(d[0], d[1], d[2])] += [[d[3], d[4]]]
+            c_dict[(d[0], d[1], d[3])] += [[d[2], d[4]]]
+            c_dict[(d[0], d[2], d[3])] += [[d[1], d[4]]]
+            c_dict[(d[1], d[2], d[3])] += [[d[0], d[4]]]
         ## Dictionary to construct M
         eqn_array_1 = [tuple(s) for s in simp_3]
-        eqn_array_2 = [tuple(j) for i in [[[s[0],s[0],s[1]],
-                                           [s[0],s[1],s[1]]]
-                                           for s in simp_2] for j in i]
-        eqn_array_3 = [(i,i,i) for i in range(1, len(pts_ext))]
+        eqn_array_2 = [
+            tuple(j)
+            for i in [[[s[0], s[0], s[1]], [s[0], s[1], s[1]]] for s in simp_2]
+            for j in i
+        ]
+        eqn_array_3 = [(i, i, i) for i in range(1, len(pts_ext))]
         eqn_array = sorted(eqn_array_1 + eqn_array_2 + eqn_array_3)
-        eqn_dict = {eq:[] for eq in eqn_array}
+        eqn_dict = {eq: [] for eq in eqn_array}
         for v in variable_array:
-            if v[0]==v[3]:
-                eqn_dict[(v[0],v[1],v[2])] += [[v[3],variable_dict[v]]]
-            elif v[0]==v[2]:
-                eqn_dict[(v[0],v[1],v[2])] += [[v[3],variable_dict[v]]]
-                eqn_dict[(v[0],v[1],v[3])] += [[v[2],variable_dict[v]]]
-            elif v[0]==v[1] and v[2]==v[3]:
-                eqn_dict[(v[0],v[1],v[2])] += [[v[3],variable_dict[v]]]
-                eqn_dict[(v[0],v[2],v[3])] += [[v[1],variable_dict[v]]]
-            elif v[0]==v[1]:
-                eqn_dict[(v[0],v[1],v[2])] += [[v[3],variable_dict[v]]]
-                eqn_dict[(v[0],v[1],v[3])] += [[v[2],variable_dict[v]]]
-                eqn_dict[(v[0],v[2],v[3])] += [[v[1],variable_dict[v]]]
-            elif v[1]==v[3]:
-                eqn_dict[(v[0],v[1],v[2])] += [[v[3],variable_dict[v]]]
-                eqn_dict[(v[1],v[2],v[3])] += [[v[0],variable_dict[v]]]
-            elif v[1]==v[2]:
-                eqn_dict[(v[0],v[1],v[2])] += [[v[3],variable_dict[v]]]
-                eqn_dict[(v[0],v[1],v[3])] += [[v[2],variable_dict[v]]]
-                eqn_dict[(v[1],v[2],v[3])] += [[v[0],variable_dict[v]]]
-            elif v[2]==v[3]:
-                eqn_dict[(v[0],v[1],v[2])] += [[v[3],variable_dict[v]]]
-                eqn_dict[(v[0],v[2],v[3])] += [[v[1],variable_dict[v]]]
-                eqn_dict[(v[1],v[2],v[3])] += [[v[0],variable_dict[v]]]
+            if v[0] == v[3]:
+                eqn_dict[(v[0], v[1], v[2])] += [[v[3], variable_dict[v]]]
+            elif v[0] == v[2]:
+                eqn_dict[(v[0], v[1], v[2])] += [[v[3], variable_dict[v]]]
+                eqn_dict[(v[0], v[1], v[3])] += [[v[2], variable_dict[v]]]
+            elif v[0] == v[1] and v[2] == v[3]:
+                eqn_dict[(v[0], v[1], v[2])] += [[v[3], variable_dict[v]]]
+                eqn_dict[(v[0], v[2], v[3])] += [[v[1], variable_dict[v]]]
+            elif v[0] == v[1]:
+                eqn_dict[(v[0], v[1], v[2])] += [[v[3], variable_dict[v]]]
+                eqn_dict[(v[0], v[1], v[3])] += [[v[2], variable_dict[v]]]
+                eqn_dict[(v[0], v[2], v[3])] += [[v[1], variable_dict[v]]]
+            elif v[1] == v[3]:
+                eqn_dict[(v[0], v[1], v[2])] += [[v[3], variable_dict[v]]]
+                eqn_dict[(v[1], v[2], v[3])] += [[v[0], variable_dict[v]]]
+            elif v[1] == v[2]:
+                eqn_dict[(v[0], v[1], v[2])] += [[v[3], variable_dict[v]]]
+                eqn_dict[(v[0], v[1], v[3])] += [[v[2], variable_dict[v]]]
+                eqn_dict[(v[1], v[2], v[3])] += [[v[0], variable_dict[v]]]
+            elif v[2] == v[3]:
+                eqn_dict[(v[0], v[1], v[2])] += [[v[3], variable_dict[v]]]
+                eqn_dict[(v[0], v[2], v[3])] += [[v[1], variable_dict[v]]]
+                eqn_dict[(v[1], v[2], v[3])] += [[v[0], variable_dict[v]]]
             else:
                 raise RuntimeError("Failed to construct linear system.")
         # Construct Linear System
-        num_rows = len(linear_relations)*len(eqn_array)
-        C = np.array([0.0]*num_rows)
+        num_rows = len(linear_relations) * len(eqn_array)
+        C = np.array([0.0] * num_rows)
         M_row = []
         M_col = []
         M_val = []
         row_ctr = 0
         for eqn in eqn_array:
             for lin in linear_relations:
-                if eqn[0]!=eqn[1] and eqn[1]!=eqn[2]:
+                if eqn[0] != eqn[1] and eqn[1] != eqn[2]:
                     c_temp = c_dict[eqn]
-                    C[row_ctr] = sum([lin[cc[0]-1]*cc[1] for cc in c_temp])
+                    C[row_ctr] = sum([lin[cc[0] - 1] * cc[1] for cc in c_temp])
                 eqn_temp = eqn_dict[eqn]
                 for e in eqn_temp:
                     M_row.append(row_ctr)
                     M_col.append(e[1])
-                    M_val.append(lin[e[0]-1])
-                row_ctr+=1
-        Mat = csr_matrix((M_val,(M_row,M_col)), dtype=np.float64)
+                    M_val.append(lin[e[0] - 1])
+                row_ctr += 1
+        Mat = csr_matrix((M_val, (M_row, M_col)), dtype=np.float64)
         return Mat, C, distintnum_array, variable_array
 
     def _construct_intnum_equations(self):
@@ -1135,18 +1222,23 @@ class ToricVariety:
         ```
         """
         dim = self.dim()
-        pts_ext = np.empty((self.triangulation().points().shape[0],dim+1), dtype=int)
-        pts_ext[:,:-1] = self.triangulation().points()
-        pts_ext[:,-1] = 1
+        pts_ext = np.empty((self.triangulation().points().shape[0], dim + 1), dtype=int)
+        pts_ext[:, :-1] = self.triangulation().points()
+        pts_ext[:, -1] = 1
         linear_relations = self.glsm_linear_relations(include_origin=False)
         # First compute the distict intersection numbers
-        distintnum_array = sorted([
-            [c for c in simp if c!=0]
-            + [1/abs(np.linalg.det([pts_ext[p] for p in simp]))]
-                for simp in self.triangulation().simplices()])
+        distintnum_array = sorted(
+            [
+                [c for c in simp if c != 0]
+                + [1 / abs(np.linalg.det([pts_ext[p] for p in simp]))]
+                for simp in self.triangulation().simplices()
+            ]
+        )
         frst = [[c for c in s if c != 0] for s in self.triangulation().simplices()]
-        simp_n = [set([j for i in [list(combinations(f,n)) for f in frst]
-                      for j in i]) for n in range(2,dim)]
+        simp_n = [
+            set([j for i in [list(combinations(f, n)) for f in frst] for j in i])
+            for n in range(2, dim)
+        ]
         simp_n = [[np.array(c) for c in simp_n[n]] for n in range(len(simp_n))]
         # We construct and solve the linear system M*x + C = 0, where M is
         # a rectangular mxn matrix and C is a vector.
@@ -1157,53 +1249,62 @@ class ToricVariety:
         # Most intersection numbers are trivially zero, find the possibly
         # nonzero intersection numbers.
         choices_n = []
-        for n in range(2,dim):
-            comb = list(combinations(range(dim-1),dim-n))
-            choices = np.empty((len(comb),dim), dtype=int)
-            choices[:,0] = 0
-            for k,c in enumerate(comb):
-                for i in range(1,dim):
-                    choices[k,i] = choices[k,i-1] + (0 if i-1 in c else 1)
+        for n in range(2, dim):
+            comb = list(combinations(range(dim - 1), dim - n))
+            choices = np.empty((len(comb), dim), dtype=int)
+            choices[:, 0] = 0
+            for k, c in enumerate(comb):
+                for i in range(1, dim):
+                    choices[k, i] = choices[k, i - 1] + (0 if i - 1 in c else 1)
             choices_n.append(choices)
-        variable_array_1 = [(i,)*dim for i in range(1,len(pts_ext))]
-        variable_array_n = [tuple(s[ch]) for n in range(len(simp_n))
-                            for s in simp_n[n] for ch in choices_n[n]]
+        variable_array_1 = [(i,) * dim for i in range(1, len(pts_ext))]
+        variable_array_n = [
+            tuple(s[ch])
+            for n in range(len(simp_n))
+            for s in simp_n[n]
+            for ch in choices_n[n]
+        ]
         variable_array = variable_array_1 + variable_array_n
-        variable_dict = {vv:v for v,vv in enumerate(variable_array)}
+        variable_dict = {vv: v for v, vv in enumerate(variable_array)}
         ## Dictionary to construct C
         # C is constructed by adding/subtracting distinct intersection
         # numbers.
         c_dict = defaultdict(lambda: [])
         for d in distintnum_array:
-            for i in range(len(d)-1):
-                c_dict[tuple(c for j,c in enumerate(d[:-1]) if j!= i)
-                        ] += [(d[i],d[-1])]
+            for i in range(len(d) - 1):
+                c_dict[tuple(c for j, c in enumerate(d[:-1]) if j != i)] += [
+                    (d[i], d[-1])
+                ]
         ## Dictionary to construct M
         eqn_array_1 = [tuple(s) for s in simp_n[-1]]
-        eqn_array_2 = [(i,)*(dim-1) for i in range(1, len(pts_ext))]
+        eqn_array_2 = [(i,) * (dim - 1) for i in range(1, len(pts_ext))]
         choices_n = []
-        for n in range(2,dim-1):
-            comb = list(combinations(range(dim-2),dim-1-n))
-            choices = np.empty((len(comb),dim-1), dtype=int)
-            choices[:,0] = 0
-            for k,c in enumerate(comb):
-                for i in range(1,dim-1):
-                    choices[k,i] = choices[k,i-1] + (0 if i-1 in c else 1)
+        for n in range(2, dim - 1):
+            comb = list(combinations(range(dim - 2), dim - 1 - n))
+            choices = np.empty((len(comb), dim - 1), dtype=int)
+            choices[:, 0] = 0
+            for k, c in enumerate(comb):
+                for i in range(1, dim - 1):
+                    choices[k, i] = choices[k, i - 1] + (0 if i - 1 in c else 1)
             choices_n.append(choices)
-        eqn_array_n = [tuple(s[ch]) for n in range(len(choices_n))
-                            for s in simp_n[n] for ch in choices_n[n]]
+        eqn_array_n = [
+            tuple(s[ch])
+            for n in range(len(choices_n))
+            for s in simp_n[n]
+            for ch in choices_n[n]
+        ]
         eqn_array = eqn_array_1 + eqn_array_2 + eqn_array_n
         eqn_dict = defaultdict(lambda: [])
         for v in variable_array:
-            for c in set(combinations(v,dim-1)):
+            for c in set(combinations(v, dim - 1)):
                 k = None
                 for i in range(dim):
-                    if i == dim-1 or v[i] != c[i]:
+                    if i == dim - 1 or v[i] != c[i]:
                         k = i
                         break
-                eqn_dict[c] += [(v[k],variable_dict[v])]
+                eqn_dict[c] += [(v[k], variable_dict[v])]
         # Construct Linear System
-        num_rows = len(linear_relations)*len(eqn_array)
+        num_rows = len(linear_relations) * len(eqn_array)
         C = np.zeros(num_rows, dtype=float)
         M_row = []
         M_col = []
@@ -1211,24 +1312,31 @@ class ToricVariety:
         row_ctr = 0
         for eqn in eqn_array:
             for lin in linear_relations:
-                if len(set(eqn)) == dim-1:
+                if len(set(eqn)) == dim - 1:
                     c_temp = c_dict[eqn]
-                    C[row_ctr] = sum([lin[cc[0]-1]*cc[1] for cc in c_temp])
+                    C[row_ctr] = sum([lin[cc[0] - 1] * cc[1] for cc in c_temp])
                 eqn_temp = eqn_dict[eqn]
                 for e in eqn_temp:
                     M_row.append(row_ctr)
                     M_col.append(e[1])
-                    M_val.append(lin[e[0]-1])
-                row_ctr+=1
-        Mat = csr_matrix((M_val,(M_row,M_col)), dtype=np.float64)
+                    M_val.append(lin[e[0] - 1])
+                row_ctr += 1
+        Mat = csr_matrix((M_val, (M_row, M_col)), dtype=np.float64)
         return Mat, C, distintnum_array, variable_array
 
-    def intersection_numbers(self, in_basis=False, format="dok",
-                             zero_as_anticanonical=False, backend="all",
-                             check=True, backend_error_tol=1e-3,
-                             round_to_zero_threshold=1e-3,
-                             round_to_integer_error_tol=5e-2,
-                             verbose=0, exact_arithmetic=False):
+    def intersection_numbers(
+        self,
+        in_basis=False,
+        format="dok",
+        zero_as_anticanonical=False,
+        backend="all",
+        check=True,
+        backend_error_tol=1e-3,
+        round_to_zero_threshold=1e-3,
+        round_to_integer_error_tol=5e-2,
+        verbose=0,
+        exact_arithmetic=False,
+    ):
         """
         **Description:**
         Returns the intersection numbers of the toric variety.
@@ -1336,28 +1444,34 @@ class ToricVariety:
         ```
         """
         if format not in ("dok", "coo", "dense"):
-            raise ValueError("Options for format are \"dok\", \"coo\", \"dense\".")
+            raise ValueError('Options for format are "dok", "coo", "dense".')
         if in_basis:
             zero_as_anticanonical = False
         args_id = (zero_as_anticanonical, in_basis, exact_arithmetic, format)
         if args_id in self._intersection_numbers:
             return copy.copy(self._intersection_numbers[args_id])
-        if ((False,False,False,"dok") not in self._intersection_numbers
-                or ((False,False,True,"dok") not in self._intersection_numbers
-                    and exact_arithmetic)):
+        if (False, False, False, "dok") not in self._intersection_numbers or (
+            (False, False, True, "dok") not in self._intersection_numbers
+            and exact_arithmetic
+        ):
             backends = ["all", "sksparse", "scipy"]
             if backend not in backends:
-                raise ValueError("Invalid linear system backend. "
-                                 f"The options are: {backends}.")
+                raise ValueError(
+                    "Invalid linear system backend. " f"The options are: {backends}."
+                )
             if exact_arithmetic and not config._exp_features_enabled:
-                raise ValueError("The experimental features must be enabled to "
-                                 "use exact arithmetic.")
+                raise ValueError(
+                    "The experimental features must be enabled to "
+                    "use exact arithmetic."
+                )
             # Construct the linear equations
             # Note that self.dim gives the dimension of the CY not the of the
             # variety
-            Mat, C, distintnum_array, variable_array = (self._construct_intnum_equations_4d()
-                                                        if self.dim() == 4 else
-                                                        self._construct_intnum_equations())
+            Mat, C, distintnum_array, variable_array = (
+                self._construct_intnum_equations_4d()
+                if self.dim() == 4
+                else self._construct_intnum_equations()
+            )
             # The system to be solved is Mat*x + C = 0. This is an
             # overdetermined but consistent linear system.
             # There is a unique solution to this system. We solve it by
@@ -1366,34 +1480,45 @@ class ToricVariety:
             # MM*x = CC
             # Since MM is a positive definite full rank matrix, this system can
             # be solved using via a Cholesky decomposition.
-            solution = solve_linear_system(Mat, C, backend=backend, check=check,
-                                           backend_error_tol=backend_error_tol,
-                                           verbosity=verbose)
+            solution = solve_linear_system(
+                Mat,
+                C,
+                backend=backend,
+                check=check,
+                backend_error_tol=backend_error_tol,
+                verbosity=verbose,
+            )
             if solution is None:
                 raise RuntimeError("Linear system solution failed.")
             if exact_arithmetic:
-                solution_fmpq = flint.fmpq_mat([array_float_to_fmpq(solution).tolist()]).transpose()
+                solution_fmpq = flint.fmpq_mat(
+                    [array_float_to_fmpq(solution).tolist()]
+                ).transpose()
                 if check:
-                    Mat_fmpq = flint.fmpq_mat(Mat.shape[0],Mat.shape[1])
+                    Mat_fmpq = flint.fmpq_mat(Mat.shape[0], Mat.shape[1])
                     Mat_dok = Mat.todok()
                     for k in Mat_dok.keys():
                         Mat_fmpq[k] = float_to_fmpq(Mat_dok[k])
-                    C_fmpq = flint.fmpq_mat([array_float_to_fmpq(C).tolist()]).transpose()
-                    res = Mat_fmpq*solution_fmpq + C_fmpq
+                    C_fmpq = flint.fmpq_mat(
+                        [array_float_to_fmpq(C).tolist()]
+                    ).transpose()
+                    res = Mat_fmpq * solution_fmpq + C_fmpq
                     if any(np.array(res.tolist()).flat):
                         raise RuntimeError("Failed to convert to rational numbers.")
             intnums = dict()
             if exact_arithmetic:
                 for ii in distintnum_array:
-                    intnums[tuple(int(round(j)) for j in ii[:-1])] = float_to_fmpq(ii[-1])
-                for i,ii in enumerate(variable_array):
+                    intnums[tuple(int(round(j)) for j in ii[:-1])] = float_to_fmpq(
+                        ii[-1]
+                    )
+                for i, ii in enumerate(variable_array):
                     if abs(solution[i]) < round_to_zero_threshold:
                         continue
                     intnums[tuple(ii)] = float_to_fmpq(solution[i])
             else:
                 for ii in distintnum_array:
                     intnums[tuple(int(round(j)) for j in ii[:-1])] = ii[-1]
-                for i,ii in enumerate(variable_array):
+                for i, ii in enumerate(variable_array):
                     if abs(solution[i]) < round_to_zero_threshold:
                         continue
                     intnums[tuple(ii)] = solution[i]
@@ -1402,14 +1527,18 @@ class ToricVariety:
                     for ii in intnums:
                         c = intnums[ii]
                         if c.q != 1:
-                            raise RuntimeError("Non-integer intersection numbers "
-                                               "detected in a smooth toric variety.")
+                            raise RuntimeError(
+                                "Non-integer intersection numbers "
+                                "detected in a smooth toric variety."
+                            )
                 else:
                     for ii in intnums:
                         c = intnums[ii]
-                        if abs(round(c)-c) > round_to_integer_error_tol:
-                            raise RuntimeError("Non-integer intersection numbers "
-                                               "detected in a smooth toric variety.")
+                        if abs(round(c) - c) > round_to_integer_error_tol:
+                            raise RuntimeError(
+                                "Non-integer intersection numbers "
+                                "detected in a smooth toric variety."
+                            )
                         intnums[ii] = int(round(c))
             # Add intersections with canonical divisor
             # First we only compute intersection numbers with a single index 0
@@ -1419,9 +1548,11 @@ class ToricVariety:
             dim = self.dim()
             canon_intnum = defaultdict(lambda: 0)
             for ii in intnums:
-                choices = set(tuple(c for i,c in enumerate(ii) if i!=j) for j in range(dim))
+                choices = set(
+                    tuple(c for i, c in enumerate(ii) if i != j) for j in range(dim)
+                )
                 for c in choices:
-                    canon_intnum[(0,)+c] -= intnums[ii]
+                    canon_intnum[(0,) + c] -= intnums[ii]
             # Now we round all intersection numbers of the form K_0i...j to
             # integers if the CY is smooth. Otherwise, we only remove the zero
             # elements
@@ -1429,8 +1560,10 @@ class ToricVariety:
                 for ii in list(canon_intnum.keys()):
                     val = canon_intnum[ii]
                     if val.q != 1:
-                        raise RuntimeError(f"Non-integer intersection numbers "
-                                           f"detected in a smooth CY. {ii}:{val}")
+                        raise RuntimeError(
+                            f"Non-integer intersection numbers "
+                            f"detected in a smooth CY. {ii}:{val}"
+                        )
                     if val != 0:
                         canon_intnum[ii] = val
                     else:
@@ -1439,9 +1572,11 @@ class ToricVariety:
                 for ii in list(canon_intnum.keys()):
                     val = canon_intnum[ii]
                     round_val = int(round(val))
-                    if abs(val-round_val) > round_to_integer_error_tol:
-                        raise RuntimeError(f"Non-integer intersection numbers "
-                                           f"detected in a smooth CY. {ii}:{val}")
+                    if abs(val - round_val) > round_to_integer_error_tol:
+                        raise RuntimeError(
+                            f"Non-integer intersection numbers "
+                            f"detected in a smooth CY. {ii}:{val}"
+                        )
                     if round_val != 0:
                         canon_intnum[ii] = round_val
                     else:
@@ -1456,12 +1591,15 @@ class ToricVariety:
                         canon_intnum.pop(ii)
             # Now we compute remaining intersection numbers
             canon_intnum_n = [canon_intnum]
-            for n in range(2,dim+1):
+            for n in range(2, dim + 1):
                 tmp_intnum = defaultdict(lambda: 0)
-                for ii,ii_val in canon_intnum_n[-1].items():
-                    choices = set(tuple(c for i,c in enumerate(ii[n-1:]) if i!=j) for j in range(dim+1-n))
+                for ii, ii_val in canon_intnum_n[-1].items():
+                    choices = set(
+                        tuple(c for i, c in enumerate(ii[n - 1 :]) if i != j)
+                        for j in range(dim + 1 - n)
+                    )
                     for c in choices:
-                        tmp_intnum[(0,)*n+c] -= ii_val
+                        tmp_intnum[(0,) * n + c] -= ii_val
                 if exact_arithmetic:
                     for ii in list(tmp_intnum.keys()):
                         if tmp_intnum[ii] == 0:
@@ -1475,37 +1613,71 @@ class ToricVariety:
                 for ii in canon_intnum_n[i]:
                     intnums[ii] = canon_intnum_n[i][ii]
             if exact_arithmetic:
-                self._intersection_numbers[(False,False,True,"dok")] = intnums
-                self._intersection_numbers[(False,False,False,"dok")] = {ii:(int(intnums[ii].p) if intnums[ii].q==1
-                                                                            else fmpq_to_float(intnums[ii])) for ii in intnums}
+                self._intersection_numbers[(False, False, True, "dok")] = intnums
+                self._intersection_numbers[(False, False, False, "dok")] = {
+                    ii: (
+                        int(intnums[ii].p)
+                        if intnums[ii].q == 1
+                        else fmpq_to_float(intnums[ii])
+                    )
+                    for ii in intnums
+                }
             else:
-                self._intersection_numbers[(False,False,False,"dok")]= intnums
+                self._intersection_numbers[(False, False, False, "dok")] = intnums
         # Now intersection numbers have been computed
         # We now compute the intersection numbers of the basis if necessary
         if zero_as_anticanonical and not in_basis:
-            self._intersection_numbers[args_id] = self._intersection_numbers[(False,False,exact_arithmetic,"dok")]
+            self._intersection_numbers[args_id] = self._intersection_numbers[
+                (False, False, exact_arithmetic, "dok")
+            ]
             for ii in self._intersection_numbers[args_id]:
                 if 0 not in ii:
                     continue
-                self._intersection_numbers[args_id][ii] *= (-1 if sum(ii == 0)%2 == 1 else 1)
+                self._intersection_numbers[args_id][ii] *= (
+                    -1 if sum(ii == 0) % 2 == 1 else 1
+                )
         elif in_basis:
             basis = self.divisor_basis()
-            if len(basis.shape) == 2: # If basis is matrix
-                self._intersection_numbers[(False,True,exact_arithmetic,"dense")] = (
-                    symmetric_sparse_to_dense(self._intersection_numbers[(False,False,exact_arithmetic,"dok")], basis))
-                self._intersection_numbers[(False,True,exact_arithmetic,"dok")] = (
-                    symmetric_dense_to_sparse(self._intersection_numbers[(False,True,exact_arithmetic,"dense")]))
+            if len(basis.shape) == 2:  # If basis is matrix
+                self._intersection_numbers[(False, True, exact_arithmetic, "dense")] = (
+                    symmetric_sparse_to_dense(
+                        self._intersection_numbers[
+                            (False, False, exact_arithmetic, "dok")
+                        ],
+                        basis,
+                    )
+                )
+                self._intersection_numbers[(False, True, exact_arithmetic, "dok")] = (
+                    symmetric_dense_to_sparse(
+                        self._intersection_numbers[
+                            (False, True, exact_arithmetic, "dense")
+                        ]
+                    )
+                )
             else:
-                self._intersection_numbers[(False,True,exact_arithmetic,"dok")] = filter_tensor_indices(
-                    self._intersection_numbers[(False,False,exact_arithmetic,"dok")], basis)
+                self._intersection_numbers[(False, True, exact_arithmetic, "dok")] = (
+                    filter_tensor_indices(
+                        self._intersection_numbers[
+                            (False, False, exact_arithmetic, "dok")
+                        ],
+                        basis,
+                    )
+                )
         # Intersection numbers of the basis are now done
         # Finally, we convert into the desired format
         if format == "coo":
-            tmpintnums = self._intersection_numbers[(zero_as_anticanonical,in_basis,exact_arithmetic,"dok")]
-            self._intersection_numbers[args_id] = np.array([list(ii)+[tmpintnums[ii]] for ii in tmpintnums])
+            tmpintnums = self._intersection_numbers[
+                (zero_as_anticanonical, in_basis, exact_arithmetic, "dok")
+            ]
+            self._intersection_numbers[args_id] = np.array(
+                [list(ii) + [tmpintnums[ii]] for ii in tmpintnums]
+            )
         elif format == "dense":
-            self._intersection_numbers[args_id] = (
-                symmetric_sparse_to_dense(self._intersection_numbers[(zero_as_anticanonical,in_basis,exact_arithmetic,"dok")]))
+            self._intersection_numbers[args_id] = symmetric_sparse_to_dense(
+                self._intersection_numbers[
+                    (zero_as_anticanonical, in_basis, exact_arithmetic, "dok")
+                ]
+            )
         return copy.copy(self._intersection_numbers[args_id])
 
     def prime_toric_divisors(self):
@@ -1532,7 +1704,9 @@ class ToricVariety:
         ```
         """
         if self._prime_divs is None:
-            tri_ind = list(set.union(*[set(s) for s in self.triangulation().simplices()]))
+            tri_ind = list(
+                set.union(*[set(s) for s in self.triangulation().simplices()])
+            )
             divs = self.triangulation().triangulation_to_polytope_indices(tri_ind)
             self._prime_divs = tuple(i for i in divs if i)
         return self._prime_divs
@@ -1567,7 +1741,7 @@ class ToricVariety:
         pts = self.triangulation().points()
         pts = np.insert(pts, 0, np.ones(len(pts), dtype=int), axis=1)
         simp = self.triangulation().simplices()
-        self._is_smooth = all(abs(int(round(np.linalg.det(pts[s]))))==1 for s in simp)
+        self._is_smooth = all(abs(int(round(np.linalg.det(pts[s])))) == 1 for s in simp)
         return self._is_smooth
 
     def canonical_divisor_is_smooth(self):
@@ -1597,9 +1771,13 @@ class ToricVariety:
         pts_mpcp = {tuple(pt) for pt in self.polytope().points_not_interior_to_facets()}
         ind_triang = list(set.union(*[set(s) for s in self._triang.simplices()]))
         pts_triang = {tuple(pt) for pt in self._triang.points()[ind_triang]}
-        sm = (pts_mpcp.issubset(pts_triang) and
-                (True if self.dim() <= 4 else
-                all(c.is_smooth() for c in self.fan_cones(self.dim()-1,self.dim()-2))))
+        sm = pts_mpcp.issubset(pts_triang) and (
+            True
+            if self.dim() <= 4
+            else all(
+                c.is_smooth() for c in self.fan_cones(self.dim() - 1, self.dim() - 2)
+            )
+        )
         self._canon_div_is_smooth = sm
         return self._canon_div_is_smooth
 
@@ -1627,7 +1805,7 @@ class ToricVariety:
         """
         if self._eff_cone is not None:
             return self._eff_cone
-        self._eff_cone = Cone(self.curve_basis(include_origin=False,as_matrix=True).T)
+        self._eff_cone = Cone(self.curve_basis(include_origin=False, as_matrix=True).T)
         return self._eff_cone
 
     def fan_cones(self, d=None, face_dim=None):
@@ -1661,23 +1839,32 @@ class ToricVariety:
         ```
         """
         if d is None:
-            d = (self.dim() if face_dim is None else face_dim)
-        if d not in range(1,self.dim()+1):
-            raise ValueError("Only cones of dimension 1 through d are "
-                             "supported.")
-        if (d,face_dim) in self._fan_cones:
-            return self._fan_cones[(d,face_dim)]
+            d = self.dim() if face_dim is None else face_dim
+        if d not in range(1, self.dim() + 1):
+            raise ValueError("Only cones of dimension 1 through d are " "supported.")
+        if (d, face_dim) in self._fan_cones:
+            return self._fan_cones[(d, face_dim)]
         pts = self.triangulation().points()
         cones = set()
-        triang_pts_tup =  [tuple(pt) for pt in self.triangulation().points()]
-        faces = ([self.triangulation().points_to_indices([tuple(pt) for pt in f.points() if tuple(pt) in triang_pts_tup])
-                 for f in self.triangulation()._poly.faces(face_dim)] if face_dim is not None else None)
+        triang_pts_tup = [tuple(pt) for pt in self.triangulation().points()]
+        faces = (
+            [
+                self.triangulation().points_to_indices(
+                    [tuple(pt) for pt in f.points() if tuple(pt) in triang_pts_tup]
+                )
+                for f in self.triangulation()._poly.faces(face_dim)
+            ]
+            if face_dim is not None
+            else None
+        )
         for s in self.triangulation().simplices():
-            for c in combinations(s,d):
-                if (0 not in c and (faces is None or any(all(cc in f for cc in c) for f in faces))):
+            for c in combinations(s, d):
+                if 0 not in c and (
+                    faces is None or any(all(cc in f for cc in c) for f in faces)
+                ):
                     cones.add(tuple(sorted(c)))
-        self._fan_cones[(d,face_dim)] = tuple(Cone(pts[list(c)]) for c in cones)
-        return self._fan_cones[(d,face_dim)]
+        self._fan_cones[(d, face_dim)] = tuple(Cone(pts[list(c)]) for c in cones)
+        return self._fan_cones[(d, face_dim)]
 
     def get_cy(self, nef_partition=None):
         """
@@ -1720,8 +1907,9 @@ class ToricVariety:
             return self._cy
         if nef_partition is not None:
             if not config._exp_features_enabled:
-                raise Exception("The experimental features must be enabled to "
-                                "construct CICYs.")
+                raise Exception(
+                    "The experimental features must be enabled to " "construct CICYs."
+                )
             self._cy = CalabiYau(self, nef_partition)
             self._nef_part = nef_partition
         else:
@@ -1729,17 +1917,44 @@ class ToricVariety:
                 raise ValueError("Triangulation is non-fine.")
             if not config._exp_features_enabled:
                 if self.dim() != 4:
-                    raise Exception("The experimental features must be enabled to "
-                                    "construct CYs with dimension other than 3... "
-                                   f"observed dimension = {self.dim()}")
+                    raise Exception(
+                        "The experimental features must be enabled to "
+                        "construct CYs with dimension other than 3... "
+                        f"observed dimension = {self.dim()}"
+                    )
                 if not self.triangulation().polytope().is_favorable(lattice="N"):
-                    raise Exception("The experimental features must be enabled to "
-                                    "construct non-favorable CYs...")
+                    raise Exception(
+                        "The experimental features must be enabled to "
+                        "construct non-favorable CYs..."
+                    )
 
-            if not ((self.triangulation().points().shape == self.triangulation().polytope().points_not_interior_to_facets().shape
-                     and all((self.triangulation().points() == self.triangulation().polytope().points_not_interior_to_facets()).flat))
-                    or (self.triangulation().points().shape == self.triangulation().polytope().points().shape
-                        and all((self.triangulation().points() == self.triangulation().polytope().points()).flat))):
+            if not (
+                (
+                    self.triangulation().points().shape
+                    == self.triangulation()
+                    .polytope()
+                    .points_not_interior_to_facets()
+                    .shape
+                    and all(
+                        (
+                            self.triangulation().points()
+                            == self.triangulation()
+                            .polytope()
+                            .points_not_interior_to_facets()
+                        ).flat
+                    )
+                )
+                or (
+                    self.triangulation().points().shape
+                    == self.triangulation().polytope().points().shape
+                    and all(
+                        (
+                            self.triangulation().points()
+                            == self.triangulation().polytope().points()
+                        ).flat
+                    )
+                )
+            ):
                 error_msg = "Calabi-Yau hypersurfaces must be constructed either from points not interior to facets or using all points.\n"
                 error_msg += f"Triangulation points = {self.triangulation().points().tolist()} (labels = {self.triangulation().labels})\n"
                 error_msg += f"Polytope points = {self.triangulation().polytope().points().tolist()} (labels = {self.triangulation().polytope().labels})\n"
