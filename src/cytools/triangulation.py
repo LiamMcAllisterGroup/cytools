@@ -2693,7 +2693,7 @@ def all_triangulations(
         )
 
     # map the triangulations to labels
-    triangs = [[pts[i] for i in s] for s in triangs]
+    triangs = [[[pts[x] for x in i] for i in s] for s in triangs]
 
     # sort the triangs
     srt_triangs = [
