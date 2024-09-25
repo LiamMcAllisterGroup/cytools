@@ -2017,8 +2017,8 @@ class Polytope:
                        include_points_interior_to_facets:bool=None) -> tuple[int]:
         """
         **Description:**
-        Constructs the list of indices of the points that will be used in a
-        triangulation.
+        Constructs the list of point labels of the points that will be used in
+        a triangulation.
 
         :::note
         Typically this function should not be called by the user. Instead, it
