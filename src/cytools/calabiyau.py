@@ -2440,7 +2440,7 @@ class Invariants:
         The GV invariants.
         """
         if self._type == "gv":
-            return set(self._charge2invariant.values())
+            return list(self._charge2invariant.values())
         else:
             return None
 
