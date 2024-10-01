@@ -3950,3 +3950,30 @@ def saturating_lattice_pts(
 
     # return
     return pts_all, facet_ind
+
+def is_reflexive_barebones(points: "ArrayLike", backend: str) -> bool:
+    """
+    **Description:**
+    Minimal code to check if conv(points) is reflexive.
+
+    **Arguments:**
+    - `points`: The points defining the hull.
+    - `backend`: The backend to use. See poly_v_to_h.
+
+    **Returns:**
+    Whether conv(points) is reflexive
+    """
+    # check if the convex hull is solid
+    ambient_dim = len(points[0])
+    dim = np.linalg.matrix_rank([list(pt) + [1] for pt in points]) - 1
+    if dim != ambient_dim:
+        return False
+
+    # check the distance for each inequality
+    ineqs, _ = poly_v_to_h(points, backend=backend)
+    for ineq in ineqs:
+        if ineq[-1] != 1:
+            return False
+
+    # all checks passed
+    return True
