@@ -2,8 +2,8 @@
 FROM ubuntu:noble
 
 # Define build arguments
-ARG USERNAME
-ARG USERID
+ARG UNAME
+ARG UID
 ARG ARCH
 ARG AARCH
 ARG VIRTUAL_ENV
@@ -71,17 +71,39 @@ RUN if [ "$INSTALL_SAGE" = "1" ]; then \
     fi
 
 # Make a soft link to the arb library and flint headers so that python-flint can install
-RUN ln -s /usr/lib/${AARCH}-linux-gnu/libflint-arb.so /usr/lib/${AARCH}-linux-gnu/libarb.so
+#RUN ln -s /usr/lib/${AARCH}-linux-gnu/libflint-arb.so /usr/lib/${AARCH}-linux-gnu/libarb.so
 RUN ln -s /usr/include/flint/* /usr/include/
 
 # Set up non-root user
-RUN groupadd -r -g $USERID $USERNAME && useradd -r -s /bin/bash -u $USERID -g $USERNAME -m $USERNAME\
-    || echo "Skipping user creation"
-USER $USERNAME
+RUN set -ex && \
+    if id -u $UID >/dev/null 2>&1 && [ "$UID" -ne 0 ]; then \
+        USERNAME=$(getent passwd $UID | cut -d: -f1); \
+        # Check if the user exists and is not $UNAME
+        if [ "$USERNAME" != "$UNAME" ]; then \
+            # Rename the existing user to $UNAME if it exists
+            usermod -l $UNAME $USERNAME; \
+            # Rename the user's home directory (if necessary)
+            usermod -md /home/$UNAME $UNAME; \
+            # Update the group name if needed
+            groupmod -n $UNAME $USERNAME; \
+        fi; \
+    else \
+        # Create group and user $UNAME with enforced UID
+        groupadd -r -g $UID $UNAME && \
+        useradd -r -s /bin/bash -u $UID -g $UNAME -m $UNAME; \
+    fi
+
+# ensure we own the home directory
+RUN chown -R $UNAME:$UNAME /home/$UNAME
 
 # Install Rust since there are some Python packages that now depend on it
-RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
-ENV PATH="/home/${USERNAME}/.cargo/bin:${PATH}"
+USER $UNAME
+RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
+    echo "Rust installed successfully." || \
+    (echo "Rust installation failed." && exit 1)
+
+# Update PATH for Rust
+ENV PATH="/home/${UNAME}/.cargo/bin:${PATH}"
 
 # Create python virtual environment for non-root user
 RUN python3 -m venv $VIRTUAL_ENV
@@ -96,20 +118,20 @@ RUN pip3 install Cython==0.29.34
 RUN PIP_CONSTRAINT=c.txt pip3 install -r requirements.txt
 RUN pip3 install python-flint==0.6.0
 RUN pip3 install -f https://download.mosek.com/stable/wheel/index.html Mosek
-ENV MOSEKLM_LICENSE_FILE=/home/$USERNAME/mounted_volume/mosek/mosek.lic
+ENV MOSEKLM_LICENSE_FILE=/home/$UNAME/mounted_volume/mosek/mosek.lic
 
 # Install optional packages
-USER $USERNAME
+USER $UNAME
 RUN if [ "$OPTIONAL_PKGS" = "1" ]; then \
         export NODE_VERSION=v18.13.0 && \
-        export NVM_DIR=/home/$USERNAME/.nvm && \
+        export NVM_DIR=/home/$UNAME/.nvm && \
         mkdir -p $NVM_DIR && \
         curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash && \
         . "$NVM_DIR/nvm.sh" && nvm install ${NODE_VERSION} && \
         . "$NVM_DIR/nvm.sh" && nvm use ${NODE_VERSION} && \
         . "$NVM_DIR/nvm.sh" && nvm alias default ${NODE_VERSION} && \
-        echo "export PATH=\"$NVM_DIR/versions/node/${NODE_VERSION}/bin/:$PATH\"" >> /home/$USERNAME/.bashrc && \
-        . /home/$USERNAME/.bashrc && \
+        echo "export PATH=\"$NVM_DIR/versions/node/${NODE_VERSION}/bin/:$PATH\"" >> /home/$UNAME/.bashrc && \
+        . /home/$UNAME/.bashrc && \
         pip3 install sympy==1.11.1 galois==0.3.3 plotly==5.13.1 plotly_express==0.4.1 ipywidgets==7.7.1 jupyterlab-widgets==1.1.1 networkx==3.0 && \
         jupyter lab build; \
     fi
@@ -160,8 +182,8 @@ ENV OMP_NUM_THREADS=1
 ENV OPENBLAS_NUM_THREADS=1
 
 # Set entry path
-WORKDIR /home/$USERNAME/mounted_volume
+WORKDIR /home/$UNAME/mounted_volume
 
 # Start jupyter lab by default
-USER $USERNAME
+USER $UNAME
 CMD PYDEVD_DISABLE_FILE_VALIDATION=1 jupyter-lab --ip 0.0.0.0 --port $PORT --no-browser $ALLOW_ROOT

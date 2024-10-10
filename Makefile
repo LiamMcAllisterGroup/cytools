@@ -6,8 +6,8 @@ MACHINE := $(if $(filter Darwin,$(UNAME)),Mac,$(if $(filter Linux,$(UNAME)),Linu
 
 # Determine the machine architecture
 UNAME_M := $(shell uname -m)
-ARCH := $(if $(filter arm64,$(UNAME_M)),arm64,amd64)
-AARCH := $(if $(filter arm64,$(UNAME_M)),aarch64,x86_64)
+ARCH := $(if $(filter arm64 aarch64,$(UNAME_M)),arm64,amd64)
+AARCH := $(if $(filter arm64 aarch64,$(UNAME_M)),aarch64,x86_64)
 
 # Get the current user's ID and name
 USERID := $(shell id -u)
@@ -51,7 +51,7 @@ build-common:
 	@echo "Building CYTools image for user $(USERID_N)..."
 	@{ sudo docker pull ubuntu:noble && \
 	   sudo docker build $(DOCKER_BUILD_OPTS) -t cytools:uid-$(USERID) \
-		--build-arg USERNAME=cytools --build-arg USERID=$(USERID) \
+		--build-arg UNAME=cytools --build-arg UID=$(USERID) \
 		--build-arg ARCH=$(ARCH) --build-arg AARCH=$(AARCH) \
 		--build-arg VIRTUAL_ENV=/home/cytools/cytools-venv/ \
 		--build-arg ALLOW_ROOT_ARG=" " \
@@ -88,7 +88,7 @@ build-with-root-user:
 	@echo "Building CYTools image for root user..."
 	@{ sudo docker pull ubuntu:noble && \
 	   sudo docker build -t cytools:root \
-		--build-arg USERNAME=root --build-arg USERID=0 \
+		--build-arg UNAME=root --build-arg UID=0 \
 		--build-arg ARCH=$(ARCH) --build-arg AARCH=$(AARCH) \
 		--build-arg VIRTUAL_ENV=/opt/cytools/cytools-venv/ \
 		--build-arg ALLOW_ROOT_ARG="--allow-root" \
