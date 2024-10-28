@@ -1071,28 +1071,29 @@ class ToricVariety:
         intnums = v.intersection_numbers()
         ```
         """
+        points = self.triangulation().points()
+        simps = self.triangulation().simplices(as_indices=True)
+
         # Origin is at index 0
-        pts_ext = np.empty(
-            (
-                self.triangulation().points().shape[0],
-                self.triangulation().points().shape[1] + 1,
-            ),
-            dtype=int,
-        )
-        pts_ext[:, :-1] = self.triangulation().points()
+        pts_ext = np.empty( (points.shape[0], points.shape[1] + 1), dtype=int )
+        pts_ext[:, :-1] = points
         pts_ext[:, -1] = 1
+
         linear_relations = self.glsm_linear_relations(include_origin=False)
+
         # First compute the distict intersection numbers
         distintnum_array = sorted(
             [
                 [c for c in simp if c != 0]
                 + [1 / abs(np.linalg.det([pts_ext[p] for p in simp]))]
-                for simp in self.triangulation().simplices()
+                for simp in simps
             ]
         )
-        frst = [[c for c in s if c != 0] for s in self.triangulation().simplices()]
+
+        frst = [[c for c in s if c != 0] for s in simps]
         simp_2 = set([j for i in [list(combinations(f, 2)) for f in frst] for j in i])
         simp_3 = set([j for i in [list(combinations(f, 3)) for f in frst] for j in i])
+
         # We construct and solve the linear system M*x + C = 0, where M is
         # a rectangular mxn matrix and C is a vector.
         ###################################################################
@@ -1128,6 +1129,7 @@ class ToricVariety:
         variable_array_3 = [(i, i, i, i) for i in range(1, len(pts_ext))]
         variable_array = sorted(variable_array_1 + variable_array_2 + variable_array_3)
         variable_dict = {vv: v for v, vv in enumerate(variable_array)}
+
         ## Dictionary to construct C
         # C is constructed by adding/subtracting distinct intersection
         # numbers.
@@ -1137,6 +1139,7 @@ class ToricVariety:
             c_dict[(d[0], d[1], d[3])] += [[d[2], d[4]]]
             c_dict[(d[0], d[2], d[3])] += [[d[1], d[4]]]
             c_dict[(d[1], d[2], d[3])] += [[d[0], d[4]]]
+
         ## Dictionary to construct M
         eqn_array_1 = [tuple(s) for s in simp_3]
         eqn_array_2 = [
@@ -1173,6 +1176,7 @@ class ToricVariety:
                 eqn_dict[(v[1], v[2], v[3])] += [[v[0], variable_dict[v]]]
             else:
                 raise RuntimeError("Failed to construct linear system.")
+
         # Construct Linear System
         num_rows = len(linear_relations) * len(eqn_array)
         C = np.array([0.0] * num_rows)
@@ -1231,10 +1235,10 @@ class ToricVariety:
             [
                 [c for c in simp if c != 0]
                 + [1 / abs(np.linalg.det([pts_ext[p] for p in simp]))]
-                for simp in self.triangulation().simplices()
+                for simp in self.triangulation().simplices(as_indices=True)
             ]
         )
-        frst = [[c for c in s if c != 0] for s in self.triangulation().simplices()]
+        frst = [[c for c in s if c != 0] for s in self.triangulation().simplices(as_indices=True)]
         simp_n = [
             set([j for i in [list(combinations(f, n)) for f in frst] for j in i])
             for n in range(2, dim)
@@ -1705,7 +1709,7 @@ class ToricVariety:
         """
         if self._prime_divs is None:
             tri_ind = list(
-                set.union(*[set(s) for s in self.triangulation().simplices()])
+                set.union(*[set(s) for s in self.triangulation().simplices(as_indices=True)])
             )
             divs = self.triangulation().triangulation_to_polytope_indices(tri_ind)
             self._prime_divs = tuple(i for i in divs if i)
@@ -1740,7 +1744,7 @@ class ToricVariety:
             return self._is_smooth
         pts = self.triangulation().points()
         pts = np.insert(pts, 0, np.ones(len(pts), dtype=int), axis=1)
-        simp = self.triangulation().simplices()
+        simp = self.triangulation().simplices(as_indices=True)
         self._is_smooth = all(abs(int(round(np.linalg.det(pts[s])))) == 1 for s in simp)
         return self._is_smooth
 
@@ -1769,7 +1773,7 @@ class ToricVariety:
         if self._canon_div_is_smooth is not None:
             return self._canon_div_is_smooth
         pts_mpcp = {tuple(pt) for pt in self.polytope().points_not_interior_to_facets()}
-        ind_triang = list(set.union(*[set(s) for s in self._triang.simplices()]))
+        ind_triang = list(set.union(*[set(s) for s in self._triang.simplices(as_indices=True)]))
         pts_triang = {tuple(pt) for pt in self._triang.points()[ind_triang]}
         sm = pts_mpcp.issubset(pts_triang) and (
             True
@@ -1857,7 +1861,7 @@ class ToricVariety:
             if face_dim is not None
             else None
         )
-        for s in self.triangulation().simplices():
+        for s in self.triangulation().simplices(as_indices=True):
             for c in combinations(s, d):
                 if 0 not in c and (
                     faces is None or any(all(cc in f for cc in c) for f in faces)
@@ -1928,37 +1932,21 @@ class ToricVariety:
                         "construct non-favorable CYs..."
                     )
 
-            if not (
-                (
-                    self.triangulation().points().shape
-                    == self.triangulation()
-                    .polytope()
-                    .points_not_interior_to_facets()
-                    .shape
-                    and all(
-                        (
-                            self.triangulation().points()
-                            == self.triangulation()
-                            .polytope()
-                            .points_not_interior_to_facets()
-                        ).flat
-                    )
-                )
-                or (
-                    self.triangulation().points().shape
-                    == self.triangulation().polytope().points().shape
-                    and all(
-                        (
-                            self.triangulation().points()
-                            == self.triangulation().polytope().points()
-                        ).flat
-                    )
-                )
-            ):
+            # check that we have sensical points
+            triang = self.triangulation()
+            poly   = triang.polytope()
+            
+            if sorted(triang.labels) == sorted(poly.labels_not_facet):
+                pass
+            elif sorted(triang.labels) == sorted(poly.labels):
+                pass
+            else:
                 error_msg = "Calabi-Yau hypersurfaces must be constructed either from points not interior to facets or using all points.\n"
-                error_msg += f"Triangulation points = {self.triangulation().points().tolist()} (labels = {self.triangulation().labels})\n"
-                error_msg += f"Polytope points = {self.triangulation().polytope().points().tolist()} (labels = {self.triangulation().polytope().labels})\n"
+                error_msg += f"Triangulation points = {triang.points().tolist()} (labels = {triang.labels})\n"
+                error_msg += f"Polytope points = {poly.points().tolist()} (labels = {poly.labels})\n"
                 raise ValueError(error_msg)
+            
             self._cy = CalabiYau(self)
             self._nef_part = nef_partition
+                
         return self._cy
