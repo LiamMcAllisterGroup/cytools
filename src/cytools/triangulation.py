@@ -909,7 +909,7 @@ class Triangulation:
         if as_triang_indices:
             if self._labels2inds is None:
                 self._labels2inds = {v: i for i, v in enumerate(self._labels)}
-            return [self._labels2inds[label] for label in which]
+            return np.array([self._labels2inds[label] for label in which])
         else:
             if optimal and (not as_poly_indices):
                 dim_diff = self.ambient_dim() - self.dim()
