@@ -1206,6 +1206,12 @@ class Triangulation:
             given dimension.
         - `on_faces_codim`: Restrict the simplices to faces of the polytope of
             a given codimension.
+        - `split_by_face`: Return the simplices for each face. Don't merge the
+            collection.
+        - `as_np_array`: Return the simplices as a numpy array. Otherwise,
+            they are returned as a set of frozensets.
+        - `as_indices`: Whether to map the simplices from labels to point
+            indices (in the triangulations).
 
         **Returns:**
         The simplices of the triangulation.
