@@ -179,25 +179,20 @@ class CalabiYau:
                     "construct non-favorable CYs or CYs with "
                     "dimension other than 3."
                 )
-            if not (
-                (
-                    triang.points().shape
-                    == triang.polytope().points_not_interior_to_facets().shape
-                    and all(
-                        (
-                            triang.points()
-                            == triang.polytope().points_not_interior_to_facets()
-                        ).flat
-                    )
-                )
-                or (
-                    triang.points().shape == triang.polytope().points().shape
-                    and all((triang.points() == triang.polytope().points()).flat)
-                )
-            ):
-                raise ValueError(
-                    "Calabi-Yau hypersurfaces must be constructed either points not interior to facets or all points."
-                )
+
+            # check that we have sensical points
+            poly   = triang.polytope()
+            
+            if sorted(triang.labels) == sorted(poly.labels_not_facet):
+                pass
+            elif sorted(triang.labels) == sorted(poly.labels):
+                pass
+            else:
+                error_msg = "Calabi-Yau hypersurfaces must be constructed either from points not interior to facets or using all points.\n"
+                error_msg += f"Triangulation points = {self.triangulation().points().tolist()} (labels = {self.triangulation().labels})\n"
+                error_msg += f"Polytope points = {self.triangulation().polytope().points().tolist()} (labels = {self.triangulation().polytope().labels})\n"
+                raise ValueError(error_msg)
+
         self._ambient_var = toric_var
         self._optimal_ambient_var = None
         self._is_hypersurface = nef_partition is None or len(nef_partition) == 1
