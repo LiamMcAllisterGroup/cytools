@@ -30,7 +30,8 @@ import warnings
 import cygv
 from flint import fmpz_mat, fmpq_mat, fmpz, fmpq
 import numpy as np
-from scipy.sparse import csr_matrix
+from scipy.linalg import null_space
+from scipy.sparse import csr_matrix, dok_matrix
 
 # CYTools imports
 from cytools import config
@@ -2359,33 +2360,6 @@ class CalabiYau:
         if format=="sparse":
             return new_rays
         return Cone(new_rays.todense(), check=False)
-
-    def mori_cone_cap_topcom(self, in_basis=False, exclude_origin=False):
-        # will be subsumed by secondary cone (on_faces_dim=2)
-        twofaces = [self.ambient_variety().triangulation().points_to_indices(f.points()).tolist()
-                    for f in self.polytope().faces(2)]
-        pts_str = str([list(pt)+[1] for pt in self.ambient_variety().triangulation().points()])
-        triang_str = str([list(s) for s in self.ambient_variety().triangulation().simplices()]
-                            ).replace("[","{").replace("]","}")
-        twofaces_str = str(twofaces).replace("[","(").replace("]",")")
-        topcom_input = pts_str + "[]" + triang_str + twofaces_str
-        topcom_bin = "topcom-computekcup"
-        topcom = subprocess.Popen((topcom_bin,), stdin=subprocess.PIPE,
-                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                  universal_newlines=True)
-        topcom_res, topcom_err = topcom.communicate(input=topcom_input)
-        rays = np.array(sorted([eval(r) for r in topcom_res.strip().split("\n")]))
-        if not exclude_origin and not in_basis:
-            new_rays = rays
-        elif exclude_origin and not in_basis:
-            new_rays = rays[:,1:]
-        else:
-            basis = self.divisor_basis()
-            if len(basis.shape) == 2: # If basis is matrix
-                new_rays = rays.dot(basis.T)
-            else:
-                new_rays = rays[:,basis]
-        return Cone(new_rays, check=False)
 
 
 class Invariants:
