@@ -75,17 +75,29 @@ RUN if [ "$INSTALL_SAGE" = "1" ]; then \
 RUN ln -s /usr/include/flint/* /usr/include/
 
 # Set up non-root user
+RUN if [ -z "$UID" ]; then \
+        echo "Error: UID is not set. Exiting."; \
+        exit 1; \
+    fi
+
 RUN set -ex && \
-    if id -u $UID >/dev/null 2>&1 && [ "$UID" -ne 0 ]; then \
-        USERNAME=$(getent passwd $UID | cut -d: -f1); \
-        # Check if the user exists and is not $UNAME
-        if [ "$USERNAME" != "$UNAME" ]; then \
-            # Rename the existing user to $UNAME if it exists
-            usermod -l $UNAME $USERNAME; \
-            # Rename the user's home directory (if necessary)
-            usermod -md /home/$UNAME $UNAME; \
-            # Update the group name if needed
-            groupmod -n $UNAME $USERNAME; \
+    echo "UID: $UID" && \
+    if id -u $UID >/dev/null 2>&1; then \
+        # If UID exists, check if it's root (0)
+        if [ "$UID" -eq 0 ]; then \
+            # If UID is 0, ensure UNAME is set to root
+            if [ "$UNAME" != "root" ]; then \
+                echo "Error: UID is 0, but UNAME is not root. Exiting."; \
+                exit 1; \
+            fi; \
+        else \
+            # Non-root UID exists... rename existing user to $UNAME
+            USERNAME=$(getent passwd $UID | cut -d: -f1); \
+            if [ "$USERNAME" != "$UNAME" ]; then \
+                usermod -l $UNAME $USERNAME; \
+                usermod -md /home/$UNAME $UNAME; \
+                groupmod -n $UNAME $USERNAME; \
+            fi; \
         fi; \
     else \
         # Create group and user $UNAME with enforced UID
@@ -94,7 +106,9 @@ RUN set -ex && \
     fi
 
 # ensure we own the home directory
-RUN chown -R $UNAME:$UNAME /home/$UNAME
+RUN if [ "$UNAME" != "root" ]; then \
+        chown -R $UNAME:$UNAME /home/$UNAME; \
+    fi
 
 # Install Rust since there are some Python packages that now depend on it
 USER $UNAME
