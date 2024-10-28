@@ -39,7 +39,7 @@ $banner=@"
   ░░░░░░░░░     ░░░░░       ░░░░░     ░░░░░░   ░░░░░░  ░░░░░ ░░░░░░
 
                 Developed by Liam McAllister's Group
-                  https://cy.tools | Version 1.2.5
+                  https://cy.tools | Version 1.0.4
 
 "@
 
@@ -55,9 +55,9 @@ if ( "$contid" -eq "" ) {
   exit
 }
 
-# Wait for up to 10 seconds for Jupyter lab to initialize
+# Wait for up to 30 seconds for Jupyter lab to initialize
 $initialized = $false
-for ($n = 1; $n -le 20; $n++) {
+for ($n = 1; $n -le 60; $n++) {
   sleep .5
   $logs = docker logs cytools
   if ("$logs".Contains("127.0.0.1")) {
