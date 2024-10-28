@@ -2260,6 +2260,133 @@ class CalabiYau:
 
     compute_gw = compute_gws
 
+    # =================
+    # TEMPORARY METHODS
+    # =================
+    def mori_cone_cap(self, in_basis=False, exclude_origin=False, format=None):
+        # will be subsumed by secondary cone (on_faces_dim=2)
+        pts_ext = np.array([tuple(pt)+(1,) for pt in self.ambient_variety().triangulation().points()])
+        facets = [frozenset(self.ambient_variety().triangulation().points_to_indices(f.boundary_points()))
+                    for f in self.polytope().facets()]
+        twofaces = [self.ambient_variety().triangulation().points_to_indices(f.points())
+                    for f in self.polytope().faces(2)]
+        n_pts = pts_ext.shape[0]
+        mori_cap_rays = set()
+        simp_2d_all = set()
+        # We start by finding circuits in 2-faces and their respective Mori cone
+        # rays. These correspond to flips to other CYs or to non-fine
+        # triangulations. We also keep track of all 2d simplices for later.
+        for f in twofaces:
+            if len(f) < 4:
+                simp_2d_all.add(frozenset(f))
+                continue
+            simp_2d = set()
+            face_pts = set(f)
+            for s in self.ambient_variety().triangulation().simplices():
+                inters = face_pts & set(s)
+                if len(inters) == 3:
+                    ss = frozenset(inters)
+                    simp_2d.add(ss)
+                    simp_2d_all.add(ss)
+            simps = list(simp_2d)
+            m = np.empty((4,5),dtype=int)
+            for i in range(len(simps)):
+                for j in range(i,len(simps)):
+                    comm_pts = list(simps[i] & simps[j])
+                    if len(comm_pts) == 2:
+                        diff_pts = list(simps[i] ^ simps[j])
+                        m[:2,:] = pts_ext[diff_pts]
+                        m[2:,:] = pts_ext[comm_pts]
+                        v = null_space(m.T)[:,0]
+                        if v[0] < 0:
+                            v *= -1
+                        g = gcd_list(v)
+                        v = [int(round(i/g)) for i in v]
+                        full_v = [(diff_pts[k],v[k]) for k in range(2)] + [(comm_pts[k],v[k+2]) for k in range(2) if v[k+2]]
+                        mori_cap_rays.add(tuple(sorted(full_v)))
+        # Now find we find the remaining rays. We do this by taking each 2-simplex
+        # in each 2-face and considering all possible circuits with points of the
+        # two containing facets.
+        m = np.empty((6,5),dtype=int)
+        for s2d in simp_2d_all:
+            f1 = None
+            f2 = None
+            for ff in facets:
+                if s2d.issubset(ff):
+                    if f1 is None:
+                        f1 = ff
+                    else:
+                        f2 = ff
+                        break
+            pts_f1 = f1.difference(f2)
+            pts_f2 = f2.difference(f1)
+            for p1 in pts_f1:
+                for p2 in pts_f2:
+                    diff_pts = [p1,p2]
+                    comm_pts = list(s2d)+[0]
+                    m[:2,:] = pts_ext[diff_pts]
+                    m[2:,:] = pts_ext[comm_pts]
+                    v = null_space(m.T)
+                    if v.shape[1] != 1:
+                        print("Warning: Kernel dimension {v.shape[1]}.")
+                        continue
+                    v = v[:,0]
+                    if v[0] < 0:
+                        v *= -1
+                    g = gcd_list(v)
+                    v = [int(round(i/g)) for i in v]
+                    full_v = sorted([(diff_pts[k],v[k]) for k in range(2)] + [(comm_pts[k],v[k+2]) for k in range(4) if v[k+2]])
+                    if full_v[0][0] == 0 and full_v[0][1] == 0:
+                        continue
+                    elif full_v[0][0] == 0 and full_v[0][1] > 0:
+                        print("Warning: Positive coefficient of origin.")
+                        continue
+                    mori_cap_rays.add(tuple(full_v))
+        mori_cap_matrix = dok_matrix((len(mori_cap_rays),len(pts_ext)), dtype=int)
+        for i,r in enumerate(mori_cap_rays):
+            for rr in r:
+                mori_cap_matrix[i,rr[0]] = rr[1]
+        if not exclude_origin and not in_basis:
+            new_rays = mori_cap_matrix
+        elif exclude_origin and not in_basis:
+            new_rays = mori_cap_matrix[:,1:]
+        else:
+            basis = self.divisor_basis()
+            if len(basis.shape) == 2: # If basis is matrix
+                new_rays = mori_cap_matrix.dot(basis.T)
+            else:
+                new_rays = mori_cap_matrix[:,basis]
+        if format=="sparse":
+            return new_rays
+        return Cone(new_rays.todense(), check=False)
+
+    def mori_cone_cap_topcom(self, in_basis=False, exclude_origin=False):
+        # will be subsumed by secondary cone (on_faces_dim=2)
+        twofaces = [self.ambient_variety().triangulation().points_to_indices(f.points()).tolist()
+                    for f in self.polytope().faces(2)]
+        pts_str = str([list(pt)+[1] for pt in self.ambient_variety().triangulation().points()])
+        triang_str = str([list(s) for s in self.ambient_variety().triangulation().simplices()]
+                            ).replace("[","{").replace("]","}")
+        twofaces_str = str(twofaces).replace("[","(").replace("]",")")
+        topcom_input = pts_str + "[]" + triang_str + twofaces_str
+        topcom_bin = "topcom-computekcup"
+        topcom = subprocess.Popen((topcom_bin,), stdin=subprocess.PIPE,
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                  universal_newlines=True)
+        topcom_res, topcom_err = topcom.communicate(input=topcom_input)
+        rays = np.array(sorted([eval(r) for r in topcom_res.strip().split("\n")]))
+        if not exclude_origin and not in_basis:
+            new_rays = rays
+        elif exclude_origin and not in_basis:
+            new_rays = rays[:,1:]
+        else:
+            basis = self.divisor_basis()
+            if len(basis.shape) == 2: # If basis is matrix
+                new_rays = rays.dot(basis.T)
+            else:
+                new_rays = rays[:,basis]
+        return Cone(new_rays, check=False)
+
 
 class Invariants:
     """
