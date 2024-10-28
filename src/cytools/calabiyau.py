@@ -2164,7 +2164,7 @@ class CalabiYau:
         # get basics
         kappa = self.intersection_numbers(in_basis=True, format="coo")
         glsm = self.curve_basis(include_origin=False, as_matrix=True)
-        mori = self.toric_mori_cone(in_basis=True)
+        mori = self.mori_cone_cap(in_basis=True)
         generators = mori.rays()
 
         # compute a grading vector if none is provided
