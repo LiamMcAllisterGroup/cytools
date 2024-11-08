@@ -1503,9 +1503,13 @@ class Polytope:
             return self._is_reflexive
 
         # calculate the answer
-        self._is_reflexive = self.is_solid() and all(
-            c == 1 for c in self._ineqs_input[:, -1]
-        )
+        if self.is_solid():
+            self._is_reflexive = all(
+                c == 1 for c in self._ineqs_input[:, -1]
+            )
+        else:
+            p = Polytope(lll_reduce(self.points())[:,-self.dim():])
+            self._is_reflexive = p.is_reflexive()
 
         # return
         return self._is_reflexive
@@ -3791,7 +3795,7 @@ def saturating_lattice_pts(
 
     **Arguments:**
     - `pts`: A list of points spanning the hull.
-    - `ineq`: Hyperplane inqualities defining the hull. Same format as
+    - `ineqs`: Hyperplane inqualities defining the hull. Same format as
         output by poly_v_to_h
     - `dim`: The dimension of the hull.
     - `backend`: The backend to use. Either "palp" or defaults to native.
@@ -3951,7 +3955,10 @@ def saturating_lattice_pts(
     # return
     return pts_all, facet_ind
 
-def is_reflexive_barebones(points: "ArrayLike", backend: str) -> bool:
+
+
+def is_reflexive_barebones(points: "ArrayLike",
+                           backend: str = 'qhull') -> bool:
     """
     **Description:**
     Minimal code to check if conv(points) is reflexive.
