@@ -3714,7 +3714,7 @@ def poly_v_to_h(pts: ArrayLike, backend: str) -> (ArrayLike, None):
         if dim == 1:
             # qhull cannot handle 1-dimensional polytopes
             poly = None
-            ineqs = np.array([[1, -min(pts)], [-1, max(pts)]])
+            ineqs = np.array([[1, -np.min(pts)], [-1, np.max(pts)]])
 
         else:
             poly = ConvexHull(pts)
