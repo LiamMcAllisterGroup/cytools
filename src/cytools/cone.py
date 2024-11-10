@@ -615,6 +615,8 @@ class Cone:
                 rays.append(tuple(-int(c) for c in gen.coefficients()))
 
         # save/return
+        if verbosity >= 1:
+            print("Saving the rays & computing dimension...")
         self._rays = np.array(rays, dtype=int)
         self._dim = np.linalg.matrix_rank(self._rays)
         return np.array(self._rays)
