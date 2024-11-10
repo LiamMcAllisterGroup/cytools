@@ -539,13 +539,15 @@ class Cone:
     # aliases
     dim = dimension
 
-    def rays(self):
+    def rays(self, use_extremal_hyperplanes: bool=False, verbosity: int=0):
         """
         **Description:**
         Returns the (not necessarily extremal) rays that generate the cone.
 
         **Arguments:**
-        None.
+        - `use_extremal_hyperplanes`: Whether to use extremal hyperplanes in
+            this computation, or just any hyperplanes.
+        - `verbosity`: The verbosity level.
 
         **Returns:**
         *(numpy.ndarray)* The list of rays that generate the cone.
@@ -573,24 +575,38 @@ class Cone:
                 "and is likely impossible for d > ~18."
             )
 
+        # select the hyperplanes
+        if use_extremal_hyperplanes:
+            H = self.extremal_hyperplanes()
+        else:
+            H = self.hyperplanes()
+
         # compute the rays
+        if verbosity >= 1:
+            print("Defining the cone in PPL...")
+
         if False:
             cs = ppl.Constraint_System()
             vrs = [ppl.Variable(i) for i in range(self._ambient_dim)]
-            for h in self.extremal_hyperplanes(): # could just use hyperplanes...
+            for h in H:
                 cs.insert(sum(h[i] * vrs[i] for i in range(self._ambient_dim)) >= 0)
             cone = ppl.C_Polyhedron(cs)
         else:
             # slightly cleaner, imo
             cone = ppl.C_Polyhedron(self._ambient_dim)
 
-            for row in self.hyperplanes():
+            for row in H:
                 ineq = ppl.Linear_Expression(row.tolist(), 0)
                 cone.add_constraint(ppl.Constraint(ineq >= 0))
 
         # grab the rays
+        if verbosity >= 1:
+            print("Computing the rays...")
         rays = []
-        for gen in cone.minimized_generators():
+        for gen_i, gen in enumerate(cone.minimized_generators()):
+            if verbosity >= 2:
+                print(f"ray #{gen_i}...", end='\r')
+
             if gen.is_ray():
                 rays.append(tuple(int(c) for c in gen.coefficients()))
             elif gen.is_line():
@@ -598,6 +614,7 @@ class Cone:
                 rays.append(tuple(int(c) for c in gen.coefficients()))
                 rays.append(tuple(-int(c) for c in gen.coefficients()))
 
+        # save/return
         self._rays = np.array(rays, dtype=int)
         self._dim = np.linalg.matrix_rank(self._rays)
         return np.array(self._rays)
