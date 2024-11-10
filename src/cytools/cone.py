@@ -572,18 +572,32 @@ class Cone:
                 "This operation might take a while for d > ~12 "
                 "and is likely impossible for d > ~18."
             )
-        cs = ppl.Constraint_System()
-        vrs = [ppl.Variable(i) for i in range(self._ambient_dim)]
-        for h in self.dual().extremal_rays():
-            cs.insert(sum(h[i] * vrs[i] for i in range(self._ambient_dim)) >= 0)
-        cone = ppl.C_Polyhedron(cs)
+
+        # compute the rays
+        if False:
+            cs = ppl.Constraint_System()
+            vrs = [ppl.Variable(i) for i in range(self._ambient_dim)]
+            for h in self.extremal_hyperplanes(): # could just use hyperplanes...
+                cs.insert(sum(h[i] * vrs[i] for i in range(self._ambient_dim)) >= 0)
+            cone = ppl.C_Polyhedron(cs)
+        else:
+            # slightly cleaner, imo
+            cone = ppl.C_Polyhedron(self._ambient_dim)
+
+            for row in self.hyperplanes():
+                ineq = ppl.Linear_Expression(row.tolist(), 0)
+                cone.add_constraint(ppl.Constraint(ineq >= 0))
+
+        # grab the rays
         rays = []
         for gen in cone.minimized_generators():
             if gen.is_ray():
                 rays.append(tuple(int(c) for c in gen.coefficients()))
             elif gen.is_line():
+                # lineality space... add both signs
                 rays.append(tuple(int(c) for c in gen.coefficients()))
                 rays.append(tuple(-int(c) for c in gen.coefficients()))
+
         self._rays = np.array(rays, dtype=int)
         self._dim = np.linalg.matrix_rank(self._rays)
         return np.array(self._rays)
