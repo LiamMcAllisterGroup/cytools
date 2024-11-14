@@ -565,8 +565,6 @@ class Cone:
         #        [-1,  1]])
         ```
         """
-        if self._ext_rays is not None:
-            return np.array(self._ext_rays)
         if self._rays is not None:
             return np.array(self._rays)
         if self._ambient_dim >= 12 and len(self._hyperplanes) != self._ambient_dim:
@@ -877,6 +875,8 @@ class Cone:
 
         try:
             self._ext_rays = rays[list(ext_rays)]
+            if self._rays is None:
+                self._rays = self._ext_rays
         except IndexError as e:
             raise Exception(
                 f"Dimension/indexing error rays={rays}; " + f"ext_rays={ext_rays}"
