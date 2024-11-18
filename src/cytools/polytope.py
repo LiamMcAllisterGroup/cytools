@@ -1479,13 +1479,13 @@ class Polytope:
     polar_polytope = dual_polytope
     polar = dual_polytope
 
-    def is_reflexive(self) -> bool:
+    def is_reflexive(self, allow_translations=True) -> bool:
         """
         **Description:**
         Returns True if the polytope is reflexive and False otherwise.
 
         **Arguments:**
-        None.
+        - `allow_translations`: Whether to allow the polytope to be translated.
 
         **Returns:**
         The truth value of the polytope being reflexive.
@@ -1508,7 +1508,10 @@ class Polytope:
                 c == 1 for c in self._ineqs_input[:, -1]
             )
         else:
-            p = Polytope(lll_reduce(self.points())[:,-self.dim():])
+            if allow_translations:
+                p = Polytope(self.points(optimal=True))
+            else:
+                p = Polytope(lll_reduce(self.points())[:,-self.dim():])
             self._is_reflexive = p.is_reflexive()
 
         # return
