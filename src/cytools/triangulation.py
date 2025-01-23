@@ -1334,7 +1334,6 @@ class Triangulation:
             return [
                 self.restrict(
                     restrict_to=f,
-                    as_face_inds=as_face_inds,
                     as_poly=as_poly,
                     verbosity=verbosity,
                 )
