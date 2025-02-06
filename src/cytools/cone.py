@@ -581,7 +581,7 @@ class Cone:
 
         # compute the rays
         if verbosity >= 1:
-            print("Defining the cone in PPL...")
+            print("Defining the cone in PPL...", flush=True)
 
         if False:
             cs = ppl.Constraint_System()
@@ -599,7 +599,7 @@ class Cone:
 
         # grab the rays
         if verbosity >= 1:
-            print("Computing the rays...")
+            print("Computing the rays...", flush=True)
         rays = []
         for gen_i, gen in enumerate(cone.minimized_generators()):
             if verbosity >= 2:
@@ -614,7 +614,7 @@ class Cone:
 
         # save/return
         if verbosity >= 1:
-            print("Saving the rays & computing dimension...")
+            print("Saving the rays & computing dimension...", flush=True)
         self._rays = np.array(rays, dtype=int)
         self._dim = np.linalg.matrix_rank(self._rays)
         return np.array(self._rays)
