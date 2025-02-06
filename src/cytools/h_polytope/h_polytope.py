@@ -27,11 +27,11 @@ import numpy as np
 import ppl
 
 # CYTools imports
-from cytools import Polytope
+from cytools import polytope
 from cytools.utils import gcd_list
 
 
-class HPolytope(Polytope):
+class HPolytope(polytope.Polytope):
     """
     This class handles all computations relating to H-polytopes. These are not
     always lattice. There are two primary methods for making them lattice:
@@ -93,7 +93,21 @@ class HPolytope(Polytope):
         self._ineqs = ineqs.copy()
 
         # compute the vertices
-        self._real_vertices, _ = poly_h_to_v(self._ineqs)
+        if np.all(np.abs(self._ineqs[:,-1]-1)<1e-4):
+            # constant terms are all =1. Compute Newton polytope
+            dual, dual_poly = polytope.poly_v_to_h(self._ineqs[:,:-1], backend=backend)
+
+            # check for rays
+            if 0 in dual[:,-1]:
+                raise ValueError("Dual was a polyhedron, not a polytope.")
+
+            # map the ineqs into points
+            self._real_vertices = [row[:-1]/row[-1] for row in dual]
+            self._real_vertices = np.array(self._real_vertices)
+        else:
+            # more complicated hyperplanes were input. Use dedicated function
+            # (could likely be mapped to poly_v_to_h. Worry about rational inputs)
+            self._real_vertices, _ = poly_h_to_v(self._ineqs, verbosity=verbosity)
 
         # convert this into a lattice polytope
         if self._real_vertices.dtype == int:
@@ -164,11 +178,12 @@ def poly_h_to_v(hypers: "ArrayLike", verbosity: int = 0) -> ("ArrayLike", None):
 
     # do the work
     cs = ppl.Constraint_System()
-    vrs = [ppl.Variable(i) for i in range(dim)]
+    vrs = np.array([ppl.Variable(i) for i in range(dim)])
 
     # insert points to generator system
-    for c in hypers:
-        cs.insert(sum(c[i] * vrs[i] for i in range(dim)) + c[-1] >= 0)
+    for linexp in hypers[:,:-1]@vrs + hypers[:,-1]:
+        cs.insert(linexp)
+        #cs.insert(sum(c[i] * vrs[i] for i in range(dim)) + c[-1] >= 0)
 
     # find polytope, vertices
     # -----------------------
@@ -177,7 +192,8 @@ def poly_h_to_v(hypers: "ArrayLike", verbosity: int = 0) -> ("ArrayLike", None):
     pts = []
     for pt in poly.minimized_generators():
         if not pt.is_point():
-            print(f"Error: A generator, {pt}, was not a point...")
+            if verbosity >= 0:
+                print(f"Error: A generator, {pt}, was not a point...")
             return
 
         div = int(pt.divisor())

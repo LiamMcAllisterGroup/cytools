@@ -3699,25 +3699,24 @@ def poly_v_to_h(pts: ArrayLike, backend: str) -> (ArrayLike, None):
     # do the work, depending on backend
     if backend == "ppl":
         gs = ppl.Generator_System()
-        vrs = [ppl.Variable(i) for i in range(dim)]
+        vrs = np.array([ppl.Variable(i) for i in range(dim)])
 
         # insert points to generator system
-        for pt in pts:
-            ppl_pt = ppl.point(sum(pt[i] * vrs[i] for i in range(dim)))
-            gs.insert(ppl_pt)
+        for linexp in pts@vrs:
+            gs.insert(ppl.point(linexp))
 
         # find polytope, hyperplanes
         poly = ppl.C_Polyhedron(gs)
         ineqs = []
         for ineq in poly.minimized_constraints():
             ineqs.append(list(ineq.coefficients()) + [ineq.inhomogeneous_term()])
-        ineqs = np.array(ineqs, dtype=int)
+        ineqs = np.array(ineqs, dtype=int) # the data should automatically be integer
 
     elif backend == "qhull":
         if dim == 1:
             # qhull cannot handle 1-dimensional polytopes
             poly = None
-            ineqs = np.array([[1, -np.min(pts)], [-1, np.max(pts)]])
+            ineqs = np.array([[1, -np.min(pts)], [-1, np.max(pts)]], dtype=int)
 
         else:
             poly = ConvexHull(pts)
