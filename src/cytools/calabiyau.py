@@ -2212,6 +2212,7 @@ class CalabiYau:
         grading_vec: "ArrayLike" = None,
         max_deg: bool = None,
         min_points: bool = None,
+        basis: "ArrayLike" = None,
         format: str = None,
     ):
         """
@@ -2225,12 +2226,20 @@ class CalabiYau:
             min_points=None.
         - `min_points`: The minimum number of GVs/GWs to compute. Must be
             specified iff max_deg=None.
+        - 'basis': An array specifying a new basis to represent the charges in.
         - 'format': A string to request 'dok' or 'coo' formats.
 
         **Returns:**
         The GV invariants.
         """
-        return self._compute_gvs_gws("gv", grading_vec, max_deg, min_points, format)
+        return self._compute_gvs_gws(
+            gv_or_gw="gv",
+            grading_vec=grading_vec,
+            max_deg=max_deg,
+            min_points=min_points,
+            basis=basis,
+            format=format
+        )
 
     compute_gv = compute_gvs
 
@@ -2239,6 +2248,7 @@ class CalabiYau:
         grading_vec=None,
         max_deg=None,
         min_points=None,
+        basis: "ArrayLike" = None,
         format: str = None,
     ):
         """
@@ -2252,12 +2262,20 @@ class CalabiYau:
             min_points=None.
         - `min_points`: The minimum number of GWs to compute. Must be specified
             iff max_deg=None.
+        - 'basis': An array specifying a new basis to represent the charges in.
         - 'format': A string to request 'dok' or 'coo' formats.
 
         **Returns:**
         The GW invariants.
         """
-        return self._compute_gvs_gws("gw", grading_vec, max_deg, min_points, format)
+        return self._compute_gvs_gws(
+            gv_or_gw="gw",
+            grading_vec=grading_vec,
+            max_deg=max_deg,
+            min_points=min_points,
+            basis=basis,
+            format=format
+        )
 
     compute_gw = compute_gws
 
