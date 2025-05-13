@@ -1069,10 +1069,14 @@ class Triangulation:
         simps = self.simplices()
         # simps = np.array([self.points(s, as_triang_indices=True) for s in simps])
 
-        if simps.shape[0] == 1:
-            # triangulation is trivial
-            self._is_valid = True
+        if simps.shape[1] != self.dim()+1:
+            self._is_valid = False
             return self._is_valid
+
+        #if simps.shape[0] == 1:
+        #    # triangulation is trivial
+        #    self._is_valid = True
+        #    return self._is_valid
 
         # If the triangulation is presumably regular, then we can check if
         # heights inside the secondary cone yield the same triangulation.
