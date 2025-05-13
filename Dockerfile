@@ -56,7 +56,6 @@ RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get -y install tzdata
 RUN apt-get -yqq install autoconf build-essential nano cmake libgmp-dev libcgal-dev\
                          libmpc-dev libsuitesparse-dev libppl-dev libeigen3-dev\
                          libc6 libcdd0d libgmp10 libgmpxx4ldbl libstdc++6 palp\
-                         libflint-dev curl\
                          wget libmath-libm-perl normaliz libqsopt-ex2
 RUN apt-get -yqq install nodejs
 
@@ -69,10 +68,6 @@ RUN if [ "$INSTALL_M2" = "1" ]; then \
 RUN if [ "$INSTALL_SAGE" = "1" ]; then \
         apt-get -yqq install sagemath; \
     fi
-
-# Make a soft link to the arb library and flint headers so that python-flint can install
-#RUN ln -s /usr/lib/${AARCH}-linux-gnu/libflint-arb.so /usr/lib/${AARCH}-linux-gnu/libarb.so
-RUN ln -s /usr/include/flint/* /usr/include/
 
 # Set up non-root user
 RUN if [ -z "$UID" ]; then \
