@@ -130,7 +130,7 @@ COPY ./requirements.txt /opt/cytools/requirements.txt
 COPY ./c.txt /opt/cytools/c.txt
 RUN pip3 install Cython==0.29.34
 RUN PIP_CONSTRAINT=c.txt pip3 install -r requirements.txt
-RUN pip3 install python-flint==0.6.0
+RUN pip3 install python-flint==0.7.1
 RUN pip3 install -f https://download.mosek.com/stable/wheel/index.html Mosek
 ENV MOSEKLM_LICENSE_FILE=/home/$UNAME/mounted_volume/mosek/mosek.lic
 
