@@ -52,3 +52,6 @@ Repository = "https://github.com/LiamMcAllisterGroup/cytools"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cytools"]
+
+[tool.hatch.build.targets.sdist]
+packages = ["src/cytools"]
