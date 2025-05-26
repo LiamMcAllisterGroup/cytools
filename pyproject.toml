@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cytools"
-version = "1.2.6"
+version = "1.2.7"
 description = "A software package for analyzing Calabi-Yau hypersurfaces in toric varieties."
 readme = "README.md"
 license = {file = "LICENSE"}
