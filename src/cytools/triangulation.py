@@ -1157,7 +1157,7 @@ class Triangulation:
         Check if the heights uniquely define a triangulation. That is, if they
         do not lie on a wall of the generated secondary cone.
 
-        If heights don't uniquely correspond to a trinagulation, delete the
+        If heights don't uniquely correspond to a triangulation, delete the
         heights so they are re-calculated (keep triangulation, though...)
 
         **Arguments:**
@@ -2764,7 +2764,7 @@ def random_triangulations_fast_generator(
     - `N`: Number of desired unique triangulations. If not specified, it will
         generate as many triangulations as it can find until it has to retry
         more than max_retries times to obtain a new triangulation.
-    - `c`: A contant used as the standard deviation of the Gaussian
+    - `c`: A constant used as the standard deviation of the Gaussian
         distribution used to pick the heights. A larger c results in a wider
         range of possible triangulations, but with a larger fraction of them
         being non-fine, which slows down the process when using only_fine=True.
@@ -2786,7 +2786,7 @@ def random_triangulations_fast_generator(
     **Example:**
     This function is not intended to be directly used, but it is used in the
     following example. We construct a polytope and find some random
-    triangulations. The triangulations are obtained very quicly, but they are
+    triangulations. The triangulations are obtained very quickly, but they are
     not a fair sample of the space of triangulations. For a fair sample, the
     [`random_triangulations_fair`](./polytope#random_triangulations_fair)
     function should be used.

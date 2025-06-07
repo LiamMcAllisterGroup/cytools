@@ -988,7 +988,7 @@ class CalabiYau:
         - `include_origin` *(bool, optional, default=True)*: Whether to include
             the origin in the indexing of the vector, or in the basis matrix.
         - `as_matrix` *(bool, optional, default=False)*: Indicates whether to
-            return the basis as a matrix intead of a list of indices of prime
+            return the basis as a matrix instead of a list of indices of prime
             toric divisors. Note that if a matrix basis was specified, then it
             will always be returned as a matrix.
 
@@ -1095,7 +1095,7 @@ class CalabiYau:
         - `include_origin` *(bool, optional, default=True)*: Whether to include
             the origin in the indexing of the vector, or in the basis matrix.
         - `as_matrix` *(bool, optional, default=False)*: Indicates whether to
-            return the basis as a matrix intead of a list of indices of prime
+            return the basis as a matrix instead of a list of indices of prime
             toric divisors. Note that if a matrix basis was specified, then it
             will always be returned as a matrix.
 

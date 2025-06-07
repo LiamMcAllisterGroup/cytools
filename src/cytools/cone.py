@@ -1848,7 +1848,7 @@ def feasibility(
     else:
         hp_iter = lambda hp: hp.items()
 
-    # accomodate trivial hyperplanes
+    # accommodate trivial hyperplanes
     if len(hyperplanes) == 0:
         return np.ones(ambient_dim)
 

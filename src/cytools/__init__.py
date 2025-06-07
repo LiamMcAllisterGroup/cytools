@@ -29,7 +29,7 @@ def check_for_updates():
     """
     **Description:**
     Checks for updates of CYTools. It prints a message if a new version is
-    avaiable, and displays a warning if the current version has a serious bug.
+    available, and displays a warning if the current version has a serious bug.
 
     **Arguments:**
     None.

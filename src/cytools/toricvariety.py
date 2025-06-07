@@ -546,7 +546,7 @@ class ToricVariety:
         - `include_origin` *(bool, optional, default=True)*: Whether to include
             the origin in the indexing of the vector, or in the basis matrix.
         - `as_matrix` *(bool, optional, default=False)*: Indicates whether to
-            return the basis as a matrix intead of a list of indices of prime
+            return the basis as a matrix instead of a list of indices of prime
             toric divisors. Note that if a matrix basis was specified, then it
             will always be returned as a matrix.
 
@@ -657,7 +657,7 @@ class ToricVariety:
         - `include_origin` *(bool, optional, default=True)*: Whether to include
             the origin in the indexing of the vector, or in the basis matrix.
         - `as_matrix` *(bool, optional, default=False)*: Indicates whether to
-            return the basis as a matrix intead of a list of indices of prime
+            return the basis as a matrix instead of a list of indices of prime
             toric divisors. Note that if a matrix basis was specified, then it
             will always be returned as a matrix.
 
@@ -1081,7 +1081,7 @@ class ToricVariety:
 
         linear_relations = self.glsm_linear_relations(include_origin=False)
 
-        # First compute the distict intersection numbers
+        # First compute the distinct intersection numbers
         distintnum_array = sorted(
             [
                 [c for c in simp if c != 0]
@@ -1230,7 +1230,7 @@ class ToricVariety:
         pts_ext[:, :-1] = self.triangulation().points()
         pts_ext[:, -1] = 1
         linear_relations = self.glsm_linear_relations(include_origin=False)
-        # First compute the distict intersection numbers
+        # First compute the distinct intersection numbers
         distintnum_array = sorted(
             [
                 [c for c in simp if c != 0]
