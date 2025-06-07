@@ -49,7 +49,7 @@ from cytools.utils import (
 
 
 class CalabiYau:
-    """
+    r"""
     This class handles various computations relating to the Calabi-Yau manifold
     itself. It can be used to compute intersection numbers and the toric Mori
     and Kähler cones, among other things.
@@ -102,7 +102,7 @@ class CalabiYau:
     """
 
     def __init__(self, toric_var, nef_partition=None):
-        """
+        r"""
         **Description:**
         Initializes a `CalabiYau` object.
 
@@ -1873,7 +1873,7 @@ class CalabiYau:
         return c.rays().dot(tloc)
 
     def compute_kappa_matrix(self, tloc):
-        """
+        r"""
         **Description:**
         Computes the matrix $\kappa_{ijk}t^k$ at a location in the Kähler cone.
 
@@ -1936,7 +1936,7 @@ class CalabiYau:
     compute_AA = compute_kappa_matrix
 
     def compute_kappa_vector(self, tloc):
-        """
+        r"""
         **Description:**
         Computes the vector $\kappa_{ijk} t^j t^k$ at a location in the Kähler
         cone.

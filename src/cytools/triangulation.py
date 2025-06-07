@@ -2229,7 +2229,7 @@ class Triangulation:
     # misc
     # ====
     def gkz_phi(self) -> np.ndarray:
-        """
+        r"""
         **Description:**
         Returns the GKZ phi vector of the triangulation. The $i$-th component is
         defined to be the sum of the volumes of the simplices that have the
@@ -2867,7 +2867,7 @@ def random_triangulations_fair_generator(
     backend: str = "cgal",
     seed: int = None,
 ) -> "generator[Triangulation]":
-    """
+    r"""
     **Description:**
     Constructs pseudorandom regular (optionally star) triangulations of a given
     point set. Implements Algorithm \#3 from the paper

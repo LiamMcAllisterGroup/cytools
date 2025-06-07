@@ -49,7 +49,7 @@ from cytools.utils import (
 
 
 class ToricVariety:
-    """
+    r"""
     This class handles various computations relating to toric varieties. It can
     be used to compute intersection numbers and the Kähler cone, among other
     things.
@@ -95,7 +95,7 @@ class ToricVariety:
     """
 
     def __init__(self, triang):
-        """
+        r"""
         **Description:**
         Initializes a `ToricVariety` object.
 

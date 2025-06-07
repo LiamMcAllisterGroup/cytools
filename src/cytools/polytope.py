@@ -624,7 +624,7 @@ class Polytope:
         return self._labels_not_facet
 
     def inequalities(self) -> np.ndarray:
-        """
+        r"""
         **Description:**
         Returns the inequalities giving the hyperplane representation of the
         polytope. The inequalities are given in the form
@@ -1425,7 +1425,7 @@ class Polytope:
     # H-rep, dual
     # ===========
     def dual_polytope(self) -> "Polytope":
-        """
+        r"""
         **Description:**
         Returns the dual polytope (also called polar polytope).  Only lattice
         polytopes are currently supported, so only duals of reflexive polytopes
@@ -1525,7 +1525,7 @@ class Polytope:
         action: str = "right",
         as_dictionary: bool = False,
     ) -> "np.ndarray | dict":
-        """
+        r"""
         **Description:**
         Returns the $SL^{\pm}(d,\mathbb{Z})$ matrices that leave the polytope
         invariant. These matrices act on the points by multiplication on the
@@ -1695,7 +1695,7 @@ class Polytope:
     def normal_form(
         self, affine_transform: bool = False, backend: str = "palp"
     ) -> np.ndarray:
-        """
+        r"""
         **Description:**
         Returns the normal form of the polytope as defined by Kreuzer-Skarke.
 
@@ -2043,7 +2043,7 @@ class Polytope:
         return np.array(self._normal_form[args_id])
 
     def is_linearly_equivalent(self, other: "Polytope", backend: str = "palp") -> bool:
-        """
+        r"""
         **Description:**
         Returns True if the polytopes can be transformed into each other by an
         $SL^{\pm}(d,\mathbb{Z})$ transformation.
@@ -2446,7 +2446,7 @@ class Polytope:
         progress_bar: bool = True,
         seed: int = None,
     ) -> "generator | list":
-        """
+        r"""
         **Description:**
         Constructs pseudorandom regular (optionally star) triangulations of a
         given point set. Implements Algorithm \#3 from the paper
