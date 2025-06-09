@@ -90,6 +90,7 @@ class HPolytope(polytope.Polytope):
         Nothing.
         """
         # save inputs
+        ineqs = np.array(ineqs)
         self._ineqs = ineqs.copy()
 
         # compute the vertices
@@ -182,7 +183,7 @@ def poly_h_to_v(hypers: "ArrayLike", verbosity: int = 0) -> ("ArrayLike", None):
 
     # insert points to generator system
     for linexp in hypers[:,:-1]@vrs + hypers[:,-1]:
-        cs.insert(linexp)
+        cs.insert(linexp >= 0)
         #cs.insert(sum(c[i] * vrs[i] for i in range(dim)) + c[-1] >= 0)
 
     # find polytope, vertices
