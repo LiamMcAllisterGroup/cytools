@@ -52,7 +52,7 @@ class HPolytope(polytope.Polytope):
     **Arguments:**
     - `ineqs`: The defining hyperplane inequalities. Of the form c, a
         matrix, such that each row, c[i], corresponds to an inequality:
-            c[i][0]*x_0 + ... + c[0][dim-1]*x_{dim-1} + c[0][dim] >= 0
+            c[i][0]*x_0 + ... + c[i][dim-1]*x_{dim-1} + c[i][dim] >= 0
         If the corresponding vertices are rational, then convex hull of the
         contained lattice points will be stored.
     - `dilate`: Whether to dilate the rational polytope into a normally
@@ -109,6 +109,12 @@ class HPolytope(polytope.Polytope):
             # more complicated hyperplanes were input. Use dedicated function
             # (could likely be mapped to poly_v_to_h. Worry about rational inputs)
             self._real_vertices, _ = poly_h_to_v(self._ineqs, verbosity=verbosity)
+
+        # raise error if ineqs are not feasible
+        if len(self._real_vertices) == 0:
+            raise ValueError("Inequalities are not feasible.")
+        elif len(self._real_vertices) == 1:
+            raise ValueError("CYTools doesn't support 0D polytopes.")
 
         # convert this into a lattice polytope
         if self._real_vertices.dtype == int:
