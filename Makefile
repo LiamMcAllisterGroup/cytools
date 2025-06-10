@@ -134,4 +134,5 @@ uninstall: check-not-root-user
 
 # Test the application
 test: check-not-root-user
-	sudo docker run --rm -it cytools:uid-$(USERID) bash -c "cd /opt/cytools/unittests/; bash /opt/cytools/unittests/run_tests.sh"
+	sudo docker run --rm -it -v $(PWD):/home/cytools/mounted_volume cytools:uid-$(USERID) \
+	    bash -c "pwd; pip install pytest; pytest -vv"
