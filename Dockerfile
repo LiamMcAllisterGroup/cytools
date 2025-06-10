@@ -58,6 +58,7 @@ RUN apt-get -yqq install autoconf build-essential nano cmake libgmp-dev libcgal-
                          libc6 libcdd0d libgmp10 libgmpxx4ldbl libstdc++6 palp\
                          wget libmath-libm-perl normaliz libqsopt-ex2
 RUN apt-get -yqq install nodejs
+RUN apt-get -yqq install lrslib libcdd-dev
 
 # Install Macaulay2 (optional)
 RUN if [ "$INSTALL_M2" = "1" ]; then \
