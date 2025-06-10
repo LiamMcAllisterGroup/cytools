@@ -279,7 +279,7 @@ def to_sparse(
     # map to numpy array
     arr = np.asarray(arr)
 
-    # form emptry sparse matrix with appropriate dimensions
+    # form empty sparse matrix with appropriate dimensions
     sp_mat = sp.dok_matrix(tuple(1 + arr.max(axis=0)[:2]))
 
     # fill in matrix
@@ -834,7 +834,7 @@ def set_curve_basis(
     advanced example involving generic bases these two functions differ. An
     example can be found in the [experimental features](./experimental) section.
     """
-    self = tv_or_cy  # More conveninent to work with
+    self = tv_or_cy  # More convenient to work with
 
     # parse basis
     b = np.array(basis, dtype=int)

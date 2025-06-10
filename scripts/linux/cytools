@@ -206,5 +206,5 @@ else
   echo
 fi
 
-# We attach the cytools contaier so that we can see the output and close it when we want to
+# We attach the cytools container so that we can see the output and close it when we want to
 sudo docker attach cytools-uid-${userid}

@@ -419,7 +419,7 @@ class Polytope:
         p = Polytope([[-1,-1,-1,-1,-1],[3611,-1,-1,-1,-1],[-1,42,-1,-1,-1],[-1,-1,6,-1,-1],[-1,-1,-1,2,-1],[-1,-1,-1,-1,1]])
         pts = p.points() # Takes a few seconds
         pts = p.points() # It runs instantly because the result is cached
-        p.clear_cache() # Clears the results of any previos computation
+        p.clear_cache() # Clears the results of any previous computation
         pts = p.points() # Again it takes a few seconds since the cache was cleared
         ```
         """
@@ -624,7 +624,7 @@ class Polytope:
         return self._labels_not_facet
 
     def inequalities(self) -> np.ndarray:
-        """
+        r"""
         **Description:**
         Returns the inequalities giving the hyperplane representation of the
         polytope. The inequalities are given in the form
@@ -1215,7 +1215,7 @@ class Polytope:
             self._faces = tuple(self._faces)
 
         elif self.dim() == 4:
-            # can use otpimized method for 4d polytopes
+            # can use optimized method for 4d polytopes
             self._faces = self._faces4d()
 
         # return, if we just figured it out
@@ -1425,7 +1425,7 @@ class Polytope:
     # H-rep, dual
     # ===========
     def dual_polytope(self) -> "Polytope":
-        """
+        r"""
         **Description:**
         Returns the dual polytope (also called polar polytope).  Only lattice
         polytopes are currently supported, so only duals of reflexive polytopes
@@ -1525,7 +1525,7 @@ class Polytope:
         action: str = "right",
         as_dictionary: bool = False,
     ) -> "np.ndarray | dict":
-        """
+        r"""
         **Description:**
         Returns the $SL^{\pm}(d,\mathbb{Z})$ matrices that leave the polytope
         invariant. These matrices act on the points by multiplication on the
@@ -1695,7 +1695,7 @@ class Polytope:
     def normal_form(
         self, affine_transform: bool = False, backend: str = "palp"
     ) -> np.ndarray:
-        """
+        r"""
         **Description:**
         Returns the normal form of the polytope as defined by Kreuzer-Skarke.
 
@@ -2043,7 +2043,7 @@ class Polytope:
         return np.array(self._normal_form[args_id])
 
     def is_linearly_equivalent(self, other: "Polytope", backend: str = "palp") -> bool:
-        """
+        r"""
         **Description:**
         Returns True if the polytopes can be transformed into each other by an
         $SL^{\pm}(d,\mathbb{Z})$ transformation.
@@ -2335,7 +2335,7 @@ class Polytope:
             will generate as many triangulations as it can find until it has to
             retry more than `max_retries` times to obtain a new triangulation.
             This parameter is required when setting `as_list` to True.
-        - `c`: A contant used as the standard deviation of the Gaussian
+        - `c`: A constant used as the standard deviation of the Gaussian
             distribution used to pick the heights. A larger `c` results in a
             wider range of possible triangulations, but with a larger fraction
             of them being non-fine, which slows down the process when
@@ -2369,7 +2369,7 @@ class Polytope:
 
         **Example:**
         We construct a polytope and find some random triangulations. The
-        triangulations are obtained very quicly, but they are not a fair sample
+        triangulations are obtained very quickly, but they are not a fair sample
         of the space of triangulations. For a fair sample, the
         [`random_triangulations_fair`](#random_triangulations_fair) function
         should be used.
@@ -2446,7 +2446,7 @@ class Polytope:
         progress_bar: bool = True,
         seed: int = None,
     ) -> "generator | list":
-        """
+        r"""
         **Description:**
         Constructs pseudorandom regular (optionally star) triangulations of a
         given point set. Implements Algorithm \#3 from the paper
@@ -3416,7 +3416,7 @@ class Polytope:
         # 6
         ```
         """
-        # calculate teh answer if not known
+        # calculate the answer if not known
         if self._volume is None:
             if self.dim() == 0:
                 self._volume = 0
