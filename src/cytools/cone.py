@@ -909,7 +909,7 @@ class Cone:
         show_hints=True,
         verbose=False,
     ):
-        """
+        r"""
         **Description:**
         Finds the tip of the stretched cone. The stretched cone is defined as
         the convex polyhedral region inside the cone that is at least a
@@ -1072,7 +1072,7 @@ class Cone:
         return solution
 
     def find_grading_vector(self, backend=None):
-        """
+        r"""
         **Description:**
         Finds a grading vector for the cone, i.e. a vector $\mathbf{v}$ such
         that any non-zero point in the cone $\mathbf{p}$ has a positive dot
@@ -1110,7 +1110,7 @@ class Cone:
         show_hints=False,
         verbose=False,
     ):
-        """
+        r"""
         **Description:**
         Finds a point in the strict interior of the cone. If no point is found
         then None is returned.
@@ -1848,7 +1848,7 @@ def feasibility(
     else:
         hp_iter = lambda hp: hp.items()
 
-    # accomodate trivial hyperplanes
+    # accommodate trivial hyperplanes
     if len(hyperplanes) == 0:
         return np.ones(ambient_dim)
 

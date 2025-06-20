@@ -59,7 +59,7 @@ class PolytopeFace:
 
     **Example:**
     Since objects of this class should not be directly created by the end user,
-    we demostrate how to construct these objects using the
+    we demonstrate how to construct these objects using the
     [`faces`](./polytope#faces) function of the [`Polytope`](./polytope) class.
     ```python {3}
     from cytools import Polytope
@@ -167,7 +167,7 @@ class PolytopeFace:
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
         f = p.faces(3)[0] # Pick one of the 3-faces
         pts = f.points() # Find the lattice points
-        f.clear_cache() # Clears the results of any previos computation
+        f.clear_cache() # Clears the results of any previous computation
         pts = f.points() # Find the lattice points again
         ```
         """
@@ -380,7 +380,7 @@ class PolytopeFace:
             if not set(which).issubset(self.labels):
                 raise ValueError(
                     f"Specified labels ({which}) aren't subset "
-                    f"of the face lables ({self.labels})..."
+                    f"of the face labels ({self.labels})..."
                 )
 
         # return

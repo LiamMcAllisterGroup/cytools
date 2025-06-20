@@ -12,7 +12,7 @@ ARG PORT_ARG
 ENV ALLOW_ROOT=$ALLOW_ROOT_ARG
 ENV PORT=$PORT_ARG
 
-# Arguments for optinal packages
+# Arguments for optional packages
 ARG OPTIONAL_PKGS=0
 ARG INSTALL_M2=0
 ARG INSTALL_SAGE=0
