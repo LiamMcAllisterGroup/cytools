@@ -1,0 +1,36 @@
+name: Build and test
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+      - name: Save user id
+        run: echo "USERID=$(id -u)" >> $GITHUB_ENV
+      - name: Build Docker image
+        run: make build
+      - name: Run tests in Docker container
+        uses: addnab/docker-run-action@v3
+        with:
+          image: cytools:uid-${{ env.USERID }}
+          shell: bash
+          options: >
+            -v ${{ github.workspace }}:/home/cytools/cytools
+            -w /home/cytools/cytools
+          run: |
+            . ../cytools-venv/bin/activate
+            pip install pytest
+            pytest -vv tests

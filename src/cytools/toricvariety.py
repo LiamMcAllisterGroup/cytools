@@ -267,7 +267,7 @@ class ToricVariety:
         """
         if not isinstance(other, ToricVariety):
             return NotImplemented
-        return self.triangulation() == self.triangulation()
+        return self.triangulation() == other.triangulation()
 
     def __ne__(self, other):
         """
@@ -1935,7 +1935,7 @@ class ToricVariety:
             # check that we have sensical points
             triang = self.triangulation()
             poly   = triang.polytope()
-            
+
             if sorted(triang.labels) == sorted(poly.labels_not_facet):
                 pass
             elif sorted(triang.labels) == sorted(poly.labels):
@@ -1945,8 +1945,8 @@ class ToricVariety:
                 error_msg += f"Triangulation points = {triang.points().tolist()} (labels = {triang.labels})\n"
                 error_msg += f"Polytope points = {poly.points().tolist()} (labels = {poly.labels})\n"
                 raise ValueError(error_msg)
-            
+
             self._cy = CalabiYau(self)
             self._nef_part = nef_partition
-                
+
         return self._cy
