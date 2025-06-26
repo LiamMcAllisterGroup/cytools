@@ -1189,6 +1189,7 @@ def fetch_polytopes(
     backend: str = None,
     dualize: bool = False,
     favorable: bool = None,
+    verbosity: int = 0,
 ) -> 'Generator["Polytope", None, None] | list["Polytope"]':
     """
     **Description:**
@@ -1237,6 +1238,7 @@ def fetch_polytopes(
     - `favorable`: Yield or return only polytopes that are favorable when set
         to True, or non-favorable when set to False. If not specified then it
         yields both favorable and non-favorable polytopes.
+    - `verbostiy`: The verbosity level.
 
     **Returns:**
     A generator of [`Polytope`](./polytope) objects, or the full list when
@@ -1371,6 +1373,10 @@ def fetch_polytopes(
         url += ".txt"
 
         r = requests.get(url, timeout=timeout)
+
+    # verbosity
+    if verbosity >= 1:
+        print(f"Fetched from URL = '{r.url}'...")
 
     # return the generator based off of output of request
     return read_polytopes(
