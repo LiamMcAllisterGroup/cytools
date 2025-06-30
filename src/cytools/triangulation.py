@@ -1324,6 +1324,7 @@ class Triangulation:
         - `restrict_dim`: If restrict_to is None, sets the dimension of the
             faces to restrict to. *** Only used if restrict_to == None. ***
         - `as_poly`: Construct the formal Triangulation objects.
+        - `verbosity`: The verbosity level.
 
         **Returns:**
         The restrictions
