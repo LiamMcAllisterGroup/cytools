@@ -1359,6 +1359,7 @@ class Triangulation:
         # find restriction of simplices to our faces
         for simp in self.simplices():
             restricted = label_set.intersection(simp)
+            restricted = sorted(restricted)
 
             if len(restricted) == (dim + 1):
                 # full dimension restriction
