@@ -124,6 +124,7 @@ ENV CVXOPT_SUITESPARSE_INC_DIR=/usr/include/suitesparse
 WORKDIR /opt/cytools/
 COPY ./requirements.txt /opt/cytools/requirements.txt
 COPY ./c.txt /opt/cytools/c.txt
+RUN python3 -m pip install --upgrade pip
 RUN pip3 install Cython==0.29.34
 RUN PIP_CONSTRAINT=c.txt pip3 install -r requirements.txt
 RUN pip3 install python-flint==0.7.1
