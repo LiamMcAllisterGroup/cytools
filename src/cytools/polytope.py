@@ -1218,6 +1218,12 @@ class Polytope:
             # can use optimized method for 4d polytopes
             self._faces = self._faces4d()
 
+            # sort each collection of faces lexicographically by their used labels
+            self._faces = list(self._faces)
+            for i in range(len(self._faces)):
+                self._faces[i] = tuple(sorted(self._faces[i], key= lambda f:f.labels))
+            self._faces = tuple(self._faces)
+
         # return, if we just figured it out
         if self._faces is not None:
             return self.faces(d)
@@ -1294,6 +1300,13 @@ class Polytope:
 
         # reverse order (to increasing with dimension)
         self._faces = tuple(tuple(ff) for ff in self._faces[::-1])
+
+        # sort each collection of faces lexicographically by their used labels
+        self._faces = list(self._faces)
+        for i in range(len(self._faces)):
+            self._faces[i] = tuple(sorted(self._faces[i], key= lambda f:f.labels))
+        self._faces = tuple(self._faces)
+
         return self.faces(d)
 
     def _faces4d(self) -> tuple:

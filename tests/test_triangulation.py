@@ -33,7 +33,7 @@ def test_automorphism_orbit():
     assert len(orbit_all_autos_2faces) == 36
 
     orbit_sixth_auto = t.automorphism_orbit(automorphism=5)
-    assert len(orbit_sixth_auto) == 2
+    assert len(orbit_sixth_auto) == 3
 
     orbit_list_autos = t.automorphism_orbit(automorphism=[5, 6, 9])
     assert len(orbit_list_autos) == 12

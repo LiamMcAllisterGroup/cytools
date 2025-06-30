@@ -65,7 +65,7 @@ def test_interior_points():
     p = Polytope(
         [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -6, -9]]
     )
-    f = p.faces(3)[2]
+    f = p.faces(3)[3]
     assert len(f.interior_points()) == 2
 
 
