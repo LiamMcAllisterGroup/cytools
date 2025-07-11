@@ -108,16 +108,16 @@ class Cone:
         Initializes a `Cone` object.
 
         **Arguments:**
-        - `rays` *(array_like, optional)*: A list of rays that generates the
-            cone. If it is not specified then the hyperplane normals must be
-            specified.
-        - `hyperplanes` *(array_like, optional)*: A list of inward-pointing
-            hyperplane normals that define the cone. If it is not specified then
-            the generating rays must be specified.
-        - `check` *(bool, optional, default=True)*: Whether to check the input.
-            Recommended if constructing a cone directly.
-        - `copy` *(bool, optional, default=True)*: Whether to ensure we copy
-            the input rays/hyperplanes. Recommended.
+        - `rays`: A list of rays that generates the cone. If it is not
+            specified then the hyperplane normals must be specified.
+        - `hyperplanes`: A list of inward-pointing hyperplane normals that
+            define the cone. If it is not specified then the generating rays
+            must be specified.
+        - `check`: Whether to check the input. Recommended if constructing a
+            cone directly.
+        - `copy`: Whether to ensure we copy the input rays/hyperplanes.
+            ecommended.
+        - `ambient_dim`: The ambient dimension of the cone, if not inferrable.
 
         :::note
         Exactly one of `rays` or `hyperplanes` must be specified. Otherwise, an
@@ -146,19 +146,30 @@ class Cone:
                 'Exactly one of "rays" and "hyperplanes" ' "must be specified."
             )
 
-        # if empty hyperplanes were input, define the trivial cone R^ambient_dim
+        # parse empty hyperplanes
         if (rays is None) and (len(hyperplanes) == 0):
-            if ambient_dim is None:
-                raise ValueError(
-                    "Ambient dimension must specified if len(hyperplanes) = 0."
-                )
 
+            # check if ambient dim is inferrable from hyperplanes
+            if (len(hyperplanes.shape)>1) and (hyperplanes.shape[1]!=0):
+                # yes inferrable - ensure no conflicts in specification
+                if (ambient_dim is not None) and (ambient_dim != hyperplanes.shape[1]):
+                    raise ValueError(f"Specified ambient dim = {ambient_dim} doesn't match inferrable shape from hyperplanes = {hyperplanes.shape[1]}...")
+
+                ambient_dim = hyperplanes.shape[1]
+            else:
+                if ambient_dim is None:
+                    raise ValueError(
+                        "Must specify ambient dimension if len(hyperplanes)=0."
+                    )
+
+            # move to a ray representation
             hyperplanes = None
             rays = []
             for i in range(ambient_dim):
                 # add e_i and -e_i
                 rays.append([int(i==j) for j in range(ambient_dim)])
                 rays.append([-int(i==j) for j in range(ambient_dim)])
+
 
         # minimal work if we don't parse the data
         if not parse_inputs:
