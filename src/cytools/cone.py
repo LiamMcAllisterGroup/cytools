@@ -1685,7 +1685,7 @@ class Cone:
         proj_name = "cytools_" + "".join(random.choice(letters) for i in range(10))
 
         rays = self.rays()
-        with open(f"/dev/shm/{proj_name}.in", "w+") as f:
+        with open(f"/tmp/{proj_name}.in", "w+") as f:
             f.write(f"amb_space {rays.shape[1]}\ncone {rays.shape[0]}\n")
             f.write(
                 str(rays.tolist())
@@ -1697,17 +1697,17 @@ class Cone:
             )
 
         normaliz = subprocess.Popen(
-            ("normaliz", f"/dev/shm/{proj_name}.in"),
+            ("normaliz", f"/tmp/{proj_name}.in"),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             universal_newlines=True,
         )
         normaliz_out = normaliz.communicate()
-        with open(f"/dev/shm/{proj_name}.out", "r") as f:
+        with open(f"/tmp/{proj_name}.out", "r") as f:
             data = f.readlines()
-        os.remove(f"/dev/shm/{proj_name}.in")
-        os.remove(f"/dev/shm/{proj_name}.out")
+        os.remove(f"/tmp/{proj_name}.in")
+        os.remove(f"/tmp/{proj_name}.out")
         rays = []
         found_stars = False
         l_n = 0
