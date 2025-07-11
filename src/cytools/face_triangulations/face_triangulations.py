@@ -15,7 +15,7 @@
 # =============================================================================
 #
 # -----------------------------------------------------------------------------
-# Description:  Methods for sampling 2D triangulations.
+# Description:  Methods for generating/sampling face triangulations
 # -----------------------------------------------------------------------------
 
 # 'standard' imports

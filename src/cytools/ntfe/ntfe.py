@@ -41,6 +41,7 @@ from cytools.polytope import Polytope
 from cytools.polytopeface import PolytopeFace
 from cytools.triangulation import Triangulation
 from cytools.helpers import basic_geometry, matrix, misc
+from cytools import face_triangulations
 
 # typing
 from numpy.typing import ArrayLike

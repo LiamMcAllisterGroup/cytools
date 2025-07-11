@@ -14,4 +14,4 @@
 # CYTools. If not, see <https://www.gnu.org/licenses/>.
 # =============================================================================
 
-from cytools.ntfe.ntfe import *
+from cytools.face_triangulations.face_triangulations import *
