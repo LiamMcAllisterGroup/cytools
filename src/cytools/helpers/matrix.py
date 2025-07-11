@@ -160,7 +160,7 @@ class LIL:
         return np.array(self.dense(), dtype=dtype)
 
     @property
-    def shape(self) -> tuple(int):
+    def shape(self) -> tuple[int]:
         return (len(self), self.width)
 
     def __add__(self, other: "LIL") -> "LIL":

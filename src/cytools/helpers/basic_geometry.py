@@ -19,6 +19,7 @@
 # -----------------------------------------------------------------------------
 
 # typing
+import math
 from numpy.typing import ArrayLike
 
 
@@ -39,7 +40,6 @@ def ccw(A: list, B: list, C: list) -> bool:
 
     **Example:**
     ```python {3}
-    from lib.geom.elementary import ccw
     ccw([0,0],[1,1],[2,1])
     # False
     ccw([0,0],[2,1],[1,1])
@@ -66,7 +66,6 @@ def is_primitive(pt: list) -> bool:
 
     **Example:**
     ```python {3}
-    from lib.geom.elementary import is_primitive
     is_primitive([1,3])
     # True
     is_primitive([2,2])
@@ -92,12 +91,11 @@ def triangle_area_2x(pts: "ArrayLike") -> float:
 
     **Example:**
     ```python {3}
-    from lib.geom.elementary import triangle_area_2x
     triangle_area_2x([[0,0],[0,1],[1,0]])
     # 1
     triangle_area_2x([[0,0],[0,1],[1.5,0]])
     # 1.5
-    elem.triangle_area_2x([[0,1],[1,1],[2,1]])
+    triangle_area_2x([[0,1],[1,1],[2,1]])
     # 0
     ```
     """
