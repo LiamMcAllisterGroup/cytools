@@ -317,9 +317,17 @@ def _2d_frt_subfan_ineqs(self, ambient_dim: int) -> matrix.LIL:
         elif area_2x == 3:
             # either (N_bdry,N_int)=(3,1) or (N_bdry,N_int)=(5,0)
             if (
-                (not basic_geometry.is_fund(pts_triple[1] - pts_triple[0]))
-                or (not basic_geometry.is_fund(pts_triple[2] - pts_triple[0]))
-                or (not basic_geometry.is_fund(pts_triple[2] - pts_triple[1]))
+                (not basic_geometry.is_primitive(pts_triple[1] - pts_triple[0]))
+                or (
+                    not basic_geometry.is_primitive(
+                        pts_triple[2] - pts_triple[0]
+                    )
+                )
+                or (
+                    not basic_geometry.is_primitive(
+                        pts_triple[2] - pts_triple[1]
+                    )
+                )
             ):
                 continue  # bad case, (N_bdry,N_int)=(5,0)
 
@@ -349,7 +357,6 @@ def cone_of_permissible_heights(
     require_star: bool = False,
     no_duplicates: bool = True,
     as_cone: bool = True,
-    nworkers: int = 1,
 ) -> "matrix.LIL | Cone":
     """
     **Description:**
@@ -365,6 +372,7 @@ def cone_of_permissible_heights(
     - `triangs` The triangulation(s) for the specified 2-face(s).
     - `npts`: The number of points in the 4D polytope. Defines the ambient
         dimension of the cone.
+    - `poly`: The ambient polyope. Used only if require_star=True.
     - `require_star`: Whether to calculate the extra hyperplanes which enforce
         starness of the resultant triangulation. Usually NOT RECOMMENDED, as
         triangulations can be modified to become star simply by lowering the
@@ -374,15 +382,13 @@ def cone_of_permissible_heights(
         recommended, given that it's typically more efficient to just allow
         explicit redundancies.
     - `as_cone`: Whether to return a formal Cone object.
-    - `nworkers`: Number of processors to use. If None or <=1, then runs
-        sequentially.
 
     **Returns:**
     The expanded secondary cone, either as hyperplanes or as a formal Cone
     object.
     """
     # the output variable (doesn't need to be LIL object, but that is nice...)
-    ineqs = matrix.LIL(dtype=np.int8, width=npts, nworkers=nworkers)
+    ineqs = matrix.LIL(dtype=np.int8, width=npts)
 
     # iterate over face triangulations
     for face_triang in triangs:
@@ -400,7 +406,7 @@ def cone_of_permissible_heights(
         ineqs.append(face_ineqs, tocopy=False)
 
     if no_duplicates:
-        ineqs.unique_rows(allow_shuffle=True)
+        ineqs.unique_rows()
 
     if as_cone:
         return Cone(hyperplanes=ineqs, ambient_dim=npts, parse_inputs=False)
@@ -443,13 +449,14 @@ def expanded_secondary_fan(
         ineqs.append(f._2d_frt_subfan_ineqs(ambient_dim), tocopy=False)
 
     if no_duplicates:
-        ineqs.unique_rows(allow_shuffle=True)
+        ineqs.unique_rows()
     if as_cone:
         return Cone(hyperplanes=ineqs, ambient_dim=ambient_dim)
     else:
         return ineqs
 
 
+Polytope.expanded_secondary_fan = expanded_secondary_fan
 Polytope.gerald = expanded_secondary_fan
 
 
@@ -459,7 +466,7 @@ def triangfaces_to_frt(
     self,
     triangs: [Triangulation],
     make_star: bool = False,
-    check_heights: bool = True,
+    check_heights: bool = False,
     backend: str = None,
     verbosity: int = 0,
 ) -> Triangulation:
@@ -490,10 +497,9 @@ def triangfaces_to_frt(
     """
     npts = len(self.labels)
 
-    ineqs = cone_of_permissible_heights(
+    c = cone_of_permissible_heights(
         triangs, poly=self, npts=npts, no_duplicates=False
     )
-    c = Cone(hyperplanes=ineqs, ambient_dim=npts)
     h = c.find_interior_point(backend=backend, verbose=verbosity > 1)
 
     if h is None:
@@ -515,7 +521,7 @@ Polytope.triangfaces_to_frt = triangfaces_to_frt
 def triangfaces_to_frst(
     self,
     triangs: [Triangulation],
-    check_heights: bool = True,
+    check_heights: bool = False,
     backend: str = None,
     verbosity: int = 0,
 ) -> Triangulation:

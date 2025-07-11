@@ -24,6 +24,9 @@ import copy
 # 3rd party imports
 import numpy as np
 
+# CYTools imports
+from cytools.helpers import misc
+
 # typing
 from numpy.typing import ArrayLike
 from typing import Callable, Iterator, Union
@@ -371,7 +374,7 @@ class LIL_stack:
         if isinstance(choices, int):
             self._choices = choices
         else:
-            self._choices = to_base10(choices, choice_bounds)
+            self._choices = misc.to_base10(choices, choice_bounds)
         self._choice_bounds = choice_bounds
         self.iter_densely = iter_densely
 
@@ -436,7 +439,7 @@ class LIL_stack:
     # properties
     @property
     def choices(self) -> list[int]:
-        return from_base10(self._choices, self._choice_bounds)
+        return misc.from_base10(self._choices, self._choice_bounds)
 
     @property
     def dtype(self) -> np.dtype:
@@ -548,46 +551,6 @@ class LIL_stack:
 
 # helpers
 # -------
-def to_base10(c: ArrayLike, B: ArrayLike) -> numeric:
-    """
-    **Description:**
-    Converts a number given in components w.r.t. some bases to a number in base
-    10.
-
-    **Arguments:**
-    - `c`: A list of the components.
-    - `B`: A list of the bases.
-
-    **Returns:**
-    The number in base-10
-    """
-    result = 0
-    multiplier = 1
-    for c_i, B_i in zip(reversed(c), reversed(B)):
-        result += int(c_i) * multiplier
-        multiplier *= B_i
-    return result
-
-
-def from_base10(n: numeric, B: ArrayLike) -> list:
-    """
-    **Description:**
-    Split a number in base 10 to components components w.r.t. some bases.
-
-    **Arguments:**
-    - `n`: The number in base 10.
-    - `B`: A list of the bases.
-
-    **Returns:**
-    The components.
-    """
-    c = []
-    for B_i in reversed(B):
-        c.append(n % B_i)
-        n //= B_i
-    return list(reversed(c))
-
-
 def flatten_top(
     arr: ArrayLike, as_list: bool = True, N: int = 1
 ) -> "list or np.array":

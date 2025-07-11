@@ -196,11 +196,23 @@ def grow_ft(
     # get random number generator
     rand_gen = np.random.Generator(np.random.PCG64(seed=seed))
 
+    # dimension checking
+    if self.dim() != 2:
+        raise NotImplementedError
+
+    if self.ambient_dim() != 2:
+        # find a 2D representation
+        if verbosity >= 1:
+            print("grow_frt: Finding a 2D representation!")
+        poly = Polytope(self.points(optimal=True))
+    else:
+        poly = self
+
     # basic point info...
     if verbosity >= 1:
         print(time.perf_counter() - t0, ": Grabbing basic point info...")
 
-    pts, pts_i = self.points(), self.points(as_indices=True)
+    pts, pts_i = poly.points(), poly.points(as_indices=True)
 
     # choose starting simplex
     if verbosity >= 1:
@@ -228,7 +240,7 @@ def grow_ft(
     if bdry is None:
         if verbosity >= 1:
             print(time.perf_counter() - t0, ": Calculating boundary points...")
-        bdry = basic_geometry.get_bdry(self)
+        bdry = basic_geometry.get_bdry(poly)
 
     choosable = edges - bdry
 
@@ -377,7 +389,7 @@ def grow_ft(
     if verbosity >= 1:
         print(time.perf_counter() - t0, ": Done!")
 
-    return self.triangulate(
+    return poly.triangulate(
         simplices=np.asarray(sorted(simps)), check_input_simplices=False
     )
 
@@ -431,7 +443,7 @@ def grow_frt(
         if verbosity >= 1:
             print(f"Attempt #{N_attempt}. Have #{len(frts)} FRTs")
         while True:
-            t = grow_ft(poly=poly, bdry=bdry, seed=seed, verbosity=verbosity)
+            t = poly.grow_ft(bdry=bdry, seed=seed, verbosity=verbosity)
             seed += 1  # update the seed for next time
 
             if t.is_regular(backend=backend):

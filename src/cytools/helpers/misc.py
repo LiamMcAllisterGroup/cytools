@@ -75,10 +75,7 @@ def from_base10(n: int, B: list[int]) -> list[int]:
 # loading/saving zipped pickle files
 # ----------------------------------
 # default directory to save to
-APP_NAME = "CYTools"
-APP_AUTHOR = "CYTools"
-
-cache_dir = user_cache_dir(APP_NAME, APP_AUTHOR)
+cache_dir = user_cache_dir("CYTools", "CYTools")
 os.makedirs(cache_dir, exist_ok=True)
 
 
