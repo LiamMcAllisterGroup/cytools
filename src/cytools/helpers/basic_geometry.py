@@ -18,9 +18,59 @@
 # Description:  This module contains various basic geometry helpers
 # -----------------------------------------------------------------------------
 
+from cytools import Polytope
+from cytools.helpers import matrix
+
 # typing
 import math
 from numpy.typing import ArrayLike
+
+
+def get_bdry(self) -> set:
+    """
+    **Description:**
+    Calculate the boundary edges.
+
+    Currently calculated via stepping through a triangulation. There might be
+    a better way to do this.
+
+    Trivial to generalize to 3+ dimension (get the facets of each simplex,
+    find those only contained in 1 simplex)
+
+    **Arguments:**
+    None
+
+    **Returns:**
+    The boundary edges. Specified as a set of frozensets, each of which
+    contains the labels of the points defining a boundary edge.
+
+    **Example:**
+    ```python {3}
+    from cytools import Polytope
+    import lib.geom.elementary
+    p = Polytope([[0,0],[3,1],[2,2]])
+    p.get_bdry()
+    # {frozenset({2, 4}), frozenset({1, 4}), frozenset({1, 3}), frozenset({2, 3})}
+    ```
+    """
+    simps = self.triangulate().simplices()
+    edges = matrix.flatten_top(
+        [[(s[0], s[1]), (s[0], s[2]), (s[1], s[2])] for s in simps]
+    )
+
+    # organize the edges
+    bdry = set()
+    while len(edges):
+        e = edges.pop()
+        try:
+            edges.pop(edges.index(e))
+        except:
+            bdry.add(frozenset(e))
+
+    return bdry
+
+
+Polytope.get_bdry = get_bdry
 
 
 def ccw(A: list, B: list, C: list) -> bool:
@@ -47,6 +97,46 @@ def ccw(A: list, B: list, C: list) -> bool:
     ```
     """
     return (B[0] - A[0]) * (C[1] - A[1]) > (B[1] - A[1]) * (C[0] - A[0])
+
+
+def intersect(A: list, B: list, C: list, D: list) -> bool:
+    """
+    **Description:**
+    Check if the line segments AB and CD intersect in the strict interior
+    of both segments.
+
+    N.B. Fails if AB is parallel to CD.
+
+    **Arguments:**
+    - `A`: One point
+    - `B`: Another point
+    - `C`: Another point
+    - `D`: The final point
+
+    **Returns:**
+    True iff AB intersects CD. (Fails if AB is parallel to CD).
+
+    **Example:**
+    ```python {3}
+    from lib.geom.elementary import intersect
+    intersect([0,0],[0,1],[0,0],[1,0])
+    # False
+    intersect([0,0],[0,1],[0,0.5],[1,0.5])
+    # False
+    intersect([0,0],[0,1],[-1,0.5],[1,0.5])
+    # True
+    ```
+    """
+    if (
+        (A[0] == C[0] and A[1] == C[1])
+        or (A[0] == D[0] and A[1] == D[1])
+        or (B[0] == C[0] and B[1] == C[1])
+        or (B[0] == D[0] and B[1] == D[1])
+    ):
+        # intersect on end-point -> return False
+        return False
+
+    return (ccw(A, C, D) != ccw(B, C, D)) and (ccw(A, B, C) != ccw(A, B, D))
 
 
 def is_primitive(pt: list) -> bool:
