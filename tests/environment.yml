@@ -3,7 +3,7 @@ channels:
   - conda-forge
 dependencies:
   # CYTools dependencies
-  - python=3.13
+  - python
   - numpy
   - scipy
   - cvxopt
@@ -13,6 +13,7 @@ dependencies:
   - qpsolvers
   - requests
   - osqp
+  - pip
   - pip:
     - ortools
     - triangulumancer
