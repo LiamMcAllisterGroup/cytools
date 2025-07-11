@@ -3793,6 +3793,8 @@ def poly_v_to_h(pts: ArrayLike, backend: str) -> (ArrayLike, None):
             if is_reflexive:
                 col_of_1s = np.ones((ineqs.shape[0], 1), dtype=int)
                 ineqs = np.hstack((ineqs, col_of_1s))
+    else:
+        raise ValueError(f"Unrecognized backend '{backend}'...")
 
     return ineqs, poly
 
