@@ -15,3 +15,4 @@
 # =============================================================================
 
 from cytools.ntfe.ntfe import *
+from cytools.ntfe.sample_2d_triangulations import *
