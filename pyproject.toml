@@ -11,14 +11,21 @@ license = {file = "LICENSE"}
 authors = [
   {name = "Liam McAllister Group", email = ""}
 ]
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 dependencies = [
     "numpy",
     "scipy",
     "cvxopt",
     "python-flint",
     "pplpy",
-    "ortools"
+    "ortools",
+    "triangulumancer",
+    "pypalp",
+    "cygv",
+    "tqdm",
+    "qpsolvers",
+    "requests",
+    "osqp"
 ]
 classifiers = [
   "Development Status :: 5 - Production/Stable",
@@ -30,17 +37,20 @@ classifiers = [
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
-  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: Scientific/Engineering",
   "Topic :: Scientific/Engineering :: Mathematics",
   "Topic :: Scientific/Engineering :: Physics"
 ]
 
 [project.optional-dependencies]
+test = [
+  "pytest"
+]
 mosek = [
   "Mosek"
 ]
