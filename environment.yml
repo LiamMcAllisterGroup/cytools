@@ -1,0 +1,29 @@
+name: cytools
+channels:
+  - conda-forge
+dependencies:
+  # CYTools dependencies
+  - python=3.13
+  - numpy
+  - scipy
+  - cvxopt
+  - python-flint
+  - pplpy
+  - tqdm
+  - qpsolvers
+  - requests
+  - osqp
+  - pip:
+    - ortools
+    - triangulumancer
+    - pypalp
+    - cygv
+    # The actual cytools package
+    - cytools
+    # If you want an editable install, use the line below instead
+    # - -e .
+  # Common useful tools
+  - jupyterlab
+  - matplotlib
+  # Uncomment the following lines for additional tools
+  # - sage
