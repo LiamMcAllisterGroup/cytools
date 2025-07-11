@@ -96,6 +96,8 @@ class HPolytope(polytope.Polytope):
         # compute the vertices
         if np.all(np.abs(self._ineqs[:,-1]-1)<1e-4):
             # constant terms are all =1. Compute Newton polytope
+            if backend is None:
+                backend = 'ppl'
             dual, dual_poly = polytope.poly_v_to_h(self._ineqs[:,:-1], backend=backend)
 
             # check for rays
@@ -199,9 +201,7 @@ def poly_h_to_v(hypers: "ArrayLike", verbosity: int = 0) -> ("ArrayLike", None):
     pts = []
     for pt in poly.minimized_generators():
         if not pt.is_point():
-            if verbosity >= 0:
-                print(f"Error: A generator, {pt}, was not a point...")
-            return
+            raise ValueError(f"A generator, {pt}, was not a point...")
 
         div = int(pt.divisor())
         if div == 1:
