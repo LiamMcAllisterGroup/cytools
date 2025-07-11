@@ -745,7 +745,7 @@ def ntfe_hypers(
         print(f"(there are {math.prod(choices_counts)} total)")
 
     if (N is None) or (N >= math.prod(choices_counts)):
-        if verbosity >= 2:
+        if verbosity >= 1:
             print(
                 f"Calculating all N={math.prod(choices_counts)} "
                 "intersections..."
@@ -755,24 +755,21 @@ def ntfe_hypers(
         # number corresponds to a choice
         chosen = range(math.prod(choices_counts))
     else:
-        if True:
-            # sample cones uniformly on chromosones
-            chosen = set()
+        if verbosity >= 1:
+            print(f"Sampling N={N} intersections...")
 
-            # set the seed
-            if seed is None:
-                seed = time.time_ns() % (2**32)
-            np.random.seed(seed)
+        # sample cones uniformly on chromosones
+        chosen = set()
 
-            # choose the hypers
-            while len(chosen) < N:
-                choice = tuple(np.random.choice(x) for x in choices)
-                chosen.add(choice)
-        else:
-            # ??? I forget what I was trying here
-            chosen = np.random.choice(
-                math.prod(choices_counts), N, replace=False
-            )
+        # set the seed
+        if seed is None:
+            seed = time.time_ns() % (2**32)
+        np.random.seed(seed)
+
+        # choose the hypers
+        while len(chosen) < N:
+            choice = tuple(np.random.choice(x) for x in choices)
+            chosen.add(choice)
 
     # grab/return hyperplanes
     if as_generator:
@@ -867,6 +864,12 @@ def ntfe_cones(
 
     # input checking
     if hypers is None:
+        if verbosity >= 1:
+            print(
+                "Computing hyperplane inequalities associated to 2face "
+                "triangulations"
+            )
+
         # generate the hyperplanes
         hypers = self.ntfe_hypers(
             require_star=require_star,
@@ -925,6 +928,8 @@ def ntfe_cones(
         iterator = hypers
 
     # convert hyperplanes to cones
+    if verbosity >= 1:
+        print("Constructing the formal cones...")
     cones = []
     iter_wrapper = (
         tqdm if verbosity >= 1 else lambda x: x
