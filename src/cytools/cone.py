@@ -101,6 +101,7 @@ class Cone:
         parse_inputs: bool = True,
         check: bool = True,
         copy: bool = True,
+        ambient_dim: int = None,
     ):
         """
         **Description:**
@@ -144,6 +145,20 @@ class Cone:
             raise ValueError(
                 'Exactly one of "rays" and "hyperplanes" ' "must be specified."
             )
+
+        # if empty hyperplanes were input, define the trivial cone R^ambient_dim
+        if (rays is None) and (len(hyperplanes) == 0):
+            if ambient_dim is None:
+                raise ValueError(
+                    "Ambient dimension must specified if len(hyperplanes) = 0."
+                )
+
+            hyperplanes = None
+            rays = []
+            for i in range(ambient_dim):
+                # add e_i and -e_i
+                rays.append([int(i==j) for j in range(ambient_dim)])
+                rays.append([-int(i==j) for j in range(ambient_dim)])
 
         # minimal work if we don't parse the data
         if not parse_inputs:
