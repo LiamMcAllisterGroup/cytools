@@ -1,0 +1,21 @@
+name: cytools
+channels:
+  - conda-forge
+dependencies:
+  # CYTools dependencies
+  - python
+  - numpy
+  - scipy
+  - cvxopt
+  - python-flint
+  - pplpy
+  - tqdm
+  - qpsolvers
+  - requests
+  - osqp
+  - pip
+  - pip:
+    - ortools
+    - triangulumancer
+    - pypalp
+    - cygv

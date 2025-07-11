@@ -27,12 +27,6 @@ import os
 # extremal rays of a cone. When set to None, then it uses all available threads.
 n_threads = None
 
-# Paths to external software in the Docker image. These can be modified when
-# using a custom installation.
-cgal_path = "/usr/local/bin/"
-topcom_path = "/usr/bin/"
-palp_path = "/usr/bin/"
-
 # Mosek license
 _mosek_license = (
     f"/home/{'root' if os.geteuid()==0 else 'cytools'}/mounted_volume/mosek/mosek.lic"
@@ -73,6 +67,11 @@ def check_mosek_license(silent=False):
         _mosek_is_activated = True
         if not silent:
             print("Mosek was successfully activated.")
+    except ImportError:
+        _mosek_error = (
+            "Info: Mosek is not installed."
+        )
+        _mosek_is_activated = False
     except mosek.Error as e:
         _mosek_error = (
             "Info: Mosek is not activated. "

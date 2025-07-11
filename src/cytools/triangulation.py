@@ -33,6 +33,7 @@ import flint
 import numpy as np
 from numpy.typing import ArrayLike
 from scipy.spatial import ConvexHull
+import triangulumancer
 
 # CYTools imports
 from cytools import config
@@ -2008,58 +2009,22 @@ class Triangulation:
         if self.is_fine() and (self.dim() == 2) and only_fine:
             return self._fine_neighbors_2d()
 
-        # prep TOPCOM input
-        l2i = {l: i for i, l in enumerate(self.labels)}
-        pts_str = str([list(pt) + [1] for pt in self.points(optimal=True)])
-        triang_str = str([[l2i[l] for l in s] for s in self._simplices])
-        triang_str = triang_str.replace("[", "{").replace("]", "}")
-        flips_str = "(-1)"
-
-        topcom_input = pts_str + "[]" + triang_str + flips_str
-
-        # prep TOPCOM
-        topcom_bin = config.topcom_path + "topcom-points2flips"
-        if verbose:
-            cmd = (topcom_bin, "-v")
-        else:
-            cmd = (topcom_bin,)
-        topcom = subprocess.Popen(
-            cmd,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            universal_newlines=True,
-        )
-
-        # do the work and read output
-        topcom_res, topcom_err = topcom.communicate(input=topcom_input)
-
-        # check for errors
-        if topcom.returncode != 0:
-            print(f"TOPCOM exited with code {topcom.returncode}")
-            if topcom.returncode == -9:
-                print("This likely indicates an OOM error...")
-                print("Try increasing memory (Docker Settings->Resources...)")
-            return []
-
-        if verbose:
-            print(topcom_err)
-
-        if len(topcom_res) == 0:
-            return []
-        triangs_list = [ast.literal_eval(r) for r in topcom_res.strip().split("\n")]
+        pc = triangulumancer.PointConfiguration(self.points(optimal=True))
+        t = triangulumancer.Triangulation(pc, self._simplices) # TODO: Need to implement this
+        triangs_list = t.neighbor_triangulations()
 
         # parse the outputs
         triangs = []
         for t in triangs_list:
-            if not all(len(s) == self.dim() + 1 for s in t):
+            # TODO: Is this needed
+            if not all(len(s) == self.dim() + 1 for s in t.simplices()):
                 continue
 
             # construct and check triangulation
             tri = Triangulation(
                 self.poly,
                 self.labels,
-                simplices=[[self.labels[i] for i in s] for s in t],
+                simplices=[[self.labels[i] for i in s] for s in t.simplices()],
                 check_input_simplices=False,
             )
             if only_fine and (not tri.is_fine()):
@@ -2497,37 +2462,10 @@ def _cgal_triangulate(points: ArrayLike, heights: ArrayLike) -> np.ndarray:
     # points in ZZ^4
     ```
     """
-    # input parsing
-    dim = points.shape[1]
+    
+    pc = triangulumancer.PointConfiguration(points)
+    simp = pc.triangulate_with_heights(heights).simplices()
 
-    pts_str = str([list(pt) for pt in points])
-    heights_str = str(list(heights)).replace("[", "(").replace("]", ")")
-
-    # pass the command to CGAL
-    cgal_bin = config.cgal_path
-    cgal_bin += (
-        f"/cgal-triangulate-{dim}d" if dim in (2, 3, 4, 5) else "cgal-triangulate"
-    )
-    cgal = subprocess.Popen(
-        (cgal_bin,),
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        universal_newlines=True,
-    )
-
-    # read/parse outputs
-    cgal_res, cgal_err = cgal.communicate(input=pts_str + heights_str)
-
-    if cgal_err != "":
-        raise RuntimeError(f"CGAL error: {cgal_err}")
-
-    try:
-        simp = ast.literal_eval(cgal_res)
-    except:
-        raise RuntimeError("Error: Failed to parse CGAL output.")
-
-    # return
     return np.array(sorted([sorted(s) for s in simp]))
 
 
@@ -2558,28 +2496,9 @@ def _topcom_triangulate(points: ArrayLike) -> np.ndarray:
     # points in ZZ^4
     ```
     """
-    # prep
-    topcom_bin = config.topcom_path + "/topcom-points2finetriang"
-    topcom = subprocess.Popen(
-        (topcom_bin, "--regular"),
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        universal_newlines=True,
-    )
-
-    # do the work
-    pts_str = str([list(pt) + [1] for pt in points])
-    topcom_res, topcom_err = topcom.communicate(input=pts_str + "[]")
-
-    # parse the output
-    try:
-        simp = ast.literal_eval(topcom_res.replace("{", "[").replace("}", "]"))
-    except:
-        raise RuntimeError(
-            "Error: Failed to parse TOPCOM output. "
-            f"\nstdout: {topcom_res} \nstderr: {topcom_err}"
-        )
+    
+    pc = triangulumancer.PointConfiguration(points)
+    simp = pc.placing_triangulation().simplices()
 
     return np.array(sorted([sorted(s) for s in simp]))
 
@@ -2670,41 +2589,12 @@ def all_triangulations(
         optimal_pts = triang_pts
     else:
         optimal_pts = lll_reduce([pt - triang_pts[0] for pt in triang_pts])[:, -dim:]
-
-    # prep for TOPCOM
-    topcom_bin = config.topcom_path
-    if only_fine:
-        topcom_bin += "topcom-points2allfinetriangs"
-    else:
-        topcom_bin += "topcom-points2alltriangs"
-
-    reg_arg = ("--regular",) if backend == "topcom" and only_regular else ()
-    topcom = subprocess.Popen(
-        (topcom_bin,) + reg_arg,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        universal_newlines=True,
-    )
-
-    # do the work
-    pts_str = str([list(pt) + [1] for pt in optimal_pts])
-    topcom_res, topcom_err = topcom.communicate(input=pts_str + "[]")
-
-    # parse the output
-    try:
-        triangs = [
-            ast.literal_eval("[" + t.replace("{", "[").replace("}", "]") + "]")
-            for t in re.findall(r"\{([^\:]*)\}", topcom_res)
-        ]
-    except:
-        raise RuntimeError(
-            "Error: Failed to parse TOPCOM output. "
-            f"\nstdout: {topcom_res} \nstderr: {topcom_err}"
-        )
+        
+    pc = triangulumancer.PointConfiguration(optimal_pts)
+    triangs = pc.all_triangulations(only_fine=only_fine)
 
     # map the triangulations to labels
-    triangs = [[[pts[x] for x in i] for i in s] for s in triangs]
+    triangs = [[[pts[x] for x in i] for i in t.simplices()] for t in triangs]
 
     # sort the triangs
     srt_triangs = [
