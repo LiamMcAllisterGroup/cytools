@@ -18,9 +18,11 @@
 # Description:  Miscellaneous utilities not needed for mainline CYTools.
 # -----------------------------------------------------------------------------
 
-# standard imports
+# 'standard' imports
 import gzip
 import os
+
+# 3rd party imports
 import pickle
 from platformdirs import user_cache_dir
 
