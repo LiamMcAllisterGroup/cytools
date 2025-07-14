@@ -484,8 +484,7 @@ class LIL_stack:
                 return r
 
         for block in self._blocks():
-            for h in row_iter(block):
-                yield h
+            yield from row_iter(block)
 
     # getter
     @property

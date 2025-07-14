@@ -623,15 +623,9 @@ class PolytopeFace:
             return self._faces[d] if d is not None else self._faces
 
         # calculate the answer
-        faces = []
-        for dd in range(self._dim + 1):
-            faces.append(
-                tuple(
-                    f
-                    for f in self.ambient_poly.faces(dd)
-                    if self._saturated_ineqs.issubset(f._saturated_ineqs)
-                )
-            )
+        faces = [tuple(f for f in self.ambient_poly.faces(dd)
+                       if self._saturated_ineqs.issubset(f._saturated_ineqs))
+                 for dd in range(self._dim + 1)]
         self._faces = tuple(faces)
 
         # return

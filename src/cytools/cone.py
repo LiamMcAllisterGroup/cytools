@@ -1730,7 +1730,7 @@ class Cone:
             universal_newlines=True,
         )
         normaliz_out = normaliz.communicate()
-        with open(f"/dev/shm/{proj_name}.out", "r") as f:
+        with open(f"/dev/shm/{proj_name}.out") as f:
             data = f.readlines()
         os.remove(f"/dev/shm/{proj_name}.in")
         os.remove(f"/dev/shm/{proj_name}.out")
@@ -1886,10 +1886,9 @@ def feasibility(
             solver.EnableOutput()
 
         # define variables
-        var = []
         var_type = solver.NumVar if backend == "glop" else solver.IntVar
-        for i in range(ambient_dim):
-            var.append((var_type)(-solver.infinity(), solver.infinity(), f"x_{i}"))
+        var = [(var_type)(-solver.infinity(), solver.infinity(), f"x_{i}")
+               for i in range(ambient_dim)]
 
         # define constraints
         cons_list = []

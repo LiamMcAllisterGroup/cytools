@@ -1098,7 +1098,7 @@ class Triangulation:
         # triangulation. This can be quite slow for large polytopes.
 
         # append a 1 to each point
-        pts = {l: pt for l, pt in zip(self.labels, self.points(optimal=True))}
+        pts = dict(zip(self.labels, self.points(optimal=True)))
         pts_ext = {
             l: list(pts[l])
             + [
@@ -1257,7 +1257,7 @@ class Triangulation:
             if as_np_array:
                 return np.array(out)
             else:
-                return set(frozenset(simp) for simp in out)
+                return {frozenset(simp) for simp in out}
         elif on_faces_dim is not None:
             faces_dim = on_faces_dim
         else:
@@ -1271,9 +1271,8 @@ class Triangulation:
             full_simp = [frozenset(s) for s in self._simplices]
 
             # get face indices
-            face_labels = []
-            for face in self.polytope().faces(faces_dim):
-                face_labels.append(frozenset(face.labels))
+            face_labels = [frozenset(face.labels)
+                           for face in self.polytope().faces(faces_dim)]
 
             # actually restrict
             restricted = []
