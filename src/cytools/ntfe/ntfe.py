@@ -937,16 +937,12 @@ def ntfe_cones(
     # convert hyperplanes to cones
     if verbosity >= 1:
         print("Constructing the formal cones...")
-    cones = []
+
     iter_wrapper = (
         tqdm if verbosity >= 1 else lambda x: x
     )  # (for progress bars)
-    for hyper in iter_wrapper(iterator):
-        cones.append(
-            Cone(hyperplanes=hyper, ambient_dim=dim, parse_inputs=False)
-        )
-
-    return cones
+    return [Cone(hyperplanes=hyper, ambient_dim=dim, parse_inputs=False)
+            for hyper in iter_wrapper(iterator)]
 
 
 Polytope.ntfe_cones = ntfe_cones

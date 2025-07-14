@@ -182,8 +182,8 @@ class CalabiYau:
                 )
 
             # check that we have sensical points
-            poly   = triang.polytope()
-            
+            poly = triang.polytope()
+
             if sorted(triang.labels) == sorted(poly.labels_not_facet):
                 pass
             elif sorted(triang.labels) == sorted(poly.labels):
@@ -1366,11 +1366,11 @@ class CalabiYau:
                 for dd in range(len(parts)):
                     intnums_dict_tmp = defaultdict(lambda: 0)
                     for ii in intnums_dict:
-                        choices = set(
+                        choices = {
                             tuple(sorted(c for i, c in enumerate(ii) if i != j))
                             for j in range(ambient_dim - dd)
                             if ii[j] in parts[dd]
-                        )
+                        }
                         for c in choices:
                             intnums_dict_tmp[c] += intnums_dict[ii]
                     intnums_dict = {

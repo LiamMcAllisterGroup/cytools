@@ -1010,7 +1010,7 @@ class ToricVariety:
             for ii in row:
                 ii[1] = int(round(ii[1] / g))
         row_list = set(
-            tuple(tuple(tuple(ii) for ii in sorted(row)) for row in row_list)
+            tuple(tuple(ii) for ii in sorted(row)) for row in row_list
         )
         mori_rays = np.zeros((len(row_list), num_divs), dtype=int)
         for i, row in enumerate(row_list):
@@ -1091,8 +1091,8 @@ class ToricVariety:
         )
 
         frst = [[c for c in s if c != 0] for s in simps]
-        simp_2 = set([j for i in [list(combinations(f, 2)) for f in frst] for j in i])
-        simp_3 = set([j for i in [list(combinations(f, 3)) for f in frst] for j in i])
+        simp_2 = {j for f in frst for j in combinations(f, 2)}
+        simp_3 = {j for f in frst for j in combinations(f, 3)}
 
         # We construct and solve the linear system M*x + C = 0, where M is
         # a rectangular mxn matrix and C is a vector.
@@ -1238,9 +1238,10 @@ class ToricVariety:
                 for simp in self.triangulation().simplices(as_indices=True)
             ]
         )
-        frst = [[c for c in s if c != 0] for s in self.triangulation().simplices(as_indices=True)]
+        frst = [[c for c in s if c != 0]
+                for s in self.triangulation().simplices(as_indices=True)]
         simp_n = [
-            set([j for i in [list(combinations(f, n)) for f in frst] for j in i])
+            {j for f in frst for j in combinations(f, n)}
             for n in range(2, dim)
         ]
         simp_n = [[np.array(c) for c in simp_n[n]] for n in range(len(simp_n))]

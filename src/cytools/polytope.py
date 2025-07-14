@@ -372,7 +372,7 @@ class Polytope:
         The Minkowski sum.
 
         **Example:**
-        We construct two polytops and compute their Minkowski sum.
+        We construct two polytopes and compute their Minkowski sum.
         ```python {3}
         p1 = Polytope([[1,0,0],[0,1,0],[-1,-1,0]])
         p2 = Polytope([[0,0,1],[0,0,-1]])
@@ -1632,7 +1632,7 @@ class Polytope:
 
         # calculate the answer
         if self._autos[0] is None:
-            vert_set = set(tuple(pt) for pt in self.vertices())
+            vert_set = {tuple(pt) for pt in self.vertices()}
 
             # get the facet with minimum number of vertices
             f_min = min(self.facets(), key=lambda f: len(f.vertices()))
@@ -1673,7 +1673,7 @@ class Polytope:
                     ],
                     dtype=int,
                 )
-                if set(tuple(pt) for pt in np.dot(self.vertices(), m)) != vert_set:
+                if {tuple(pt) for pt in np.dot(self.vertices(), m)} != vert_set:
                     continue
                 autos.append(m)
                 if all((np.dot(m, m) == np.eye(self.dim(), dtype=int)).flatten()):
@@ -2689,13 +2689,11 @@ class Polytope:
 
             if as_list:
                 return triangs
-            else:
 
-                def gen():
-                    for triang in triangs:
-                        yield (triang)
+            def gen():
+                yield from triangs
 
-                return gen()
+            return gen()
 
         if only_star is None:
             only_star = self.is_reflexive()
@@ -3386,7 +3384,7 @@ class Polytope:
         The Minkowski sum.
 
         **Example:**
-        We construct two polytops and compute their Minkowski sum.
+        We construct two polytopes and compute their Minkowski sum.
         ```python {3}
         p1 = Polytope([[1,0,0],[0,1,0],[-1,-1,0]])
         p2 = Polytope([[0,0,1],[0,0,-1]])
@@ -3394,12 +3392,9 @@ class Polytope:
         # A 3-dimensional reflexive lattice polytope in ZZ^3
         ```
         """
-        points = set(
-            map(
-                lambda verts: tuple(sum(verts)),
-                itertools.product(self.vertices(), other.vertices()),
-            )
-        )
+        points = {tuple(sum(verts))
+                  for verts in itertools.product(self.vertices(),
+                                                 other.vertices())}
         return Polytope(list(points))
 
     def volume(self) -> int:
