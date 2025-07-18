@@ -374,7 +374,7 @@ def symmetric_dense_to_sparse(tensor: ArrayLike, basis: ArrayLike = None) -> dic
     # {(0, 0): 1, (0, 1): 2, (1, 1): 3}
     ```
     """
-    out = dict()
+    out = {}
 
     # grab dense tensor
     tensor = np.array(tensor)
@@ -986,7 +986,7 @@ def polytope_generator(
     n_yielded = 0
 
     if input_type == "file":
-        in_file = open(input, "r")
+        in_file = open(input)
         l = in_file.readline()
     else:
         in_string = input.split("\n")
@@ -1411,7 +1411,7 @@ def lll_reduce(pts_in: ArrayLike, transform: bool = False) -> "misc":
     # lll-reduction
     pts = pts.T  # map points to columns for lll-algorithm
 
-    if transform == True:
+    if transform is True:
         pts_red, transf = flint.fmpz_mat(pts.tolist()).lll(transform=True)
     else:
         pts_red = flint.fmpz_mat(pts.tolist()).lll(transform=False)
@@ -1421,7 +1421,7 @@ def lll_reduce(pts_in: ArrayLike, transform: bool = False) -> "misc":
     # convert to numpy
     pts_red = np.array(pts_red.tolist(), dtype=int)
 
-    if transform == True:
+    if transform is True:
         A = np.array(transf.tolist(), dtype=int)
         Ainv = np.array(transf.inv(integer=True).tolist(), dtype=int)
 

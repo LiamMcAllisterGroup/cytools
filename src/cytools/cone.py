@@ -101,22 +101,23 @@ class Cone:
         parse_inputs: bool = True,
         check: bool = True,
         copy: bool = True,
+        ambient_dim: int = None,
     ):
         """
         **Description:**
         Initializes a `Cone` object.
 
         **Arguments:**
-        - `rays` *(array_like, optional)*: A list of rays that generates the
-            cone. If it is not specified then the hyperplane normals must be
-            specified.
-        - `hyperplanes` *(array_like, optional)*: A list of inward-pointing
-            hyperplane normals that define the cone. If it is not specified then
-            the generating rays must be specified.
-        - `check` *(bool, optional, default=True)*: Whether to check the input.
-            Recommended if constructing a cone directly.
-        - `copy` *(bool, optional, default=True)*: Whether to ensure we copy
-            the input rays/hyperplanes. Recommended.
+        - `rays`: A list of rays that generates the cone. If it is not
+            specified then the hyperplane normals must be specified.
+        - `hyperplanes`: A list of inward-pointing hyperplane normals that
+            define the cone. If it is not specified then the generating rays
+            must be specified.
+        - `check`: Whether to check the input. Recommended if constructing a
+            cone directly.
+        - `copy`: Whether to ensure we copy the input rays/hyperplanes.
+            ecommended.
+        - `ambient_dim`: The ambient dimension of the cone, if not inferrable.
 
         :::note
         Exactly one of `rays` or `hyperplanes` must be specified. Otherwise, an
@@ -144,6 +145,31 @@ class Cone:
             raise ValueError(
                 'Exactly one of "rays" and "hyperplanes" ' "must be specified."
             )
+
+        # parse empty hyperplanes
+        if (rays is None) and (len(hyperplanes) == 0):
+
+            # check if ambient dim is inferrable from hyperplanes
+            if (len(hyperplanes.shape)>1) and (hyperplanes.shape[1]!=0):
+                # yes inferrable - ensure no conflicts in specification
+                if (ambient_dim is not None) and (ambient_dim != hyperplanes.shape[1]):
+                    raise ValueError(f"Specified ambient dim = {ambient_dim} doesn't match inferrable shape from hyperplanes = {hyperplanes.shape[1]}...")
+
+                ambient_dim = hyperplanes.shape[1]
+            else:
+                if ambient_dim is None:
+                    raise ValueError(
+                        "Must specify ambient dimension if len(hyperplanes)=0."
+                    )
+
+            # move to a ray representation
+            hyperplanes = None
+            rays = []
+            for i in range(ambient_dim):
+                # add e_i and -e_i
+                rays.append([int(i==j) for j in range(ambient_dim)])
+                rays.append([-int(i==j) for j in range(ambient_dim)])
+
 
         # minimal work if we don't parse the data
         if not parse_inputs:
@@ -580,53 +606,25 @@ class Cone:
             H = self.hyperplanes()
 
         # compute the rays
-        if verbosity >= 1:
-            print("Defining the cone in PPL...", flush=True)
-
-        if False:
-            cs = ppl.Constraint_System()
-            vrs = [ppl.Variable(i) for i in range(self._ambient_dim)]
-            for h in H:
-                cs.insert(sum(h[i] * vrs[i] for i in range(self._ambient_dim)) >= 0)
-            cone = ppl.C_Polyhedron(cs)
-        else:
-            # slightly cleaner, imo
-            cone = ppl.C_Polyhedron(self._ambient_dim)
-
-            for row in H:
-                ineq = ppl.Linear_Expression(row.tolist(), 0)
-                cone.add_constraint(ppl.Constraint(ineq >= 0))
-
-        # grab the rays
-        if verbosity >= 1:
-            print("Computing the rays...", flush=True)
-        rays = []
-        for gen_i, gen in enumerate(cone.minimized_generators()):
-            if verbosity >= 2:
-                print(f"ray #{gen_i}...", end='\r')
-
-            if gen.is_ray():
-                rays.append(tuple(int(c) for c in gen.coefficients()))
-            elif gen.is_line():
-                # lineality space... add both signs
-                rays.append(tuple(int(c) for c in gen.coefficients()))
-                rays.append(tuple(-int(c) for c in gen.coefficients()))
+        rays = dualize(H, verbosity=verbosity)
 
         # save/return
         if verbosity >= 1:
             print("Saving the rays & computing dimension...", flush=True)
-        self._rays = np.array(rays, dtype=int)
+        self._rays = np.asarray(rays, dtype=int)
         self._dim = np.linalg.matrix_rank(self._rays)
         return np.array(self._rays)
 
-    def hyperplanes(self):
+    def hyperplanes(self, use_extremal_rays: bool=False, verbosity: int=0):
         """
         **Description:**
         Returns the inward-pointing normals to the hyperplanes that define the
         cone.
 
         **Arguments:**
-        None.
+        - `use_extremal_rays` :Whether to use extremal rays in this
+            computation, or just any rays.
+        - `verbosity`: The verbosity level.
 
         **Returns:**
         *(numpy.ndarray)* The list of inward-pointing normals to the
@@ -652,22 +650,22 @@ class Cone:
                 "This operation might take a while for d > ~12 "
                 "and is likely impossible for d > ~18."
             )
-        gs = ppl.Generator_System()
-        vrs = [ppl.Variable(i) for i in range(self._ambient_dim)]
-        gs.insert(ppl.point(0))
-        for r in self.extremal_rays():
-            gs.insert(ppl.ray(sum(r[i] * vrs[i] for i in range(self._ambient_dim))))
-        cone = ppl.C_Polyhedron(gs)
-        hyperplanes = []
-        for cstr in cone.minimized_constraints():
-            hyperplanes.append(tuple(int(c) for c in cstr.coefficients()))
-            if cstr.is_equality():
-                hyperplanes.append(tuple(-int(c) for c in cstr.coefficients()))
-        self._hyperplanes = np.array(hyperplanes, dtype=int)
 
+        # select the rays
+        if use_extremal_rays:
+            R = self.extremal_rays()
+        else:
+            R = self.rays()
+
+        # compute the hyperplanes
+        H = dualize(R, verbosity=verbosity)
+
+        # save/return
+        if verbosity >= 1:
+            print("Saving the hyperplanes...", flush=True)
+        self._hyperplanes = np.asarray(H, dtype=int)
         if len(self._hyperplanes) == 0:
             self._hyperplanes = np.zeros((0, self._ambient_dim), dtype=int)
-
         return np.array(self._hyperplanes)
 
     def contains(self, other, eps: float = 0) -> bool:
@@ -1704,7 +1702,7 @@ class Cone:
             universal_newlines=True,
         )
         normaliz_out = normaliz.communicate()
-        with open(f"/tmp/{proj_name}.out", "r") as f:
+        with open(f"/tmp/{proj_name}.out") as f:
             data = f.readlines()
         os.remove(f"/tmp/{proj_name}.in")
         os.remove(f"/tmp/{proj_name}.out")
@@ -1776,6 +1774,55 @@ class Cone:
             hyperplanes.extend(c.hyperplanes().tolist())
         return Cone(hyperplanes=hyperplanes)
 
+def dualize(M, verbosity=0):
+    """
+    **Description:**
+    Converts between hyperplanes and rays of a cone. Output isn't guaranteed to
+    be extremal.
+
+    Internal to this function, we treat M as the hyperplanes since that seems
+    to be faster.
+
+    **Arguments:**
+    - `M`: The matrix defining the cone.
+        Can be thought of as the hyperplanes cone = {x: M@x>=0} in which case we
+        return the rays cone = {dualize(M).T@lmbda: lmbda>=0}.
+        Can also be thought of as the rays cone = {M.T@lmbda: lmbda>=0} in
+        which case we return the hypeplanes cone = {x: dualize(M)@x>=0}.
+    - `verbosity`: The verbosity level.
+
+    **Returns:**
+    The dual description
+    """
+    M = np.asarray(M)
+
+    # define the cone in PPL
+    if verbosity >= 1:
+        print("Defining the cone in PPL...", flush=True)
+
+    cone = ppl.C_Polyhedron(M.shape[1])
+
+    for row in M:
+        ineq = ppl.Linear_Expression(row.tolist(), 0)
+        cone.add_constraint(ppl.Constraint(ineq >= 0))
+
+    # grab the dual description (in this perspective, the rays)
+    if verbosity >= 1:
+        print("Computing the rays...", flush=True)
+    rays = []
+    for gen_i, gen in enumerate(cone.minimized_generators()):
+        if verbosity >= 2:
+            print(f"ray #{gen_i}...", end='\r')
+
+        if gen.is_ray():
+            rays.append(tuple(int(c) for c in gen.coefficients()))
+        elif gen.is_line():
+            # lineality space... add both signs
+            rays.append(tuple(int(c) for c in gen.coefficients()))
+            rays.append(tuple(-int(c) for c in gen.coefficients()))
+
+    # return
+    return np.array(rays, dtype=int)
 
 def is_extremal(A, b, i=None, q=None, tol=1e-4):
     """
@@ -1860,10 +1907,9 @@ def feasibility(
             solver.EnableOutput()
 
         # define variables
-        var = []
         var_type = solver.NumVar if backend == "glop" else solver.IntVar
-        for i in range(ambient_dim):
-            var.append((var_type)(-solver.infinity(), solver.infinity(), f"x_{i}"))
+        var = [(var_type)(-solver.infinity(), solver.infinity(), f"x_{i}")
+               for i in range(ambient_dim)]
 
         # define constraints
         cons_list = []
