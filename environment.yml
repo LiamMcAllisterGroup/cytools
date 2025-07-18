@@ -5,6 +5,7 @@ dependencies:
   # CYTools dependencies
   - python
   - numpy
+  - normaliz
   - scipy
   - cvxopt
   - python-flint

@@ -2011,7 +2011,7 @@ class Triangulation:
 
         pc = triangulumancer.PointConfiguration(self.points(optimal=True))
         t = triangulumancer.Triangulation(pc, self._simplices) # TODO: Need to implement this
-        triangs_list = t.neighbor_triangulations()
+        triangs_list = t.neighbors()
 
         # parse the outputs
         triangs = []
