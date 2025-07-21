@@ -914,7 +914,7 @@ def ntfe_cones(
         def gen():
             for hyper in hypers:
                 yield Cone(
-                    hyperplanes=hyper, ambient_dim=dim, parse_inputs=False
+                    hyperplanes=hyper, ambient_dim=dim, parse_inputs=len(hypers)==0
                 )
 
         return gen()
