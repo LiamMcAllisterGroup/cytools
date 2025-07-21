@@ -914,7 +914,7 @@ def ntfe_cones(
         def gen():
             for hyper in hypers:
                 yield Cone(
-                    hyperplanes=hyper, ambient_dim=dim, parse_inputs=len(hypers)==0
+                    hyperplanes=hyper, ambient_dim=dim, parse_inputs=(len(hyper)==0)
                 )
 
         return gen()
@@ -941,7 +941,7 @@ def ntfe_cones(
     iter_wrapper = (
         tqdm if verbosity >= 1 else lambda x: x
     )  # (for progress bars)
-    return [Cone(hyperplanes=hyper, ambient_dim=dim, parse_inputs=False)
+    return [Cone(hyperplanes=hyper, ambient_dim=dim, parse_inputs=(len(hyper)==0))
             for hyper in iter_wrapper(iterator)]
 
 
