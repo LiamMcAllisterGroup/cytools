@@ -556,10 +556,17 @@ class Cone:
         """
         if self._dim is not None:
             return self._dim
+
         if self._rays is not None:
+            # know the rays... semi simple computation
             self._dim = np.linalg.matrix_rank(self._rays)
-            return self._dim
-        self._dim = np.linalg.matrix_rank(self.rays())
+        else:
+            # don't know the rays... still simple if the cone is solid...
+            if self.is_solid():
+                self._dim = self.ambient_dim()
+            else:
+                # yikes need to compute the rays
+                self._dim = np.linalg.matrix_rank(self.rays())
         return self._dim
 
     # aliases
@@ -1593,6 +1600,11 @@ class Cone:
         **Description:**
         Returns True if the cone is simplicial.
 
+        N.B.: if c is solid, then c is simplicial <=> c.dual() is simplicial.
+
+        A sometimes-simpler check if c is solid, then, is to check if
+        #(extremal hyperplanes) = dim.
+
         **Arguments:**
         None.
 
@@ -1612,7 +1624,13 @@ class Cone:
         """
         if self._is_simplicial is not None:
             return self._is_simplicial
-        self._is_simplicial = len(self.extremal_rays()) == self.dim()
+
+        # split analysis by whether we know rays or not
+        if (self._rays is None) and (self.is_solid()):
+            self._is_simplicial = len(self.extremal_hyperplanes()) == self.dim()
+        else:
+            self._is_simplicial = len(self.extremal_rays()) == self.dim()
+
         return self._is_simplicial
 
     def is_smooth(self):
