@@ -30,9 +30,7 @@ jobs:
         uses: mamba-org/setup-micromamba@v2
         with:
           init-shell: bash
-          environment-file: tests/environment.yml
-      - name: Pip install the package
-        run: pip install .[test]
+          environment-file: environment-dev.yml
       - name: Run pytest
         run: |
           pytest -vv tests

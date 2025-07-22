@@ -20,10 +20,8 @@ dependencies:
     - triangulumancer
     - pypalp
     - cygv
-    # The actual cytools package
+    # The actual cytools package (taken from pypi)
     - cytools
-    # If you want an editable install, use the line below instead
-    # - -e .
   # Common useful tools
   - jupyterlab
   - matplotlib

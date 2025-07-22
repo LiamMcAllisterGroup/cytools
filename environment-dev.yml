@@ -1,4 +1,4 @@
-name: cytools
+name: cytools-dev
 channels:
   - conda-forge
 dependencies:
@@ -14,9 +14,17 @@ dependencies:
   - qpsolvers
   - requests
   - osqp
+  - pytest
   - pip
   - pip:
     - ortools
     - triangulumancer
     - pypalp
     - cygv
+    # Editable CYTools installation
+    - -e .
+  # Common useful tools
+  - jupyterlab
+  - matplotlib
+  # Uncomment the following lines for additional tools
+  # - sage
