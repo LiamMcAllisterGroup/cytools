@@ -888,21 +888,68 @@ class Cone:
             ) from e
         return self._ext_rays
 
-    def extremal_hyperplanes(self, tol=1e-4, verbose=False):
+    def extremal_hyperplanes(self, tol: float=1e-4, verbose: bool=False):
         """
         **Description:**
         Returns the extremal hyperplanes of the cone.
 
         **Arguments:**
-        - `tol` *(float, optional, default=1e-4)*: Specifies the tolerance for
-            deciding whether a ray is extremal or not.
-        - verbose *(bool, optional, default=False)*: When set to True it show
-            the progress while finding the extremal rays.
+        - `tol`: Specifies the tolerance for deciding whether a ray is extremal
+            or not.
+        - `verbose`: When set to True it show the progress while finding the
+            extremal rays.
 
         **Returns:**
         *(numpy.ndarray)* The list of extremal hyperplanes of the cone.
         """
         return self.dual().extremal_rays(tol=tol, verbose=verbose)
+
+    def facets(self, verbosity: int = 0):
+        """
+        **Description:**
+        Get the facets of the cone.
+
+        This is easy if:
+            -) the cone is simplicial OR
+            -) the cone is solid and the extremal hyperplanes can be computed.
+        Otherwise, the computation uses both rays and hyperplanes... this is
+        semi-expensive to compute...
+
+        **Arguments:**
+        - `verbosity`: The verbosity level.
+
+        **Returns:**
+        The facets of the cone.
+        """
+        # ray-based computation
+        if self.is_simplicial():
+            if verbosity >= 1:
+                print("Cone is simplicial! Easy computation...")
+            R = self.rays()
+
+            dim = len(R)
+            ray_inds = list(range(dim))
+
+            # facets are defined by collections of #(dim-1) rays
+            return [Cone(rays=R[inds]) for inds in\
+                                        itertools.combinations(ray_inds,dim-1)]
+
+        # hyperplane based-computation
+        if verbosity >= 1:
+            print("Computing facets via extremal hyperplanes...")
+        H = self.extremal_hyperplanes()
+
+        if self.is_solid():
+            # still pretty easy
+            can_saturate = H
+        else:
+            # this means that the cone contains both h and -h as hyperplanes...
+            # i.e., h is already saturated by definition...
+            # need to skip these when looking to saturate hyperplanes
+            can_saturate = [h for h in H if not self.dual().contains(-h)]
+
+        return [Cone(hyperplanes=np.vstack((H, -h)), check=False) for h in\
+                                                                can_saturate]
 
     def tip_of_stretched_cone(
         self,
