@@ -21,6 +21,7 @@
 
 # 'standard' imports
 from ast import literal_eval
+import contextlib
 import math
 from multiprocessing import Pool, cpu_count
 import os
@@ -796,8 +797,10 @@ class Cone:
                 "producing erroneous results. It is highly recommended to "
                 "use a single thread."
             )
-            
-        with Pool(n_threads) as p:
+        
+        pool_context = Pool(n_threads) if n_threads > 1 else contextlib.nullcontext()
+        
+        with pool_context as p:
             current_rays = set(range(rays.shape[0]))
             ext_rays = set()
             error_rays = set()
@@ -824,7 +827,10 @@ class Cone:
                     for k in checking
                 ]
 
-                results = p.starmap(is_extremal, Ab_tuples)
+                if p is None:
+                    results = [is_extremal(*Ab) for Ab in Ab_tuples]
+                else:
+                    results = p.starmap(is_extremal, Ab_tuples)
 
                 # parse results
                 for i,res in enumerate(results):
