@@ -22,7 +22,7 @@
 # 'standard' imports
 from ast import literal_eval
 import math
-from multiprocessing import Process, Queue, cpu_count
+from multiprocessing import Pool, cpu_count
 import os
 import random
 import string
@@ -796,74 +796,62 @@ class Cone:
                 "producing erroneous results. It is highly recommended to "
                 "use a single thread."
             )
-
-        current_rays = set(range(rays.shape[0]))
-        ext_rays = set()
-        error_rays = set()
-        rechecking_rays = False
-        failed_after_rechecking = False
-        while True:
-            checking = []
-
-            # fill list of rays that we're currently checking
-            for i in current_rays:
-                if i not in ext_rays and (i not in error_rays or rechecking_rays):
-                    checking.append(i)
-                if len(checking) >= n_threads:
-                    break
-
-            if len(checking) == 0:
-                if rechecking_rays:
-                    break
-                rechecking_rays = True
-
-            # check each ray (using multiple threads)
-            q = Queue()
-
-            As = [
-                np.array([rays[j] for j in current_rays if j != k], dtype=int).T
-                for k in checking
-            ]
-            bs = [rays[k] for k in checking]
-
-            procs = [
-                Process(target=is_extremal, args=(As[k], bs[k], k, q, tol))
-                for k in range(len(checking))
-            ]
-
-            for t in procs:
-                t.start()
-            for t in procs:
-                t.join()
-
-            results = [q.get() for j in range(len(checking))]
-
-            # parse results
-            for res in results:
-                if res[1] is None:
-                    error_rays.add(checking[res[0]])
+            
+        with Pool(n_threads) as p:
+            current_rays = set(range(rays.shape[0]))
+            ext_rays = set()
+            error_rays = set()
+            rechecking_rays = False
+            failed_after_rechecking = False
+            while True:
+                checking = []
+    
+                # fill list of rays that we're currently checking
+                for i in current_rays:
+                    if i not in ext_rays and (i not in error_rays or rechecking_rays):
+                        checking.append(i)
+                    if len(checking) >= n_threads:
+                        break
+    
+                if len(checking) == 0:
                     if rechecking_rays:
-                        failed_after_rechecking = True
-                        ext_rays.add(checking[res[0]])
-                    elif verbose:
-                        print(
-                            "Cone.extremal_rays: Minimization failed. Ray "
-                            "will be rechecked later..."
-                        )
-                elif not res[1]:
-                    current_rays.remove(checking[res[0]])
-                else:
-                    ext_rays.add(checking[res[0]])
+                        break
+                    rechecking_rays = True
+    
+                # check each ray (using multiple threads)
+                Ab_tuples = [
+                    (np.array([rays[j] for j in current_rays if j != k], dtype=int).T, rays[k], tol)
+                    for k in checking
+                ]
 
-                if rechecking_rays:
-                    error_rays.remove(checking[res[0]])
+                results = p.starmap(is_extremal, Ab_tuples)
 
-            if verbose:
-                print(
-                    "Cone.extremal_rays: Eliminated "
-                    f"{sum(not r[1] for r in results)}. "
-                    f"Current number of rays: {len(current_rays)}"
-                )
+                # parse results
+                for i,res in enumerate(results):
+                    if res is None:
+                        error_rays.add(checking[i])
+                        if rechecking_rays:
+                            failed_after_rechecking = True
+                            ext_rays.add(checking[i])
+                        elif verbose:
+                            print(
+                                "Cone.extremal_rays: Minimization failed. Ray "
+                                "will be rechecked later..."
+                            )
+                    elif not res:
+                        current_rays.remove(checking[i])
+                    else:
+                        ext_rays.add(checking[i])
+
+                    if rechecking_rays:
+                        error_rays.remove(checking[i])
+
+                if verbose:
+                    print(
+                        "Cone.extremal_rays: Eliminated "
+                        f"{sum(not r for r in results)}. "
+                        f"Current number of rays: {len(current_rays)}"
+                    )
 
         if failed_after_rechecking:
             warnings.warn(
@@ -1824,7 +1812,7 @@ def dualize(M, verbosity=0):
     # return
     return np.array(rays, dtype=int)
 
-def is_extremal(A, b, i=None, q=None, tol=1e-4):
+def is_extremal(A, b, tol=1e-4):
     """
     **Description:**
     Auxiliary function that is used to find the extremal rays of cones. Returns
@@ -1835,9 +1823,6 @@ def is_extremal(A, b, i=None, q=None, tol=1e-4):
     - `A` *(array_like)*: A matrix where the columns are rays (excluding b).
     - `b` *(array_like)*: The vector that will be checked if it can be expressed
         as a positive linear combination of the columns of A.
-    - `i` *(int, optional)*: An id number that is used when parallelizing.
-    - `q` *(multiprocessing.Queue, optional)*: A queue that is used when
-        parallelizing.
     - `tol` *(float, optional, default=1e-4)*: The tolerance for determining
         whether a ray is extremal.
 
@@ -1859,13 +1844,9 @@ def is_extremal(A, b, i=None, q=None, tol=1e-4):
     try:
         v = nnls(A, b)
         is_ext = abs(v[1]) > tol
-        if q is not None:
-            q.put((i, is_ext))
         return is_ext
     except:
-        if q is not None:
-            q.put((i, None))
-        return
+        pass
 
 
 def feasibility(
