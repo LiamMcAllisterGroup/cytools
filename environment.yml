@@ -10,6 +10,7 @@ dependencies:
   - cvxopt
   - python-flint
   - pplpy
+  - joblib
   - tqdm
   - qpsolvers
   - requests

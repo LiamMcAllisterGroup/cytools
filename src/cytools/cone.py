@@ -23,7 +23,7 @@
 from ast import literal_eval
 import contextlib
 import math
-import concurrent
+import joblib
 from multiprocessing import cpu_count
 import os
 import random
@@ -800,16 +800,26 @@ class Cone:
             )
 
         # compute the extremal rays
-        ext_rays = [0 for _ in range(len(rays))]
-        with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as executor:
-            futures = {
-                executor.submit(is_extremal, rays, i): i
-                for i in range(len(rays))
-            }
+        num_done = 0
+        ext_rays = [None for _ in range(len(rays))]
+        if verbose:
+            print(f"Computing extremal rays for a cone with {len(rays)} using {n_threads} threads...")
 
-            for future in concurrent.futures.as_completed(futures):
-                i = futures[future]
-                ext_rays[i] = future.result()
+        results = joblib.Parallel(n_jobs=n_threads)(
+            joblib.delayed(is_extremal)((rays, i))
+            for i in range(len(rays))
+        )
+
+        for i, extremalQ, err in results:
+            if err is None:
+                ext_rays[i] = extremalQ
+                num_done +=1
+                if verbose:
+                    print(f"frac finished = {num_done/len(ext_rays)}", end='\r')
+            else:
+                raise ValueError(f"Failed to check whether ray #{i} was extremal")
+        if verbose:
+            print()
 
         # save the answer
         self._ext_rays = rays[ext_rays]
@@ -1761,7 +1771,7 @@ def dualize(M, verbosity=0):
     # return
     return np.array(rays, dtype=int)
 
-def is_extremal(rays, i, tol=1e-4):
+def is_extremal(rays_i, tol=1e-4):
     """
     **Description:**
     Auxiliary function that is used to find the extremal rays of cones. Returns
@@ -1788,11 +1798,13 @@ def is_extremal(rays, i, tol=1e-4):
     #        [1, 0]])
     ```
     """
+    rays, i = rays_i
+
     try:
         v = nnls(np.delete(rays,i,axis=0).T, rays[i])
-        return abs(v[1]) > tol
+        return (i, abs(v[1]) > tol, None)
     except:
-        raise ValueError
+        raise (i, None, ValueError)
 
 
 def feasibility(
