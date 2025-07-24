@@ -23,7 +23,8 @@
 from ast import literal_eval
 import contextlib
 import math
-from multiprocessing import Pool, cpu_count
+import concurrent
+from multiprocessing import cpu_count
 import os
 import random
 import string
@@ -797,82 +798,24 @@ class Cone:
                 "producing erroneous results. It is highly recommended to "
                 "use a single thread."
             )
-        
-        pool_context = Pool(n_threads) if n_threads > 1 else contextlib.nullcontext()
-        
-        with pool_context as p:
-            current_rays = set(range(rays.shape[0]))
-            ext_rays = set()
-            error_rays = set()
-            rechecking_rays = False
-            failed_after_rechecking = False
-            while True:
-                checking = []
-    
-                # fill list of rays that we're currently checking
-                for i in current_rays:
-                    if i not in ext_rays and (i not in error_rays or rechecking_rays):
-                        checking.append(i)
-                    if len(checking) >= n_threads:
-                        break
-    
-                if len(checking) == 0:
-                    if rechecking_rays:
-                        break
-                    rechecking_rays = True
-    
-                # check each ray (using multiple threads)
-                Ab_tuples = [
-                    (np.array([rays[j] for j in current_rays if j != k], dtype=int).T, rays[k], tol)
-                    for k in checking
-                ]
 
-                if p is None:
-                    results = [is_extremal(*Ab) for Ab in Ab_tuples]
-                else:
-                    results = p.starmap(is_extremal, Ab_tuples)
+        # compute the extremal rays
+        ext_rays = [0 for _ in range(len(rays))]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as executor:
+            futures = {
+                executor.submit(is_extremal, rays, i): i
+                for i in range(len(rays))
+            }
 
-                # parse results
-                for i,res in enumerate(results):
-                    if res is None:
-                        error_rays.add(checking[i])
-                        if rechecking_rays:
-                            failed_after_rechecking = True
-                            ext_rays.add(checking[i])
-                        elif verbose:
-                            print(
-                                "Cone.extremal_rays: Minimization failed. Ray "
-                                "will be rechecked later..."
-                            )
-                    elif not res:
-                        current_rays.remove(checking[i])
-                    else:
-                        ext_rays.add(checking[i])
+            for future in concurrent.futures.as_completed(futures):
+                i = futures[future]
+                ext_rays[i] = future.result()
 
-                    if rechecking_rays:
-                        error_rays.remove(checking[i])
+        # save the answer
+        self._ext_rays = rays[ext_rays]
+        if self._rays is None:
+            self._rays = self._ext_rays
 
-                if verbose:
-                    print(
-                        "Cone.extremal_rays: Eliminated "
-                        f"{sum(not r for r in results)}. "
-                        f"Current number of rays: {len(current_rays)}"
-                    )
-
-        if failed_after_rechecking:
-            warnings.warn(
-                "Minimization failed after multiple attempts. "
-                "Some rays may not be extremal."
-            )
-
-        try:
-            self._ext_rays = rays[list(ext_rays)]
-            if self._rays is None:
-                self._rays = self._ext_rays
-        except IndexError as e:
-            raise Exception(
-                f"Dimension/indexing error rays={rays}; " + f"ext_rays={ext_rays}"
-            ) from e
         return self._ext_rays
 
     def extremal_hyperplanes(self, tol=1e-4, verbose=False):
@@ -1818,7 +1761,7 @@ def dualize(M, verbosity=0):
     # return
     return np.array(rays, dtype=int)
 
-def is_extremal(A, b, tol=1e-4):
+def is_extremal(rays, i, tol=1e-4):
     """
     **Description:**
     Auxiliary function that is used to find the extremal rays of cones. Returns
@@ -1826,15 +1769,13 @@ def is_extremal(A, b, tol=1e-4):
     parameters that are used when parallelizing.
 
     **Arguments:**
-    - `A` *(array_like)*: A matrix where the columns are rays (excluding b).
-    - `b` *(array_like)*: The vector that will be checked if it can be expressed
-        as a positive linear combination of the columns of A.
+    - `rays`: A matrix whose rows are the rays of the cone.
+    - `i`: The index of the ray to check for extremality.
     - `tol` *(float, optional, default=1e-4)*: The tolerance for determining
         whether a ray is extremal.
 
     **Returns:**
-    *(bool or None)* The truth value of the ray being extremal. If the process
-        fails then it returns nothing.
+    *(bool or None)* The truth value of the ray being extremal.
 
     **Example:**
     This function is not meant to be directly used by the end user. Instead it
@@ -1848,11 +1789,10 @@ def is_extremal(A, b, tol=1e-4):
     ```
     """
     try:
-        v = nnls(A, b)
-        is_ext = abs(v[1]) > tol
-        return is_ext
+        v = nnls(np.delete(rays,i,axis=0).T, rays[i])
+        return abs(v[1]) > tol
     except:
-        pass
+        raise ValueError
 
 
 def feasibility(
