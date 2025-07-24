@@ -800,26 +800,29 @@ class Cone:
             )
 
         # compute the extremal rays
-        num_done = 0
-        ext_rays = [None for _ in range(len(rays))]
+        ext_rays = [True for _ in range(len(rays))]
+        to_check = list(range(len(rays)))
+
         if verbose:
             print(f"Computing extremal rays for a cone with {len(rays)} using {n_threads} threads...")
 
-        results = joblib.Parallel(n_jobs=n_threads)(
-            joblib.delayed(is_extremal)((rays, i))
-            for i in range(len(rays))
-        )
+        while len(to_check):
+            # pull off n_threads rays to check
+            checking = to_check[:n_threads]
+            to_check = to_check[n_threads:]
 
-        for i, extremalQ, err in results:
-            if err is None:
-                ext_rays[i] = extremalQ
-                num_done +=1
-                if verbose:
-                    print(f"frac finished = {num_done/len(ext_rays)}", end='\r')
-            else:
-                raise ValueError(f"Failed to check whether ray #{i} was extremal")
-        if verbose:
-            print()
+            # check the selected rays
+            results = joblib.Parallel(n_jobs=n_threads)(
+                joblib.delayed(is_extremal)(rays, ext_rays, i, tol=tol)
+                for i in checking
+            )
+
+            # learn from the results
+            for i, extremalQ, err in results:
+                if err is None:
+                    ext_rays[i] = extremalQ
+                else:
+                    raise ValueError(f"Failed to check whether ray #{i} was extremal")
 
         # save the answer
         self._ext_rays = rays[ext_rays]
@@ -1771,7 +1774,7 @@ def dualize(M, verbosity=0):
     # return
     return np.array(rays, dtype=int)
 
-def is_extremal(rays_i, tol=1e-4):
+def is_extremal(R, extFlags, i, tol=1e-4):
     """
     **Description:**
     Auxiliary function that is used to find the extremal rays of cones. Returns
@@ -1798,10 +1801,15 @@ def is_extremal(rays_i, tol=1e-4):
     #        [1, 0]])
     ```
     """
-    rays, i = rays_i
-
     try:
-        v = nnls(np.delete(rays,i,axis=0).T, rays[i])
+        # the ray to check if it's extremal
+        r = R[i]
+
+        # get the other rays (trim by those which are known non-extremal)
+        R = np.delete(R, i, axis=0)[np.delete(extFlags, i)]
+
+        # check if it's extremal
+        v = nnls(R.T, r)
         return (i, abs(v[1]) > tol, None)
     except:
         raise (i, None, ValueError)
