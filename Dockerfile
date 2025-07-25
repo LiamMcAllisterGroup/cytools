@@ -53,9 +53,9 @@ RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 1
 # Install dependencies
 RUN apt-get -yqq update
 RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get -y install tzdata
-RUN apt-get -yqq install autoconf build-essential nano cmake libgmp-dev libcgal-dev\
+RUN apt-get -yqq install autoconf build-essential nano cmake libgmp-dev\
                          libmpc-dev libsuitesparse-dev libppl-dev libeigen3-dev\
-                         libc6 libcdd0d libgmp10 libgmpxx4ldbl libstdc++6 palp\
+                         libc6 libcdd0d libgmp10 libgmpxx4ldbl libstdc++6\
                          wget libmath-libm-perl normaliz libqsopt-ex2
 RUN apt-get -yqq install nodejs
 RUN apt-get -yqq install lrslib libcdd-dev
@@ -152,15 +152,6 @@ RUN if [ "$OPTIONAL_PKGS" = "1" ]; then \
 USER root
 RUN sed -i -e 's/mosek.solsta.near_optimal/ /g' $VIRTUAL_ENV/lib/python3.11/site-packages/cvxopt/coneprog.py
 
-# Install TOPCOM
-WORKDIR /opt/cytools/external/topcom-mod
-RUN wget https://github.com/LiamMcAllisterGroup/topcom/releases/download/v1.1.2%2Bds-1%2Bcytools-1/topcom_1.1.2+ds-1+cytools-1_${ARCH}.deb
-RUN wget https://github.com/LiamMcAllisterGroup/topcom/releases/download/v1.1.2%2Bds-1%2Bcytools-1/libtopcom0_1.1.2+ds-1+cytools-1_${ARCH}.deb
-RUN wget https://github.com/LiamMcAllisterGroup/topcom/releases/download/v1.1.2%2Bds-1%2Bcytools-1/libtopcom-dev_1.1.2+ds-1+cytools-1_${ARCH}.deb
-RUN dpkg -i topcom_1.1.2+ds-1+cytools-1_${ARCH}.deb
-RUN dpkg -i libtopcom0_1.1.2+ds-1+cytools-1_${ARCH}.deb
-RUN dpkg -i libtopcom-dev_1.1.2+ds-1+cytools-1_${ARCH}.deb
-
 # Download file from github to keep track of the number of downloads
 RUN wget https://github.com/LiamMcAllisterGroup/cytools/releases/download/v1.0.0/download_counter.txt
 
@@ -168,23 +159,6 @@ RUN wget https://github.com/LiamMcAllisterGroup/cytools/releases/download/v1.0.0
 COPY . /opt/cytools/
 WORKDIR /opt/cytools/
 RUN pip3 install .
-
-# Create CGAL code for different dimensions and compile
-WORKDIR /opt/cytools/external/cgal
-RUN for i in $(seq 2 5); do sed "27s/.*/typedef CGAL::Epick_d<CGAL::Dimension_tag<${i}> >    K;/" cgal-triangulate.cpp > "cgal-triangulate-${i}d.cpp"; done;
-
-# Fix CGAL headers so that Eigen3 is imported correctly
-RUN sed -i -e 's/Eigen\/Core/eigen3\/Eigen\/Core/g' /usr/include/CGAL/Dimension.h
-RUN sed -i -e 's/Eigen\/Dense/eigen3\/Eigen\/Dense/g' /usr/include/CGAL/NewKernel_d/LA_eigen/LA.h
-RUN sed -i -e 's/Eigen\/Dense/eigen3\/Eigen\/Dense/g' /usr/include/CGAL/NewKernel_d/LA_eigen/constructors.h
-
-RUN cgal_create_CMakeLists
-RUN sed -i -e 's/find_package/find_package( Eigen3 3.3 REQUIRED )\nfind_package/g' /opt/cytools/external/cgal/CMakeLists.txt
-RUN cmake . -DCMAKE_BUILD_TYPE=Release
-# Must be single-threaded or it crashes on macOS
-RUN make -j 1
-RUN for i in $(seq 2 5); do ln -s "/opt/cytools/external/cgal/cgal-triangulate-${i}d" "/usr/local/bin/cgal-triangulate-${i}d"; done
-RUN ln -s "/opt/cytools/external/cgal/cgal-triangulate" "/usr/local/bin/cgal-triangulate"
 
 # Set variables so that numpy is limited to one thread
 ENV MKL_NUM_THREADS=1
