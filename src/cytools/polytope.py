@@ -791,7 +791,7 @@ class Polytope:
         # dictionary from labels to input coordinates
         pts_input_all = self._optimal_to_input(self.points(optimal=True))
         self._labels2inputPts = {
-            label: tuple(pt) for label, pt in zip(self._pts_order, pts_input_all)
+            label: tuple(map(int, pt)) for label, pt in zip(self._pts_order, pts_input_all)
         }
 
         # reverse dictionaries
