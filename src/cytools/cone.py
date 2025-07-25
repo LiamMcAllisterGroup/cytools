@@ -1156,6 +1156,7 @@ class Cone:
     def find_interior_point(
         self,
         c=1,
+        lower=None,
         integral=False,
         backend=None,
         check=True,
@@ -1171,6 +1172,7 @@ class Cone:
         - `c` *(float, optional, default=1)*: A real positive number specifying
             the stretching of the cone (i.e. the minimum distance to the
             defining hyperplanes).
+        - `lower`: A lower bound on the components of the interior point.
         - `integral` *(bool, optional, default=False)*: A flag that specifies
             whether the point should have integral coordinates.
         - `backend` *(str, optional, default=None)*: String that specifies the
@@ -1198,7 +1200,7 @@ class Cone:
             raise ValueError("Invalid backend. " f"The options are: {backends}.")
 
         # If the rays are already computed then this is a simple task
-        if self._rays is not None and backend is None:
+        if (self._rays is not None) and (backend is None) and (lower is None):
             if np.linalg.matrix_rank(self._rays) != self._ambient_dim:
                 return None
 
@@ -1224,6 +1226,8 @@ class Cone:
             return point
 
         # Otherwise we need to do a harder computation...
+        H = self.hyperplanes()
+
         if backend is None:
             if config.mosek_is_activated() and (self.ambient_dim() >= 25):
                 backend = "mosek"
@@ -1232,13 +1236,16 @@ class Cone:
 
         if backend in ("glop", "scip", "cpsat"):
             solution = feasibility(
-                hyperplanes=self._hyperplanes,
+                hyperplanes=H,
                 c=c,
                 ambient_dim=self._ambient_dim,
                 backend=backend,
+                lower_bound=lower,
                 verbose=verbose,
             )
         else:
+            if not (lower is None):
+                raise ValueError(f"Cannot set custom lower bound for backend = {backend}")
             solution = self.tip_of_stretched_cone(
                 c, backend=backend, show_hints=show_hints, verbose=verbose
             )
@@ -1246,13 +1253,13 @@ class Cone:
             return None
 
         # function to take dot products
-        if isinstance(self._hyperplanes, (list, np.ndarray)):
+        if isinstance(H, (list, np.ndarray)):
             dot = lambda hp, x: hp.dot(x)
         else:
             dot = lambda hp, x: sum([val * x[ind] for ind, val in hp.items()])
 
         # Make sure that the solution is valid
-        if check and any(dot(v, solution) <= 0 for v in self._hyperplanes):
+        if check and any(dot(v, solution) <= 0 for v in H):
             warnings.warn("The solution that was found is invalid.")
             return None
 
@@ -1261,7 +1268,7 @@ class Cone:
             n_tries = 1000
             for i in range(1, n_tries):
                 int_sol = np.array([int(round(x)) for x in i * solution])
-                if all(dot(v, int_sol) > 0 for v in self._hyperplanes):
+                if all(dot(v, int_sol) > 0 for v in H):
                     break
                 if i == n_tries - 1:
                     return None
@@ -1938,6 +1945,7 @@ def feasibility(
     c: float,
     ambient_dim: int,
     backend: str,
+    lower_bound: float = None,
     verbose: bool = False,
 ):
     """
@@ -1973,7 +1981,11 @@ def feasibility(
 
         # define variables
         var_type = solver.NumVar if backend == "glop" else solver.IntVar
-        var = [(var_type)(-solver.infinity(), solver.infinity(), f"x_{i}")
+        if lower_bound is None:
+            lower = -solver.infinity()
+        else:
+            lower = lower_bound
+        var = [(var_type)(lower, solver.infinity(), f"x_{i}")
                for i in range(ambient_dim)]
 
         # define constraints
@@ -2018,6 +2030,10 @@ def feasibility(
 
         # define variables
         var = []
+        if lower_bound is None:
+            lower = cp_model.INT32_MIN
+        else:
+            lower = lower_bound
         for i in range(ambient_dim):
             var.append(
                 model.NewIntVar(cp_model.INT32_MIN, cp_model.INT32_MAX, f"x_{i}")
