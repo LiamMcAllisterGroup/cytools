@@ -7,6 +7,7 @@ dependencies:
   - numpy
   - normaliz
   - scipy
+  - sympy
   - cvxopt
   - python-flint
   - pplpy
