@@ -31,6 +31,7 @@ import warnings
 
 # 3rd party imports
 from flint import fmpz_mat, fmpz, fmpq
+import itertools
 import numpy as np
 from ortools.linear_solver import pywraplp
 from ortools.sat.python import cp_model
