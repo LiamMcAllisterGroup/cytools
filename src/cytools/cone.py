@@ -1725,6 +1725,35 @@ class Cone:
         self._is_smooth = abs(np.prod([snf[i, i] for i in range(len(snf))])) == 1
         return self._is_smooth
 
+    def lineality_space(self):
+        """
+        **Description:**
+        Returns an integral basis of the lineality space of the cone (i.e., the
+        largest linear subspace contained in the cone).
+
+        Any x in the lineality space has H@x>=0 and H@(-x)>=0. I.e., H@x==0.
+
+        ***NOTE:*** This performs the computation via hyperplanes, not rays.
+        If you have a ray representation, then this is subpar...
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        *(numpy.ndarray)* Vectors (as rows) spanning the lineality space.
+        """
+        # use flint to compute the nullspace
+        null, nullity = fmpz_mat(self.hyperplanes().tolist()).nullspace()
+
+        # trim extra columns (they're all 0s)
+        null = np.array(null.tolist(), dtype=int)[:,:nullity]
+
+        # reduce spanning vectors to be primitive
+        gcds = np.array([math.gcd(*c) for c in null.T])
+        null = null//gcds
+
+        return null.T
+
     def hilbert_basis(self):
         """
         **Description:**
