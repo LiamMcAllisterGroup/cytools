@@ -2316,6 +2316,7 @@ class CalabiYau:
                         diff_pts = list(simps[i] ^ simps[j])
                         m[:2,:] = pts_ext[diff_pts]
                         m[2:,:] = pts_ext[comm_pts]
+                        # use flint nullspace...
                         v = null_space(m.T)[:,0]
                         if v[0] < 0:
                             v *= -1
@@ -2345,6 +2346,7 @@ class CalabiYau:
                     comm_pts = list(s2d)+[0]
                     m[:2,:] = pts_ext[diff_pts]
                     m[2:,:] = pts_ext[comm_pts]
+                    # use flint nullspace...
                     v = null_space(m.T)
                     if v.shape[1] != 1:
                         print("Warning: Kernel dimension {v.shape[1]}.")
