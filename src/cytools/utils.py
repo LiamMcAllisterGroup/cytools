@@ -24,6 +24,7 @@ import ast
 import fractions
 import functools
 import itertools
+import math
 import requests
 import subprocess
 from typing import Generator
@@ -104,6 +105,23 @@ def gcd_float(a: float, b: float, tol: float = 1e-5) -> float:
 # variant that computes gcd over all elements in arr
 gcd_list = lambda arr: functools.reduce(gcd_float, arr)
 
+# linear algebra
+# --------------
+def integral_nullspace(M, reduce_by_gcd=True):
+    """
+    Returns the integral nullspace as column vectors
+    """
+    null, nullity = flint.fmpz_mat(M.tolist()).nullspace()
+    
+    # trim extra columns
+    null = np.array(null.tolist(), dtype=int)[:,:nullity]
+    
+    # reduce by gcd
+    if reduce_by_gcd:
+        gcds = np.array([math.gcd(*c) for c in null.T])
+        null = null//gcds
+    
+    return null
 
 # flint conversion
 # ----------------

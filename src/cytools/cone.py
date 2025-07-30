@@ -21,7 +21,6 @@
 
 # 'standard' imports
 from ast import literal_eval
-import math
 from multiprocessing import Process, Queue, cpu_count
 import os
 import random
@@ -42,7 +41,7 @@ from scipy.optimize import nnls
 
 # CYTools imports
 from cytools import config
-from cytools.utils import gcd_list, array_fmpz_to_int, array_fmpq_to_float
+from cytools import utils
 
 
 class Cone:
@@ -249,9 +248,9 @@ class Cone:
                         "features must be enabled in configuration."
                     )
                 if t == fmpz:
-                    data = array_fmpz_to_int(data)
+                    data = utils.array_fmpz_to_int(data)
                 else:
-                    data = array_fmpq_to_float(data)
+                    data = utils.array_fmpq_to_float(data)
             elif t == np.int8:
                 # rest of calculations assume ints are 64-bit? convert...
                 data = data.astype(np.int64)
@@ -265,7 +264,7 @@ class Cone:
                 if t == np.int64:
                     gcds = np.gcd.reduce(data, axis=1)
                 else:
-                    gcds = np.asarray([gcd_list(v) for v in data])
+                    gcds = np.asarray([utils.gcd_list(v) for v in data])
 
                 # reduce by them
                 if t == np.int64:
@@ -1208,7 +1207,7 @@ class Cone:
             point = self._rays.sum(axis=0)
 
             if max(abs(point)) > 1e-3:
-                point //= gcd_list(point)
+                point //= utils.gcd_list(point)
             else:
                 # looks like the point is all zeros
                 if np.prod(self.hyperplanes().shape) == 0:
@@ -1725,34 +1724,34 @@ class Cone:
         self._is_smooth = abs(np.prod([snf[i, i] for i in range(len(snf))])) == 1
         return self._is_smooth
 
-    def lineality_space(self):
+    def lineality_space(self, return_rays=True):
         """
         **Description:**
         Returns an integral basis of the lineality space of the cone (i.e., the
         largest linear subspace contained in the cone).
 
-        Any x in the lineality space has H@x>=0 and H@(-x)>=0. I.e., H@x==0.
-
         ***NOTE:*** This performs the computation via hyperplanes, not rays.
-        If you have a ray representation, then this is subpar...
+        If you have a ray representation, then this first requires conversion
+        into hyperplanes
 
         **Arguments:**
         None.
 
         **Returns:**
-        *(numpy.ndarray)* Vectors (as rows) spanning the lineality space.
+        *(numpy.ndarray)* A representation of the lineality space. If
+        return_rays==True, then the rows correspond to a linear basis of the
+        space. Otherwise, the rows correspond to hyperplane normals H such that
+        the linearlity space is {x | H@x==0}.
         """
-        # use flint to compute the nullspace
-        null, nullity = fmpz_mat(self.hyperplanes().tolist()).nullspace()
+        # any x in the lineality space has H@x>=0 and H@(-x)>=0. I.e., H@x==0.
+        rays = utils.integral_nullspace(self.hyperplanes()).T
 
-        # trim extra columns (they're all 0s)
-        null = np.array(null.tolist(), dtype=int)[:,:nullity]
-
-        # reduce spanning vectors to be primitive
-        gcds = np.array([math.gcd(*c) for c in null.T])
-        null = null//gcds
-
-        return null.T
+        if return_rays:
+            return rays
+        else:
+            # to convert to a hyperplane representation, find n s.t. n.x==0
+            hyps = utils.integral_nullspace(rays).T
+            return hyps
 
     def hilbert_basis(self):
         """
@@ -2075,7 +2074,7 @@ def feasibility(
 
         # define objective
         obj_vec = hyperplanes.sum(axis=0)
-        obj_vec //= gcd_list(obj_vec)
+        obj_vec //= utils.gcd_list(obj_vec)
 
         obj = 0
         for i in range(ambient_dim):
