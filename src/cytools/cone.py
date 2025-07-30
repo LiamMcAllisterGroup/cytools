@@ -1724,34 +1724,69 @@ class Cone:
         self._is_smooth = abs(np.prod([snf[i, i] for i in range(len(snf))])) == 1
         return self._is_smooth
 
-    def lineality_space(self, return_rays=True):
+    def lineality_space(self):
         """
         **Description:**
-        Returns an integral basis of the lineality space of the cone (i.e., the
-        largest linear subspace contained in the cone).
+        Returns the lineality space as a formal cone object.
 
-        ***NOTE:*** This performs the computation via hyperplanes, not rays.
-        If you have a ray representation, then this first requires conversion
-        into hyperplanes
+        This Cone object a bit odd since, by definition, the lineality space is
+        the largest *linear subspace* in the cone, so it allows coefficients of
+        any sign. Regardless, it's convenient to package this as a Cone
 
         **Arguments:**
         None.
 
         **Returns:**
-        *(numpy.ndarray)* A representation of the lineality space. If
-        return_rays==True, then the rows correspond to a linear basis of the
-        space. Otherwise, the rows correspond to hyperplane normals H such that
-        the linearlity space is {x | H@x==0}.
+        *(Cone)* A cone defining the lineality space.
         """
-        # any x in the lineality space has H@x>=0 and H@(-x)>=0. I.e., H@x==0.
-        rays = utils.integral_nullspace(self.hyperplanes()).T
+        H = self.hyperplanes()
 
-        if return_rays:
-            return rays
-        else:
-            # to convert to a hyperplane representation, find n s.t. n.x==0
-            hyps = utils.integral_nullspace(rays).T
-            return hyps
+        # the lineality space is defined by the x such that H@x==0
+        # (the following definition is extremely redundant, so it's only listed
+        #  for pedagogical purposes. It's better to define the cone via rays
+        #  and then compute the hyperplanes via DDM since there will only be 6
+        #  rays, since lineality space should typically be 5D)
+        #lin = Cone(hyperplanes = np.vstack([H,-H]))
+
+        # linearly spanning vectors are given by null(H)
+        R = utils.integral_nullspace(H).T
+
+        # to map to positively spanning rays, add in the ray r=np.sum(axis=0)
+        R = np.vstack( [R, [-np.sum(R,axis=0)]] )
+        lin = Cone(rays = R)
+
+        return lin
+
+    def pointed_space(self):
+        """
+        **Description:**
+        A cone can be decomposed into its lineality space and its pointed
+        component.
+
+        The pointed component is obtained by intersection of the cone with the
+        orthogonal complement of the lineality space. I.e., want to impose
+        H@x=0 for any x in the lineality space.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        *(Cone)* The pointed part of the cone.
+        """
+        H = self.hyperplanes()
+
+        # linearly spanning vectors of the lineality space
+        # (don't need to add -\\sum_i r_i since we're dealing with linear spans)
+        R = utils.integral_nullspace(H).T
+
+        # The hyperplanes defining the orthogonal complement are just [R, -R].
+        # This is because
+        # R@x==0 <=> y@R@x==0 (for all y)
+        #        <=> r.x==0   (for all r in the rowspan of R... lineality space)
+
+        # the pointed part is just the intersection with these hyperplanes
+        pointed = Cone(hyperplanes=np.vstack( [H, R, -R] ))
+        return pointed
 
     def hilbert_basis(self):
         """
