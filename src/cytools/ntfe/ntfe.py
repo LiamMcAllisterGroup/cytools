@@ -31,8 +31,8 @@ import random
 import time
 
 # 3rd party imports
+import flint
 import numpy as np
-import sympy as smp
 from tqdm import tqdm
 
 # CYTools imports
@@ -141,9 +141,8 @@ def _2d_frt_cone_ineqs(self, ambient_dim: int) -> matrix.LIL:
         ineq = None
         if ineq is None:
             # calculate the nullspace
-            null = smp.Matrix(M.tolist() + [[1, 1, 1, 1]]).nullspace()[0]
-            denom = [term.q for term in null]
-            null *= math.lcm(*denom)
+            null = flint.fmpz_mat(M.tolist() + [[1, 1, 1, 1]]).nullspace()
+            null = null[0].transpose().tolist()[0]
 
             # ensure the not-shared points have positive coordinates
             if null[0] < 0:
@@ -210,11 +209,8 @@ def _2d_s_cone_ineqs(self, poly, ambient_dim: int) -> matrix.LIL:
                 M = poly.points(which=n_s + s + [o], optimal=True).T
 
                 # Grab/calculate the nullspace
-                null = smp.Matrix(
-                    M.tolist() + [[1, 1, 1, 1, 1, 1]]
-                ).nullspace()[0]
-                denom = [term.q for term in null]
-                null *= math.lcm(*denom)
+                null = flint.fmpz_mat(M.tolist() + [[1, 1, 1, 1]]).nullspace()
+                null = null[0].transpose().tolist()[0]
 
                 # ensure the not-shared points have positive coordinates
                 if null[0] < 0:
@@ -914,7 +910,7 @@ def ntfe_cones(
         def gen():
             for hyper in hypers:
                 yield Cone(
-                    hyperplanes=hyper, ambient_dim=dim, parse_inputs=False
+                    hyperplanes=hyper, ambient_dim=dim, parse_inputs=(len(hyper)==0)
                 )
 
         return gen()
@@ -941,7 +937,7 @@ def ntfe_cones(
     iter_wrapper = (
         tqdm if verbosity >= 1 else lambda x: x
     )  # (for progress bars)
-    return [Cone(hyperplanes=hyper, ambient_dim=dim, parse_inputs=False)
+    return [Cone(hyperplanes=hyper, ambient_dim=dim, parse_inputs=(len(hyper)==0))
             for hyper in iter_wrapper(iterator)]
 
 

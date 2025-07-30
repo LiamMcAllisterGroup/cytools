@@ -22,7 +22,6 @@
 # 'standard' imports
 from ast import literal_eval
 import contextlib
-import math
 import joblib
 from multiprocessing import cpu_count
 import os
@@ -33,6 +32,7 @@ import warnings
 
 # 3rd party imports
 from flint import fmpz_mat, fmpz, fmpq
+import itertools
 import numpy as np
 from ortools.linear_solver import pywraplp
 from ortools.sat.python import cp_model
@@ -43,7 +43,7 @@ from scipy.optimize import nnls
 
 # CYTools imports
 from cytools import config
-from cytools.utils import gcd_list, array_fmpz_to_int, array_fmpq_to_float
+from cytools import utils
 
 
 class Cone:
@@ -250,9 +250,9 @@ class Cone:
                         "features must be enabled in configuration."
                     )
                 if t == fmpz:
-                    data = array_fmpz_to_int(data)
+                    data = utils.array_fmpz_to_int(data)
                 else:
-                    data = array_fmpq_to_float(data)
+                    data = utils.array_fmpq_to_float(data)
             elif t == np.int8:
                 # rest of calculations assume ints are 64-bit? convert...
                 data = data.astype(np.int64)
@@ -266,7 +266,7 @@ class Cone:
                 if t == np.int64:
                     gcds = np.gcd.reduce(data, axis=1)
                 else:
-                    gcds = np.asarray([gcd_list(v) for v in data])
+                    gcds = np.asarray([utils.gcd_list(v) for v in data])
 
                 # reduce by them
                 if t == np.int64:
@@ -558,10 +558,17 @@ class Cone:
         """
         if self._dim is not None:
             return self._dim
+
         if self._rays is not None:
+            # know the rays... semi simple computation
             self._dim = np.linalg.matrix_rank(self._rays)
-            return self._dim
-        self._dim = np.linalg.matrix_rank(self.rays())
+        else:
+            # don't know the rays... still simple if the cone is solid...
+            if self.is_solid():
+                self._dim = self.ambient_dim()
+            else:
+                # yikes need to compute the rays
+                self._dim = np.linalg.matrix_rank(self.rays())
         return self._dim
 
     # aliases
@@ -831,21 +838,68 @@ class Cone:
 
         return self._ext_rays
 
-    def extremal_hyperplanes(self, tol=1e-4, verbose=False):
+    def extremal_hyperplanes(self, tol: float=1e-4, verbose: bool=False):
         """
         **Description:**
         Returns the extremal hyperplanes of the cone.
 
         **Arguments:**
-        - `tol` *(float, optional, default=1e-4)*: Specifies the tolerance for
-            deciding whether a ray is extremal or not.
-        - verbose *(bool, optional, default=False)*: When set to True it show
-            the progress while finding the extremal rays.
+        - `tol`: Specifies the tolerance for deciding whether a ray is extremal
+            or not.
+        - `verbose`: When set to True it show the progress while finding the
+            extremal rays.
 
         **Returns:**
         *(numpy.ndarray)* The list of extremal hyperplanes of the cone.
         """
         return self.dual().extremal_rays(tol=tol, verbose=verbose)
+
+    def facets(self, verbosity: int = 0):
+        """
+        **Description:**
+        Get the facets of the cone.
+
+        This is easy if:
+            -) the cone is simplicial OR
+            -) the cone is solid and the extremal hyperplanes can be computed.
+        Otherwise, the computation uses both rays and hyperplanes... this is
+        semi-expensive to compute...
+
+        **Arguments:**
+        - `verbosity`: The verbosity level.
+
+        **Returns:**
+        The facets of the cone.
+        """
+        # ray-based computation
+        if self.is_simplicial():
+            if verbosity >= 1:
+                print("Cone is simplicial! Easy computation...")
+            R = self.rays()
+
+            dim = len(R)
+            ray_inds = list(range(dim))
+
+            # facets are defined by collections of #(dim-1) rays
+            return [Cone(rays=R[inds]) for inds in\
+                                        itertools.combinations(ray_inds,dim-1)]
+
+        # hyperplane based-computation
+        if verbosity >= 1:
+            print("Computing facets via extremal hyperplanes...")
+        H = self.extremal_hyperplanes()
+
+        if self.is_solid():
+            # still pretty easy
+            can_saturate = H
+        else:
+            # this means that the cone contains both h and -h as hyperplanes...
+            # i.e., h is already saturated by definition...
+            # need to skip these when looking to saturate hyperplanes
+            can_saturate = [h for h in H if not self.dual().contains(-h)]
+
+        return [Cone(hyperplanes=np.vstack((H, -h)), check=False) for h in\
+                                                                can_saturate]
 
     def tip_of_stretched_cone(
         self,
@@ -1052,6 +1106,7 @@ class Cone:
     def find_interior_point(
         self,
         c=1,
+        lower=None,
         integral=False,
         backend=None,
         check=True,
@@ -1067,6 +1122,7 @@ class Cone:
         - `c` *(float, optional, default=1)*: A real positive number specifying
             the stretching of the cone (i.e. the minimum distance to the
             defining hyperplanes).
+        - `lower`: A lower bound on the components of the interior point.
         - `integral` *(bool, optional, default=False)*: A flag that specifies
             whether the point should have integral coordinates.
         - `backend` *(str, optional, default=None)*: String that specifies the
@@ -1094,14 +1150,14 @@ class Cone:
             raise ValueError("Invalid backend. " f"The options are: {backends}.")
 
         # If the rays are already computed then this is a simple task
-        if self._rays is not None and backend is None:
+        if (self._rays is not None) and (backend is None) and (lower is None):
             if np.linalg.matrix_rank(self._rays) != self._ambient_dim:
                 return None
 
             point = self._rays.sum(axis=0)
 
             if max(abs(point)) > 1e-3:
-                point //= gcd_list(point)
+                point //= utils.gcd_list(point)
             else:
                 # looks like the point is all zeros
                 if np.prod(self.hyperplanes().shape) == 0:
@@ -1120,6 +1176,8 @@ class Cone:
             return point
 
         # Otherwise we need to do a harder computation...
+        H = self.hyperplanes()
+
         if backend is None:
             if config.mosek_is_activated() and (self.ambient_dim() >= 25):
                 backend = "mosek"
@@ -1128,13 +1186,16 @@ class Cone:
 
         if backend in ("glop", "scip", "cpsat"):
             solution = feasibility(
-                hyperplanes=self._hyperplanes,
+                hyperplanes=H,
                 c=c,
                 ambient_dim=self._ambient_dim,
                 backend=backend,
+                lower_bound=lower,
                 verbose=verbose,
             )
         else:
+            if not (lower is None):
+                raise ValueError(f"Cannot set custom lower bound for backend = {backend}")
             solution = self.tip_of_stretched_cone(
                 c, backend=backend, show_hints=show_hints, verbose=verbose
             )
@@ -1142,13 +1203,13 @@ class Cone:
             return None
 
         # function to take dot products
-        if isinstance(self._hyperplanes, (list, np.ndarray)):
+        if isinstance(H, (list, np.ndarray)):
             dot = lambda hp, x: hp.dot(x)
         else:
             dot = lambda hp, x: sum([val * x[ind] for ind, val in hp.items()])
 
         # Make sure that the solution is valid
-        if check and any(dot(v, solution) <= 0 for v in self._hyperplanes):
+        if check and any(dot(v, solution) <= 0 for v in H):
             warnings.warn("The solution that was found is invalid.")
             return None
 
@@ -1157,7 +1218,7 @@ class Cone:
             n_tries = 1000
             for i in range(1, n_tries):
                 int_sol = np.array([int(round(x)) for x in i * solution])
-                if all(dot(v, int_sol) > 0 for v in self._hyperplanes):
+                if all(dot(v, int_sol) > 0 for v in H):
                     break
                 if i == n_tries - 1:
                     return None
@@ -1543,6 +1604,11 @@ class Cone:
         **Description:**
         Returns True if the cone is simplicial.
 
+        N.B.: if c is solid, then c is simplicial <=> c.dual() is simplicial.
+
+        A sometimes-simpler check if c is solid, then, is to check if
+        #(extremal hyperplanes) = dim.
+
         **Arguments:**
         None.
 
@@ -1562,7 +1628,13 @@ class Cone:
         """
         if self._is_simplicial is not None:
             return self._is_simplicial
-        self._is_simplicial = len(self.extremal_rays()) == self.dim()
+
+        # split analysis by whether we know rays or not
+        if (self._rays is None) and (self.is_solid()):
+            self._is_simplicial = len(self.extremal_hyperplanes()) == self.dim()
+        else:
+            self._is_simplicial = len(self.extremal_rays()) == self.dim()
+
         return self._is_simplicial
 
     def is_smooth(self):
@@ -1601,6 +1673,35 @@ class Cone:
         )
         self._is_smooth = abs(np.prod([snf[i, i] for i in range(len(snf))])) == 1
         return self._is_smooth
+
+    def lineality_space(self, return_rays=True):
+        """
+        **Description:**
+        Returns an integral basis of the lineality space of the cone (i.e., the
+        largest linear subspace contained in the cone).
+
+        ***NOTE:*** This performs the computation via hyperplanes, not rays.
+        If you have a ray representation, then this first requires conversion
+        into hyperplanes
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        *(numpy.ndarray)* A representation of the lineality space. If
+        return_rays==True, then the rows correspond to a linear basis of the
+        space. Otherwise, the rows correspond to hyperplane normals H such that
+        the linearlity space is {x | H@x==0}.
+        """
+        # any x in the lineality space has H@x>=0 and H@(-x)>=0. I.e., H@x==0.
+        rays = utils.integral_nullspace(self.hyperplanes()).T
+
+        if return_rays:
+            return rays
+        else:
+            # to convert to a hyperplane representation, find n s.t. n.x==0
+            hyps = utils.integral_nullspace(rays).T
+            return hyps
 
     def hilbert_basis(self):
         """
@@ -1820,6 +1921,7 @@ def feasibility(
     c: float,
     ambient_dim: int,
     backend: str,
+    lower_bound: float = None,
     verbose: bool = False,
 ):
     """
@@ -1855,7 +1957,11 @@ def feasibility(
 
         # define variables
         var_type = solver.NumVar if backend == "glop" else solver.IntVar
-        var = [(var_type)(-solver.infinity(), solver.infinity(), f"x_{i}")
+        if lower_bound is None:
+            lower = -solver.infinity()
+        else:
+            lower = lower_bound
+        var = [(var_type)(lower, solver.infinity(), f"x_{i}")
                for i in range(ambient_dim)]
 
         # define constraints
@@ -1900,6 +2006,10 @@ def feasibility(
 
         # define variables
         var = []
+        if lower_bound is None:
+            lower = cp_model.INT32_MIN
+        else:
+            lower = lower_bound
         for i in range(ambient_dim):
             var.append(
                 model.NewIntVar(cp_model.INT32_MIN, cp_model.INT32_MAX, f"x_{i}")
@@ -1911,7 +2021,7 @@ def feasibility(
 
         # define objective
         obj_vec = hyperplanes.sum(axis=0)
-        obj_vec //= gcd_list(obj_vec)
+        obj_vec //= utils.gcd_list(obj_vec)
 
         obj = 0
         for i in range(ambient_dim):
