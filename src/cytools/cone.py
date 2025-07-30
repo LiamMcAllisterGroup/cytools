@@ -318,7 +318,7 @@ class Cone:
         """
         self._hash = None
         self._dual = None
-        self._ext_rays = None
+        self._ext_rays = [None, None]
         self._is_solid = None
         self._is_pointed = None
         self._is_simplicial = None
@@ -754,7 +754,7 @@ class Cone:
     # aliases
     dual = dual_cone
 
-    def extremal_rays(self, tol=1e-4, verbose=False):
+    def extremal_rays(self, tol=1e-4, minimal=True, verbose=False):
         """
         **Description:**
         Returns the extremal rays of the cone.
@@ -768,6 +768,11 @@ class Cone:
         **Arguments:**
         - `tol` *(float, optional, default=1e-4)*: Specifies the tolerance for
             deciding whether a ray is extremal or not.
+        - `minimal`: *(bool, optional, default=True)*: Whether to return a
+            minimal generating set of rays. For pointed cones, there is a unique
+            minimal generating set -- the extremal rays. For non-pointed cones,
+            one can have a collection of extremal rays generating the cone that
+            is not minimal with respect to ray count.
         - verbose *(bool, optional, default=False)*: When set to True it show
             the progress while finding the extremal rays.
 
@@ -783,8 +788,30 @@ class Cone:
         #        [1, 0]])
         ```
         """
-        if self._ext_rays is not None:
-            return np.array(self._ext_rays)
+        if self._ext_rays[minimal] is not None:
+            return np.array(self._ext_rays[minimal])
+
+        # non-pointed cones are tricky
+        # A ray r of the ray set (i.e., generating matrix) R is extremal if it
+        # cannot be written as a non-negative combination of the other rays
+        #
+        # For pointed cones, there is a unique collection of extremal rays
+        # defining a cone. For non-pointed cones, this is not true.
+        #
+        # Furthermore, for non-pointed cones, every ray r of R may be extremal
+        # with respect to R, but there might be a smaller set of rays R'
+        # defining the same region.
+        #
+        # For simplicity, we return minimal (in terms of ray count) generating
+        # matrices by analyzing the lineality space and the pointed bit of the
+        # cone separately
+        if minimal and (not self.is_pointed()):
+            self._ext_rays[minimal] = np.vstack([
+                self.lineality_space().extremal_rays(),
+                self.pointed_space().extremal_rays()
+            ])
+
+            return self._ext_rays[minimal]
 
         # It is important to delete duplicates
         rays = np.array(list({tuple(r) for r in self.rays()}))
@@ -879,14 +906,14 @@ class Cone:
             )
 
         try:
-            self._ext_rays = rays[list(ext_rays)]
+            self._ext_rays[minimal] = rays[list(ext_rays)]
             if self._rays is None:
-                self._rays = self._ext_rays
+                self._rays = self._ext_rays[minimal]
         except IndexError as e:
             raise Exception(
                 f"Dimension/indexing error rays={rays}; " + f"ext_rays={ext_rays}"
             ) from e
-        return self._ext_rays
+        return self._ext_rays[minimal]
 
     def extremal_hyperplanes(self, tol: float=1e-4, verbose: bool=False):
         """
@@ -1752,8 +1779,18 @@ class Cone:
         R = utils.integral_nullspace(H).T
 
         # to map to positively spanning rays, add in the ray r=np.sum(axis=0)
-        R = np.vstack( [R, [-np.sum(R,axis=0)]] )
-        lin = Cone(rays = R)
+        r = -np.sum(R,axis=0)
+        r = r//utils.gcd_list(r)
+        R = np.vstack( [R,[r]] )
+
+        lin = Cone(rays=R)
+
+        # save the extremal rays manually
+        # (this is split into two saves since _ext_rays stores both the naive
+        #  extremal rays [i.e., a subset of _rays] at index 0 and the minimal
+        #  extremal rays  at index 1)
+        lin._ext_rays[0] = R.copy()
+        lin._ext_rays[1] = R.copy()
 
         return lin
 
