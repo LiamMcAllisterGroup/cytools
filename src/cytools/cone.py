@@ -320,7 +320,7 @@ class Cone:
         """
         self._hash = None
         self._dual = None
-        self._ext_rays = None
+        self._ext_rays = [None, None]
         self._is_solid = None
         self._is_pointed = None
         self._is_simplicial = None
@@ -756,7 +756,7 @@ class Cone:
     # aliases
     dual = dual_cone
 
-    def extremal_rays(self, tol=1e-4, verbose=False):
+    def extremal_rays(self, tol=1e-4, minimal=True, verbose=False):
         """
         **Description:**
         Returns the extremal rays of the cone.
@@ -770,6 +770,11 @@ class Cone:
         **Arguments:**
         - `tol` *(float, optional, default=1e-4)*: Specifies the tolerance for
             deciding whether a ray is extremal or not.
+        - `minimal`: *(bool, optional, default=True)*: Whether to return a
+            minimal generating set of rays. For pointed cones, there is a unique
+            minimal generating set -- the extremal rays. For non-pointed cones,
+            one can have a collection of extremal rays generating the cone that
+            is not minimal with respect to ray count.
         - verbose *(bool, optional, default=False)*: When set to True it show
             the progress while finding the extremal rays.
 
@@ -785,8 +790,30 @@ class Cone:
         #        [1, 0]])
         ```
         """
-        if self._ext_rays is not None:
-            return np.array(self._ext_rays)
+        if self._ext_rays[minimal] is not None:
+            return np.array(self._ext_rays[minimal])
+
+        # non-pointed cones are tricky
+        # A ray r of the ray set (i.e., generating matrix) R is extremal if it
+        # cannot be written as a non-negative combination of the other rays
+        #
+        # For pointed cones, there is a unique collection of extremal rays
+        # defining a cone. For non-pointed cones, this is not true.
+        #
+        # Furthermore, for non-pointed cones, every ray r of R may be extremal
+        # with respect to R, but there might be a smaller set of rays R'
+        # defining the same region.
+        #
+        # For simplicity, we return minimal (in terms of ray count) generating
+        # matrices by analyzing the lineality space and the pointed bit of the
+        # cone separately
+        if minimal and (not self.is_pointed()):
+            self._ext_rays[minimal] = np.vstack([
+                self.lineality_space().extremal_rays(),
+                self.pointed_space().extremal_rays()
+            ])
+
+            return self._ext_rays[minimal]
 
         # It is important to delete duplicates
         rays = np.array(list({tuple(r) for r in self.rays()}))
@@ -832,11 +859,11 @@ class Cone:
                     raise ValueError(f"Failed to check whether ray #{i} was extremal")
 
         # save the answer
-        self._ext_rays = rays[ext_rays]
+        self._ext_rays[minimal] = rays[list(ext_rays)]
         if self._rays is None:
-            self._rays = self._ext_rays
+            self._rays = self._ext_rays[minimal]
 
-        return self._ext_rays
+        return self._ext_rays[minimal]
 
     def extremal_hyperplanes(self, tol: float=1e-4, verbose: bool=False):
         """
@@ -1674,34 +1701,79 @@ class Cone:
         self._is_smooth = abs(np.prod([snf[i, i] for i in range(len(snf))])) == 1
         return self._is_smooth
 
-    def lineality_space(self, return_rays=True):
+    def lineality_space(self):
         """
         **Description:**
-        Returns an integral basis of the lineality space of the cone (i.e., the
-        largest linear subspace contained in the cone).
+        Returns the lineality space as a formal cone object.
 
-        ***NOTE:*** This performs the computation via hyperplanes, not rays.
-        If you have a ray representation, then this first requires conversion
-        into hyperplanes
+        This Cone object a bit odd since, by definition, the lineality space is
+        the largest *linear subspace* in the cone, so it allows coefficients of
+        any sign. Regardless, it's convenient to package this as a Cone
 
         **Arguments:**
         None.
 
         **Returns:**
-        *(numpy.ndarray)* A representation of the lineality space. If
-        return_rays==True, then the rows correspond to a linear basis of the
-        space. Otherwise, the rows correspond to hyperplane normals H such that
-        the linearlity space is {x | H@x==0}.
+        *(Cone)* A cone defining the lineality space.
         """
-        # any x in the lineality space has H@x>=0 and H@(-x)>=0. I.e., H@x==0.
-        rays = utils.integral_nullspace(self.hyperplanes()).T
+        H = self.hyperplanes()
 
-        if return_rays:
-            return rays
-        else:
-            # to convert to a hyperplane representation, find n s.t. n.x==0
-            hyps = utils.integral_nullspace(rays).T
-            return hyps
+        # the lineality space is defined by the x such that H@x==0
+        # (the following definition is extremely redundant, so it's only listed
+        #  for pedagogical purposes. It's better to define the cone via rays
+        #  and then compute the hyperplanes via DDM since there will only be 6
+        #  rays, since lineality space should typically be 5D)
+        #lin = Cone(hyperplanes = np.vstack([H,-H]))
+
+        # linearly spanning vectors are given by null(H)
+        R = utils.integral_nullspace(H).T
+
+        # to map to positively spanning rays, add in the ray r=np.sum(axis=0)
+        r = -np.sum(R,axis=0)
+        r = r//utils.gcd_list(r)
+        R = np.vstack( [R,[r]] )
+
+        lin = Cone(rays=R)
+
+        # save the extremal rays manually
+        # (this is split into two saves since _ext_rays stores both the naive
+        #  extremal rays [i.e., a subset of _rays] at index 0 and the minimal
+        #  extremal rays  at index 1)
+        lin._ext_rays[0] = R.copy()
+        lin._ext_rays[1] = R.copy()
+
+        return lin
+
+    def pointed_space(self):
+        """
+        **Description:**
+        A cone can be decomposed into its lineality space and its pointed
+        component.
+
+        The pointed component is obtained by intersection of the cone with the
+        orthogonal complement of the lineality space. I.e., want to impose
+        H@x=0 for any x in the lineality space.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        *(Cone)* The pointed part of the cone.
+        """
+        H = self.hyperplanes()
+
+        # linearly spanning vectors of the lineality space
+        # (don't need to add -\\sum_i r_i since we're dealing with linear spans)
+        R = utils.integral_nullspace(H).T
+
+        # The hyperplanes defining the orthogonal complement are just [R, -R].
+        # This is because
+        # R@x==0 <=> y@R@x==0 (for all y)
+        #        <=> r.x==0   (for all r in the rowspan of R... lineality space)
+
+        # the pointed part is just the intersection with these hyperplanes
+        pointed = Cone(hyperplanes=np.vstack( [H, R, -R] ))
+        return pointed
 
     def hilbert_basis(self):
         """
