@@ -20,7 +20,7 @@ from cytools.cone import Cone
 from cytools.utils import read_polytopes, fetch_polytopes
 
 # Latest version
-version = "1.3.0"
+version = "1.4.0"
 versions_with_serious_bugs = []
 
 
