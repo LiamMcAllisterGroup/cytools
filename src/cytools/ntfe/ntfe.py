@@ -24,8 +24,8 @@
 import atexit
 import collections
 import itertools
+import joblib
 import math
-import multiprocessing as mp
 import os
 import random
 import time
@@ -943,18 +943,6 @@ def ntfe_cones(
 
 Polytope.ntfe_cones = ntfe_cones
 
-# (hack to get multiprocessing to work)
-_func = None
-
-
-def worker_init(func):
-    global _func
-    _func = func
-
-
-def worker(x):
-    return _func(x)
-
 
 def ntfe_frts(
     self: "Polytope",
@@ -969,7 +957,6 @@ def ntfe_frts(
     N_face_triangs: int = 1000,
     triang_method: str = "fast",
     as_generator: bool = False,
-    nproc: int = mp.cpu_count(),
     backend: str = None,
     verbosity: int = 0,
 ):
@@ -1012,7 +999,6 @@ def ntfe_frts(
     - `separate_boring`: Whether, when iterating over NTFEs, to group the
         inequalities associated to each 2-face with only 1 FRT. Only changes
         the ordering of outputs (may have effects on random sampling).
-    - `nproc`: The number of processors to use when constructing NTFEs.
     - `backend`: The backend to use for cone calculations.
     - `verbosity: Verbosity level. Higher means more verbose.
 
@@ -1089,14 +1075,14 @@ def ntfe_frts(
 
         return self.triangulate(heights=h, make_star=make_star)
 
-    with mp.Pool(nproc, initializer=worker_init, initargs=(func,)) as p:
-        for frst in p.imap(
-            worker, data, chunksize=max(1, (len(data) + 1) // nproc)
-        ):
-            if (frst is None) or (not frst):
-                continue
+    # check the selected rays
+    results = joblib.Parallel()(
+        joblib.delayed(func)(datum)
+        for datum in data
+    )
 
-            frsts.append(frst)
+    for frst in results:
+        frsts.append(frst)
 
     return frsts
 
@@ -1116,7 +1102,6 @@ def ntfe_frsts(
     N_face_triangs: int = 1000,
     triang_method: str = "fast",
     as_generator: bool = False,
-    nproc: int = mp.cpu_count(),
     backend: str = None,
     verbosity: int = 0,
 ):
@@ -1157,7 +1142,6 @@ def ntfe_frsts(
     - `separate_boring`: Whether, when iterating over NTFEs, to group the
         inequalities associated to each 2-face with only 1 FRT. Only changes
         the ordering of outputs (may have effects on random sampling).
-    - `nproc`: The number of processors to use when constructing NTFEs.
     - `backend`: The backend to use for cone calculations.
     - `verbosity: Verbosity level. Higher means more verbose.
 
@@ -1176,7 +1160,6 @@ def ntfe_frsts(
         N_face_triangs=N_face_triangs,
         triang_method=triang_method,
         as_generator=as_generator,
-        nproc=nproc,
         backend=backend,
         verbosity=verbosity,
     )
