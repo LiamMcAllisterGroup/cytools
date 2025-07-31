@@ -15,6 +15,7 @@ requires-python = ">=3.9"
 dependencies = [
     "numpy",
     "scipy",
+    "joblib",
     "cvxopt",
     "python-flint",
     "pplpy",
