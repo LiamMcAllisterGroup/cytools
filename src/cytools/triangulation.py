@@ -2497,7 +2497,7 @@ def _topcom_triangulate(points: ArrayLike) -> np.ndarray:
     """
     
     pc = triangulumancer.PointConfiguration(points)
-    simp = pc.placing_triangulation().simplices()
+    simp = pc.fine_triangulation().simplices()
 
     return np.array(sorted([sorted(s) for s in simp]))
 
