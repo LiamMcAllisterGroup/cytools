@@ -21,7 +21,9 @@
 
 # 'standard' imports
 from ast import literal_eval
-from multiprocessing import Process, Queue, cpu_count
+import contextlib
+import joblib
+from multiprocessing import cpu_count
 import os
 import random
 import string
@@ -831,88 +833,36 @@ class Cone:
                 "use a single thread."
             )
 
-        current_rays = set(range(rays.shape[0]))
-        ext_rays = set()
-        error_rays = set()
-        rechecking_rays = False
-        failed_after_rechecking = False
-        while True:
-            checking = []
+        # compute the extremal rays
+        ext_rays = [True for _ in range(len(rays))]
+        to_check = list(range(len(rays)))
 
-            # fill list of rays that we're currently checking
-            for i in current_rays:
-                if i not in ext_rays and (i not in error_rays or rechecking_rays):
-                    checking.append(i)
-                if len(checking) >= n_threads:
-                    break
+        if verbose:
+            print(f"Computing extremal rays for a cone with {len(rays)} using {n_threads} threads...")
 
-            if len(checking) == 0:
-                if rechecking_rays:
-                    break
-                rechecking_rays = True
+        while len(to_check):
+            # pull off n_threads rays to check
+            checking = to_check[:n_threads]
+            to_check = to_check[n_threads:]
 
-            # check each ray (using multiple threads)
-            q = Queue()
-
-            As = [
-                np.array([rays[j] for j in current_rays if j != k], dtype=int).T
-                for k in checking
-            ]
-            bs = [rays[k] for k in checking]
-
-            procs = [
-                Process(target=is_extremal, args=(As[k], bs[k], k, q, tol))
-                for k in range(len(checking))
-            ]
-
-            for t in procs:
-                t.start()
-            for t in procs:
-                t.join()
-
-            results = [q.get() for j in range(len(checking))]
-
-            # parse results
-            for res in results:
-                if res[1] is None:
-                    error_rays.add(checking[res[0]])
-                    if rechecking_rays:
-                        failed_after_rechecking = True
-                        ext_rays.add(checking[res[0]])
-                    elif verbose:
-                        print(
-                            "Cone.extremal_rays: Minimization failed. Ray "
-                            "will be rechecked later..."
-                        )
-                elif not res[1]:
-                    current_rays.remove(checking[res[0]])
-                else:
-                    ext_rays.add(checking[res[0]])
-
-                if rechecking_rays:
-                    error_rays.remove(checking[res[0]])
-
-            if verbose:
-                print(
-                    "Cone.extremal_rays: Eliminated "
-                    f"{sum(not r[1] for r in results)}. "
-                    f"Current number of rays: {len(current_rays)}"
-                )
-
-        if failed_after_rechecking:
-            warnings.warn(
-                "Minimization failed after multiple attempts. "
-                "Some rays may not be extremal."
+            # check the selected rays
+            results = joblib.Parallel(n_jobs=n_threads)(
+                joblib.delayed(is_extremal)(rays, ext_rays, i, tol=tol)
+                for i in checking
             )
 
-        try:
-            self._ext_rays[minimal] = rays[list(ext_rays)]
-            if self._rays is None:
-                self._rays = self._ext_rays[minimal]
-        except IndexError as e:
-            raise Exception(
-                f"Dimension/indexing error rays={rays}; " + f"ext_rays={ext_rays}"
-            ) from e
+            # learn from the results
+            for i, extremalQ, err in results:
+                if err is None:
+                    ext_rays[i] = extremalQ
+                else:
+                    raise ValueError(f"Failed to check whether ray #{i} was extremal")
+
+        # save the answer
+        self._ext_rays[minimal] = rays[list(ext_rays)]
+        if self._rays is None:
+            self._rays = self._ext_rays[minimal]
+
         return self._ext_rays[minimal]
 
     def extremal_hyperplanes(self, tol: float=1e-4, verbose: bool=False):
@@ -1856,7 +1806,7 @@ class Cone:
         proj_name = "cytools_" + "".join(random.choice(letters) for i in range(10))
 
         rays = self.rays()
-        with open(f"/dev/shm/{proj_name}.in", "w+") as f:
+        with open(f"/tmp/{proj_name}.in", "w+") as f:
             f.write(f"amb_space {rays.shape[1]}\ncone {rays.shape[0]}\n")
             f.write(
                 str(rays.tolist())
@@ -1868,17 +1818,17 @@ class Cone:
             )
 
         normaliz = subprocess.Popen(
-            ("normaliz", f"/dev/shm/{proj_name}.in"),
+            ("normaliz", f"/tmp/{proj_name}.in"),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             universal_newlines=True,
         )
         normaliz_out = normaliz.communicate()
-        with open(f"/dev/shm/{proj_name}.out") as f:
+        with open(f"/tmp/{proj_name}.out") as f:
             data = f.readlines()
-        os.remove(f"/dev/shm/{proj_name}.in")
-        os.remove(f"/dev/shm/{proj_name}.out")
+        os.remove(f"/tmp/{proj_name}.in")
+        os.remove(f"/tmp/{proj_name}.out")
         rays = []
         found_stars = False
         l_n = 0
@@ -1997,7 +1947,7 @@ def dualize(M, verbosity=0):
     # return
     return np.array(rays, dtype=int)
 
-def is_extremal(A, b, i=None, q=None, tol=1e-4):
+def is_extremal(R, extFlags, i, tol=1e-4):
     """
     **Description:**
     Auxiliary function that is used to find the extremal rays of cones. Returns
@@ -2005,18 +1955,13 @@ def is_extremal(A, b, i=None, q=None, tol=1e-4):
     parameters that are used when parallelizing.
 
     **Arguments:**
-    - `A` *(array_like)*: A matrix where the columns are rays (excluding b).
-    - `b` *(array_like)*: The vector that will be checked if it can be expressed
-        as a positive linear combination of the columns of A.
-    - `i` *(int, optional)*: An id number that is used when parallelizing.
-    - `q` *(multiprocessing.Queue, optional)*: A queue that is used when
-        parallelizing.
+    - `rays`: A matrix whose rows are the rays of the cone.
+    - `i`: The index of the ray to check for extremality.
     - `tol` *(float, optional, default=1e-4)*: The tolerance for determining
         whether a ray is extremal.
 
     **Returns:**
-    *(bool or None)* The truth value of the ray being extremal. If the process
-        fails then it returns nothing.
+    *(bool or None)* The truth value of the ray being extremal.
 
     **Example:**
     This function is not meant to be directly used by the end user. Instead it
@@ -2030,15 +1975,17 @@ def is_extremal(A, b, i=None, q=None, tol=1e-4):
     ```
     """
     try:
-        v = nnls(A, b)
-        is_ext = abs(v[1]) > tol
-        if q is not None:
-            q.put((i, is_ext))
-        return is_ext
+        # the ray to check if it's extremal
+        r = R[i]
+
+        # get the other rays (trim by those which are known non-extremal)
+        R = np.delete(R, i, axis=0)[np.delete(extFlags, i)]
+
+        # check if it's extremal
+        v = nnls(R.T, r)
+        return (i, abs(v[1]) > tol, None)
     except:
-        if q is not None:
-            q.put((i, None))
-        return
+        raise (i, None, ValueError)
 
 
 def feasibility(

@@ -34,6 +34,7 @@ from numpy.typing import ArrayLike
 import ppl
 from scipy.spatial import ConvexHull
 from tqdm import tqdm
+import pypalp
 
 # CYTools imports
 from cytools import config
@@ -790,7 +791,7 @@ class Polytope:
         # dictionary from labels to input coordinates
         pts_input_all = self._optimal_to_input(self.points(optimal=True))
         self._labels2inputPts = {
-            label: tuple(pt) for label, pt in zip(self._pts_order, pts_input_all)
+            label: tuple(map(int, pt)) for label, pt in zip(self._pts_order, pts_input_all)
         }
 
         # reverse dictionaries
@@ -1103,41 +1104,8 @@ class Polytope:
                 verts = np.array(verts, dtype=int)
 
             else:  # Backend is PALP
-                palp = subprocess.Popen(
-                    (config.palp_path + "poly.x", "-v"),
-                    stdin=subprocess.PIPE,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    universal_newlines=True,
-                )
-                # prep input for PALP
-                pt_list = ""
-                pts_optimal = {tuple(pt) for pt in self.points(optimal=True)}
-                for pt in pts_optimal:
-                    pt_list += (
-                        str(pt).replace("(", "").replace(")", "").replace(",", " ")
-                        + "\n"
-                    )
-
-                # do the work
-                palp_out = palp.communicate(
-                    input=f"{len(pts_optimal)} {self.dim()}\n" + pt_list + "\n"
-                )[0]
-                if "Vertices of P" not in palp_out:
-                    raise RuntimeError(f"PALP error. Full output: {palp_out}")
-
-                # read the outputs
-                palp_out = palp_out.split("\n")
-                for i, line in enumerate(palp_out):
-                    if "Vertices of P" not in line:
-                        continue
-
-                    pts_shape = [int(c) for c in line.split()[:2]]
-                    tmp_pts = np.empty(pts_shape, dtype=int)
-                    for j in range(pts_shape[0]):
-                        tmp_pts[j, :] = [int(c) for c in palp_out[i + j + 1].split()]
-                    break
-                verts = tmp_pts.T if pts_shape[0] < pts_shape[1] else tmp_pts
+                p = pypalp.Polytope(self.points(optimal=True))
+                verts = p.vertices()
 
         # for either ppl/PALP, map points to original representation
         if self._labels_vertices is None:
@@ -1771,42 +1739,8 @@ class Polytope:
         # PALP backend
         # ------------
         if backend == "palp":
-            palp = subprocess.Popen(
-                (
-                    config.palp_path + "poly.x",
-                    ("-A" if affine_transform else "-N"),
-                ),
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                universal_newlines=True,
-            )
-
-            # prep the command
-            pt_list = ""
-            pts_optimal = {tuple(pt) for pt in self.points(optimal=True)}
-            for pt in pts_optimal:
-                pt_str = str(pt).replace("(", "").replace(")", "")
-                pt_str = pt_str.replace(",", " ")
-                pt_list += pt_str + "\n"
-            palp_in = f"{len(pts_optimal)} {self.dim()}\n{pt_list}\n"
-
-            # do the work
-            palp_out = palp.communicate(input=palp_in)[0]
-            if "ormal form" not in palp_out:
-                raise RuntimeError(f"PALP error. Full output: {palp_out}")
-
-            # read the output
-            palp_out = palp_out.split("\n")
-            for i in range(len(palp_out)):
-                if "ormal form" not in palp_out[i]:
-                    continue
-                pts_shape = [int(c) for c in palp_out[i].split()[:2]]
-                tmp_pts = np.empty(pts_shape, dtype=int)
-                for j in range(pts_shape[0]):
-                    tmp_pts[j, :] = [int(c) for c in palp_out[i + j + 1].split()]
-                break
-            points = tmp_pts.T if pts_shape[0] < pts_shape[1] else tmp_pts
+            p = pypalp.Polytope(self.points(optimal=True))
+            points = p.normal_form(affine=affine_transform)
 
             # cache it and return
             self._normal_form[args_id] = points
@@ -3575,104 +3509,26 @@ class Polytope:
             )
         if not self.is_reflexive():
             raise ValueError("The polytope must be reflexive")
-        flags = ("-N", "-V", "-p", f"-c{codim}")
-        if keep_symmetric:
-            flags += ("-s",)
-        if keep_products:
-            flags += ("-D",)
-        if keep_projections:
-            flags += ("-P",)
-        palp = subprocess.Popen(
-            (config.palp_path + "nef-11d.x",) + flags,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            universal_newlines=True,
+            
+        p = pypalp.Polytope(self.points(optimal=True))
+        results = p.nef_partitions(
+            codim=codim,
+            keep_symmetric=keep_symmetric,
+            keep_products=keep_products,
+            keep_projections=keep_projections,
+            with_hodge_numbers=compute_hodge_numbers
         )
-        vert_str = ""
-        vert = [tuple(pt) for pt in self.vertices()]
-        for pt in vert:
-            vert_str += (
-                str(pt).replace("(", "").replace(")", "").replace(",", " ") + "\n"
-            )
-        palp_out = palp.communicate(
-            input=f"{len(vert)} {self.dim()}\n" + vert_str + "\n"
-        )[0]
-        if "Vertices of P" not in palp_out:
-            raise RuntimeError(f"PALP error. Full output: {palp_out}")
-        palp_out = palp_out.split("\n")
-        n_parts = 0
-        # Read number of nef partitions and vertices to make sure it looks right
-        for i, line in enumerate(palp_out):
-            if "#part" in line:
-                n_parts = int(line.split("=")[-1])
-            if "Vertices of P" not in line:
-                continue
-            pts_shape = [int(c) for c in line.split()[:2]]
-            tmp_pts = np.empty(pts_shape, dtype=int)
-            for j in range(pts_shape[0]):
-                tmp_pts[j, :] = [int(c) for c in palp_out[i + j + 1].split()]
-            nef_part_start = i + j + 2
-            break
-        pts_out = tmp_pts.T if pts_shape[0] < pts_shape[1] else tmp_pts
-        nef_parts = []
-        for n in range(n_parts):
-            if "V" not in palp_out[nef_part_start + n]:
-                break
-            tmp_partition = []
-            for nn in range(codim - 1):
-                tmp_part = []
-                start = palp_out[nef_part_start + n].find(f"V{nn if codim>2 else ''}:")
-                end = palp_out[nef_part_start + n][start:].find("  ") + start
-                for s in palp_out[nef_part_start + n][
-                    start + (2 if codim == 2 else 3) : end
-                ].split():
-                    if "V" in s or "D" in s or "P" in s or "sec" in s:
-                        break
-                    tmp_part.append(int(s))
-                tmp_partition.append(tmp_part)
-            tmp_part = [
-                i
-                for i in range(len(vert))
-                if not any(i in part for part in tmp_partition)
-            ]
-            tmp_partition.append(tmp_part)
-            # We have to reindex to match polytope indices
-            nef_parts.append(
-                tuple(
-                    tuple(self.points_to_indices(pts_out[part]))
-                    for part in tmp_partition
-                )
-            )
+        
+        nef_parts = [tuple(
+            tuple(part)
+            for part in partition[0]
+        ) for partition in results]
+        
         if compute_hodge_numbers:
-            flags = ("-N", "-V", "-H", f"-c{codim}")
-            if keep_symmetric:
-                flags += ("-s",)
-            if keep_products:
-                flags += ("-D",)
-            if keep_projections:
-                flags += ("-P",)
-            cy_dim = self.dim() - codim
-            palp = subprocess.Popen(
-                (config.palp_path + "nef-11d.x",) + flags,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                universal_newlines=True,
-            )
-            palp_out = palp.communicate(
-                input=f"{len(vert)} {self.dim()}\n" + vert_str + "\n"
-            )[0]
-            data = palp_out.split(f"h {cy_dim} {cy_dim}")[1:]
-            hodge_nums = []
-            for i in range(len(data)):
-                hodge_nums.append(
-                    tuple(int(h) for h in data[i].split()[: (cy_dim + 1) ** 2])
-                )
-            if len(hodge_nums) != len(nef_parts):
-                raise RuntimeError("Unexpected length mismatch.")
-            nef_parts = (tuple(nef_parts), tuple(hodge_nums))
-        self._nef_parts[args_id] = tuple(nef_parts)
+            hodge_nums = [tuple(tuple(part) for part in partition[1]) for partition in results]
+            nef_parts = (nef_parts, hodge_nums)
+            
+        self._nef_parts[args_id] = nef_parts
         return (
             self._nef_parts.get(args_id)
             if return_hodge_numbers or not compute_hodge_numbers
@@ -3743,51 +3599,8 @@ def poly_v_to_h(pts: ArrayLike, backend: str) -> (ArrayLike, None):
             ineqs = np.array([[0]])
         else:
             # prepare the command
-            pt_list = ""
-            pts = {tuple(pt) for pt in pts}
-            for pt in pts:
-                pt_str = str(pt).replace("(", "").replace(")", "")
-                pt_str = pt_str.replace(",", " ")
-                pt_list += pt_str + "\n"
-            palp_in = f"{len(pts)} {dim}\n{pt_list}\n"
-
-            # execute it!
-            palp = subprocess.Popen(
-                (config.palp_path + "poly.x", "-e"),
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                universal_newlines=True,
-            )
-            palp_out = palp.communicate(input=palp_in)[0]
-
-            # check for errors
-            if "Equations" not in palp_out:
-                raise RuntimeError(f"PALP error. Full output: {palp_out}")
-
-            # parse results
-            palp_out = palp_out.split("\n")
-            for i, line in enumerate(palp_out):
-                if "Equations" not in line:
-                    continue
-
-                is_reflexive = "Vertices" in line
-                ineqs_shape = [int(c) for c in line.split()[:2]]
-                ineqs = [
-                    [int(c) for c in palp_out[i + j + 1].split()]
-                    for j in range(ineqs_shape[0])
-                ]
-                break
-
-            # Check if transposed
-            ineqs = np.array(ineqs)
-
-            if ineqs_shape[0] < ineqs_shape[1]:
-                ineqs = ineqs.T
-
-            if is_reflexive:
-                col_of_1s = np.ones((ineqs.shape[0], 1), dtype=int)
-                ineqs = np.hstack((ineqs, col_of_1s))
+            p = pypalp.Polytope(self.points())
+            ineqs = p.equations()
     else:
         raise ValueError(f"Unrecognized backend '{backend}'...")
 
@@ -3845,48 +3658,8 @@ def saturating_lattice_pts(
             pts_all = [pts[0]]
             facet_ind = [frozenset([0])]
         else:
-            # prep command to pass to PALP
-            pt_list = ""
-            pts_set = set(pts)
-            for pt in pts_set:
-                pt_str = str(pt).replace("(", "").replace(")", "")
-                pt_str = pt_str.replace(",", " ")
-                pt_list += pt_str + "\n"
-            palp_in = f"{len(pts_set)} {dim}\n{pt_list}\n"
-
-            # prep PALP
-            palp = subprocess.Popen(
-                (config.palp_path + "poly.x", "-p"),
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                universal_newlines=True,
-            )
-
-            # do the work and read output
-            palp_out = palp.communicate(input=palp_in)[0]
-            if "Points of P" not in palp_out:
-                raise RuntimeError(f"PALP error. Full output: {palp_out}")
-
-            # parse the outputs
-            palp_out = palp_out.split("\n")
-            for i, line in enumerate(palp_out):
-                if "Points of P" not in line:
-                    continue
-
-                # read the points
-                pts_shape = [int(c) for c in line.split()[:2]]
-                tmp_pts = np.empty(pts_shape, dtype=int)
-                for j in range(pts_shape[0]):
-                    tmp_pts[j, :] = [int(c) for c in palp_out[i + j + 1].split()]
-
-                break
-
-            # Check if transposed
-            if pts_shape[0] < pts_shape[1]:
-                pts_all = tmp_pts.T
-            else:
-                pts_all = tmp_pts
+            p = pypalp.Polytope(pts)
+            pts_all = p.all_points()
 
             # find inequialities each point saturates
             facet_ind = [

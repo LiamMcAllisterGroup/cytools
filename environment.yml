@@ -1,0 +1,32 @@
+name: cytools
+channels:
+  - conda-forge
+dependencies:
+  # CYTools dependencies
+  - python
+  - numpy
+  - normaliz
+  - scipy
+  - sympy
+  - cvxopt
+  - python-flint
+  - pplpy
+  - joblib
+  - tqdm
+  - qpsolvers
+  - requests
+  - osqp
+  - pip
+  - pip:
+    - ortools
+    - triangulumancer
+    - pypalp
+    - cygv
+    # The actual cytools package (taken from pypi)
+    - cytools
+  # Common useful tools
+  - jupyterlab
+  - matplotlib
+  - plotly
+  # Uncomment the following lines for additional tools
+  # - sage
