@@ -178,7 +178,7 @@ class Polytope:
         # ------------------
         # dimension
         self._dim_ambient = len(points[0])
-        self._dim = np.linalg.matrix_rank([list(pt) + [1] for pt in points]) - 1
+        self._dim = int(np.linalg.matrix_rank([list(pt) + [1] for pt in points]) - 1)
         self._dim_diff = self.ambient_dim() - self.dim()
 
         # backend
