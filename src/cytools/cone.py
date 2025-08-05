@@ -1561,7 +1561,7 @@ class Cone:
         if self._is_solid is not None:
             return self._is_solid
         if self._rays is not None:
-            return np.linalg.matrix_rank(self._rays) == self._ambient_dim
+            return bool(np.linalg.matrix_rank(self._rays) == self._ambient_dim)
 
         # we just have hyperplanes... a bit harder
         backends = (
@@ -1597,29 +1597,35 @@ class Cone:
     # aliases
     is_full_dimensional = is_solid
 
-    def is_pointed(self, backend=None, tol=1e-7):
+    def is_pointed(self, backend: str="dual", tol: float=1e-7) -> bool:
         """
         **Description:**
-        Returns True if the cone is pointed (i.e. strongly convex).
+        Returns True if the cone is pointed (i.e. strongly convex). A cone is
+        pointed if no x exists such that both x and -x are in the cone.
 
-        :::note
-        There are two available methods to perform the computation. Using NNLS
-        it directly checks if it can find a linear subspace. Alternatively, it
-        can check if the dual cone is solid. For extremely wide cones the second
-        approach is more reliable, so that is the default one.
-        :::
+        If one has hyperplanes, this check is as simple as `not full_rank(H)`
+        since, if H is not full rank, then some x has H@x==0. I.e., H@(+x)>=0
+        and H@(-x)>=0.
+
+        If one has rays, this check can be done either via
+            1) finding some psi such that psi.r > 0 for all rays r
+            2) checking if some lmbda!=0 exist such that R.T@lmbda = 0
+
+        
+        The backends are, in order of preference,
+            1) (backend='dual') check if dual is solid
+            2) (backend='null') hyperplane rank
+            3) (backend='lp')   rays@lmbda=0 via LP
+            4) (backend='nnls') rays@lmbda=0 via nnls
 
         **Arguments:**
-        - `backend` *(str, optional)*: Specifies which backend to use.
-            Available options are "nnls", and any backends available for the
-            [`is_solid`](#is_solid) function. If not specified, it uses the
-            default backend for the [`is_solid`](#is_solid) function.
-        - `tol` *(float, optional, default=1e-7)*: The tolerance for
-            determining when a linear subspace is found. This is only used for
-            the NNLS backend.
+        - `backend`: Specifies which backend to use. Available options are
+            "dual", "null", "lp", and "nnls".
+        - `tol`: The tolerance for determining when a linear subspace is found.
+            This is only used for the NNLS backend.
 
         **Returns:**
-        *(bool)* The truth value of the cone being pointed.
+        The truth value of the cone being pointed.
 
         **Aliases:**
         `is_strongly_convex`.
@@ -1637,16 +1643,45 @@ class Cone:
         """
         if self._is_pointed is not None:
             return self._is_pointed
-        if backend == "nnls" and self._rays is not None:
-            # If the cone is defined in term of hyperplanes we still don't use
-            # nnls since we first would have to find the rays.
-            A = np.empty((self._rays.shape[1] + 1, self._rays.shape[0]), dtype=int)
-            A[:-1, :] = self._rays.T
-            A[-1, :] = 1
-            b = [0] * self._rays.shape[1] + [1]
-            self._is_pointed = nnls(A, b)[1] > tol
-            return self._is_pointed
-        self._is_pointed = self.dual().is_solid(backend=backend)
+
+        # duality based check
+        if backend.lower() == "dual":
+            self._is_pointed = self.dual().is_solid()
+
+        # ray-based analysis (only if we have no hyperplanes)
+        elif self._hyperplanes is None:
+            # check if some lmbda!=0 exists such that R.T@lmbda==0
+            # N.B.: this is equiv to [R; 1]@lmbda=[0; 1] for any lmbda>=0
+            #       (akin to homogenization...)
+            R = self._rays.copy().T
+            R = np.vstack((
+                R,
+                np.ones((1,R.shape[1]), dtype=int)
+            ))
+            b = [0] * (R.shape[0]-1) + [1]
+
+            # allow different backends
+            if backend.lower() == "nnls":
+                self._is_pointed = nnls(A, b)[1] > tol
+            elif backend.lower() == "lp":
+                res = linprog(
+                    c=np.zeros(R.shape[0], dtype=int),  # no objective
+                    A_eq=R, b_eq=b,                     # [R; 1] lmbda = [0;1]
+                    bounds=[(0, None)],                 # lmbda >= 0
+                    method="highs"
+                )
+                self._is_pointed = not res.success
+            else:
+                raise ValueError(f"backend '{backend.lower()}' not known for V-cones")
+
+        # hyperplane-based analyis (likely easiest...)
+        else:
+            if backend.lower() == "null":
+                H_rank = np.linalg.matrix_rank(self.hyperplanes())
+                self._is_pointed = bool(H_rank == self.ambient_dim())
+            else:
+                raise ValueError(f"backend '{backend.lower()}' not known for H-cones")
+        
         return self._is_pointed
 
     # aliases
