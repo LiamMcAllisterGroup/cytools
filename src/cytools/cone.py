@@ -39,7 +39,7 @@ from ortools.sat.python import cp_model
 import ppl
 import qpsolvers
 from scipy import sparse
-from scipy.optimize import nnls
+from scipy.optimize import linprog, nnls
 
 # CYTools imports
 from cytools import config
@@ -756,7 +756,11 @@ class Cone:
     # aliases
     dual = dual_cone
 
-    def extremal_rays(self, tol=1e-4, minimal=True, verbose=False):
+    def extremal_rays(self,
+        tol: float=1e-4,
+        minimal: bool=True,
+        method: str="lp",
+        verbose: bool=False) -> "ArrayLike":
         """
         **Description:**
         Returns the extremal rays of the cone.
@@ -768,18 +772,20 @@ class Cone:
         :::
 
         **Arguments:**
-        - `tol` *(float, optional, default=1e-4)*: Specifies the tolerance for
-            deciding whether a ray is extremal or not.
-        - `minimal`: *(bool, optional, default=True)*: Whether to return a
-            minimal generating set of rays. For pointed cones, there is a unique
-            minimal generating set -- the extremal rays. For non-pointed cones,
-            one can have a collection of extremal rays generating the cone that
-            is not minimal with respect to ray count.
-        - verbose *(bool, optional, default=False)*: When set to True it show
-            the progress while finding the extremal rays.
+        - `tol`: Specifies the tolerance for deciding whether a ray is extremal
+            or not. Only used if method=="nnls".
+        - `minimal`: Whether to return a minimal generating set of rays. For
+            pointed cones, there is a unique minimal generating set -- the
+            extremal rays. For non-pointed cones, one can have a collection of
+            extremal rays generating the cone that is not minimal with respect
+            to ray count.
+        - `method`: If calling `is_extremal`, this sets the method used for
+            extremality checking. Can be "lp" or "nnls". Recommendation is "lp".
+        - verbose: When set to True it show the progress while finding the
+            extremal rays.
 
         **Returns:**
-        *(numpy.ndarray)* The list of extremal rays of the cone.
+        The list of extremal rays of the cone.
 
         **Example:**
         We construct a cone and find its extremal_rays.
@@ -847,7 +853,7 @@ class Cone:
 
             # check the selected rays
             results = joblib.Parallel(n_jobs=n_threads)(
-                joblib.delayed(is_extremal)(rays, ext_rays, i, tol=tol)
+                joblib.delayed(is_extremal)(rays, i, ext_rays, method=method, tol=tol)
                 for i in checking
             )
 
@@ -856,7 +862,11 @@ class Cone:
                 if err is None:
                     ext_rays[i] = extremalQ
                 else:
-                    raise ValueError(f"Failed to check whether ray #{i} was extremal")
+                    to_check.append(i)
+                    if verbose:
+                        print(f"Failed to check whether ray #{i} was extremal")
+                        print(f"(Error was: {err})")
+                        print( "(Putting it at the end and retrying later...)")
 
         # save the answer
         self._ext_rays[minimal] = rays[list(ext_rays)]
@@ -865,21 +875,37 @@ class Cone:
 
         return self._ext_rays[minimal]
 
-    def extremal_hyperplanes(self, tol: float=1e-4, verbose: bool=False):
+    def extremal_hyperplanes(self,
+        tol: float=1e-4,
+        minimal=True,
+        method="lp",
+        verbose: bool=False) -> "ArrayLike":
         """
         **Description:**
         Returns the extremal hyperplanes of the cone.
 
         **Arguments:**
-        - `tol`: Specifies the tolerance for deciding whether a ray is extremal
-            or not.
-        - `verbose`: When set to True it show the progress while finding the
-            extremal rays.
+        - `tol`: Specifies the tolerance for deciding whether a hyperplane is
+            extremal or not. Only used if method=="nnls".
+        - `minimal`: Whether to return a minimal generating set of hyperplane.
+            For duals of pointed cones, there is a unique minimal generating
+            set -- the extremal hyperplanes. For non-pointed cones, one can
+            have a collection of extremal hyperplanes defining the cone that is
+            not minimal with respect to hyperplane count.
+        - `method`: If calling `is_extremal`, this sets the method used for
+            extremality checking. Can be "lp" or "nnls". Recommendation is "lp".
+        - verbose: When set to True it show the progress while finding the
+            extremal hyperplanes.
 
         **Returns:**
-        *(numpy.ndarray)* The list of extremal hyperplanes of the cone.
+        The list of extremal hyperplanes of the cone.
         """
-        return self.dual().extremal_rays(tol=tol, verbose=verbose)
+        return self.dual().extremal_rays(
+            tol=tol,
+            minimal=minimal,
+            method=method,
+            verbose=verbose
+        )
 
     def facets(self, verbosity: int = 0):
         """
@@ -1664,6 +1690,69 @@ class Cone:
 
         return self._is_simplicial
 
+    def is_degenerate(self,
+        use_extremal_hyperplanes: bool = True,
+        M: int = None,
+        certificate: bool=False,
+        verbosity: int = 0,):
+        """
+        **Description:**
+        Checks if a cone {x : H@x>=0} is degenerate. I.e., does any x in this
+        cone saturate >=d+1 hyperplanes simultaneously, for d the ambient dim?
+        If so, the cone is degenerate.
+
+        This is representation-sensitive. Just because the cone is degenerate
+        for a certain representation matrix, H, doesn't mean that it's
+        degenerate for all representation matrices. Probably best to use H as
+        the *extremal hyperplanes*.
+
+
+        Application: It is more difficult to compute the (extremal or not) rays
+        of a degenerate cone.
+
+        **Arguments:**
+        - `use_extremal_hyperplanes`: Whether the check the extremal hyperplanes
+            for degeneracy. If False, the naive self.hyperplanes() will be used.
+        - `M`: The (absolute value of the) bounds on variables considered.
+        - `certificate`: Whether to return a certificate x as well as the
+            hyperplanes the solver claims it saturates
+        - `verbosity`: The verbosity level.
+
+        **Returns:**
+        The maximum number of hyperplanes that a single x can saturate
+        simultaneously.
+
+        If certificate==True, also return (x,z)
+        """
+        if use_extremal_hyperplanes:
+            H = self.extremal_hyperplanes()
+        else:
+            H = self.hyperplanes()
+
+        # try a common representative of degeneracy
+        xtest = np.ones(self.ambient_dim(), dtype=int)
+        dists = H@xtest
+        z = dists==0
+        if sum(z) >= self.ambient_dim()+1:
+            degen, x, z = True, xtest, z
+        else:
+            # _is_degenerate is an minimal, non-Cone method doing the check
+            out = _is_degenerate(
+                H=H,
+                M=M,
+                certificate=certificate,
+                verbosity=verbosity
+            )
+
+            if certificate:
+                degen, (x,z) = out
+
+        # return
+        if certificate:
+            return degen, (x,z)
+        else:
+            return degen
+
     def is_smooth(self):
         """
         **Description:**
@@ -1947,7 +2036,12 @@ def dualize(M, verbosity=0):
     # return
     return np.array(rays, dtype=int)
 
-def is_extremal(R, extFlags, i, tol=1e-4):
+def is_extremal(
+    R: "ArrayLike",
+    i: int,
+    extFlags: list[bool] = None,
+    method: str = "lp",
+    tol: float=1e-4) -> (int, bool, "Exception"):
     """
     **Description:**
     Auxiliary function that is used to find the extremal rays of cones. Returns
@@ -1955,10 +2049,13 @@ def is_extremal(R, extFlags, i, tol=1e-4):
     parameters that are used when parallelizing.
 
     **Arguments:**
-    - `rays`: A matrix whose rows are the rays of the cone.
+    - `R`: A matrix whose rows are the rays of the cone.
     - `i`: The index of the ray to check for extremality.
-    - `tol` *(float, optional, default=1e-4)*: The tolerance for determining
-        whether a ray is extremal.
+    - `extFlags`: A list of flags indicating if the rays r in R are possibly
+        extremal. If a ray is known non-extremal, delete it.
+    - `method`: The method to check extremality. Can be "lp" or "nnls".
+        Reccomendation is "lp".
+    - `tol`: The tolerance for determining whether a ray is extremal.
 
     **Returns:**
     *(bool or None)* The truth value of the ray being extremal.
@@ -1979,14 +2076,26 @@ def is_extremal(R, extFlags, i, tol=1e-4):
         r = R[i]
 
         # get the other rays (trim by those which are known non-extremal)
-        R = np.delete(R, i, axis=0)[np.delete(extFlags, i)]
+        if extFlags is None:
+            R = np.delete(R, i, axis=0)
+        else:
+            R = np.delete(R, i, axis=0)[np.delete(extFlags, i)]
 
         # check if it's extremal
-        v = nnls(R.T, r)
-        return (i, abs(v[1]) > tol, None)
-    except:
-        raise (i, None, ValueError)
+        if method.lower() == "lp":
+            res = linprog(
+                c=np.zeros(R.shape[0], dtype=int),  # no objective
+                A_eq=R.T, b_eq=r,                   # (R\r) lmbda = r
+                bounds=[(0, None)],                 # lmbda >= 0
+                method="highs"
+            )
+            return (i, not res.success, None)
 
+        elif method.lower() == "nnls":
+            v = nnls(R.T, r)
+            return (i, abs(v[1]) > tol, None)
+    except Exception as e:
+        return (i, None, e)
 
 def feasibility(
     hyperplanes: "ArrayLike",
@@ -2111,3 +2220,151 @@ def feasibility(
             warnings.warn("Solver returned status " f"{solver.StatusName(status)}.")
 
     return solution
+
+# cone degeneracy
+# ---------------
+class EarlyStopCallback(cp_model.CpSolverSolutionCallback):
+    def __init__(self, threshold, solver):
+        cp_model.CpSolverSolutionCallback.__init__(self)
+        self._threshold = threshold
+        self._solver = solver
+
+    def on_solution_callback(self):
+        current_value = int(self.ObjectiveValue())
+        if current_value >= self._threshold:
+            self.StopSearch()
+
+def _is_degenerate(
+    H: "ArrayLike",
+    M: int = None,
+    certificate: bool=False,
+    verbosity: int = 0,
+) -> bool:
+    """
+    **Description:**
+    Checks if a cone {x : H@x>=0} is degenerate. I.e., does any x in this cone
+    saturate >=d+1 hyperplanes simultaneously, for d the ambient dim? If so, the
+    cone is degenerate.
+
+    This is representation-sensitive. Just because the cone is degenerate for a
+    certain representation matrix, H, doesn't mean that it's degenerate for all
+    representation matrices. Probably best to use H as the *extremal
+    hyperplanes*.
+
+    Uses CP-SAT from OR-Tools.
+
+
+    Application: It is more difficult to compute the (extremal or not) rays of
+    a degenerate cone.
+
+    **Arguments:**
+    - `H`: The inwards-facing hyperplanes defining the cone.
+    - `M`: The (absolute value of the) bounds on variables considered.
+    - `certificate`: Whether to return a certificate x as well as the
+        hyperplanes the solver claims it saturates
+    - `verbosity`: The verbosity level.
+
+    **Returns:**
+    Whether the cone {x : H@x>=0} is degenerate.
+
+    If certificate==True, also return (x,z)
+    """
+    H = np.asarray(H)
+
+    # accommodate trivial hyperplanes
+    if 0 in H.shape:
+        if certificate:
+            return False, (None, None)
+        else:
+            return False
+
+    # create the solver/model
+    solver = cp_model.CpSolver()
+    model = cp_model.CpModel()
+
+    if verbosity >= 2:
+        solver.parameters.log_search_progress = True
+        solver.parameters.num_search_workers = 1 
+
+    # define variables
+    # ----------------
+    # variable bounds
+    if M is None:
+        lower = cp_model.INT32_MIN
+        upper = cp_model.INT32_MAX
+    else:
+        lower, upper = -int(M), int(M)
+    
+    # actual variables
+    x   = [
+        model.NewIntVar(lower, upper, f"x_{j}")
+        for j in range(H.shape[1])]
+    xnz = [
+        model.NewBoolVar(f"nz_{j}")
+        for j in range(H.shape[1])
+    ]
+
+    satd = [
+        model.NewBoolVar(f"z_{i}")
+        for i in range(H.shape[0])
+    ]
+
+    # define constraints
+    # ------------------
+    # count the nonzeros
+    for j in range(H.shape[1]):
+        model.Add(x[j] != 0).OnlyEnforceIf(xnz[j])
+        model.Add(x[j] == 0).OnlyEnforceIf(xnz[j].Not())
+
+    # enforce nonzeros
+    model.Add(sum(xnz) >= 1)
+
+    # enforce cone constraints
+    for i,v in enumerate(H):
+        dist = sum(_x*_v for _x, _v in zip(x,v))
+
+        # enforce that dists are non-negative (cone hyperplane constraint)
+        model.Add(dist >= 0)
+
+        # saturate the hyperplane if the indicator variable is True.
+        ct = model.Add(dist == 0)
+        ct.OnlyEnforceIf(satd[i])
+
+    # define objective
+    # ----------------
+    model.Maximize(sum(satd))
+
+    # implement early-stop callback
+    # -----------------------------
+    cb = EarlyStopCallback(H.shape[1]+1, solver)
+
+    # solve and parse solution
+    status = solver.SolveWithSolutionCallback(model, cb)
+    if status in (cp_model.FEASIBLE, cp_model.OPTIMAL):
+        x = np.array([solver.Value(_x) for _x in x])
+        z = np.array([solver.Value( z) for  z in satd])
+        degen = sum(z)>=H.shape[1]+(1-1e-4)
+        
+        if verbosity >= 1:
+            print(f"Found x={x} saturating the indicated hyperplanes={z}...")
+    elif status == cp_model.INFEASIBLE:
+        if verbosity >= 1:
+            warnings.warn("Solver returned status INFEASIBLE.")
+        degen, z, x = False, None, None
+    else:
+        status_list = [
+            "OPTIMAL",
+            "FEASIBLE",
+            "INFEASIBLE",
+            "UNBOUNDED",
+            "ABNORMAL",
+            "MODEL_INVALID",
+            "NOT_SOLVED",
+        ]
+        warnings.warn(f"Solver returned status {status_list[status]}.")
+        degen, z, x = None, None, None
+
+    if certificate:
+        return degen, (x, z)
+    else:
+        return degen
