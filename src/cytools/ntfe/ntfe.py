@@ -100,7 +100,7 @@ def _2d_frt_cone_ineqs(self, ambient_dim: int) -> matrix.LIL:
     Each row is an inwards-facing hyperplane normal. I.e., a CPL inequality
     """
     # the output variable (doesn't need to be LIL object, but that is nice...)
-    ineqs = matrix.LIL(dtype=np.int8, width=ambient_dim)
+    ineqs = matrix.LIL(dtype=np.int16, width=ambient_dim)
 
     # relevant inputs
     simps = self.simplices()
@@ -184,7 +184,7 @@ def _2d_s_cone_ineqs(self, poly, ambient_dim: int) -> matrix.LIL:
     Each row is an inwards-facing hyperplane normal enforcing starness.
     """
     # the output variable (doesn't need to be LIL object, but that is nice...)
-    ineqs = matrix.LIL(dtype=np.int8, width=ambient_dim)
+    ineqs = matrix.LIL(dtype=np.int16, width=ambient_dim)
 
     # find each facet containing each 2d simplex
     containing_facets = collections.defaultdict(list)
@@ -209,7 +209,7 @@ def _2d_s_cone_ineqs(self, poly, ambient_dim: int) -> matrix.LIL:
                 M = poly.points(which=n_s + s + [o], optimal=True).T
 
                 # Grab/calculate the nullspace
-                null = flint.fmpz_mat(M.tolist() + [[1, 1, 1, 1]]).nullspace()
+                null = flint.fmpz_mat(M.tolist() + [[1]*M.shape[1]]).nullspace()
                 null = null[0].transpose().tolist()[0]
 
                 # ensure the not-shared points have positive coordinates
@@ -284,7 +284,7 @@ def _2d_frt_subfan_ineqs(self, ambient_dim: int) -> matrix.LIL:
     inequality.
     """
     # the output variable (doesn't need to be LIL object, but that is nice...)
-    ineqs = matrix.LIL(dtype=np.int8, width=ambient_dim)
+    ineqs = matrix.LIL(dtype=np.int16, width=ambient_dim)
 
     # iterate over triples
     # This could be done more intelligently... some pairs of points will be
@@ -385,7 +385,7 @@ def cone_of_permissible_heights(
     object.
     """
     # the output variable (doesn't need to be LIL object, but that is nice...)
-    ineqs = matrix.LIL(dtype=np.int8, width=npts)
+    ineqs = matrix.LIL(dtype=np.int16, width=npts)
 
     # iterate over face triangulations
     for face_triang in triangs:
@@ -439,7 +439,7 @@ def expanded_secondary_fan(
     ambient_dim = len(self.labels)
 
     # the output variable (doesn't need to be LIL object, but that is nice...)
-    ineqs = matrix.LIL(dtype=np.int8, width=ambient_dim)
+    ineqs = matrix.LIL(dtype=np.int16, width=ambient_dim)
 
     # iterate over face triangulations
     for f in self.faces(2):
