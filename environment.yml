@@ -7,7 +7,6 @@ dependencies:
   - numpy
   - normaliz
   - scipy
-  - sympy
   - cvxopt
   - python-flint
   - pplpy
@@ -19,6 +18,7 @@ dependencies:
   - pip
   - pip:
     - ortools
+    - mosek
     - triangulumancer
     - pypalp
     - cygv
