@@ -65,11 +65,10 @@ if _ineq_cached is None:
 def _save_cache():
     misc.save_zipped_pickle(_ineq_cached, cache_path)
 
-
 atexit.register(_save_cache)
 
 
-def _2d_frt_cone_ineqs(self, ambient_dim: int) -> matrix.LIL:
+def _2d_frt_cone_ineqs(self, ambient_dim: int, verbosity: int=0) -> matrix.LIL:
     """
     (Very analogous to Triangulation.secondary_cone(on_faces_dim=2)...
     main difference is that this treats point labels as column indices, while
@@ -90,11 +89,13 @@ def _2d_frt_cone_ineqs(self, ambient_dim: int) -> matrix.LIL:
         M = [[p0_x, p1_x, p2_x, p3_x],
              [p0_y, p1_y, p2_y, p3_y],
              [   1,    1,    1,    1]],
-    This matrix is the homogenization of our points. This nullspace is 1D and corresponds to the normal defined by the circuit (one has to set the sign).
+    This matrix is the homogenization of our points. This nullspace is 1D and
+    corresponds to the normal defined by the circuit (one has to set the sign).
 
     **Arguments:**
     - `ambient_dim`: The ambient dimension of the secondary-cone space (i.e.,
         the number of points in the polytope).
+    - `verbosity`: The verbosity level.
 
     **Returns:**
     Each row is an inwards-facing hyperplane normal. I.e., a CPL inequality
@@ -118,7 +119,11 @@ def _2d_frt_cone_ineqs(self, ambient_dim: int) -> matrix.LIL:
             pair_to_shared[pair].add(pt)
 
     # Find pairs of rows that share at least two common elements
-    for shared_simps, s in pair_to_shared.items():
+    N_pairs = len(pair_to_shared)
+    for i, (shared_simps, s) in enumerate(pair_to_shared.items()):
+        if verbosity >= 1:
+            print(f"Constructing inequalities associated to simplex pair {i+1}/{N_pairs}")
+
         # s are the shared points
         if len(s) <= 1:
             continue
@@ -170,15 +175,17 @@ def _2d_frt_cone_ineqs(self, ambient_dim: int) -> matrix.LIL:
 Triangulation._2d_frt_cone_ineqs = _2d_frt_cone_ineqs
 
 
-def _2d_s_cone_ineqs(self, poly, ambient_dim: int) -> matrix.LIL:
+def _2d_s_cone_ineqs(self, poly, ambient_dim: int, verbosity: int=0) -> matrix.LIL:
     """
     **Description:**
     Compute the CPL-inequalities necessary to enforce that each simplex in this
     2-face is a face of a star simplex in the full triangulation.
 
     **Arguments:**
+    - `poly`: The ambient polytope.
     - `ambient_dim`: The ambient dimension of the secondary-cone space (i.e.,
         the number of points in the polytope).
+    - `verbosity`: The verbosity level.
 
     **Returns:**
     Each row is an inwards-facing hyperplane normal enforcing starness.
@@ -196,7 +203,11 @@ def _2d_s_cone_ineqs(self, poly, ambient_dim: int) -> matrix.LIL:
     # for each 2d simplex, enforce that it (with origin) appears for each
     # 4d circuit
     o = poly.label_origin
-    for s in self.simplices(2):
+    simps   = self.simplices(2)
+    N_simps = len(simps)
+    for i,s in enumerate(simps):
+        if verbosity >= 1:
+            print(f"Constructing inequalities associated to 2-simplex {i+1}/{N_simps}")
         s = s.tolist()
         for f1, f2 in itertools.combinations(containing_facets[tuple(s)], 2):
             f1_only = set(f1.labels_bdry) - set(f2.labels_bdry) - set(s)
@@ -354,6 +365,7 @@ def cone_of_permissible_heights(
     require_star: bool = False,
     no_duplicates: bool = True,
     as_cone: bool = True,
+    verbosity: int = 0,
 ) -> "matrix.LIL | Cone":
     """
     **Description:**
@@ -379,16 +391,22 @@ def cone_of_permissible_heights(
         recommended, given that it's typically more efficient to just allow
         explicit redundancies.
     - `as_cone`: Whether to return a formal Cone object.
+    - `verbosity`: The verbosity level.
 
     **Returns:**
     The expanded secondary cone, either as hyperplanes or as a formal Cone
     object.
     """
+    if require_star and (poly is None):
+        raise ValueError("If `require_star=True`, then `poly` must be specified")
+
     # the output variable (doesn't need to be LIL object, but that is nice...)
     ineqs = matrix.LIL(dtype=np.int16, width=npts)
 
     # iterate over face triangulations
-    for face_triang in triangs:
+    for i,face_triang in enumerate(triangs):
+        if verbosity >= 1:
+            print(f"Studying 2-face {i}/{len(triangs)}...")
         # skip triangulation in case it is None
         if face_triang is None:
             continue
@@ -396,9 +414,9 @@ def cone_of_permissible_heights(
         # CPL inequalities associated with ith triangulation
         # (normally, this is the triangulation of the ith face, but it doesn't
         # need to be... you can decide to pass a subset of faces)
-        face_ineqs = _2d_frt_cone_ineqs(face_triang, npts)
+        face_ineqs = _2d_frt_cone_ineqs(face_triang, npts, verbosity=verbosity-1)
         if require_star:
-            face_ineqs.append(_2d_s_cone_ineqs(face_triang, poly, npts))
+            face_ineqs.append(_2d_s_cone_ineqs(face_triang, poly, npts, verbosity=verbosity-1))
 
         ineqs.append(face_ineqs, tocopy=False)
 
