@@ -175,11 +175,50 @@ def _2d_frt_cone_ineqs(self, ambient_dim: int, verbosity: int=0) -> matrix.LIL:
 Triangulation._2d_frt_cone_ineqs = _2d_frt_cone_ineqs
 
 
-def _2d_s_cone_ineqs(self, poly, ambient_dim: int, verbosity: int=0) -> matrix.LIL:
+def _2d_s_cone_ineqs(self,
+    poly,
+    ambient_dim: int,
+    verbosity: int=0) -> matrix.LIL:
     """
     **Description:**
-    Compute the CPL-inequalities necessary to enforce that each simplex in this
+    Compute the CPL-inequalities necessary to enforce that each simplex in each
     2-face is a face of a star simplex in the full triangulation.
+
+    Operates by iterating over each 2-simplex s and enforcing that each
+    4-simplex containing s also contains the origin o. This is done by
+    evaluating every circuit containing s+[o] and enforcing the associated
+    constraint on the heights.
+
+    **Explanation:**
+    Think s+[o] is a 3-simplex. Possible pair of 4-simplices containing this
+    3-simplex can be made by s+[o,i] and s+[o,j] for i,j on the bdry of
+    (since we skip pts interior to facets) 2x different facets containing s.
+
+    The set s+[o,i,j] will have 6 elements but only be 4D, so it'll define a
+    dependency. If both s+[o,i] and s+[o,j] appear in an FRST T, then the
+    heights are constrained by enforcing that h_i and h_j are large:
+        [h_s, h_o, h_i, h_j].lambda >= 0.
+    This can also be thought of as a constraint that h_o is sufficiently low.
+
+    The entire cone of interest is that of heights which respect the 2-face
+    triangulations (and define star triangulations). This can be thought of as
+        1) allow any flips that don't change 2-face structure and don't make
+           the triangulation non-star... drop these hyperplanes OR
+        2) disallow any flips which change 2-face structure or make the
+           triangulation non-star... keep these hyperplanes.
+    Since the flip defined by s+[o,i,j] makes the triangulation non-star, one
+    must enforce it if any FRST has both simplices s+[o,i] and s+[o,j]. I.e.,
+    if any FRST T exists with the imposed 2-face restrictions and with
+    simplices s+[o,i] and s+[o,j].
+
+    If the resultant cone (that respecting the 2-face+star structure) is solid,
+    then such heights exist: h+eps*lambda works for
+        -) h on the wall defined by lambda (i.e., h.lambda=0)
+        -) eps sufficiently small. 
+    If h is on a wall of codim-1, then h+eps*lambda will define T and hence the
+    hyperplane lambda must be included. If h is on a wall of higher codim, then
+    this circuit defines a flip to an irregular triangulation, but the
+    constraint h.lambda>=0 does not cut the cone.
 
     **Arguments:**
     - `poly`: The ambient polytope.
@@ -200,7 +239,7 @@ def _2d_s_cone_ineqs(self, poly, ambient_dim: int, verbosity: int=0) -> matrix.L
             if set(s).issubset(set(f.labels)):
                 containing_facets[tuple(s)].append(f)
 
-    # for each 2d simplex, enforce that it (with origin) appears for each
+    # For each 2d simplex s, enforce that it (with origin) appears for each
     # 4d circuit
     o = poly.label_origin
     simps   = self.simplices(2)
