@@ -1372,7 +1372,7 @@ class Triangulation:
             restricted._ambient_triangulation = self
             return restricted
         else:
-            return [list(simp) for simp in face_simps]
+            return sorted([sorted([int(i) for i in simp]) for simp in face_simps])
 
     # regularity
     # ----------
