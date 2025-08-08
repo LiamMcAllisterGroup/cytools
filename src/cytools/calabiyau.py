@@ -2282,7 +2282,7 @@ class CalabiYau:
     # =================
     # TEMPORARY METHODS
     # =================
-    def mori_cone_cap(self, in_basis=False, exclude_origin=False, format=None):
+    def mori_cone_cap(self, in_basis=False, exclude_origin=False, format=None, verbosity=0):
         # will be subsumed by secondary cone (on_faces_dim=2)
         pts_ext = np.array([tuple(pt)+(1,) for pt in self.ambient_variety().triangulation().points()])
         facets = [frozenset(self.ambient_variety().triangulation().points_to_indices(f.boundary_points()))
@@ -2295,6 +2295,8 @@ class CalabiYau:
         # We start by finding circuits in 2-faces and their respective Mori cone
         # rays. These correspond to flips to other CYs or to non-fine
         # triangulations. We also keep track of all 2d simplices for later.
+        if verbosity >= 1:
+            print("2-face circuits...")
         for f in twofaces:
             if len(f) < 4:
                 simp_2d_all.add(frozenset(f))
@@ -2327,6 +2329,8 @@ class CalabiYau:
         # Now find we find the remaining rays. We do this by taking each 2-simplex
         # in each 2-face and considering all possible circuits with points of the
         # two containing facets.
+        if verbosity >= 1:
+            print("origin circuits...")
         m = np.empty((6,5),dtype=int)
         for s2d in simp_2d_all:
             f1 = None
