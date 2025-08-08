@@ -28,5 +28,7 @@ dependencies:
   - jupyterlab
   - matplotlib
   - plotly
+  - ipywidgets
+  - anywidget
   # Uncomment the following lines for additional tools
   # - sage
