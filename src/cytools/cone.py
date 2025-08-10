@@ -1158,35 +1158,37 @@ class Cone:
 
     def find_interior_point(
         self,
-        c=1,
-        lower=None,
-        integral=False,
-        backend=None,
-        check=True,
-        show_hints=False,
-        verbose=False,
-    ):
+        c: float=1,
+        lower: float=None,
+        integral: bool=False,
+        backend: str=None,
+        check: bool=True,
+        show_hints: bool=False,
+        verbose: bool=False,
+    ) -> "ArrayLike":
         r"""
         **Description:**
         Finds a point in the strict interior of the cone. If no point is found
         then None is returned.
 
         **Arguments:**
-        - `c` *(float, optional, default=1)*: A real positive number specifying
-            the stretching of the cone (i.e. the minimum distance to the
-            defining hyperplanes).
+        - `c`: A real positive number specifying the stretching of the cone
+            (i.e. the minimum distance to the defining hyperplanes). Only used
+            if rays are not known.
         - `lower`: A lower bound on the components of the interior point.
-        - `integral` *(bool, optional, default=False)*: A flag that specifies
-            whether the point should have integral coordinates.
-        - `backend` *(str, optional, default=None)*: String that specifies the
-            optimizer to use. Options are "glop", "scip", "cpsat", "mosek",
-            "osqp", and "cvxopt". If it is not specified then "glop" is used by
-            default. For $d\geq50$ it uses "mosek" if it is activated.
+        - `integral`: A flag that specifies whether the point should have
+            integral coordinates.
+        - `backend`: String that specifies the optimizer to use. Options are
+            "glop", "scip", "cpsat", "mosek", "osqp", and "cvxopt". If it is
+            not specified then "glop" is used by default. For $d\geq50$ it uses
+            "mosek" if it is activated.
+        - `check`: Whether to verify that the point is inside the cone.
         - `show_hints`: Whether to show hints about odd backend behavior.
+        - `verbose`: Whether to print diagnostic information.
 
         **Returns:**
-        *(numpy.ndarray)* A point in the strict interior of the cone. If no
-            point is found then None is returned.
+        A point in the strict interior of the cone. If no point is found then
+        None is returned.
 
         **Example:**
         We construct a cone and find some interior points.
