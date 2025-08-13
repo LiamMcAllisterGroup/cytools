@@ -403,6 +403,8 @@ def cone_of_permissible_heights(
     poly: "Polytope" = None,
     require_star: bool = False,
     no_duplicates: bool = True,
+    dense: bool = False,
+    big_ints: bool = False,
     as_cone: bool = True,
     verbosity: int = 0,
 ) -> "matrix.LIL | Cone":
@@ -429,6 +431,8 @@ def cone_of_permissible_heights(
     - `no_duplicates`: Whether to only add unique ineqs. Usually not
         recommended, given that it's typically more efficient to just allow
         explicit redundancies.
+    - `dense`: Whether to use dense hyperplanes.
+    - `big_ints`: Whether to use 64bit integers.
     - `as_cone`: Whether to return a formal Cone object.
     - `verbosity`: The verbosity level.
 
@@ -453,14 +457,22 @@ def cone_of_permissible_heights(
         # CPL inequalities associated with ith triangulation
         # (normally, this is the triangulation of the ith face, but it doesn't
         # need to be... you can decide to pass a subset of faces)
+        if (verbosity >= 2) and require_star:
+            print("The 2-face inequalities...")
         face_ineqs = _2d_frt_cone_ineqs(face_triang, npts, verbosity=verbosity-1)
         if require_star:
+            if (verbosity >= 2):
+                print("The star inequalities...")
             face_ineqs.append(_2d_s_cone_ineqs(face_triang, poly, npts, verbosity=verbosity-1))
 
         ineqs.append(face_ineqs, tocopy=False)
 
     if no_duplicates:
         ineqs.unique_rows()
+    if dense:
+        ineqs = ineqs.dense()
+    if big_ints:
+        ineqs = ineqs.astype(int)
 
     if as_cone:
         return Cone(hyperplanes=ineqs, ambient_dim=npts, parse_inputs=False)
@@ -469,7 +481,7 @@ def cone_of_permissible_heights(
 
 
 def expanded_secondary_fan(
-    self, no_duplicates: bool = True, as_cone: bool = True
+    self, no_duplicates: bool = True, dense: bool = False, big_ints: bool = False, as_cone: bool = True
 ) -> "matrix.LIL | Cone":
     """
     **Description:**
@@ -487,6 +499,8 @@ def expanded_secondary_fan(
 
     **Arguments:**
     - `no_duplicates`: Whether to only add unique ineqs.
+    - `dense`: Whether to use dense hyperplanes.
+    - `big_ints`: Whether to use 64bit integers.
     - `as_cone`: Whether to return a formal Cone object.
 
     **Returns:**
@@ -504,8 +518,12 @@ def expanded_secondary_fan(
 
     if no_duplicates:
         ineqs.unique_rows()
+    if dense:
+        ineqs = ineqs.dense()
+    if big_ints:
+        ineqs = ineqs.astype(int)
     if as_cone:
-        return Cone(hyperplanes=ineqs, ambient_dim=ambient_dim)
+        return Cone(hyperplanes=ineqs, ambient_dim=ambient_dim, parse_inputs=(len(ineqs)==0))
     else:
         return ineqs
 
