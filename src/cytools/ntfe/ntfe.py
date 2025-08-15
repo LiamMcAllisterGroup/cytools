@@ -475,7 +475,7 @@ def cone_of_permissible_heights(
         ineqs = ineqs.astype(int)
 
     if as_cone:
-        return Cone(hyperplanes=ineqs, ambient_dim=npts, parse_inputs=False)
+        return Cone(hyperplanes=ineqs, ambient_dim=npts, parse_inputs=(len(ineqs)==0))
     else:
         return ineqs
 
@@ -1116,10 +1116,9 @@ def ntfe_frts(
 
     # if returning a generator, just do so here
     if as_generator:
-
         def gen():
             for datum in data:
-                c = Cone(hyperplanes=datum)
+                c = Cone(hyperplanes=datum, parse_inputs=(len(datum)==0))
                 h = c.find_interior_point(
                     backend=backend, verbose=verbosity > 1
                 )
@@ -1145,7 +1144,7 @@ def ntfe_frts(
     frsts = []
 
     def func(datum):
-        c = Cone(hyperplanes=datum)
+        c = Cone(hyperplanes=datum, parse_inputs=(len(datum)==0))
         h = c.find_interior_point(backend=backend, verbose=verbosity > 1)
 
         return self.triangulate(heights=h, make_star=make_star)
