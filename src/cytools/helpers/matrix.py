@@ -154,13 +154,11 @@ class LIL:
 
     def __len__(self) -> int:
         # length
-        if self._len is None:
-            self._len = len(self.arr)
-        return self._len
+        return len(self.arr)
 
-    def __array__(self, dtype: Union[np.dtype, str] = None) -> np.array:
+    def __array__(self, copy=False, dtype: Union[np.dtype, str] = None) -> np.array:
         # What is called upon running np.array on this object
-        return np.array(self.dense(), dtype=dtype)
+        return np.array(self.dense(unique=True), copy=copy, dtype=dtype)
 
     @property
     def shape(self) -> tuple[int]:
@@ -280,16 +278,17 @@ class LIL:
         The dense array
         """
         if self.arr_dense is None:
-            # build empty dense array
-            height = len(self.arr)
+            # delete duplicated rows
+            self.unique_rows()
 
+            # build empty dense array
             if self.default_val == 0:
                 self.arr_dense = np.zeros(
-                    (height, self.width), dtype=self.dtype
+                    self.shape, dtype=self.dtype
                 )
             else:
                 self.arr_dense = self.default_val * np.ones(
-                    (height, self.width), dtype=self.dtype
+                    self.shape, dtype=self.dtype
                 )
 
             # fill in output
@@ -422,19 +421,15 @@ class LIL_stack:
 
     def __len__(self) -> int:
         # length
-        if not hasattr(self, "_len"):
-            self._len = sum(
-                len(opts[i]) for i, opts in zip(self.choices, self._options)
-            )
-        return self._len
+        return len(self.arr)
 
     def __iter__(self) -> Iterator:
         # iterator
         return self._rows(self.iter_densely)
 
-    def __array__(self, dtype: np.dtype = None) -> np.array:
+    def __array__(self, copy=False, dtype: np.dtype = None) -> np.array:
         # What is called upon running np.array on this object
-        return np.array(self.dense(), dtype=dtype)
+        return np.array(self.dense(), copy=copy, dtype=dtype)
 
     # properties
     @property
@@ -494,6 +489,10 @@ class LIL_stack:
 
         return self._arr
 
+    @arr.setter
+    def arr(self, value):
+        self._arr = value
+
     def dense(self, tocopy: bool = False) -> ArrayLike:
         """
         **Description:**
@@ -506,6 +505,9 @@ class LIL_stack:
         *(np.array)* The dense array
         """
         if not hasattr(self, "_arr_dense"):
+            # delete duplicated rows
+            self.unique_rows()
+            
             # build empty dense array
             self._arr_dense = np.zeros(self.shape, dtype=self.dtype)
 
@@ -519,6 +521,20 @@ class LIL_stack:
             return self._arr_dense.copy()
         else:
             return self._arr_dense
+
+    def unique_rows(self) -> None:
+        """
+        **Description:**
+        Delete repeated rows. Maybe re-orders rows...
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        Nothing
+        """
+        self.arr_dense = None
+        self.arr = [dict(t) for t in {tuple(d.items()) for d in self.arr}]
 
     def tolist(self) -> list:
         return self.dense().tolist()
