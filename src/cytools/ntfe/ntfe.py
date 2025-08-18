@@ -402,7 +402,6 @@ def cone_of_permissible_heights(
     npts: int,
     poly: "Polytope" = None,
     require_star: bool = False,
-    no_duplicates: bool = True,
     dense: bool = False,
     big_ints: bool = False,
     as_cone: bool = True,
@@ -428,9 +427,6 @@ def cone_of_permissible_heights(
         triangulations can be modified to become star simply by lowering the
         height of the origin. Only recommended if the cone (or related ones,
         like the Kahler cone/Kcup) are of independent interest.
-    - `no_duplicates`: Whether to only add unique ineqs. Usually not
-        recommended, given that it's typically more efficient to just allow
-        explicit redundancies.
     - `dense`: Whether to use dense hyperplanes.
     - `big_ints`: Whether to use 64bit integers.
     - `as_cone`: Whether to return a formal Cone object.
@@ -467,12 +463,10 @@ def cone_of_permissible_heights(
 
         ineqs.append(face_ineqs, tocopy=False)
 
-    if no_duplicates:
-        ineqs.unique_rows()
     if dense:
         ineqs = ineqs.dense()
-    if big_ints:
-        ineqs = ineqs.astype(int)
+        if big_ints:
+            ineqs = ineqs.astype(int)
 
     if as_cone:
         return Cone(hyperplanes=ineqs, ambient_dim=npts, parse_inputs=(len(ineqs)==0))
@@ -481,7 +475,7 @@ def cone_of_permissible_heights(
 
 
 def expanded_secondary_fan(
-    self, no_duplicates: bool = True, dense: bool = False, big_ints: bool = False, as_cone: bool = True
+    self, dense: bool = False, big_ints: bool = False, as_cone: bool = True
 ) -> "matrix.LIL | Cone":
     """
     **Description:**
@@ -498,7 +492,6 @@ def expanded_secondary_fan(
     information is used.
 
     **Arguments:**
-    - `no_duplicates`: Whether to only add unique ineqs.
     - `dense`: Whether to use dense hyperplanes.
     - `big_ints`: Whether to use 64bit integers.
     - `as_cone`: Whether to return a formal Cone object.
@@ -516,12 +509,10 @@ def expanded_secondary_fan(
     for f in self.faces(2):
         ineqs.append(f._2d_frt_subfan_ineqs(ambient_dim), tocopy=False)
 
-    if no_duplicates:
-        ineqs.unique_rows()
     if dense:
         ineqs = ineqs.dense()
-    if big_ints:
-        ineqs = ineqs.astype(int)
+        if big_ints:
+            ineqs = ineqs.astype(int)
     if as_cone:
         return Cone(hyperplanes=ineqs, ambient_dim=ambient_dim, parse_inputs=(len(ineqs)==0))
     else:
@@ -570,7 +561,7 @@ def triangfaces_to_frt(
     npts = len(self.labels)
 
     c = cone_of_permissible_heights(
-        triangs, poly=self, npts=npts, no_duplicates=False
+        triangs, poly=self, npts=npts
     )
     h = c.find_interior_point(backend=backend, verbose=verbosity > 1)
 
