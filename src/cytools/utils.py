@@ -33,6 +33,7 @@ from typing import Generator
 import flint
 import numpy as np
 from numpy.typing import ArrayLike
+import pypalp
 import scipy.sparse as sp
 
 # CYTools imports
@@ -1014,26 +1015,8 @@ def polytope_generator(
         # read the polytopes as weight systems
         while (limit is None) or (n_yielded < limit):
             # pass line to PALP
-            palp = subprocess.Popen(
-                (config.palp_path + "/poly.x", "-v"),
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                universal_newlines=True,
-            )
-            palp_res, palp_err = palp.communicate(input=l + "\n")
-            palp_res = palp_res.split("\n")
-
-            # add vertices
-            vert = []
-            i = 0
-            while i < len(palp_res):
-                if "Vertices" in palp_res[i]:
-                    for j in range(ast.literal_eval(palp_res[i].split()[0])):
-                        i += 1
-                        vert.append([int(c) for c in palp_res[i].split()])
-                i += 1
-            vert = np.array(vert)
+            p    = pypalp.Polytope(input)
+            vert = p.vertices()
 
             # ensure reasonable shape
             if len(vert.shape) == 0:

@@ -3599,7 +3599,7 @@ def poly_v_to_h(pts: ArrayLike, backend: str) -> (ArrayLike, None):
             ineqs = np.array([[0]])
         else:
             # prepare the command
-            p = pypalp.Polytope(self.points())
+            p = pypalp.Polytope(pts)
             ineqs = p.equations()
     else:
         raise ValueError(f"Unrecognized backend '{backend}'...")
@@ -3659,7 +3659,7 @@ def saturating_lattice_pts(
             facet_ind = [frozenset([0])]
         else:
             p = pypalp.Polytope(pts)
-            pts_all = p.all_points()
+            pts_all = p.points()
 
             # find inequialities each point saturates
             facet_ind = [
