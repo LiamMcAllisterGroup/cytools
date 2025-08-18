@@ -1186,7 +1186,7 @@ def fetch_polytopes(
     n_facets: int = None,
     limit: int = 1000,
     timeout: int = 60,
-    as_list: bool = False,
+    as_list: bool = True,
     backend: str = None,
     dualize: bool = False,
     favorable: bool = None,
@@ -1250,13 +1250,13 @@ def fetch_polytopes(
     with a few different parameters.
     ```python {2,5,8}
     from cytools import fetch_polytopes # Note that it can directly be imported from the root
-    g = fetch_polytopes(h11=27, lattice="N") # Constructs a generator of polytopes
+    g = fetch_polytopes(h11=27, as_list=False) # Constructs a generator of polytopes
     next(g)
     # A 4-dimensional reflexive lattice polytope in ZZ^4
-    l = fetch_polytopes(h11=27, lattice="N", as_list=True, limit=100) # Constructs a generator of polytopes
+    l = fetch_polytopes(h11=27, limit=100) # Constructs a list of polytopes
     print(f"Fetched {len(l)} polytopes")
     # Fetched 100 polytopes
-    g_5d = fetch_polytopes(h11=1000, lattice="N", dim=5, limit=100) # Generator of 5D polytopes
+    g_5d = fetch_polytopes(h11=1000, as_list=False, dim=5, limit=100) # Generator of 5D polytopes
     next(g_5d)
     # A 5-dimensional reflexive lattice polytope in ZZ^5
     ```
