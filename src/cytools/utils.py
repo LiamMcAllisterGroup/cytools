@@ -1178,7 +1178,7 @@ def fetch_polytopes(
     h22: int = None,
     h31: int = None,
     chi: int = None,
-    lattice: str = None,
+    lattice: str = "N",
     dim: int = 4,
     n_points: int = None,
     n_vertices: int = None,
