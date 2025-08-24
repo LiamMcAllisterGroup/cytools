@@ -936,13 +936,13 @@ class Cone:
         if self.is_simplicial():
             if verbosity >= 1:
                 print("Cone is simplicial! Easy computation...")
-            R = self.rays()
+            R = self.extremal_rays()
 
             dim = len(R)
             ray_inds = list(range(dim))
 
             # facets are defined by collections of #(dim-1) rays
-            return [Cone(rays=R[inds]) for inds in\
+            return [Cone(rays=R[list(inds)]) for inds in\
                                         itertools.combinations(ray_inds,dim-1)]
 
         # hyperplane based-computation
