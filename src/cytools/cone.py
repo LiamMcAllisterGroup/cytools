@@ -824,6 +824,14 @@ class Cone:
         # It is important to delete duplicates
         rays = np.array(list({tuple(r) for r in self.rays()}))
 
+        # if only 1 ray, this is trivial
+        if rays.shape[0] == 1:
+            self._ext_rays[minimal] = rays
+            if self._rays is None:
+                self._rays = self._ext_rays[minimal]
+
+            return self._ext_rays[minimal]
+
         # configure threads
         n_threads = config.n_threads
         if n_threads is None:
