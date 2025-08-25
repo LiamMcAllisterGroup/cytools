@@ -20,11 +20,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout website branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: website
       - name: Checkout main branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: main
           path: ./code/
@@ -50,7 +50,7 @@ jobs:
         id: pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: ./build
 
