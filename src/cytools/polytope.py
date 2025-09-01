@@ -2129,33 +2129,37 @@ class Polytope:
         :::
 
         **Arguments:**
-        - `heights`: A list of heights specifying the regular triangulation.
-            When not specified, it will return the Delaunay triangulation when
-            using CGAL, a triangulation obtained from random heights near the
-            Delaunay when using QHull, or the placing triangulation when using
-            TOPCOM. Heights can only be specified when using CGAL or QHull as
-            the backend.
-        - `make_star`: Indicates whether to turn the triangulation into a star
-            triangulation by deleting internal lines and connecting all points
-            to the origin, or equivalently by decreasing the height of the
-            origin to be much lower than the rest. By default, this flag is set
-            to true if the polytope is reflexive and neither heights or
-            simplices are inputted. Otherwise, it is set to False.
         - `include_points_interior_to_facets`: Whether to include points
             interior to facets from the triangulation. If not specified, it is
             set to False for reflexive polytopes and True otherwise.
         - `points`: List of point labels that will be used. Note that if this
             option is used then the parameter
             `include_points_interior_to_facets` is ignored.
+        - `make_star`: Indicates whether to turn the triangulation into a star
+            triangulation by deleting internal lines and connecting all points
+            to the origin, or equivalently by decreasing the height of the
+            origin to be much lower than the rest. By default, this flag is set
+            to true if the polytope is reflexive and neither heights or
+            simplices are inputted. Otherwise, it is set to False.
         - `simplices`: A list of simplices specifying the triangulation. This
             is useful when a triangulation was previously computed and it needs
             to be used again. Note that the order of the points needs to be
             consistent with the order that the `Polytope` class uses.
         - `check_input_simplices`: Flag that specifies whether to check if the
             input simplices define a valid triangulation.
-        - `backend`: Specifies the backend used to compute the triangulation.
-            The available options are "qhull", "cgal", and "topcom". CGAL is
-            the default one as it is very fast and robust.
+        - `heights`: The heights specifying the regular triangulation. When not
+            specified, construct based off of the backend:
+                - (CGAL) a Delaunay triangulation,
+                - (QHULL) triangulation from random heights near Delaunay, or
+                - (TOPCOM) placing triangulation.
+            Heights can only be specified when using CGAL or QHull as the
+            backend.
+        - `check_heights`: Whether to check if the input/default heights define
+            a valid/unique triangulation.
+        - `backend`: The backend used to compute the triangulation. Options are
+            "qhull", "cgal", and "topcom". CGAL is the default as it is very
+            fast and robust.
+        - `verbosity`: The verbosity level.
 
         **Returns:**
         A [`Triangulation`](./triangulation) object describing a triangulation
