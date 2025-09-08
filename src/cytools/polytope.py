@@ -3539,6 +3539,25 @@ class Polytope:
             else self._nef_parts.get(args_id)[0]
         )
 
+    def is_trilayer(self, return_anticanon=False):
+        """
+        Check if a polytope is 'trilayer'.
+        """
+        glsm_vert = np.array(fmpz_mat(self.vertices().T.tolist()).nullspace()[0].transpose().tolist(), dtype=int)[:-4]
+        anticanon = np.sum(glsm_vert, axis=1)
+
+        # compute if the Polytope is trilayer
+        is_tri = False
+        if all(c%2==0 for c in anticanon):
+            half_anticanon = anticanon//2
+            is_tri = any(all((v == half_anticanon).flat) for v in glsm_vert.T)
+        
+        # return
+        if return_anticanon:
+            return is_tri, anticanon
+        else:
+            return is_tri
+
 
 # utils
 # -----
