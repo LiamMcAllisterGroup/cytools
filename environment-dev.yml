@@ -3,7 +3,7 @@ channels:
   - conda-forge
 dependencies:
   # CYTools dependencies
-  - python
+  - python=3.12
   - numpy
   - normaliz
   - scipy
