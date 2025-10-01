@@ -4,7 +4,7 @@ channels:
 dependencies:
   # CYTools dependencies
   - python=3.12
-  - numpy
+  - numpy<2.3
   - normaliz
   - scipy
   - cvxopt
