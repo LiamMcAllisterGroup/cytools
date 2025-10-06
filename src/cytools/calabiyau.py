@@ -2515,9 +2515,9 @@ class Invariants:
         """
         out = None
         if not by_deg:
-            out = self._charge2invariant.keys()
+            out = list(self._charge2invariant.keys())
             if as_np_arr:
-                return np.asarray(list(out))
+                return np.asarray(out)
             else:
                 return out
 
