@@ -1507,3 +1507,44 @@ def find_new_affinely_independent_points(pts: ArrayLike) -> np.ndarray:
         new_pts = np.append(new_pts, [[1] + [0] * (shape[1] - 1)], axis=0)
 
     return new_pts + translation
+
+# heights to/from kahlers
+# -----------------------
+# TEMPORARY
+def project_heights_to_kahler(poly, heights_in, prime_divisors=None):
+    """
+    Given an h11+5 dimensional height vector,
+    returns an h11+5 dimensional vector that corresponds to point in the kahler cone.
+    """
+    basis = [i-1 for i in poly.glsm_basis(include_origin=True)]
+    if prime_divisors is None:
+        prime_divisors = np.array([rr for r,rr in enumerate(poly.triangulate(verbosity=0).get_cy().toric_effective_cone().rays()) if r not in basis], dtype=float)
+    extra_divs = [i for i in range(poly.h11(lattice='N')+4) if i not in basis]
+    origin_height = heights_in[0]
+    kahler_parameters = np.array([i-origin_height for i in heights_in[1:]])
+    for e,ee in enumerate(prime_divisors):
+        prime_ind = extra_divs[e]
+        prime_height = kahler_parameters[prime_ind]
+        lin_rel = np.zeros(poly.h11(lattice='N')+4)
+        lin_rel[basis] = ee
+        lin_rel[prime_ind] = -1
+        corr = prime_height*lin_rel
+        kahler_parameters = np.array(kahler_parameters) + np.array(corr)
+    return np.concatenate(([0],kahler_parameters))
+
+def heights_to_kahler(poly, heights_in, prime_divisors=None):
+    """
+    Given an h11+5 dimensional height vector,
+    returns an h11 dimensional vector that corresponds to point in the kahler cone.
+    """
+    basis = poly.glsm_basis()
+    return project_heights_to_kahler(poly, heights_in, prime_divisors)[basis]
+
+def kahler_to_heights(poly, kahler_in):
+    """
+    Given an h11 dimensional vector hat corresponds to point in the kahler cone,
+    returns an h11+5 dimensional height vector.
+    """
+    basis = [i for i in poly.glsm_basis(include_origin=True)]
+    kahler_gen = iter(kahler_in)
+    return np.array([next(kahler_gen) if i in basis else 0 for i in range(poly.h11(lattice='N')+5)])
