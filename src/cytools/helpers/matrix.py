@@ -158,7 +158,7 @@ class LIL:
 
     def __array__(self, copy=False, dtype: Union[np.dtype, str] = None) -> np.array:
         # What is called upon running np.array on this object
-        return np.array(self.dense(unique=True), copy=copy, dtype=dtype)
+        return np.array(self.dense(), copy=copy, dtype=dtype)
 
     @property
     def shape(self) -> tuple[int]:
