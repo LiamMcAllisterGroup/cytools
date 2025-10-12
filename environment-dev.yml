@@ -3,8 +3,9 @@ channels:
   - conda-forge
 dependencies:
   # CYTools dependencies
-  - python=3.12
-  - numpy<2.3
+  - python
+  - numba
+  - numpy
   - normaliz
   - scipy
   - cvxopt
@@ -12,7 +13,6 @@ dependencies:
   - pplpy
   - joblib
   - tqdm
-  - qpsolvers
   - requests
   - osqp
   - pytest
@@ -22,6 +22,7 @@ dependencies:
     - mosek
     - triangulumancer
     - pypalp
+    - qpsolvers
     - cygv
     # Editable CYTools installation
     - -e .
