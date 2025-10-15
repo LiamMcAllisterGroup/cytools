@@ -13,7 +13,7 @@ The installation of CYTools on Linux or macOS is primarily done using conda. A c
 - Almost any Linux distribution or any recent version of macOS (>=10.13).
 - Linux: A modern x86-64 processor with hardware virtualization enabled. Other architectures might work with emulation, but there could be problems.
 - macOS: Any modern Apple computer (with an Apple silicon processor).
-- (optionally but highly recommended) A conda installation. [Miniforge](https://conda-forge.org/) is recommended.
+- (optionally but highly recommended) A conda installation. [Miniforge](https://conda-forge.org/) is recommended. The installation instructions assume you are using conda.
 
 ## Installation instructions
 
