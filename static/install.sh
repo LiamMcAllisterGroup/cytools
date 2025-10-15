@@ -1,23 +1,25 @@
 #!/bin/bash
+set -e  # exit immediately on error
 
+# Check that condais installed
+if ! command -v conda &> /dev/null; then
+    echo "Error: conda is not installed or not on your PATH." >&2
+    echo "Please install Miniconda or Anaconda before running this script." >&2
+    exit 1
+fi
+
+# Make temporary director for use in the install
 cd /tmp/
 tmp_dir="cytools-update-$RANDOM"
 mkdir $tmp_dir
 cd $tmp_dir
 
-# Fetch the latest release tarball
-curl -s https://api.github.com/repos/LiamMcAllisterGroup/cytools/tags \
-| grep "tarball_url" \
-| grep -Eo 'https://[^\"]*' \
-| sed -n '1p' \
-| xargs curl -sL \
-| tar -xz --strip-components 1
+# Fetch the environment file
+curl -fsSL -o environment.yml https://raw.githubusercontent.com/LiamMcAllisterGroup/cytools/refs/heads/main/environment.yml
 
-# Default value of whether to install optional packages
-: "${OPTIONAL_PKGS:=0}"
+# Install the conda environment
+conda env create -f environment.yml
 
-# Install
-make install OPTIONAL_PKGS=$OPTIONAL_PKGS
-
+# Cleanup
 cd /tmp/
 rm -rf cytools-update-*
