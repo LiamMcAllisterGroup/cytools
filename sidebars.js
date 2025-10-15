@@ -20,10 +20,9 @@ const sidebars = {
     {
       type: 'category',
       label: 'Getting Started',
-      items: ['getting-started/overview', 'getting-started/linux',
-              'getting-started/macos', 'getting-started/windows',
-              'getting-started/tutorial', 'getting-started/advanced',
-              'getting-started/cluster'],
+      items: ['getting-started/overview', 'getting-started/linuxmacos',
+              'getting-started/windows',
+              'getting-started/tutorial', 'getting-started/advanced'],
     },
     {
       type: 'category',
