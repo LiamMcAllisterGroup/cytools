@@ -39,9 +39,10 @@ You can take a look at exactly what is being done by the install script by looki
 
 ## Usage
 
-CYTools can be started simply by clicking on the icon that should appear on your start menu or on your desktop after running the installation script. For more advanced options you can read our [advanced usage instructions](./advanced).
-
 The CYTools environment will be named `cytools`. To enter this environment, type `conda activate cytools` in the WSL terminal. In this environment, `cytools` can be imported in the same way as any other Python package such as NumPy, SciPy, Matplotlib, etc. By default, JupyterLab is installed, which can simply be opened with `jupyter lab` (note: the webpage might not be automatically opened. Simply enter the URL in your browser). To exit the conda environment, simply call `conda deactivate`.
+
+## Removal
+To remove the CYTools environment, first enter the WSL terminal. In this terminal, run run `conda env remove --name cytools` or `conda env remove --name cytools-dev`, depending on which version (normal or dev) you installed. If you also want to remove the installed packages, add the flag `--all` to the end of the above commands.
 
 ## Troubleshooting
 

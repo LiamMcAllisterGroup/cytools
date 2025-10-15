@@ -12,7 +12,7 @@ The installation of CYTools on Linux or macOS is primarily done using conda. A c
 
 - Almost any Linux distribution or any recent version of macOS (>=10.13).
 - Linux: A modern x86-64 processor with hardware virtualization enabled. Other architectures might work with emulation, but there could be problems.
-- macOS: Any modern Apple computer (with an Apple silicon processor; x86-64 support is in progress).
+- macOS: Any modern Apple computer (with an Apple silicon processor).
 - (optionally but highly recommended) A conda installation. [Miniforge](https://conda-forge.org/) is recommended.
 
 ## Installation instructions
@@ -51,6 +51,9 @@ You can take a look at exactly what is being done by the install script by looki
 ## Usage
 
 The CYTools environment will be named either `cytools` if the standard install was performed or `cytools-dev` if the advanced installation was followed. To enter this environment, type `conda activate cytools` or `conda activate cytools-dev`, respectively. In this environment, `cytools` can be imported in the same way as any other Python package such as NumPy, SciPy, Matplotlib, etc. By default, JupyterLab is installed, which can simply be opened with `jupyter lab`. To exit the conda environment, simply call `conda deactivate`.
+
+## Removal
+To remove the CYTools environment, run `conda env remove --name cytools` or `conda env remove --name cytools-dev`, depending on which version (normal or dev) you installed. If you also want to remove the installed packages, add the flag `--all` to the end of the above commands.
 
 ## Troubleshooting
 
