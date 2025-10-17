@@ -230,7 +230,7 @@ t.simplices()
 # ** output truncated **
 ```
 
-Some functionality requires additional software that is included in the Docker image. For example, finding triangulations that differ by a bistellar flip requires TOPCOM.
+Some functionality requires additional software that is installed as a dependency. For example, finding triangulations that differ by a bistellar flip requires TOPCOM.
 
 ```python
 t.neighbor_triangulations()
@@ -527,4 +527,4 @@ plt.subplots_adjust(wspace=0.3, hspace=0.22)
 
 The above example shows the power of CYTools. The original paper required very significant effort to assemble the code for the analysis, as it required downloading the KS database, performing some computations on SageMath, then performing some extra computations in Mathematica, and finally using a variety of scripts to gather together all the data. Now, anyone can perform the full analysis with a few lines of code in CYTools. Although we only took a small number of polytopes in this example, one could easily increase the range of the scan and even surpass the statistics of the original paper by running the computation on a standard laptop overnight.
 
-This concludes the brief tutorial. We have some additional [advanced usage instructions](https://cytools.liammcallistergroup.com/docs/getting-started/advanced) for people who intend to perform large-scale computations with CYTools or who want to tinker with the Docker image. For a full list of available classes and functions please explore the [documentation](https://cytools.liammcallistergroup.com/docs/documentation/).
+This concludes the brief tutorial. We have some additional [advanced usage instructions](https://cytools.liammcallistergroup.com/docs/getting-started/advanced) for people who intend to perform large-scale computations with CYTools. For a full list of available classes and functions please explore the [documentation](https://cytools.liammcallistergroup.com/docs/documentation/).
