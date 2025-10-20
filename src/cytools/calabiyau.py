@@ -2130,6 +2130,7 @@ class CalabiYau:
     def _compute_gvs_gws(
         self,
         gv_or_gw: str,
+        mcap_generators: "ArrayLike" = None,
         grading_vec: "ArrayLike" = None,
         max_deg: bool = None,
         min_points: bool = None,
@@ -2165,7 +2166,10 @@ class CalabiYau:
         kappa = self.intersection_numbers(in_basis=True, format="coo")
         glsm = self.curve_basis(include_origin=False, as_matrix=True)
         mori = self.mori_cone_cap(in_basis=True)
-        generators = mori.rays()
+        if mcap_generators is None:
+            mcap_generators = mori.rays()
+        else:
+            mcap_generators = mcap_generators
 
         # compute a grading vector if none is provided
         if grading_vec is None:
@@ -2177,7 +2181,7 @@ class CalabiYau:
         else:
             fct = cygv.compute_gw
         invariants = fct(
-            generators=mori.rays(),
+            generators=mcap_generators,
             grading_vector=grading_vec,
             q=self.curve_basis(include_origin=False, as_matrix=True),
             intnums=self.intersection_numbers(in_basis=True, format="dok"),
@@ -2209,6 +2213,7 @@ class CalabiYau:
 
     def compute_gvs(
         self,
+        mcap_generators: "ArrayLike" = None,
         grading_vec: "ArrayLike" = None,
         max_deg: bool = None,
         min_points: bool = None,
@@ -2234,6 +2239,7 @@ class CalabiYau:
         """
         return self._compute_gvs_gws(
             gv_or_gw="gv",
+            mcap_generators=mcap_generators,
             grading_vec=grading_vec,
             max_deg=max_deg,
             min_points=min_points,
@@ -2245,9 +2251,10 @@ class CalabiYau:
 
     def compute_gws(
         self,
-        grading_vec=None,
-        max_deg=None,
-        min_points=None,
+        mcap_generators: "ArrayLike" = None,
+        grading_vec: "ArrayLike" = None,
+        max_deg: bool = None,
+        min_points: bool = None,
         basis: "ArrayLike" = None,
         format: str = None,
     ):
@@ -2270,6 +2277,7 @@ class CalabiYau:
         """
         return self._compute_gvs_gws(
             gv_or_gw="gw",
+            mcap_generators=mcap_generators,
             grading_vec=grading_vec,
             max_deg=max_deg,
             min_points=min_points,
