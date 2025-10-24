@@ -67,6 +67,14 @@ def face_triangs(
     List of faces. Each face is a list of Triangulation. May have different
     order than in the input (i.e., faces.)
     """
+
+    # check input for generating triangulations
+    allowed_methods = ["fast", "fair", "grow2d"]
+    if triang_method not in allowed_methods:
+        raise ValueError(
+            f"triang_method={triang_method} was not an "
+            f"allowed method... Allowed are {allowed_methods}."
+        )
     # output variable
     triangs = []
 
@@ -92,13 +100,8 @@ def face_triangs(
                     "samples."
                 )
 
-            allowed_methods = ["fast", "fair", "grow2d"]
-            if triang_method not in allowed_methods:
-                raise ValueError(
-                    f"triang_method={triang_method} was not an "
-                    f"allowed method... Allowed are {allowed_methods}."
-                )
-            elif triang_method == "fast":
+            
+            if triang_method == "fast":
                 triangs.append(
                     p.random_triangulations_fast(
                         N=N_face_triangs,
