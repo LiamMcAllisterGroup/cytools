@@ -2108,7 +2108,7 @@ class Polytope:
             return self.labels_not_facet
 
     def triangulate(
-        self,
+        self, *, # enforce all arguments are keyword
         include_points_interior_to_facets: bool = None,
         points: "ArrayLike" = None,
         make_star: bool = None,
