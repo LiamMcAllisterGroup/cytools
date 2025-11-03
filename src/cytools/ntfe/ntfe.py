@@ -232,6 +232,10 @@ def _2d_s_cone_ineqs(self,
     # the output variable (doesn't need to be LIL object, but that is nice...)
     ineqs = matrix.LIL(dtype=np.int16, width=ambient_dim)
 
+    # get the homogenized points (for later use)
+    npts = len(poly.points())
+    pts_homog = np.vstack([poly.points().T, np.ones(npts,dtype=int)])
+
     # find each facet containing each 2d simplex
     containing_facets = collections.defaultdict(list)
     for s in self.simplices(2):
@@ -255,7 +259,27 @@ def _2d_s_cone_ineqs(self,
                 # calculate the not-shared points
                 n_s = [p1, p2]
 
+                # check if n_s + s contains any other points
+                # ------------------------------------------
+                # if so, it can't be flipped so we can ignore
+                pts_circ = np.vstack([poly.points(which=n_s + s).T, np.ones(5,dtype=int)])
+
+                other_mask = np.ones(npts,dtype=bool)
+                other_mask[n_s+s] = False
+                other_mask[0]     = False
+
+                # check if any other point can be written as a convex combination of n_s+s
+                lambdas   = np.linalg.inv(pts_circ)@pts_homog[:,other_mask]
+                nonneg    = lambdas>-1e-4
+                contained = np.all(nonneg,axis=0)
+                bad       = np.any(contained)
+                if bad:
+                    continue
+
+                # passes check!
+
                 # find the dependency
+                # -------------------
                 M = poly.points(which=n_s + s + [o], optimal=True).T
 
                 # Grab/calculate the nullspace
@@ -463,11 +487,16 @@ def cone_of_permissible_heights(
 
         ineqs.append(face_ineqs, tocopy=False)
 
+    # delete duplicate rows
+    ineqs.unique_rows()
+
+    # densify
     if dense:
         ineqs = ineqs.dense()
         if big_ints:
             ineqs = ineqs.astype(int)
 
+    # return
     if as_cone:
         return Cone(hyperplanes=ineqs, ambient_dim=npts, parse_inputs=(len(ineqs)==0))
     else:
