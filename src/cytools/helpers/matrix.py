@@ -264,7 +264,7 @@ class LIL:
         Nothing
         """
         self.arr_dense = None
-        self.arr = [dict(t) for t in {tuple(d.items()) for d in self.arr}]
+        self.arr = [dict(t) for t in {tuple(sorted(d.items())) for d in self.arr}]
 
     def dense(self, tocopy: bool = False) -> np.array:
         """
