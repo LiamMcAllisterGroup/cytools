@@ -1410,7 +1410,10 @@ def lll_reduce(pts_in: ArrayLike, transform: bool = False) -> "misc":
     pts = np.array(pts_in)
 
     # lll-reduction
-    pts = pts.T  # map points to columns for lll-algorithm
+    # given input M, this solves for a T,L such that T@M = L
+    # with T unimodular. Thus T@M represents an equivalent polytope if
+    # the **columns** of M are the points
+    pts = pts.T
 
     if transform is True:
         pts_red, transf = flint.fmpz_mat(pts.tolist()).lll(transform=True)
