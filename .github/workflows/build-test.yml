@@ -25,7 +25,7 @@ jobs:
         shell: bash -l {0}
     steps:
       - name: Check out repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Get micromamba
         uses: mamba-org/setup-micromamba@v2
         with:
@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Save user id
         run: echo "USERID=$(id -u)" >> $GITHUB_ENV
       - name: Build Docker image
