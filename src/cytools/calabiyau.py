@@ -2167,7 +2167,9 @@ class CalabiYau:
         glsm = self.curve_basis(include_origin=False, as_matrix=True)
         mori = self.mori_cone_cap(in_basis=True)
         if mcap_generators is None:
-            mcap_generators = mori.rays()
+            R = mori.rays()
+            lattice_pts = mori.find_lattice_points(min_points=100*self.h11())
+            mcap_generators = np.vstack([R,lattice_pts])
         else:
             mcap_generators = mcap_generators
 
