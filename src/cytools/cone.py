@@ -1301,7 +1301,7 @@ class Cone:
         deg_window=0,
         filter_function=None,
         process_function=None,
-        verbose=True,
+        verbose=False,
     ):
         """
         **Description:**
