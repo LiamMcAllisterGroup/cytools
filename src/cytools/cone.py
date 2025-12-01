@@ -1540,8 +1540,16 @@ class Cone:
         # parse solutions
         if process_function is not None:
             return
-        pts = np.array(list(solution_storage._solutions), dtype=int)
-        return pts
+        pts  = np.array(list(solution_storage._solutions), dtype=int)
+
+        # provide uniform sorting of points
+        degs = pts@grading_vector
+
+        out = []
+        for deg in set(degs):
+            out.append(sorted(pts[degs==deg].tolist()))
+
+        return np.vstack(out)
 
     def is_solid(self, backend=None):
         """
