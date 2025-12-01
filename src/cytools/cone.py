@@ -1546,7 +1546,7 @@ class Cone:
         degs = pts@grading_vector
 
         out = []
-        for deg in set(degs):
+        for deg in sorted(set(degs)):
             out.append(sorted(pts[degs==deg].tolist()))
 
         return np.vstack(out)
