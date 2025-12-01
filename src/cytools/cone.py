@@ -21,7 +21,9 @@
 
 # 'standard' imports
 from ast import literal_eval
+from collections.abc import Iterable
 import contextlib
+from fractions import Fraction
 import joblib
 from multiprocessing import cpu_count
 import os
@@ -1294,6 +1296,7 @@ class Cone:
         min_points=None,
         max_deg=None,
         grading_vector=None,
+        c=0,
         max_coord=1000,
         deg_window=0,
         filter_function=None,
@@ -1316,6 +1319,9 @@ class Cone:
             find. This is useful when working with a preferred grading.
         - `grading_vector` *(array_like, optional)*: The grading vector that
             will be used. If it is not specified then it is computed.
+        - `c` *(numeric or array_like, optional)*: The minimum allowed
+            stretching. Can be a single number or a stretching per each
+            hyperplane (applied in the order of self.hyperplanes()).
         - `max_coord` *(int, optional, default=1000)*: The maximum magnitude of
             the coordinates of the points.
         - `deg_window` *(int, optional)*: If using min_points, search for
@@ -1481,8 +1487,19 @@ class Cone:
         ]
 
         # define constraints
-        for h in hp:
-            model.Add(sum(ii * var[i] for i, ii in enumerate(h)) >= 0)
+        if not isinstance(c, Iterable):
+            c = [c]*len(hp)
+
+        for h,cc in zip(hp,c):
+            # clear the denominator
+            cc_rat = Fraction(cc).limit_denominator()
+            denom = cc_rat.denominator
+            numer = cc_rat.numerator
+
+            # add the constraint
+            model.Add(
+                sum(ii * var[i] * denom for i, ii in enumerate(h)) >= numer
+            )
 
         soln_deg = sum(ii * var[i] for i, ii in enumerate(grading_vector))
 
