@@ -209,7 +209,7 @@ def array_to_flint(arr: np.ndarray, t: "int | float" = None) -> np.ndarray:
     if t is None:
         t = arr.dtype
 
-    if t == int:
+    if t is int:
         f = lambda n: flint.fmpz(int(n))
     else:
         f = float_to_fmpq
