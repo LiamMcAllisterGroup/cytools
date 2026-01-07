@@ -58,9 +58,6 @@ class Cone:
     This class is primarily tailored to pointed (i.e. strongly convex) cones.
     There are a few computations, such as finding extremal rays, that may
     produce some unexpected results when working with non-pointed cones.
-    Additionally, cones that are not pointed, and whose dual is also not
-    pointed, are not supported since they are uncommon and difficult to deal
-    with.
     :::
 
     ## Constructor
@@ -72,8 +69,7 @@ class Cone:
     [`__init__`](#__init__) function.
 
     **Arguments:**
-    - `rays` *(array_like, optional)*: A list of rays that generates the cone.
-        If it is not specified then the hyperplane normals must be specified.
+    - `rays`: A list of rays that generates the cone. If it is not specified then the hyperplane normals must be specified.
     - `hyperplanes` *(array_like, optional)*: A list of inward-pointing
         hyperplane normals that define the cone. If it is not specified then the
         generating rays must be specified.
@@ -1084,10 +1080,7 @@ class Cone:
                 else dict()
             )
             solution = qpsolvers.solve_qp(
-                P,
-                q,
-                G,
-                h,
+                P, q, G, h,
                 solver=backend,
                 max_iter=max_iter,
                 verbose=verbose,
