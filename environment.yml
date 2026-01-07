@@ -23,6 +23,7 @@ dependencies:
     - pypalp
     - qpsolvers
     - cygv
+    - regfans
     # The actual cytools package (taken from pypi)
     - cytools
   # Common useful tools

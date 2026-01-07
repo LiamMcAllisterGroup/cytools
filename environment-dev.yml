@@ -24,6 +24,7 @@ dependencies:
     - pypalp
     - qpsolvers
     - cygv
+    - regfans
     # Editable CYTools installation
     - -e .
   # Common useful tools
