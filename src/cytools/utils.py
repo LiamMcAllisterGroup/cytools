@@ -65,7 +65,6 @@ def instanced_lru_cache(maxsize=128):
 
     return decorator
 
-
 # basic math
 # ----------
 def gcd_float(a: float, b: float, tol: float = 1e-5) -> float:
@@ -101,7 +100,6 @@ def gcd_float(a: float, b: float, tol: float = 1e-5) -> float:
     if abs(b) < tol:
         return abs(a)
     return gcd_float(b, a % b, tol)
-
 
 # variant that computes gcd over all elements in arr
 gcd_list = lambda arr: functools.reduce(gcd_float, arr)
@@ -150,7 +148,6 @@ def float_to_fmpq(c: float) -> flint.fmpq:
     f = fractions.Fraction(c).limit_denominator()
     return flint.fmpq(f.numerator, f.denominator)
 
-
 def fmpq_to_float(c: flint.fmpq) -> float:
     """
     **Description:**
@@ -175,7 +172,6 @@ def fmpq_to_float(c: flint.fmpq) -> float:
     ```
     """
     return int(c.p) / int(c.q)
-
 
 def array_to_flint(arr: np.ndarray, t: "int | float" = None) -> np.ndarray:
     """
@@ -216,11 +212,9 @@ def array_to_flint(arr: np.ndarray, t: "int | float" = None) -> np.ndarray:
 
     return np.vectorize(f)(arr).astype(object)
 
-
 # some type-specific aliases
 array_int_to_fmpz = lambda arr: array_to_flint(arr, t=int)
 array_float_to_fmpq = lambda arr: array_to_flint(arr, t=float)
-
 
 def array_from_flint(arr: np.ndarray, t=None) -> np.ndarray:
     """
@@ -248,11 +242,9 @@ def array_from_flint(arr: np.ndarray, t=None) -> np.ndarray:
             f"Input array had element of type {t}!" + "This is not a flint type!"
         )
 
-
 # some type-specific aliases
 array_fmpz_to_int = lambda arr: array_from_flint(arr, t=flint.fmpz)
 array_fmpq_to_float = lambda arr: array_from_flint(arr, t=flint.fmpq)
-
 
 # sparse conversions
 # ------------------
@@ -311,7 +303,6 @@ def to_sparse(
     else:
         return sp.csr_matrix(sp_mat)
 
-
 def symmetric_sparse_to_dense(tensor: dict, basis: ArrayLike = None) -> np.ndarray:
     """
     **Description:**
@@ -362,7 +353,6 @@ def symmetric_sparse_to_dense(tensor: dict, basis: ArrayLike = None) -> np.ndarr
             out = np.tensordot(out, basis, axes=[[i], [1]])
 
     return out
-
 
 def symmetric_dense_to_sparse(tensor: ArrayLike, basis: ArrayLike = None) -> dict:
     """
@@ -416,7 +406,6 @@ def symmetric_dense_to_sparse(tensor: ArrayLike, basis: ArrayLike = None) -> dic
 
     return out
 
-
 # other tensor operations
 # -----------------------
 def filter_tensor_indices(tensor: dict, indices: list[int]) -> dict:
@@ -465,7 +454,6 @@ def filter_tensor_indices(tensor: dict, indices: list[int]) -> dict:
     return {
         tuple(sorted(reindex[c] for c in key)): val for key, val in filtered.items()
     }
-
 
 # solve systems
 # -------------
@@ -558,7 +546,6 @@ def solve_linear_system(
             solution = None
 
     return solution
-
 
 # set algebraic geometric bases
 # -----------------------------
