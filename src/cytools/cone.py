@@ -1252,7 +1252,7 @@ class Cone:
                 verbose=verbose,
             )
         else:
-            if not (lower is None):
+            if lower is not None:
                 raise ValueError(f"Cannot set custom lower bound for backend = {backend}")
             solution = self.tip_of_stretched_cone(
                 c, backend=backend, show_hints=show_hints, verbose=verbose
