@@ -268,7 +268,7 @@ class VectorConfiguration(regfans.VectorConfiguration):
 
     # override lifting to give CYTools Fan object
     # -------------------------------------------
-    def subdivide(self, *args, **kwargs):
+    def triangulate(self, *args, **kwargs):
         """
         **Description:**
         Subdivide the vector configuration either by specified cells/simplices
@@ -287,6 +287,8 @@ class VectorConfiguration(regfans.VectorConfiguration):
         fan = super().subdivide(*args, **kwargs)
         fan = Fan.from_regfans(fan) # cast to CYTools type
         return fan
+
+    subdivide = triangulate
 
 # misc
 # ----
