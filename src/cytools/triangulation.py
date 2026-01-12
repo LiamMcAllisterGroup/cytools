@@ -445,7 +445,7 @@ class Triangulation:
         star_str += "star" if self.is_star() else "non-star"
 
         return (
-            f"A "
+            "A "
             + fine_str
             + regular_str
             + star_str
