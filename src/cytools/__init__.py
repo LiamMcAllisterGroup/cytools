@@ -18,11 +18,11 @@
 from cytools.polytope import Polytope
 from cytools.cone import Cone
 from cytools.utils import read_polytopes, fetch_polytopes
+from . import ntfe, vector_config
 
 # Latest version
 version = "1.4.4"
 versions_with_serious_bugs = []
-
 
 # Check for more recent versions of CYTools
 def check_for_updates():
