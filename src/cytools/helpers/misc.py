@@ -99,10 +99,13 @@ def load_zipped_pickle(fname, path=cache_dir):
     file = os.path.join(path, fname)
 
     if os.path.isfile(file):
-        with gzip.open(file, "rb") as f:
-            loaded_object = pickle.load(f)
-
-        return loaded_object
+        try:
+            with gzip.open(file, "rb") as f:
+                return pickle.load(f)
+        except (EOFError, pickle.UnpicklingError) as e:
+            print(f"Warning: cache {file} is broken ({e}), removing it...")
+            os.remove(file)
+            return None
     else:
         return None
 
