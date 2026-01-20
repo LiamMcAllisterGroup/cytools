@@ -22,6 +22,7 @@
 # 'standard' imports
 from ast import literal_eval
 from collections.abc import Iterable
+from copy import deepcopy
 import contextlib
 from fractions import Fraction
 import joblib
@@ -1513,20 +1514,19 @@ class Cone:
             # Else, add points until the minimum number is reached
             deg = 0
             while solution_storage._n_sol < min_points:
-                deg_constr_low = model.Add(deg <= soln_deg)
-                deg_constr_up = model.Add(soln_deg <= deg + deg_window)
+                # define model with windowed degree constraints
+                window_model   = deepcopy(model)
+                deg_constr_low = window_model.Add(deg <= soln_deg)
+                deg_constr_up  = window_model.Add(soln_deg <= deg + deg_window)
 
                 # solve and check status
-                status = solver.SearchForAllSolutions(model, solution_storage)
+                status = solver.SearchForAllSolutions(window_model, solution_storage)
                 if verbose and status != cp_model.OPTIMAL:
                     print(
                         "There was a problem finding the points b/t degrees "
                         f"{deg} and {deg+deg_window}. "
                         f"Status code: {solver.StatusName(status)}"
                     )
-
-                deg_constr_low.Proto().Clear()
-                deg_constr_up.Proto().Clear()
 
                 deg += deg_window + 1
 
