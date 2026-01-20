@@ -3,14 +3,14 @@ channels:
   - conda-forge
 dependencies:
   # CYTools dependencies
-  - python<3.13
+  - python
   - numba
   - numpy
   - normaliz
   - scipy
   - cvxopt
   - python-flint
-  - pplpy
+  - ppl
   - joblib
   - tqdm
   - requests
