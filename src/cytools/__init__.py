@@ -21,7 +21,7 @@ from cytools.utils import read_polytopes, fetch_polytopes
 from . import ntfe, vector_config
 
 # Latest version
-version = "1.4.4"
+version = "1.4.5"
 versions_with_serious_bugs = []
 
 # Check for more recent versions of CYTools
