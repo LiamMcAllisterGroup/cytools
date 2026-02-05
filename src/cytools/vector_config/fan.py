@@ -78,6 +78,7 @@ class Fan(regfans.fan.Fan):
     # ---------------
     def cones(self,
         formal: bool = False,
+        as_hyps: bool = False,
         as_inds: bool = False,
         ind_offset: int = 0) -> Union[ tuple[tuple[int]], list["Cone"] ]:
         """
@@ -89,6 +90,7 @@ class Fan(regfans.fan.Fan):
 
         **Arguments:**
         - `formal`:     Whether to return the cones as formal Cone objects.
+        - `as_hyps`:    Whether to return the cones as their hyperplanes.
         - `as_inds`:    Whether to return the cones as indices (not labels).
         - `ind_offset`: Additive offset to the indices
 
@@ -98,11 +100,10 @@ class Fan(regfans.fan.Fan):
         if formal:
             return tuple([self.vc.cone(c) for c in self._cones])
         else:
-            if as_inds:
-                cones = tuple([tuple([self.vc.label_to_ind(i)+ind_offset for \
-                                        i in simp]) for simp in self._cones])
-            else:
-                cones = self._cones
+            return super(Fan, self).cones(
+                as_hyps=as_hyps,
+                as_inds=as_inds,
+                ind_offset=ind_offset)
 
             return cones
 
