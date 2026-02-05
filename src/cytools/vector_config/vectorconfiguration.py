@@ -210,7 +210,7 @@ class VectorConfiguration(regfans.VectorConfiguration):
         """
         return self.subdivide(heights=[1 for _ in self.labels])
 
-    def gale(self) -> "ArrayLike":
+    def gale(self, **kwargs) -> "ArrayLike":
         """
         **Description:**
         Compute the gale transform of the config.
