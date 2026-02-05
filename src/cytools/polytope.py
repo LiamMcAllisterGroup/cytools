@@ -3543,7 +3543,7 @@ class Polytope:
         """
         Check if a polytope is 'trilayer'.
         """
-        glsm_vert = np.array(fmpz_mat(self.vertices().T.tolist()).nullspace()[0].transpose().tolist(), dtype=int)[:-4]
+        glsm_vert = np.array(fmpz_mat(self.vertices().T.tolist()).nullspace()[0].transpose().tolist(), dtype=int)[:-self.dim()]
         anticanon = np.sum(glsm_vert, axis=1)
 
         # compute if the Polytope is trilayer
