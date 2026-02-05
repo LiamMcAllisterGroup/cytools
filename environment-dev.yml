@@ -21,6 +21,7 @@ dependencies:
     - ortools
     - mosek
     - triangulumancer
+    - pplpy
     - pypalp
     - qpsolvers
     - cygv
