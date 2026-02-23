@@ -328,6 +328,10 @@ class Fan(regfans.fan.Fan):
                                               digits=None)
             arr_size = self.vc.size
 
+            if verbosity >= 10:
+                tmp = sorted([k + (round(v),) for k,v in kappa.items()])
+                print(f"ambient intersection numbers were (in COO format) {tmp}")
+
             if pushed_down:
                 # push down the intersection numbers
                 # (i.e., sum over one index... symmetric so doesn't matter
@@ -340,6 +344,10 @@ class Fan(regfans.fan.Fan):
                         kappa_pushdown[k[1:]] = -v
 
                 kappa = kappa_pushdown
+
+                if verbosity >= 10:
+                    tmp = sorted([k + (round(v),) for k,v in kappa.items()])
+                    print(f"after pushing kappa down, it is {tmp}")
 
             # write the intersection numbers in the basis
             if in_basis:
@@ -356,12 +364,20 @@ class Fan(regfans.fan.Fan):
                     if len(set(k).intersection(non_basis)) == 0
                 }
 
+                if verbosity >= 10:
+                    tmp = sorted([k + (round(v),) for k,v in kappa.items()])
+                    print(f"after putting kappa in-basis, it is {tmp}")
+
             # symmetrize
             if symmetrize:
                 keys = list(kappa.keys())
                 for k in keys:
                     for k_perm in itertools.permutations(k):
                         kappa[tuple(k_perm)] = kappa[k]
+
+                if verbosity >= 10:
+                    tmp = sorted([k + (round(v),) for k,v in kappa.items()])
+                    print(f"after symmetrizing kappa, it is {tmp}")
 
             # map to numpy array
             if as_np_array:
