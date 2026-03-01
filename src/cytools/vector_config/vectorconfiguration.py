@@ -81,10 +81,8 @@ class VectorConfiguration(regfans.VectorConfiguration):
         self._poly = {self.labels: p}
 
         # some toric info
-        if self._is_reflexive:
-            self._divisor_basis = p.glsm_basis(include_points_interior_to_facets=False)
-            # this is what's internally used by regfans.VectorConfiguration
-            self._gale_basis    = self._divisor_basis 
+        if self._is_reflexive and (self._gale_basis is None):
+            self._gale_basis = p.glsm_basis(include_points_interior_to_facets=False)
     
     # hulls
     # -----
@@ -174,7 +172,7 @@ class VectorConfiguration(regfans.VectorConfiguration):
         The divisor basis, as labels.
         """
         if self._is_reflexive:
-            return self._divisor_basis
+            return self._gale_basis
 
     @property
     def divisor_basis_inds(self) -> Iterable[int]:
@@ -328,15 +326,18 @@ def vc(self,
 
     # save the VC (for caching purposes)
     vc = VectorConfiguration(
-        self.points(which=vc_labels), labels=vc_labels
+        self.points(which=vc_labels), labels=vc_labels,
+        gale_basis = self.glsm_basis(include_points_interior_to_facets=False)
     )
 
     if include_points_interior_to_facets:
         self._vc_yesfacet = vc
     else:
         self._vc_nofacet = vc
-    
-    return self.vc(include_points_interior_to_facets=include_points_interior_to_facets)
+
+    out = self.vc(include_points_interior_to_facets=include_points_interior_to_facets)
+    out._poly = {out.labels: self}
+    return out
 Polytope.vc = vc
 
 # give Cone a method to directly generate its VC
