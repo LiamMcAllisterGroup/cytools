@@ -428,17 +428,22 @@ class Fan(regfans.fan.Fan):
         # face-to-neighbor map for each codim
         # (a neighbor of a face `f` is any point `i` s.t. $f cup {i}$ is a face)
         # (really, this is an encoding of the face lattice...)
-        neighbors = {i: collections.defaultdict(set) for i in range(1, dim)}
+        neighbors = {i: dict() for i in range(1, dim)}
 
         for r in range(1, dim):
+            rdict = neighbors[r]
+
             # map each r-dim face to the neighboring points
             for simp in simps:
                 for s in itertools.combinations(simp, r):
-                    neighbors[r][s].update(simp)
+                    if s in rdict:
+                        rdict[s].update(simp)
+                    else:
+                        rdict[s] = set(simp)
 
             # delete the indices corresponding to the face itself
             for face in neighbors[r]:
-                neighbors[r][face] -= set(face)
+                rdict[face] -= set(face)
 
         # compute the intersection numbers
         # --------------------------------
