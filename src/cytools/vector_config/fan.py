@@ -434,7 +434,7 @@ class Fan(regfans.fan.Fan):
             # map each r-dim face to the neighboring points
             for simp in simps:
                 for s in itertools.combinations(simp, r):
-                    neighbors[r][tuple(sorted(s))].update(tuple(simp))
+                    neighbors[r][s].update(simp)
 
             # delete the indices corresponding to the face itself
             for face in neighbors[r]:
