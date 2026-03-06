@@ -95,7 +95,8 @@ class Polytope:
     """
 
     def __init__(
-        self, points: ArrayLike, labels: ArrayLike = None, backend: str = None
+        self, points: ArrayLike, labels: ArrayLike = None, backend: str = None,
+        deterministic_glsm_basis: bool = False
     ) -> None:
         """
         **Description:**
@@ -116,6 +117,13 @@ class Polytope:
             convex hull. The available options are "ppl", "qhull", or "palp".
             When not specified, it uses PPL for dimensions up to four, and palp
             otherwise.
+        - `deterministic_glsm_basis`: Whether to fix the GLSM basis in a
+            deterministic manner. By setting this True, the GLSM/divisor bases
+            should be consistent across different machines. If this is left as
+            False, then bases will be computed identically to how they were
+            before this flag was added.
+            N.B.: the basis chosen under `deterministic_glsm_basis=True` may
+            differ from the basis chosen under `deterministic_glsm_basis=False`!
 
         **Returns:**
         Nothing.
@@ -172,6 +180,7 @@ class Polytope:
 
         # initialize attributes
         # ---------------------
+        self._deterministic_glsm_basis = deterministic_glsm_basis
         self.clear_cache()
 
         # process the inputs
@@ -2973,10 +2982,15 @@ class Polytope:
                 )
             )
             norms = [np.linalg.norm(p, 1) for p in linrel.T]
+            if self._deterministic_glsm_basis:
+                norms = [[n,i] for i,n in enumerate(norms)]
             linrel = np.insert(linrel, 0, np.ones(linrel.shape[1], dtype=int), axis=0)
             good_exclusions = 0
             basis_exc = []
-            indices = np.argsort(norms)
+            if self._deterministic_glsm_basis:
+                indices = np.array(sorted(range(len(norms)), key=lambda i:norms[i]))
+            else:
+                indices = np.argsort(norms)
             indices[: linrel.shape[0]] = np.sort(indices[: linrel.shape[0]])
             for n_try in range(14):
                 if n_try == 1:
@@ -2987,7 +3001,12 @@ class Polytope:
                         dtype=int,
                     )
                     norms = [np.linalg.norm(p, 1) for p in pts_lll.T]
-                    indices = np.argsort(norms)
+                    if self._deterministic_glsm_basis:
+                        norms = [[n,i] for i,n in enumerate(norms)]
+                    if self._deterministic_glsm_basis:
+                        indices = np.array(sorted(range(len(norms)), key=lambda i:norms[i]))
+                    else:
+                        indices = np.argsort(norms)
                     indices[: linrel.shape[0]] = np.sort(indices[: linrel.shape[0]])
                 elif n_try == 3:
                     indices[:] = np.array([0] + list(range(1, linrel.shape[1]))[::-1])
@@ -3082,7 +3101,12 @@ class Polytope:
         else:  # Non-integral basis
             pts = self.points()[list(pts_ind)[1:]]  # Exclude the origin
             pts_norms = [np.linalg.norm(p, 1) for p in pts]
-            pts_order = np.argsort(pts_norms)
+            if self._deterministic_glsm_basis:
+                pts_norms = [[n,i] for i,n in enumerate(pts_norms)]
+            if self._deterministic_glsm_basis:
+                pts_order = np.array(sorted(range(len(pts_norms)), key=lambda i:pts_norms[i]))
+            else:
+                pts_order = np.argsort(pts_norms)
             # Find good lattice basis
             good_lattice_basis = pts_order[:1]
             current_rank = 1

@@ -924,6 +924,7 @@ def polytope_generator(
     input_type: str = "file",
     format: str = "ks",
     backend: str = None,
+    deterministic_glsm_basis: bool = False,
     dualize: bool = False,
     favorable: bool = None,
     lattice: str = None,
@@ -951,6 +952,13 @@ def polytope_generator(
         be constructed from weight systems.
     - `backend`: A string that specifies the backend used for the
         [`Polytope`](./polytope) class.
+    - `deterministic_glsm_basis`: Whether to fix the GLSM basis in a
+        deterministic manner. By setting this True, the GLSM/divisor bases of
+        the associated Polytope/CYs should be consistent across different
+        machines. If this is left as False, then bases will be computed
+        identically to how they were before this flag was added.
+        N.B.: the basis chosen under `deterministic_glsm_basis=True` may
+        differ from the basis chosen under `deterministic_glsm_basis=False`!
     - `dualize`: Flag that indicates whether to dualize all the polytopes
         before yielding them.
     - `favorable`: Yield only polytopes that are favorable when set to True, or
@@ -1012,7 +1020,7 @@ def polytope_generator(
                 vert = vert.T
 
             # build the Polytope
-            p = Polytope(vert, backend=backend)
+            p = Polytope(vert, backend=backend, deterministic_glsm_basis=deterministic_glsm_basis)
 
             if (favorable is None) or (p.is_favorable(lattice=lattice) == favorable):
                 n_yielded += 1
@@ -1060,7 +1068,7 @@ def polytope_generator(
                 vert = vert.T
 
             # build the Polytope
-            p = Polytope(vert, backend=backend)
+            p = Polytope(vert, backend=backend, deterministic_glsm_basis=deterministic_glsm_basis)
             if (favorable is None) or (p.is_favorable(lattice=lattice) == favorable):
                 n_yielded += 1
                 yield (p.dual() if dualize else p)
@@ -1088,6 +1096,7 @@ def read_polytopes(
     input_type: str = "file",
     format: str = "ks",
     backend: str = None,
+    deterministic_glsm_basis: bool = False,
     as_list: bool = False,
     dualize: bool = False,
     favorable: bool = None,
@@ -1111,6 +1120,13 @@ def read_polytopes(
         be constructed from weight systems.
     - `backend`: A string that specifies the backend used for the
         [`Polytope`](./polytope) class.
+    - `deterministic_glsm_basis`: Whether to fix the GLSM basis in a
+        deterministic manner. By setting this True, the GLSM/divisor bases of
+        the associated Polytope/CYs should be consistent across different
+        machines. If this is left as False, then bases will be computed
+        identically to how they were before this flag was added.
+        N.B.: the basis chosen under `deterministic_glsm_basis=True` may
+        differ from the basis chosen under `deterministic_glsm_basis=False`!
     - `as_list`: Return the list of polytopes instead of a generator.
     - `dualize`: Flag that indicates whether to dualize all the polytopes
         before yielding them.
@@ -1145,6 +1161,7 @@ def read_polytopes(
         input_type=input_type,
         format=format,
         backend=backend,
+        deterministic_glsm_basis=deterministic_glsm_basis,
         dualize=dualize,
         favorable=favorable,
         lattice=lattice,
@@ -1175,6 +1192,7 @@ def fetch_polytopes(
     timeout: int = 60,
     as_list: bool = True,
     backend: str = None,
+    deterministic_glsm_basis: bool = False,
     dualize: bool = False,
     favorable: bool = None,
     verbosity: int = 0,
@@ -1221,6 +1239,13 @@ def fetch_polytopes(
     - `as_list`: Return the list of polytopes instead of a generator.
     - `backend`: A string that specifies the backend used for the
         [`Polytope`](./polytope) class.
+    - `deterministic_glsm_basis`: Whether to fix the GLSM basis in a
+        deterministic manner. By setting this True, the GLSM/divisor bases of
+        the associated Polytope/CYs should be consistent across different
+        machines. If this is left as False, then bases will be computed
+        identically to how they were before this flag was added.
+        N.B.: the basis chosen under `deterministic_glsm_basis=True` may
+        differ from the basis chosen under `deterministic_glsm_basis=False`!
     - `dualize`: Flag that indicates whether to dualize all the polytopes
         before yielding them.
     - `favorable`: Yield or return only polytopes that are favorable when set
@@ -1372,6 +1397,7 @@ def fetch_polytopes(
         input_type="str",
         format=("ks" if dim == 4 else "ws"),
         backend=backend,
+        deterministic_glsm_basis=deterministic_glsm_basis,
         as_list=as_list,
         dualize=dualize,
         favorable=favorable,
