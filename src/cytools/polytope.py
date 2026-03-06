@@ -1460,7 +1460,7 @@ class Polytope:
             )
 
         pts = np.array(self._ineqs_input[:, :-1])
-        self._dual = Polytope(pts, backend=self._backend)
+        self._dual = Polytope(pts, backend=self._backend, deterministic_glsm_basis=self._deterministic_glsm_basis)
         self._dual._dual = self
         return self._dual
 
@@ -3357,7 +3357,7 @@ class Polytope:
         points = {tuple(sum(verts))
                   for verts in itertools.product(self.vertices(),
                                                  other.vertices())}
-        return Polytope(list(points))
+        return Polytope(list(points), deterministic_glsm_basis=self._deterministic_glsm_basis)
 
     def volume(self) -> int:
         """
