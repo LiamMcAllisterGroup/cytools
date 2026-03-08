@@ -623,18 +623,19 @@ class Fan(regfans.fan.Fan):
 
             for two_cone in itertools.combinations(s, 2):
                 two_cones.add(two_cone)
+        two_cones = np.array(list(two_cones))-1
 
         # get the intersection numbers
         kappa = self.intersection_numbers(
-            pushed_down=True, symmetrize=False, eps=eps, digits=4
+            pushed_down=True, as_np_array=True, eps=eps, digits=4
         )
-
+        
         # compute c2
         out = []
-        for a in range(1, max_ind + 1):
-            out.append(
-                round(sum(kappa.get(tuple(sorted(c + (a,))), 0) for c in two_cones))
-            )
+        for a in range(max_ind):
+            vals  = kappa[two_cones[:,0], two_cones[:,1], a]
+            total = vals.sum()
+            out.append( round(vals.sum()) )
 
         return out
 
