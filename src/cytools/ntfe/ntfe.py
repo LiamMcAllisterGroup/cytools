@@ -1142,6 +1142,8 @@ def ntfe_frts(
                 h = c.find_interior_point(
                     backend=backend, verbose=verbosity > 1
                 )
+                if h is None:
+                    continue
 
                 frst = self.triangulate(heights=h, make_star=make_star)
                 if (frst is None) or (not frst):
@@ -1166,6 +1168,8 @@ def ntfe_frts(
     def func(datum):
         c = Cone(hyperplanes=datum, parse_inputs=(len(datum)==0))
         h = c.find_interior_point(backend=backend, verbose=verbosity > 1)
+        if h is None:
+            return None
 
         return self.triangulate(heights=h, make_star=make_star)
 
@@ -1176,7 +1180,8 @@ def ntfe_frts(
     )
 
     for frst in results:
-        frsts.append(frst)
+        if frst is not None:
+            frsts.append(frst)
 
     return frsts
 
@@ -1203,7 +1208,7 @@ def ntfe_frsts(
     **Description:**
     See https://arxiv.org/abs/2309.10855
 
-    Generate (some of) the NTFE FR(S)Ts for this polytope
+    Generate (some of) the NTFE FRSTs for this polytope
 
     **Arguments:**
     - `hypers`: The expanded secondary cones corresponding to the NTFEs. If no
