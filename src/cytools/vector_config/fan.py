@@ -70,7 +70,7 @@ class Fan(regfans.fan.Fan):
         **Returns:**
         The CYTools Fan object.
         """
-        obj = cls.__new__(cls)            # allocate new instance
+        obj = cls.__new__(cls)              # allocate new instance
         obj.__dict__ = fan.__dict__.copy()  # copy state
         return obj
 
@@ -261,10 +261,13 @@ class Fan(regfans.fan.Fan):
         **Returns:**
         The secondary/chamber cone.
         """
-        H = super().secondary_cone_hyperplanes(
-            via_circuits=via_circuits,
-            verbosity=verbosity)
-        cone = Cone(hyperplanes=H)
+        if not hasattr(self, '_secondary_cone'):
+            H = super().secondary_cone_hyperplanes(
+                via_circuits=via_circuits,
+                verbosity=verbosity)
+            self._secondary_cone = Cone(hyperplanes=H)
+
+        cone = self._secondary_cone
 
         if project_lineality:
             return Cone(rays=cone.rays()@(self.vc.gale()))
