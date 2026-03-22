@@ -219,3 +219,21 @@ def test_triangulation():
     t = p.triangulate()
     cy = t.get_cy()
     assert cy.triangulation() is t
+
+
+def test_gv_invariants():
+    p = Polytope(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -6, -9]]
+    )
+    cy = p.triangulate().get_cy()
+
+    gvs = cy.compute_gvs(min_points=100)
+    assert gvs.size == 104
+
+    gvs = cy.compute_gvs(max_deg=10)
+    assert gvs.size == 65
+
+    m_cap = cy.mori_cone_cap(in_basis=True)
+    m_cap_pts = m_cap.find_lattice_points(min_points=100)
+    gvs = cy.compute_gvs(m_cap_pts)
+    assert gvs.size == len(m_cap_pts) - 1

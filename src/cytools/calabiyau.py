@@ -2139,7 +2139,9 @@ class CalabiYau:
     ):
         """
         **Description:**
-        Wrapper for cygv GV and GW computations. A method of cytools.CalabiYau
+        Wrapper for cygv GV and GW computations. A method of `cytools.CalabiYau`. If
+        both `max_deg` and `min_points` are left unspecified, only the points in
+        `basis` are used.
 
         NOT INTENDED TO BE CALLED DIRECTLY!
 
@@ -2148,20 +2150,14 @@ class CalabiYau:
             performed.
         - `grading_vec`: The grading vector to use in the computations. A default
             is chosen if none is provided.
-        - `max_deg`: The maximum degree to compute GVs/GWs to. Must be specified
-            iff min_points=None.
-        - `min_points`: The minimum number of GVs/GWs to compute. Must be
-            specified iff max_deg=None.
+        - `max_deg`: The maximum degree to compute GVs/GWs to.
+        - `min_points`: The minimum number of GVs/GWs to compute.
         - 'basis': An array specifying a new basis to represent the charges in.
         - 'format': A string to request 'dok' or 'coo' formats.
 
         **Returns:**
         The GV/GW invariants.
         """
-        # check that the user either passed max_deg or min_points
-        if not (max_deg is None) ^ (min_points is None):
-            raise ValueError("Either max_deg or min_points must be set!")
-
         # get basics
         kappa = self.intersection_numbers(in_basis=True, format="coo")
         glsm = self.curve_basis(include_origin=False, as_matrix=True)
@@ -2224,15 +2220,15 @@ class CalabiYau:
     ):
         """
         **Description:**
-        Wrapper for cygv GV computations. A method of cytools.CalabiYau
+        Wrapper for cygv GV computations. A method of `cytools.CalabiYau`. If
+        both `max_deg` and `min_points` are left unspecified, only the points in
+        `basis` are used.
 
         **Arguments:**
         - `grading_vec`: The grading vector to use in the computations. A default
             is chosen if none is provided.
-        - `max_deg`: The maximum degree to compute GVs to. Must be specified iff
-            min_points=None.
-        - `min_points`: The minimum number of GVs/GWs to compute. Must be
-            specified iff max_deg=None.
+        - `max_deg`: The maximum degree to compute GVs to.
+        - `min_points`: The minimum number of GVs/GWs to compute.
         - 'basis': An array specifying a new basis to represent the charges in.
         - 'format': A string to request 'dok' or 'coo' formats.
 
@@ -2262,15 +2258,15 @@ class CalabiYau:
     ):
         """
         **Description:**
-        Wrapper for cygv GW computations. A method of cytools.CalabiYau
+        Wrapper for cygv GW computations. A method of `cytools.CalabiYau`. If
+        both `max_deg` and `min_points` are left unspecified, only the points in
+        `basis` are used.
 
         **Arguments:**
         - `grading_vec`: The grading vector to use in the computations. A default
             is chosen if none is provided.
-        - `max_deg`: The maximum degree to compute GWs to. Must be specified iff
-            min_points=None.
-        - `min_points`: The minimum number of GWs to compute. Must be specified
-            iff max_deg=None.
+        - `max_deg`: The maximum degree to compute GWs to.
+        - `min_points`: The minimum number of GWs to compute.
         - 'basis': An array specifying a new basis to represent the charges in.
         - 'format': A string to request 'dok' or 'coo' formats.
 
