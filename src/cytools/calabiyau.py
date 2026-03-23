@@ -2158,6 +2158,20 @@ class CalabiYau:
         **Returns:**
         The GV/GW invariants.
         """
+        # input checking
+        if (max_deg is not None) and (min_points is not None):
+            raise ValueError("Either max_deg or min_points can be set, not both")
+        
+        if (max_deg is None) and (min_points is None):
+            # computing GVs by input points
+            if mcap_generators is None:
+                raise ValueError("If neither max_deg nor min_points is set, you must set mcap_generators")
+
+            # (in this case, we definitely still need the origin to be input)
+            if not np.any(np.all(np.array(mcap_generators) == 0, axis=1)):
+                raise ValueError("Origin is not in mcap_generators... you should pass points like " +\
+                                 "m_cap.find_lattice_points(min_points=100)...")
+
         # get basics
         kappa = self.intersection_numbers(in_basis=True, format="coo")
         glsm = self.curve_basis(include_origin=False, as_matrix=True)
@@ -2222,7 +2236,7 @@ class CalabiYau:
         **Description:**
         Wrapper for cygv GV computations. A method of `cytools.CalabiYau`. If
         both `max_deg` and `min_points` are left unspecified, only the points in
-        `basis` are used.
+        `mcap_generators` are used.
 
         **Arguments:**
         - `grading_vec`: The grading vector to use in the computations. A default
@@ -2260,7 +2274,7 @@ class CalabiYau:
         **Description:**
         Wrapper for cygv GW computations. A method of `cytools.CalabiYau`. If
         both `max_deg` and `min_points` are left unspecified, only the points in
-        `basis` are used.
+        `mcap_generators` are used.
 
         **Arguments:**
         - `grading_vec`: The grading vector to use in the computations. A default
