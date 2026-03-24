@@ -2347,7 +2347,7 @@ class Triangulation:
         return self._sr_ideal
 
 
-def _to_star(triang: Triangulation) -> np.ndarray:
+def _to_star(triang: Triangulation) -> None:
     """
     **Description:**
     Turns a triangulation into a star triangulation by deleting internal lines
@@ -2844,11 +2844,11 @@ def random_triangulations_fair_generator(
     desired balance between speed and fairness of the sampling.
     """
     # input parsing
-    traing_pts = poly.points(which=pts)
+    triang_pts = poly.points(which=pts)
     num_points = len(pts)
 
-    dim = np.linalg.matrix_rank([tuple(pt) + (1,) for pt in traing_pts]) - 1
-    if dim != traing_pts.shape[1]:
+    dim = np.linalg.matrix_rank([tuple(pt) + (1,) for pt in triang_pts]) - 1
+    if dim != triang_pts.shape[1]:
         raise Exception("Point configuration must be full-dimensional.")
 
     if seed is not None:
@@ -2856,7 +2856,7 @@ def random_triangulations_fair_generator(
 
     # Obtain random Delaunay triangulation by picking random point as origin
     rand_ind = np.random.randint(0, len(pts))
-    points_shifted = [p - traing_pts[rand_ind] for p in traing_pts]
+    points_shifted = [p - triang_pts[rand_ind] for p in triang_pts]
 
     delaunay_heights = [walk_step_size * (np.dot(p, p)) for p in points_shifted]
     start_pt = delaunay_heights
