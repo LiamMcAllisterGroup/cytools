@@ -143,7 +143,6 @@ def _2d_frt_cone_ineqs(self, ambient_dim: int, verbosity: int=0) -> matrix.LIL:
 
         # Grab/calculate the nullspace
         ineq = _ineq_cached.get(M_tup, None)
-        ineq = None
         if ineq is None:
             # calculate the nullspace
             null = flint.fmpz_mat(M.tolist() + [[1, 1, 1, 1]]).nullspace()
