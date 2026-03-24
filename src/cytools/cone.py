@@ -1690,7 +1690,7 @@ class Cone:
 
             # allow different backends
             if backend.lower() == "nnls":
-                self._is_pointed = nnls(A, b)[1] > tol
+                self._is_pointed = nnls(R, b)[1] > tol
             elif backend.lower() == "lp":
                 res = linprog(
                     c=np.zeros(R.shape[0], dtype=int),  # no objective
