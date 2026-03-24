@@ -384,6 +384,8 @@ class CalabiYau:
         if not isinstance(other, CalabiYau):
             return NotImplemented
         is_triv_equiv = self.is_trivially_equivalent(other)
+        if is_triv_equiv is NotImplemented:
+            return NotImplemented
         if is_triv_equiv:
             return True
         warnings.warn(
