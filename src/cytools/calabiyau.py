@@ -701,9 +701,9 @@ class CalabiYau:
             if self._hodge_nums is None:
                 self._compute_cicy_hodge_numbers()
             return self._hodge_nums.get((p, q), 0)
-        if self.dim() not in (2, 3, 4) and p != 1 and q != 1:
+        if self.dim() not in (2, 3, 4):
             raise NotImplementedError(
-                "Only Calabi-Yaus of dimension 2-4 are " "currently supported."
+                "Only Calabi-Yaus of dimension 2-4 are currently supported."
             )
         return self.polytope().hpq(p, q, lattice="N")
 
@@ -2373,7 +2373,7 @@ class CalabiYau:
                     # use flint nullspace...
                     v = null_space(m.T)
                     if v.shape[1] != 1:
-                        print("Warning: Kernel dimension {v.shape[1]}.")
+                        warnings.warn(f"Kernel dimension {v.shape[1]}.")
                         continue
                     v = v[:,0]
                     if v[0] < 0:
