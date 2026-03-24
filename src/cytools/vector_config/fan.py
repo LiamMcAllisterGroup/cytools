@@ -630,7 +630,7 @@ class Fan(regfans.fan.Fan):
 
         # get the intersection numbers
         kappa = self.intersection_numbers(
-            pushed_down=True, as_np_array=True, eps=eps, digits=4
+            pushed_down=True, as_np_array=True, eps=eps, digits=digits
         )
         
         # compute c2
