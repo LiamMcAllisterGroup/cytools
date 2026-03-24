@@ -912,9 +912,10 @@ def kappa_solve_1x1(pts,known):
     # normal equation
     b = M.T @ b
     M = M.T @ M
-    x0 = b[0,0] * (1/M[0,0])
-
     # hardcoded 1x1 solve
+    if M[0,0] == 0:
+        raise ValueError("Singular matrix")
+    x0 = b[0,0] * (1/M[0,0])
     return [x0]
 
 @njit
