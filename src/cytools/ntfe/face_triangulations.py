@@ -30,7 +30,7 @@ from cytools.polytope import Polytope, Triangulation
 from cytools.helpers import basic_geometry
 
 # typing
-from typing import Iterable
+from typing import Iterable, Union
 
 
 def face_triangs(
@@ -408,7 +408,7 @@ def grow_frt(
     seed: int = None,
     backend: str = None,
     verbosity: int = 0,
-) -> "Triangulation":
+) -> Union["Triangulation", set]:
     """
     **Description:**
     Grow a fine, regular triangulation of a polygon
