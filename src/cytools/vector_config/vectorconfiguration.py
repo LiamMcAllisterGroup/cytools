@@ -330,14 +330,14 @@ def vc(self,
         gale_basis = self.glsm_basis(include_points_interior_to_facets=False)
     )
 
+    vc._poly = {vc.labels: self}
+
     if include_points_interior_to_facets:
         self._vc_yesfacet = vc
     else:
         self._vc_nofacet = vc
 
-    out = self.vc(include_points_interior_to_facets=include_points_interior_to_facets)
-    out._poly = {out.labels: self}
-    return out
+    return vc
 Polytope.vc = vc
 
 # give Cone a method to directly generate its VC
@@ -352,5 +352,5 @@ def vc(self):
     **Returns:**
     The associated VectorConfiguration.
     """
-    return regfans.VectorConfiguration(self.rays())
+    return VectorConfiguration(self.rays())
 Cone.vc = vc

@@ -105,8 +105,6 @@ class Fan(regfans.fan.Fan):
                 as_inds=as_inds,
                 ind_offset=ind_offset)
 
-            return cones
-
     # aliases
     simplices = cones
     simps = cones
@@ -309,7 +307,6 @@ class Fan(regfans.fan.Fan):
         """
         if not hasattr(self, '_kappa'):
             self._kappa = collections.defaultdict(float)
-            self._kappa_dok = None
             self._kappa_known_labels = set()
 
         if not self.is_triangulation():

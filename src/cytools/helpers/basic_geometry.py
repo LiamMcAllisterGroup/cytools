@@ -68,7 +68,7 @@ def get_bdry(self) -> set:
         e = edges.pop()
         try:
             edges.pop(edges.index(e))
-        except:
+        except ValueError:
             bdry.add(frozenset(e))
 
     return bdry

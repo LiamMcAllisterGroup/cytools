@@ -165,7 +165,8 @@ class LIL:
         return (len(self), self.width)
 
     def __add__(self, other: "LIL") -> "LIL":
-        # Addition. Acts like lists (appends)
+        # NOTE: despite the name, this does row concatenation (like list +
+        # list), NOT element-wise addition.
         out = LIL(dtype=self.dtype, width=self.width)
         out.arr = self.arr + other.arr
         return out
@@ -557,7 +558,7 @@ class LIL_stack:
             if dense:
                 if not hasattr(self, "_sum_0_dense"):
                     self._sum_0_dense = np.sum(
-                        M.sum(axis=0, dense=True) for M in self._blocks()
+                        [M.sum(axis=0, dense=True) for M in self._blocks()]
                     )
                 return self._sum_0_dense
             else:

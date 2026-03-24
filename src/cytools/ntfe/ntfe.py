@@ -1049,7 +1049,7 @@ def ntfe_frts(
     face_triangs: list = None,
     max_npts: int = 17,
     N_face_triangs: int = 1000,
-    triang_method: str = "fast",
+    triang_method: str = "grow2d",
     as_generator: bool = False,
     backend: str = None,
     verbosity: int = 0,
@@ -1090,11 +1090,8 @@ def ntfe_frts(
     - `as_generator`: Whether to return a generator which iterates over (the
         hyperplanes of) expanded secondary cones. If False, then a list of all
         such cones is returned. Use generators if memory is a concern.
-    - `separate_boring`: Whether, when iterating over NTFEs, to group the
-        inequalities associated to each 2-face with only 1 FRT. Only changes
-        the ordering of outputs (may have effects on random sampling).
     - `backend`: The backend to use for cone calculations.
-    - `verbosity: Verbosity level. Higher means more verbose.
+    - `verbosity`: Verbosity level. Higher means more verbose.
 
     **Returns:**
     The FRTs
@@ -1198,7 +1195,7 @@ def ntfe_frsts(
     face_triangs: list = None,
     max_npts: int = 17,
     N_face_triangs: int = 1000,
-    triang_method: str = "fast",
+    triang_method: str = "grow2d",
     as_generator: bool = False,
     backend: str = None,
     verbosity: int = 0,
