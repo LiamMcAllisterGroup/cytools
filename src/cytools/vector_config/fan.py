@@ -843,20 +843,20 @@ class Fan(regfans.fan.Fan):
             dilate=dilate,
         )
 
-    def is_gorestein_fano(self):
+    def is_gorenstein_fano(self):
         # idea: self.conv().is_reflexive() should be equivalent
         return self.newton_polytope([1] * len(self.used_labels)).is_reflexive()
 
     def h21_cy(self):
         """
-        Makes assumption that for CYs in Gorestein Fano four-folds, h21(CY) = h11(CY) for dual polytope.
+        Makes assumption that for CYs in Gorenstein Fano four-folds, h21(CY) = h11(CY) for dual polytope.
         """
-        if not self.is_gorestein_fano():
+        if not self.is_gorenstein_fano():
             raise NotImplementedError()
 
-        if p.labels_not_facet[1:] != self.used_labels:
+        if self.conv().labels_not_facet[1:] != self.used_labels:
             print(
-                f"This function may not hold! Polytope labels are {p.labels_not_facet} and VC labels are {self.used_labels}"
+                f"This function may not hold! Polytope labels are {self.conv().labels_not_facet} and VC labels are {self.used_labels}"
             )
 
         return len(self.newton_polytope([1] * len(self.used_labels)).labels_not_facet)
