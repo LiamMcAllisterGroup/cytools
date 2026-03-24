@@ -28,7 +28,7 @@ import regfans
 from typing import Union
 
 # core CYTools imports
-from cytools import Cone, utils
+from cytools import Cone, HPolytope, utils
 from cytools.triangulation import Triangulation
 
 
