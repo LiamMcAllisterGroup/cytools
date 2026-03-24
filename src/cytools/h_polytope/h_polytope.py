@@ -149,7 +149,7 @@ class HPolytope(polytope.Polytope):
 
 # utils
 # -----
-def poly_h_to_v(hypers: "ArrayLike", verbosity: int = 0) -> ("ArrayLike", None):
+def poly_h_to_v(hypers: "ArrayLike", verbosity: int = 0) -> ("ArrayLike", "ppl.C_Polyhedron"):
     """
     **Description:**
     Generate the V-representation of a polytope, given the H-representation.
