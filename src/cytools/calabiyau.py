@@ -459,7 +459,7 @@ class CalabiYau:
         if self._is_hypersurface:
             self_orbit = self.triangulation().automorphism_orbit(on_faces_codim=2)
             self_orbit = tuple(tuple(tuple(s) for s in t) for t in self_orbit)
-            return hash((hash(self.triangulation().polytope()), hash(self_orbit)))
+            self._hash = hash((hash(self.triangulation().polytope()), hash(self_orbit)))
         else:
             self._hash = hash((hash(self.ambient_variety()), hash(self._nef_part)))
         return self._hash
