@@ -1166,7 +1166,8 @@ class Triangulation:
         - `verbosity`: The verbosity level.
 
         **Returns:**
-        Nothing.
+        *(bool)* True if the heights uniquely define the triangulation, False
+        if they are within eps of a wall of the secondary cone.
         """
         # find hyperplanes that we are within eps of wall
         eps = 1e-6
@@ -1189,6 +1190,9 @@ class Triangulation:
                     + "for the (semi-arbitrarily chosen) "
                     + "triangulation..."
                 )
+            return False
+
+        return True
 
     # main method
     # -----------
