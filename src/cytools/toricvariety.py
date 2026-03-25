@@ -476,7 +476,7 @@ class ToricVariety:
         ```python {4}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
         t = p.triangulate()
-        v = p.get_toric_variety()
+        v = t.get_toric_variety()
         v.glsm_charge_matrix()
         # array([[-18,   1,   9,   6,   1,   1,   0],
         #        [ -6,   0,   3,   2,   0,   0,   1]])
@@ -510,7 +510,7 @@ class ToricVariety:
         ```python {4,10}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
         t = p.triangulate()
-        v = p.get_toric_variety()
+        v = t.get_toric_variety()
         v.glsm_linear_relations()
         # array([[ 1,  1,  1,  1,  1,  1,  1],
         #        [ 0,  9, -1,  0,  0,  0,  3],
@@ -781,7 +781,7 @@ class ToricVariety:
             [`divisor_basis`](#divisor_basis) function.
         - `include_origin` *(bool, optional, default=True)*: Includes the origin
             of the polytope in the computation, which corresponds to the
-            canonical divisor.
+            canonical divisor. This parameter is ignored when `in_basis=True`.
         - `from_intersection_numbers` *(bool, optional, default=False)*: Compute
             the rays of the Mori cone using the intersection numbers of the
             variety. This can be faster if they are already computed. The set of
@@ -1389,7 +1389,7 @@ class ToricVariety:
         - `exact_arithmetic` *(bool, optional, default=False)*: Converts the
             intersection numbers into exact rational fractions.
 
-        Returns:
+        **Returns:**
         *(dict or numpy.array)* When `format` is set to "dok" (Dictionary Of
             Keys), it returns a dictionary where the keys are divisor indices in
             ascending order and the corresponding value is their intersection
@@ -1732,11 +1732,11 @@ class ToricVariety:
         ```python {4,8}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
         t1 = p.triangulate()
-        v1 = t.get_toric_variety()
+        v1 = t1.get_toric_variety()
         v1.is_smooth()
         # False
         t2 = p.triangulate(include_points_interior_to_facets=True)
-        v2 = t.get_toric_variety()
+        v2 = t2.get_toric_variety()
         v2.is_smooth()
         # True
         ```

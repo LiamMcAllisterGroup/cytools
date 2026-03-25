@@ -468,7 +468,8 @@ class PolytopeFace:
         Returns the vertices of the face.
 
         **Arguments:**
-        None.
+        - `as_indices` *(bool, optional, default=False)*: Whether to return
+            the vertices as indices instead of coordinates.
 
         **Returns:**
         The list of vertices of the face.

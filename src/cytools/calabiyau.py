@@ -223,7 +223,7 @@ class CalabiYau:
         Clears the cached results of any previous computation.
 
         **Arguments:**
-        - `recursive` *(bool, optional, default=True)*: Whether to also clear
+        - `recursive` *(bool, optional, default=False)*: Whether to also clear
             the cache of the ambient toric variety, defining triangulation, and
             polytope. This is ignored when only_in_basis=True.
         - `only_in_basis` *(bool, optional, default=False)*: Only clears the
@@ -412,7 +412,7 @@ class CalabiYau:
         :::
 
         **Arguments:**
-        - `other` *(Polytope)*: The other CY that is being compared.
+        - `other` *(CalabiYau)*: The other CY that is being compared.
 
         **Returns:**
         *(bool)* The truth value of the CYs being different.
@@ -672,8 +672,8 @@ class CalabiYau:
           supported. Hodge numbers of CICYs are computed with PALP.
         - This function always computes Hodge numbers from scratch, unless
           they were computed with PALP. The functions [`h11`](#h11),
-          [`h21`](#h21), [`h12`](#h12), [`h13`](#h13), and [`h22`](#h22) cache
-          the results so they offer improved performance.
+          [`h21`](#h21), [`h12`](#h12), [`h13`](#h13), and [`h22`](#h22)
+          delegate to `Polytope`, which caches the results.
         :::
 
         **Arguments:**
@@ -882,7 +882,7 @@ class CalabiYau:
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
         t = p.triangulate()
         cy = t.get_cy()
-        cy.h31()
+        cy.chi()
         # -540
         ```
         """
@@ -1268,7 +1268,7 @@ class CalabiYau:
         - `exact_arithmetic` *(bool, optional, default=False)*: Converts the
             intersection numbers into exact rational fractions.
 
-        Returns:
+        **Returns:**
         *(dict or numpy.array)* When `format` is set to "dok" (Dictionary Of
         Keys), it returns a dictionary where the keys are divisor indices in
         ascending order and the corresponding value is their intersection
@@ -2035,7 +2035,7 @@ class CalabiYau:
         tip = cy.toric_kahler_cone().tip_of_stretched_cone(1)
         cy.compute_kahler_metric(tip)
         # array([[0.10969388, 0.02295918],
-                 [0.02295918, 0.02806122]])
+        #        [0.02295918, 0.02806122]])
         ```
         """
         return np.linalg.inv(self.compute_inverse_kahler_metric(tloc))
@@ -2136,8 +2136,8 @@ class CalabiYau:
         gv_or_gw: str,
         mcap_generators: "ArrayLike" = None,
         grading_vec: "ArrayLike" = None,
-        max_deg: bool = None,
-        min_points: bool = None,
+        max_deg: int = None,
+        min_points: int = None,
         basis: "ArrayLike" = None,
         format: str = None,
     ):
@@ -2152,6 +2152,8 @@ class CalabiYau:
         **Arguments:**
         - `gv_or_gw`: String specifying whether 'gv' or 'gw' computations are
             performed.
+        - `mcap_generators`: Generators for the Mori cone cap. If provided,
+            these are used as the set of charges to compute invariants for.
         - `grading_vec`: The grading vector to use in the computations. A default
             is chosen if none is provided.
         - `max_deg`: The maximum degree to compute GVs/GWs to.
@@ -2231,8 +2233,8 @@ class CalabiYau:
         self,
         mcap_generators: "ArrayLike" = None,
         grading_vec: "ArrayLike" = None,
-        max_deg: bool = None,
-        min_points: bool = None,
+        max_deg: int = None,
+        min_points: int = None,
         basis: "ArrayLike" = None,
         format: str = None,
     ):
@@ -2243,6 +2245,8 @@ class CalabiYau:
         `mcap_generators` are used.
 
         **Arguments:**
+        - `mcap_generators`: Generators for the Mori cone cap. If provided,
+            these are used as the set of charges to compute invariants for.
         - `grading_vec`: The grading vector to use in the computations. A default
             is chosen if none is provided.
         - `max_deg`: The maximum degree to compute GVs to.
@@ -2269,8 +2273,8 @@ class CalabiYau:
         self,
         mcap_generators: "ArrayLike" = None,
         grading_vec: "ArrayLike" = None,
-        max_deg: bool = None,
-        min_points: bool = None,
+        max_deg: int = None,
+        min_points: int = None,
         basis: "ArrayLike" = None,
         format: str = None,
     ):
@@ -2281,6 +2285,8 @@ class CalabiYau:
         `mcap_generators` are used.
 
         **Arguments:**
+        - `mcap_generators`: Generators for the Mori cone cap. If provided,
+            these are used as the set of charges to compute invariants for.
         - `grading_vec`: The grading vector to use in the computations. A default
             is chosen if none is provided.
         - `max_deg`: The maximum degree to compute GWs to.
@@ -2429,13 +2435,15 @@ class Invariants:
         Container for GV or GW invariant information
 
         **Arguments:**
-        - `invariant_type`: Either 'gv' or 'gw'
-        - `charge2invariant`: The invariants, in dok or coo format
-        - `min_points`: The minimum number of GWs to compute. Must be specified
-            iff max_deg=None.
+        - `invariant_type` *(str)*: Either `'gv'` or `'gw'`.
+        - `charge2invariant`: The invariants, in dok (dict) or coo format.
+        - `grading_vec` *(ArrayLike, optional)*: The grading vector used.
+        - `cutoff` *(int, optional)*: The degree cutoff used.
+        - `calabiyau` *(CalabiYau, optional)*: The associated CY.
+        - `basis` *(ArrayLike, optional)*: Basis to represent charges in.
 
         **Returns:**
-        The GW invariants.
+        Nothing.
         """
         if invariant_type not in ["gv", "gw"]:
             raise ValueError(f"Invariant type '{invariant_type}' not recognized")
@@ -2598,7 +2606,7 @@ class Invariants:
         None.
 
         **Returns:**
-        he GW invariants.
+        The GW invariants.
         """
         if self._type == "gw":
             return list(self._charge2invariant.values())

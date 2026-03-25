@@ -1671,7 +1671,7 @@ class Triangulation:
     def heights(self, integral: bool = False, backend: str = None) -> np.ndarray:
         """
         **Description:**
-        Returns the a height vector if the triangulation is regular. An
+        Returns a height vector if the triangulation is regular. An
         exception is raised if a height vector could not be found either
         because the optimizer failed or because the triangulation is not
         regular.
@@ -2492,7 +2492,7 @@ def _topcom_triangulate(points: ArrayLike) -> np.ndarray:
 
     **Example:**
     This function is not intended to be directly used, but it is used in the
-    following example. We construct a triangulation using TOMCOM.
+    following example. We construct a triangulation using TOPCOM.
     ```python {2}
     p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
     p.triangulate(backend="topcom")

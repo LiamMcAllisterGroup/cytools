@@ -210,7 +210,7 @@ class Polytope:
     def __repr__(self) -> str:
         """
         **Description:**
-        Returns an umabiguous string describing the polytope.
+        Returns an unambiguous string describing the polytope.
 
         **Arguments:**
         None.
@@ -281,7 +281,7 @@ class Polytope:
     def __setstate__(self, state: dict):
         """
         **Description:**
-        Gets the state of the class instance, for pickling.
+        Sets the state of the class instance, for pickling.
 
         **Arguments:**
         - `state`: The dictionary of the instance state, read from pickle.
@@ -2857,7 +2857,8 @@ class Polytope:
         - `lattice`: Specifies the lattice on which the polytope is
             defined. Options are "N" and "M".
 
-        The truth value of the polytope being favorable.
+        **Returns:**
+        *(bool)* The truth value of the polytope being favorable.
 
         **Example:**
         We construct two reflexive polytopes and find whether they are
@@ -3591,7 +3592,7 @@ def poly_v_to_h(pts: ArrayLike, backend: str) -> (ArrayLike, None):
     Generate the H-representation of a polytope, given the V-representation.
     I.e., map points/vertices to hyperplanes inequalities.
 
-    The o inequalities are in the form
+    The inequalities are in the form
         c_0 * x_0 + ... + c_{d-1} * x_{d-1} + c_d >= 0
 
     **Arguments:**

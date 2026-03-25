@@ -78,13 +78,17 @@ class HPolytope(polytope.Polytope):
         **Arguments:**
         - `ineqs`: The defining hyperplane inequalities. Of the form c, a
             matrix, such that each row, c[i], corresponds to an inequality:
-                c[i][0]*x_0 + ... + c[0][dim-1]*x_{dim-1} + c[0][dim] >= 0
+                c[i][0]*x_0 + ... + c[i][dim-1]*x_{dim-1} + c[i][dim] >= 0
             If the corresponding vertices are rational, then convex hull of the
             contained lattice points will be stored.
+        - `dilate` *(bool, optional, default=False)*: Whether to dilate the
+            rational polytope into a normally equivalent integer polytope. If
+            False, computes the integer hull instead.
         - `backend`: A string that specifies the backend used to construct the
             convex hull. The available options are "ppl", "qhull", or "palp".
             When not specified, it uses PPL for dimensions up to four, and palp
             otherwise.
+        - `verbosity` *(int, optional, default=0)*: The verbosity level.
 
         **Returns:**
         Nothing.

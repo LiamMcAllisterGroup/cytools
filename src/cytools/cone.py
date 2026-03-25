@@ -117,7 +117,7 @@ class Cone:
         - `check`: Whether to check the input. Recommended if constructing a
             cone directly.
         - `copy`: Whether to ensure we copy the input rays/hyperplanes.
-            ecommended.
+            Recommended.
         - `ambient_dim`: The ambient dimension of the cone, if not inferrable.
 
         :::note
@@ -333,13 +333,13 @@ class Cone:
     def __repr__(self):
         """
         **Description:**
-        Returns a string describing the polytope.
+        Returns a string describing the cone.
 
         **Arguments:**
         None.
 
         **Returns:**
-        *(str)* A string describing the polytope.
+        *(str)* A string describing the cone.
 
         **Example:**
         This function can be used to convert the Cone to a string or to print
@@ -980,7 +980,7 @@ class Cone:
 
         :::note
         This is a problem that requires quadratic programming since the norm of
-        a vector is being minimized. For dimensions up to around 50, this can
+        a vector is being minimized. For dimensions up to around 25, this can
         easily be done with open-source solvers like OSQP or CVXOPT, however
         for higher dimensions this becomes a difficult task that only the Mosek
         optimizer is able to handle. However, Mosek is closed-source and
@@ -995,8 +995,8 @@ class Cone:
             the cone (i.e. the minimum distance to the defining hyperplanes).
         - `backend` *(str, optional, default=None)*: String that specifies the
             optimizer to use. Options are "mosek", "osqp", "cvxopt", and
-            "glop". If it is not specified then for $d<50$ it uses "osqp" by
-            default. For $d\geq50$ it uses "mosek" if it is activated, or
+            "glop". If it is not specified then for $d<25$ it uses "osqp" by
+            default. For $d\geq25$ it uses "mosek" if it is activated, or
             "glop" otherwise.
         - `check` *(bool, optional, default=True)*: Flag that specifies whether
             to check if the output of the optimizer is consistent and satisfies
@@ -1184,7 +1184,7 @@ class Cone:
             integral coordinates.
         - `backend`: String that specifies the optimizer to use. Options are
             "glop", "scip", "cpsat", "mosek", "osqp", and "cvxopt". If it is
-            not specified then "glop" is used by default. For $d\geq50$ it uses
+            not specified then "glop" is used by default. For $d\geq25$ it uses
             "mosek" if it is activated.
         - `check`: Whether to verify that the point is inside the cone.
         - `show_hints`: Whether to show hints about odd backend behavior.
@@ -1306,7 +1306,7 @@ class Cone:
         preferred grading vector it is possible to specify the maximum degree.
 
         **Arguments:**
-        - `min_point` *(int, optional)*: Specifies the minimum number of points
+        - `min_points` *(int, optional)*: Specifies the minimum number of points
             to find. The degree will be increased until this minimum number is
             achieved.
         - `max_deg` *(int, optional)*: The maximum degree of the points to
