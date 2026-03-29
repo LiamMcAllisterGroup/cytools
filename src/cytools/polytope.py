@@ -186,9 +186,14 @@ class Polytope:
         # process the inputs
         # ------------------
         # dimension
-        self._dim_ambient = len(points[0])
-        self._dim = int(np.linalg.matrix_rank([list(pt) + [1] for pt in points]) - 1)
-        self._dim_diff = self.ambient_dim() - self.dim()
+        if N_input_pts == 0:
+            self._dim_ambient = None
+            self._dim = -1
+            self._dim_diff = None
+        else:
+            self._dim_ambient = len(points[0])
+            self._dim = int(np.linalg.matrix_rank([list(pt) + [1] for pt in points]) - 1)
+            self._dim_diff = self.ambient_dim() - self.dim()
 
         # backend
         if backend is None:
@@ -227,13 +232,16 @@ class Polytope:
         # A 4-dimensional reflexive lattice polytope in ZZ^4
         ```
         """
-        return (
-            f"A {self.dim()}-dimensional "
-            f"{('reflexive ' if self.is_reflexive() else '')}"
-            f"lattice polytope in ZZ^{self.ambient_dim()} "
-            f"with points {list(self._inputpts2labels.keys())} "
-            f"which are labelled {list(self._inputpts2labels.values())}"
-        )
+        msg = f"A {self.dim()}-dimensional "
+        if self.dim() >= 0:
+            msg += f"{('reflexive ' if self.is_reflexive() else '')}"
+            msg += f"lattice polytope in ZZ^{self.ambient_dim()} "
+        else:
+            msg += "polytope "
+        msg += f"with points {list(self._inputpts2labels.keys())} "
+        msg += f"which are labelled {list(self._inputpts2labels.values())}"
+        
+        return msg
 
     def __str__(self) -> str:
         """
@@ -256,11 +264,14 @@ class Polytope:
         # A 4-dimensional reflexive lattice polytope in ZZ^4
         ```
         """
-        return (
-            f"A {self.dim()}-dimensional "
-            f"{('reflexive ' if self.is_reflexive() else '')}"
-            f"lattice polytope in ZZ^{self.ambient_dim()}"
-        )
+        msg = f"A {self.dim()}-dimensional "
+        if self.dim() >= 0:
+            msg += f"{('reflexive ' if self.is_reflexive() else '')}"
+            msg += f"lattice polytope in ZZ^{self.ambient_dim()} "
+        else:
+            msg += "polytope"
+        
+        return msg
 
     def __getstate__(self):
         """
@@ -661,6 +672,8 @@ class Polytope:
         #        [-1, -1, -1, -1,  1]])
         ```
         """
+        if self._dim < 0:
+            raise NotImplementedError
         return np.array(self._ineqs_input)
 
     # points
@@ -674,12 +687,23 @@ class Polytope:
         once (in the initializer). Abstracted here to clarify logic.
 
         Sets:
-            self._transl_vector, self._transf_mat_inv,
-            self._poly_optimal,
-            self._ineqs_optimal, self._ineqs_input,
-            self._labels2optPts, self._labels2inputPts,
-            self._pts_saturating,
-            self._pts_order, and self._pts_indices
+            self._transl_vector
+            self._transf_mat_inv
+            self._poly_optimal
+            self._ineqs_optimal
+            self._labels2optPts
+            self._labels2inputPts
+            self._pts_saturating
+            self._pts_order
+            self._inputpts2labels
+            self._optimalpts2labels
+            self._labels2inds
+            self._label_origin
+            self._labels_int
+            self._labels_facet
+            self._labels_bdry
+            self._labels_codim2
+            self._labels_not_facet
 
         **Arguments:**
         - `pts_input`: The points input from the user.
@@ -688,6 +712,27 @@ class Polytope:
         **Returns:**
         Nothing.
         """
+        if len(pts_input) == 0:
+            self._transl_vector     = None
+            self._transf_mat_inv    = None
+            self._poly_optimal      = None
+            self._ineqs_optimal     = None
+            self._labels2optPts     = dict()
+            self._labels2inputPts   = dict()
+            self._pts_saturating    = dict()
+            self._pts_order         = tuple()
+            self._inputpts2labels   = dict()
+            self._optimalpts2labels = dict()
+            self._labels2inds       = dict()
+            self._label_origin      = None
+            self._labels_int        = tuple()
+            self._labels_facet      = tuple()
+            self._labels_bdry       = tuple()
+            self._labels_codim2     = tuple()
+            self._labels_not_facet  = tuple()
+
+            return
+
         # Find 'optimal' representation
         # -----------------------------
         # translate if not full-dim (allows LLL-reduction)
@@ -1095,7 +1140,7 @@ class Polytope:
             )
 
         # calculate the answer
-        if self.dim() == 0:
+        if self.dim() <= 0:
             # 0D... trivial
             self._labels_vertices = self._pts_order
 
@@ -1164,6 +1209,9 @@ class Polytope:
         # True
         ```
         """
+        if self.dim() < 0:
+            raise NotImplementedError
+
         # input checking
         if (d is not None) and (d not in range(self.dim() + 1)):
             raise ValueError(f"Polytope does not have faces of dimension {d}")
@@ -1449,6 +1497,9 @@ class Polytope:
         # True
         ```
         """
+        if self.dim() < 0:
+            raise NotImplementedError
+
         # return answer if known
         if self._dual is not None:
             return self._dual
@@ -1488,6 +1539,9 @@ class Polytope:
         # True
         ```
         """
+        if self.dim() <= 0:
+            return False
+
         # check if we know the answer
         if self._is_reflexive is not None:
             return self._is_reflexive
@@ -1720,6 +1774,9 @@ class Polytope:
         #        [ 0,  0,  0,  0]])
         ```
         """
+        if self.dim() < 0:
+            raise NotImplementedError
+
         # This function is based on code by Andrey Novoseltsev, Samuel Gonshaw,
         # Jan Keitel, and others, and is redistributed under the GNU General
         # Public License version 2+.
