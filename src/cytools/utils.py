@@ -23,6 +23,7 @@
 import ast
 import fractions
 import functools
+import io
 import itertools
 import math
 import requests
@@ -1007,10 +1008,12 @@ def polytope_generator(
         l = in_string.pop(0)
 
     if format == "ws":
+        buf = io.StringIO(input)
+
         # read the polytopes as weight systems
         while (limit is None) or (n_yielded < limit):
             # pass line to PALP
-            p    = pypalp.Polytope(input)
+            p    = pypalp.Polytope(buf.readline())
             vert = p.vertices()
 
             # ensure reasonable shape
@@ -1390,6 +1393,8 @@ def fetch_polytopes(
     # verbosity
     if verbosity >= 1:
         print(f"Fetched from URL = '{r.url}'...")
+        if verbosity >= 2:
+            print(f"and received {r.text}...")
 
     # return the generator based off of output of request
     return read_polytopes(
