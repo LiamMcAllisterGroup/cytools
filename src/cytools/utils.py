@@ -1302,9 +1302,6 @@ def fetch_polytopes(
         if (limit is None) or (samples > limit):
             raise ValueError("The number of samples must be <= limit.")
 
-        if as_list is None:
-            raise ValueError("Sampling only works if as_list = True")
-
     # hodge numbers
     if (h12 is not None) and (h21 is not None) and (h12 != h21):
         raise ValueError("Only one of h12 or h21 should be specified.")
@@ -1420,8 +1417,14 @@ def fetch_polytopes(
         else:
             items = data_str.split("\n")
         
-        np.random.seed(sample_seed)
-        sampled  = np.random.choice(items, size=samples, replace=False)
+        # check if we actually need to sample (otherwise, just use full list)
+        if len(items) > samples:
+            np.random.seed(sample_seed)
+            sampled  = np.random.choice(items, size=samples, replace=False)
+        else:
+            sampled = items
+
+        # rejoin in the previous format
         data_str = "\n".join(sampled) + "\n"
         limit    = samples
 
