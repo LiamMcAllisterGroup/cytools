@@ -26,6 +26,7 @@ import functools
 import io
 import itertools
 import math
+import re
 import requests
 import subprocess
 from typing import Generator
@@ -1192,6 +1193,8 @@ def fetch_polytopes(
     n_dual_points: int = None,
     n_facets: int = None,
     limit: int = 1000,
+    samples: int = None,
+    sample_seed: int = None,
     timeout: int = 60,
     as_list: bool = True,
     backend: str = None,
@@ -1237,6 +1240,9 @@ def fetch_polytopes(
         desired polytopes.
     - `n_facets`: The number of facets of the desired polytopes.
     - `limit`: The maximum number of fetched polytopes.
+    - `samples`: Allow sampling of polytopes. Requires as_list=True and
+        samples<limit.
+    - `sample_seed`: A random number seed for sampling polytopes.
     - `timeout`: The maximum number of seconds to wait for the server to return
         the data.
     - `as_list`: Return the list of polytopes instead of a generator.
@@ -1291,6 +1297,13 @@ def fetch_polytopes(
         fetch_limit = (5 if favorable else 10) * limit + 100
     else:
         fetch_limit = limit
+
+    if samples is not None:
+        if (limit is None) or (samples > limit):
+            raise ValueError("The number of samples must be <= limit.")
+
+        if as_list is None:
+            raise ValueError("Sampling only works if as_list = True")
 
     # hodge numbers
     if (h12 is not None) and (h21 is not None) and (h12 != h21):
@@ -1390,15 +1403,31 @@ def fetch_polytopes(
 
         r = requests.get(url, timeout=timeout)
 
+    data_str = r.text
+
     # verbosity
     if verbosity >= 1:
         print(f"Fetched from URL = '{r.url}'...")
         if verbosity >= 2:
-            print(f"and received {r.text}...")
+            print(f"and received {data_str}")
 
-    # return the generator based off of output of request
+    # sample
+    if samples is not None:
+        if dim == 4:
+            result_text = re.split(r'<b>Result:</b>\n', data_str, maxsplit=1)[1]
+            items = re.split(r'\n(?=\d+ \d+\s+M:)', result_text)
+            items = [item.strip() for item in items if item.strip()]
+        else:
+            items = data_str.split("\n")
+        
+        np.random.seed(sample_seed)
+        sampled  = np.random.choice(items, size=samples, replace=False)
+        data_str = "\n".join(sampled) + "\n"
+        limit    = samples
+
+    # return the generator/list based off of output of request
     return read_polytopes(
-        r.text,
+        data_str,
         input_type="str",
         format=("ks" if dim == 4 else "ws"),
         backend=backend,
@@ -1407,7 +1436,7 @@ def fetch_polytopes(
         dualize=dualize,
         favorable=favorable,
         lattice=lattice,
-        limit=limit,
+        limit=limit
     )
 
 
