@@ -315,6 +315,33 @@ class Fan(regfans.fan.Fan):
         if as_np_array:
             symmetrize = True
 
+        def format_kappa(raw_kappa):
+            kappa = dict(raw_kappa)
+
+            for k in list(kappa.keys()):
+                v = kappa[k]
+
+                if np.abs(v) < eps:
+                    del kappa[k]
+                    continue
+
+                if digits is not None:
+                    kappa[k] = round(v, digits)
+
+            if symmetrize:
+                keys = list(kappa.keys())
+                for k in keys:
+                    for k_perm in itertools.permutations(k):
+                        kappa[tuple(k_perm)] = kappa[k]
+
+            if as_np_array:
+                kappa_np = np.zeros(self.ambient_dim*(self.vc.size+1,))
+                for k, v in kappa.items():
+                    kappa_np[k] = v
+                return kappa_np
+
+            return kappa
+
         # get relevant labels
         # -------------------
         relevant_labels = self.used_labels
@@ -397,22 +424,7 @@ class Fan(regfans.fan.Fan):
         # -----------------
         # check if we know the answer
         if (self._kappa_known_labels == set(self.labels)):
-            kappa = dict(self._kappa)
-
-            # symmetrize
-            if symmetrize:
-                keys = list(kappa.keys())
-                for k in keys:
-                    for k_perm in itertools.permutations(k):
-                        kappa[tuple(k_perm)] = kappa[k]
-
-            if as_np_array:
-                kappa_np = np.zeros(self.ambient_dim*(self.vc.size+1,))
-                for k,v in kappa.items():
-                    kappa_np[k] = v
-                return kappa_np
-
-            return kappa
+            return format_kappa(self._kappa)
 
         # don't know the answer... need to calculate it...
         # setup
@@ -560,30 +572,6 @@ class Fan(regfans.fan.Fan):
         
         for kappa_n in kappa_nzeros[1:]:
             self._kappa.update(kappa_n)
-
-        # clean kappa
-        # -----------
-        # (i.e., trim 0s, round values)
-        keys = list(self._kappa.keys())
-        for k in keys:
-            v = self._kappa[k]
-
-            # delete 0 entries
-            if np.abs(v) < eps:
-                del self._kappa[k]
-            else:
-                # round the floating point numbers
-                if digits is not None:
-                    v_round = round(v, digits)
-                else:
-                    v_round = v
-
-                # optionally, symmetrize
-                if symmetrize:
-                    for k_perm in itertools.permutations(k):
-                        self._kappa[tuple(k_perm)] = v_round
-                else:
-                    self._kappa[k] = v_round
 
         # save kappa labels (for caching)
         self._kappa_known_labels = set(self.labels)

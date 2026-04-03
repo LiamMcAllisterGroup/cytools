@@ -29,6 +29,7 @@ import joblib
 from multiprocessing import cpu_count
 import os
 import random
+import shutil
 import string
 import subprocess
 import warnings
@@ -1952,6 +1953,11 @@ class Cone:
         """
         if self._hilbert_basis is not None:
             return np.array(self._hilbert_basis)
+        if shutil.which("normaliz") is None:
+            raise RuntimeError(
+                "Hilbert basis computation requires the external 'normaliz' "
+                "executable to be installed and available on PATH."
+            )
         # Generate a random project name so that it doesn't conflict with
         # other computations
         letters = string.ascii_lowercase

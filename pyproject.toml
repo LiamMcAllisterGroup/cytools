@@ -11,12 +11,13 @@ license = {file = "LICENSE"}
 authors = [
   {name = "Liam McAllister Group", email = ""}
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.9,<3.14"
 dependencies = [
     "numpy",
     "scipy",
     "joblib",
     "cvxopt",
+    "numba",
     "python-flint",
     "pplpy",
     "ortools",
@@ -27,7 +28,8 @@ dependencies = [
     "tqdm",
     "qpsolvers",
     "requests",
-    "osqp"
+    "osqp",
+    "platformdirs",
 ]
 classifiers = [
   "Development Status :: 5 - Production/Stable",
@@ -56,6 +58,14 @@ test = [
 mosek = [
   "Mosek"
 ]
+
+[dependency-groups]
+dev = [
+  "pytest",
+]
+
+[tool.uv]
+default-groups = ["dev"]
 
 [project.urls]
 Homepage = "https://cy.tools"

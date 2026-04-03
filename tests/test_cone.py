@@ -1,4 +1,7 @@
+import shutil
+
 import numpy as np
+import pytest
 
 from cytools import Cone
 
@@ -35,6 +38,10 @@ def test_find_lattice_points():
     assert len(pts) >= 20
 
 
+@pytest.mark.skipif(
+    shutil.which("normaliz") is None,
+    reason="requires the external normaliz executable",
+)
 def test_hibert_basis():
     c = Cone([[1, 3], [2, 1]])
     hb = c.hilbert_basis()

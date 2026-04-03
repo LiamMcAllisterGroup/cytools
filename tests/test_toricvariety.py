@@ -66,6 +66,26 @@ def test_intersection_numbers():
     assert len(intnum_basis) == 3
 
 
+def test_intersection_numbers_zero_as_anticanonical():
+    p = Polytope(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -6, -9]]
+    )
+    t = p.triangulate()
+    v = t.get_toric_variety()
+
+    canonical = v.intersection_numbers()
+    anticanonical = v.intersection_numbers(zero_as_anticanonical=True)
+
+    assert len(anticanonical) == len(canonical)
+
+    for ii, val in canonical.items():
+        zero_count = sum(jj == 0 for jj in ii)
+        expected = val * (-1 if zero_count % 2 == 1 else 1)
+        assert np.isclose(anticanonical[ii], expected)
+
+    assert v.intersection_numbers() == canonical
+
+
 def test_is_compact():
     p = Polytope(
         [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -1, -1]]
