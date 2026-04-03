@@ -1,6 +1,11 @@
 import numpy as np
+import pytest
 
 from cytools import Cone
+
+
+def _canonical_face_rays(face):
+    return tuple(sorted(tuple(ray) for ray in face.extremal_rays().tolist()))
 
 
 def test_ambient_dimension():
@@ -21,6 +26,76 @@ def test_dual_cone():
 def test_extremal_rays():
     c = Cone([[0, 1], [1, 1], [1, 0]])
     assert len(c.extremal_rays()) == 2
+
+
+def test_faces_simplicial_4d():
+    c = Cone(np.eye(4, dtype=int))
+
+    all_faces = c.faces()
+    all_faces_with_self = c.faces(include_self=True)
+
+    assert [len(fs) for fs in all_faces] == [4, 6, 4]
+    assert [len(fs) for fs in all_faces_with_self] == [1, 4, 6, 4]
+    assert all_faces_with_self[0][0] is c
+    assert c.faces(0) == (c,)
+    assert c.faces(4) == tuple()
+    assert all(f.dim() == 2 for f in c.faces(2))
+    assert isinstance(c.facets(), list)
+    assert c.facets()[0] is c.faces(1)[0]
+    assert c.faces(2)[0] is c.faces(include_self=True)[2][0]
+
+
+def test_faces_nonsimplicial_3d():
+    c = Cone([[1, 0, 1], [0, 1, 1], [-1, 0, 1], [0, -1, 1]])
+
+    expected_facets = {
+        ((-1, 0, 1), (0, -1, 1)),
+        ((-1, 0, 1), (0, 1, 1)),
+        ((0, -1, 1), (1, 0, 1)),
+        ((0, 1, 1), (1, 0, 1)),
+    }
+    expected_rays = {
+        ((-1, 0, 1),),
+        ((0, -1, 1),),
+        ((0, 1, 1),),
+        ((1, 0, 1),),
+    }
+
+    assert len(c.faces(1)) == 4
+    assert len(c.faces(2)) == 4
+    assert {_canonical_face_rays(f) for f in c.faces(1)} == expected_facets
+    assert {_canonical_face_rays(f) for f in c.faces(2)} == expected_rays
+
+
+def test_faces_non_solid_pointed():
+    c = Cone([[1, 0, 0], [0, 1, 0]])
+
+    assert c.is_pointed()
+    assert not c.is_solid()
+    assert len(c.faces()) == 1
+    assert len(c.faces(1)) == 2
+    assert {_canonical_face_rays(f) for f in c.faces(1)} == {
+        ((1, 0, 0),),
+        ((0, 1, 0),),
+    }
+    assert isinstance(c.facets(), list)
+    assert tuple(c.facets()) == c.faces(1)
+
+
+def test_faces_one_dimensional_cone():
+    c = Cone([[1, 0]])
+
+    assert c.faces() == tuple()
+    assert c.faces(include_self=True) == ((c,),)
+    assert c.faces(1) == tuple()
+    assert c.facets() == []
+
+
+def test_faces_non_pointed_not_implemented():
+    c = Cone([[1, 0], [0, 1], [-1, 0]])
+
+    with pytest.raises(NotImplementedError):
+        c.faces()
 
 
 def find_interior_point():
