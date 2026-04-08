@@ -20,7 +20,7 @@ dependencies = [
     "python-flint",
     "pplpy",
     "ortools",
-    "triangulumancer",
+    "triangulumancer>=0.3",
     "pypalp",
     "cygv",
     "regfans",

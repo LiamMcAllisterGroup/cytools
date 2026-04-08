@@ -2017,14 +2017,14 @@ class Triangulation:
         triangs = []
         for t in triangs_list:
             # TODO: Is this needed
-            if not all(len(s) == self.dim() + 1 for s in t.simplices()):
+            if not all(len(s) == self.dim() + 1 for s in t.simplices):
                 continue
 
             # construct and check triangulation
             tri = Triangulation(
                 self.poly,
                 self.labels,
-                simplices=[[self.labels[i] for i in s] for s in t.simplices()],
+                simplices=[[self.labels[i] for i in s] for s in t.simplices],
                 check_input_simplices=False,
             )
             if only_fine and (not tri.is_fine()):
@@ -2462,9 +2462,9 @@ def _cgal_triangulate(points: ArrayLike, heights: ArrayLike) -> np.ndarray:
     # points in ZZ^4
     ```
     """
-    
+
     pc = triangulumancer.PointConfiguration(points)
-    simp = pc.triangulate_with_heights(heights).simplices()
+    simp = pc.triangulate_with_heights(heights).simplices
 
     return np.array(sorted([sorted(s) for s in simp]))
 
@@ -2496,9 +2496,8 @@ def _topcom_triangulate(points: ArrayLike) -> np.ndarray:
     # points in ZZ^4
     ```
     """
-    
     pc = triangulumancer.PointConfiguration(points)
-    simp = pc.fine_triangulation().simplices()
+    simp = pc.fine_triangulation().simplices
 
     return np.array(sorted([sorted(s) for s in simp]))
 
@@ -2589,12 +2588,12 @@ def all_triangulations(
         optimal_pts = triang_pts
     else:
         optimal_pts = lll_reduce([pt - triang_pts[0] for pt in triang_pts])[:, -dim:]
-        
+
     pc = triangulumancer.PointConfiguration(optimal_pts)
     triangs = pc.all_triangulations(only_fine=only_fine)
 
     # map the triangulations to labels
-    triangs = [[[pts[x] for x in i] for i in t.simplices()] for t in triangs]
+    triangs = [[[pts[x] for x in i] for i in t.simplices] for t in triangs]
 
     # sort the triangs
     srt_triangs = [
