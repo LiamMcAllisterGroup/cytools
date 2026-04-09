@@ -23,7 +23,7 @@ dependencies = [
     "triangulumancer>=0.3",
     "pypalp",
     "cygv",
-    "regfans",
+    "regfans>=0.1.0",
     "tqdm",
     "qpsolvers",
     "requests",
