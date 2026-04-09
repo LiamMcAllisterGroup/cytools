@@ -43,6 +43,7 @@ import ppl
 import qpsolvers
 from scipy import sparse
 from scipy.optimize import linprog, nnls
+import latticepts
 
 # CYTools imports
 from cytools import config
@@ -1295,6 +1296,8 @@ class Cone:
         deg_window=0,
         filter_function=None,
         process_function=None,
+        fast_mode=True,
+        max_B=10000,
         verbose=False,
     ):
         """
@@ -1328,6 +1331,10 @@ class Cone:
         - `process_function` *(function, optional)*: A function to process the
             points as they are found. This is useful to avoid first constructing
             a large list of points and then processing it.
+        - `fast_mode` *(bool, optional)*: Allow quicker lattice point
+            computations for small cones. Doesn't use degree-based methods.
+            Instead uses Linf norm.
+        - `max_B`: *(int, optional)*: Max Linf norm allowed in fast_mode.
         - `verbose` *(boolean, optional)*: Whether to print extra diagnostic
             information (True) or not (False).
 
@@ -1378,6 +1385,15 @@ class Cone:
             raise Exception(
                 "Either the maximum degree or the minimum number of points must be specified."
             )
+
+        # shortcut if min_points is set and dim is low
+        if fast_mode and (min_points is not None) and (self.ambient_dim() <= 10):
+            return np.array(latticepts.enum_lattice_points(
+                H = self.hyperplanes(),
+                rhs = c,
+                min_N_pts=min_points,
+                max_B=max_B,
+            ))
 
         if not self.is_pointed():
             raise Exception("Only pointed cones are currently supported.")
