@@ -26,6 +26,7 @@ dependencies:
     - qpsolvers
     - cygv
     - regfans
+    - latticepts
     # Editable CYTools installation
     - -e .
   # Common useful tools

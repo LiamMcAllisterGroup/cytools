@@ -35,6 +35,7 @@ import ppl
 from scipy.spatial import ConvexHull
 from tqdm import tqdm
 import pypalp
+import latticepts
 
 # CYTools imports
 from cytools import config
@@ -3734,117 +3735,51 @@ def saturating_lattice_pts(
     An array of all lattice points (the rows).
     A list of sets of all inequalities each lattice point saturates.
     """
-    # check inputs
+    # check/clean points
     if isinstance(pts_in, list) and isinstance(pts_in[0], tuple):
         pts = pts_in
     else:
         pts = [tuple(pt) for pt in pts_in]
 
-    # fill in missing inputs
+    # check/clean ineqs
     if dim is None:
         dim = np.linalg.matrix_rank([list(pt) + [1] for pt in pts]) - 1
-
+    
     if backend is None:
-        if 1 <= dim <= 4:
-            backend = "ppl"
-        else:
-            backend = "palp"
-
-    if dim == 0:  # 0-dimensional polytopes are finicky
-        backend = "palp"
-
+        if 1 <= dim <= 4: backend = "ppl"
+        else:             backend = "palp"
+    if dim == 0:          backend = "palp"
     if ineqs is None:
         ineqs, _ = poly_v_to_h(pts, backend)
 
-    # split computation by backend
-    if backend == "palp":
-        if dim == 0:
-            # PALP cannot handle 0-dimensional polytopes
-            pts_all = [pts[0]]
-            facet_ind = [frozenset([0])]
+    ineqs = np.array(ineqs)
+    H     = np.ascontiguousarray(ineqs[:,:-1]).astype(np.int32)
+    rhs   = -np.ascontiguousarray(ineqs[:,-1]).astype(np.int32)
+
+    # compute the lattice ponts
+    max_N_out = 1_000_000
+    while True:
+        pts, status, __ = latticepts.box_enum(
+            B=np.max(np.abs(pts_in)),
+            H=H,
+            rhs=rhs,
+            max_N_out=max_N_out)
+        if len(pts) == max_N_out:
+            max_N_out *= 10
+            if max_N_out >= 1e9:
+                print("your polytope has >=1e9 lattice points...")
         else:
-            p = pypalp.Polytope(pts)
-            pts_all = p.points()
-
-            # find inequialities each point saturates
-            facet_ind = [
-                frozenset(
-                    i for i, ii in enumerate(ineqs) if ii[:-1].dot(pt) + ii[-1] == 0
-                )
-                for pt in pts_all
-            ]
-
-    # Otherwise use the algorithm by Volker Braun.
-    # This is redistributed under GNU General Public License version 2+.
-    #
-    # The original code can be found at
-    # https://github.com/sagemath/sage/blob/master/src/sage/geometry/integral_points.pxi
-    else:
-        # Find bounding box and sort by decreasing dimension size
-        box_min = np.min(pts, axis=0)
-        box_max = np.max(pts, axis=0)
-
-        # Sort box bounds
-        diameter_index = np.argsort(box_max - box_min)[::-1]
-        box_min = box_min[diameter_index]
-        box_max = box_max[diameter_index]
-
-        # Construct the inverse permutation
-        orig_dict = {j: i for i, j in enumerate(diameter_index)}
-        orig_perm = [orig_dict[i] for i in range(dim)]
-
-        # Inequalities must also have their coordinates permuted
-        ineqs = ineqs.copy()
-        ineqs[:, :-1] = ineqs[:, diameter_index]
-
-        # Find all lattice points and apply the inverse permutation
-        pts_all = []
-        facet_ind = []
-        p = np.array(box_min)
-
-        while True:
-            tmp_v = ineqs[:, 1:-1].dot(p[1:]) + ineqs[:, -1]
-
-            # Find the lower bound for the allowed region
-            for i_min in range(box_min[0], box_max[0] + 1, 1):
-                if all(i_min * ineqs[:, 0] + tmp_v >= 0):
-                    break
-
-            # Find the upper bound for the allowed region
-            for i_max in range(box_max[0], i_min - 1, -1):
-                if all(i_max * ineqs[:, 0] + tmp_v >= 0):
-                    break
-            else:
-                i_max -= 1
-
-            # The points i_min .. i_max are contained in the polytope
-            for i in range(i_min, i_max + 1):
-                p[0] = i
-                pts_all.append(np.array(p)[orig_perm])
-
-                saturated = frozenset(
-                    j for j in range(len(tmp_v)) if i * ineqs[j, 0] + tmp_v[j] == 0
-                )
-                facet_ind.append(saturated)
-
-            # Increment the other entries in p to move on to next loop
-            inc = 1
-            if dim == 1:
-                break
-
-            while p[inc] == box_max[inc]:
-                p[inc] = box_min[inc]
-                inc += 1
-                if inc == dim:
-                    break
-            else:
-                p[inc] += 1
-                continue
             break
+    pts = np.array(pts)
 
-    # return
-    return pts_all, facet_ind
-
+    # compute the saturation
+    satd = (pts@H.T == rhs.reshape(1,-1))
+    satd = [
+        frozenset([int(x) for x in np.where(satd_i)[0]])
+        for satd_i in satd
+    ]
+    
+    return pts, satd
 
 
 def is_reflexive_barebones(points: "ArrayLike",
