@@ -2020,15 +2020,16 @@ class Triangulation:
         # parse the outputs
         triangs = []
         for t in triangs_list:
+            simplices = _triangulumancer_simplices(t)
             # TODO: Is this needed
-            if not all(len(s) == self.dim() + 1 for s in t.simplices()):
+            if not all(len(s) == self.dim() + 1 for s in simplices):
                 continue
 
             # construct and check triangulation
             tri = Triangulation(
                 self.poly,
                 self.labels,
-                simplices=[[self.labels[i] for i in s] for s in t.simplices()],
+                simplices=[[self.labels[i] for i in s] for s in simplices],
                 check_input_simplices=False,
             )
             if only_fine and (not tri.is_fine()):
@@ -2390,6 +2391,14 @@ def _to_star(triang: Triangulation) -> None:
     triang._simplices = np.array(sorted([sorted(s) for s in star_triang]))
 
 
+def _triangulumancer_simplices(triang) -> ArrayLike:
+    """
+    Compatibility shim for triangulumancer triangulation objects.
+    """
+    simplices = triang.simplices
+    return simplices() if callable(simplices) else simplices
+
+
 def _qhull_triangulate(points: ArrayLike, heights: ArrayLike) -> np.ndarray:
     """
     **Description:**
@@ -2468,7 +2477,8 @@ def _cgal_triangulate(points: ArrayLike, heights: ArrayLike) -> np.ndarray:
     """
     
     pc = triangulumancer.PointConfiguration(points)
-    simp = pc.triangulate_with_heights(heights).simplices()
+    triang = pc.triangulate_with_heights(heights)
+    simp = _triangulumancer_simplices(triang)
 
     return np.array(sorted([sorted(s) for s in simp]))
 
@@ -2502,7 +2512,8 @@ def _topcom_triangulate(points: ArrayLike) -> np.ndarray:
     """
     
     pc = triangulumancer.PointConfiguration(points)
-    simp = pc.fine_triangulation().simplices()
+    triang = pc.fine_triangulation()
+    simp = _triangulumancer_simplices(triang)
 
     return np.array(sorted([sorted(s) for s in simp]))
 
@@ -2598,7 +2609,7 @@ def all_triangulations(
     triangs = pc.all_triangulations(only_fine=only_fine)
 
     # map the triangulations to labels
-    triangs = [[[pts[x] for x in i] for i in t.simplices()] for t in triangs]
+    triangs = [[[pts[x] for x in i] for i in _triangulumancer_simplices(t)] for t in triangs]
 
     # sort the triangs
     srt_triangs = [

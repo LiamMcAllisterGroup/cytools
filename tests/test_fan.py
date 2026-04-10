@@ -15,8 +15,8 @@ def test_intersection_numbers_call_order_digits():
     fan_fresh = fan_fixture()
 
     fan_after.intersection_numbers(digits=0, symmetrize=False)
-    after = fan_after.intersection_numbers(digits=None, symmetrize=False)
-    fresh = fan_fresh.intersection_numbers(digits=None, symmetrize=False)
+    after = fan_after.intersection_numbers(symmetrize=False)
+    fresh = fan_fresh.intersection_numbers(symmetrize=False)
 
     assert after == fresh
     assert len(after) == 121
@@ -30,8 +30,8 @@ def test_intersection_numbers_call_order_eps():
     fan_fresh = fan_fixture()
 
     fan_after.intersection_numbers(eps=0.6, digits=None, symmetrize=False)
-    after = fan_after.intersection_numbers(digits=None, symmetrize=False)
-    fresh = fan_fresh.intersection_numbers(digits=None, symmetrize=False)
+    after = fan_after.intersection_numbers(symmetrize=False)
+    fresh = fan_fresh.intersection_numbers(symmetrize=False)
 
     assert after == fresh
     assert len(after) == 121

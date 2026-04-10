@@ -31,6 +31,9 @@ from typing import Union
 from cytools import Cone, HPolytope, utils
 from cytools.triangulation import Triangulation
 
+_INTERSECTION_NUMBERS_DEFAULT_EPS = 1e-4
+_INTERSECTION_NUMBERS_DEFAULT_DIGITS = 10
+
 
 class Fan(regfans.fan.Fan):
     """
@@ -280,8 +283,8 @@ class Fan(regfans.fan.Fan):
         in_basis: bool = False,
         symmetrize: bool = False,
         as_np_array: bool = False,
-        eps: float = 1e-4,
-        digits: int = 10,
+        eps: float = _INTERSECTION_NUMBERS_DEFAULT_EPS,
+        digits: int = _INTERSECTION_NUMBERS_DEFAULT_DIGITS,
         verbosity: int = 0,
     ) -> Union[dict, "ArrayLike"]:
         """
@@ -298,8 +301,13 @@ class Fan(regfans.fan.Fan):
                          give components kappa[i,j,k] for i<=j<=k.
         - `as_np_array`: Whether to format the intersection numbers as a NumPy
                          array.
-        - `eps`:         Tolerance for rejecting 0 intersection numbers.
-        - `digits`:      How many digits to round to during the computations.
+        - `eps`:         Compatibility-only tolerance for filtering near-zero
+                         output entries. This does not affect the cached
+                         geometric tensor and should normally be left at the
+                         default.
+        - `digits`:      Compatibility-only rounding for the returned values.
+                         This does not affect the cached geometric tensor and
+                         should normally be left at the default.
         - `verbosity`:   The verbosity level. Higher is more verbose.
 
         **Returns:**
@@ -308,6 +316,8 @@ class Fan(regfans.fan.Fan):
         if not hasattr(self, '_kappa'):
             self._kappa = collections.defaultdict(float)
             self._kappa_known_labels = set()
+        if not hasattr(self, "_kappa_default"):
+            self._kappa_default = None
 
         if not self.is_triangulation():
             raise ValueError("Fan is not a triangulation!")
@@ -315,26 +325,42 @@ class Fan(regfans.fan.Fan):
         if as_np_array:
             symmetrize = True
 
-        def format_kappa(raw_kappa):
+        def format_kappa(
+            raw_kappa,
+            *,
+            eps_value,
+            digits_value,
+            symmetrize_output,
+            as_np_array_output,
+        ):
+            if (
+                eps_value == _INTERSECTION_NUMBERS_DEFAULT_EPS
+                and digits_value == _INTERSECTION_NUMBERS_DEFAULT_DIGITS
+                and not symmetrize_output
+                and not as_np_array_output
+                and self._kappa_default is not None
+            ):
+                return dict(self._kappa_default)
+
             kappa = dict(raw_kappa)
 
             for k in list(kappa.keys()):
                 v = kappa[k]
 
-                if np.abs(v) < eps:
+                if np.abs(v) < eps_value:
                     del kappa[k]
                     continue
 
-                if digits is not None:
-                    kappa[k] = round(v, digits)
+                if digits_value is not None:
+                    kappa[k] = round(v, digits_value)
 
-            if symmetrize:
+            if symmetrize_output:
                 keys = list(kappa.keys())
                 for k in keys:
                     for k_perm in itertools.permutations(k):
                         kappa[tuple(k_perm)] = kappa[k]
 
-            if as_np_array:
+            if as_np_array_output:
                 kappa_np = np.zeros(self.ambient_dim*(self.vc.size+1,))
                 for k, v in kappa.items():
                     kappa_np[k] = v
@@ -415,7 +441,7 @@ class Fan(regfans.fan.Fan):
                 else:
                     # map labels to indices...
                     for k,v in kappa.items():
-                        kappa_np[*[ki-1 for ki in k]] = v
+                        kappa_np[tuple(ki - 1 for ki in k)] = v
                 return kappa_np
             
             return kappa
@@ -424,7 +450,22 @@ class Fan(regfans.fan.Fan):
         # -----------------
         # check if we know the answer
         if (self._kappa_known_labels == set(self.labels)):
-            return format_kappa(self._kappa)
+            if self._kappa_default is None:
+                self._kappa_default = format_kappa(
+                    self._kappa,
+                    eps_value=_INTERSECTION_NUMBERS_DEFAULT_EPS,
+                    digits_value=_INTERSECTION_NUMBERS_DEFAULT_DIGITS,
+                    symmetrize_output=False,
+                    as_np_array_output=False,
+                )
+
+            return format_kappa(
+                self._kappa,
+                eps_value=eps,
+                digits_value=digits,
+                symmetrize_output=symmetrize,
+                as_np_array_output=as_np_array,
+            )
 
         # don't know the answer... need to calculate it...
         # setup
@@ -575,6 +616,13 @@ class Fan(regfans.fan.Fan):
 
         # save kappa labels (for caching)
         self._kappa_known_labels = set(self.labels)
+        self._kappa_default = format_kappa(
+            self._kappa,
+            eps_value=_INTERSECTION_NUMBERS_DEFAULT_EPS,
+            digits_value=_INTERSECTION_NUMBERS_DEFAULT_DIGITS,
+            symmetrize_output=False,
+            as_np_array_output=False,
+        )
 
         return self.intersection_numbers(
             pushed_down=pushed_down,
@@ -1006,7 +1054,7 @@ def curve_to_gv(fan, kappa, circ, verbosity=0):
             
             if set(c).issubset(fan.vc.divisor_basis):
                 c_inds = fan.vc.labels_to_inds(c, ambient_labels=fan.vc.divisor_basis)
-                kappa_c = kappa[*c_inds]
+                kappa_c = kappa[tuple(c_inds)]
                 if False:
                     A = kappa_c
 
