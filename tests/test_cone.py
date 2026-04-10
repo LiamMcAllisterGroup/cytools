@@ -28,24 +28,26 @@ def test_extremal_rays():
     assert len(c.extremal_rays()) == 2
 
 
-def test_faces_simplicial_4d():
+def test_face_lattice_simplicial_4d():
     c = Cone(np.eye(4, dtype=int))
 
-    all_faces = c.faces()
-    all_faces_with_self = c.faces(include_self=True)
+    all_faces = c.face_lattice()
+    all_faces_with_self = c.face_lattice(include_self=True)
 
     assert [len(fs) for fs in all_faces] == [4, 6, 4]
     assert [len(fs) for fs in all_faces_with_self] == [1, 4, 6, 4]
     assert all_faces_with_self[0][0] is c
-    assert c.faces(0) == (c,)
-    assert c.faces(4) == tuple()
-    assert all(f.dim() == 2 for f in c.faces(2))
+    assert c.face_lattice(0) == (c,)
+    assert c.face_lattice(4) == tuple()
+    assert all(f.dim() == 2 for f in c.face_lattice(2))
     assert isinstance(c.facets(), list)
-    assert c.facets()[0] is c.faces(1)[0]
-    assert c.faces(2)[0] is c.faces(include_self=True)[2][0]
+    assert {_canonical_face_rays(f) for f in c.facets()} == {
+        _canonical_face_rays(f) for f in c.face_lattice(1)
+    }
+    assert c.face_lattice(2)[0] is c.face_lattice(include_self=True)[2][0]
 
 
-def test_faces_nonsimplicial_3d():
+def test_face_lattice_nonsimplicial_3d():
     c = Cone([[1, 0, 1], [0, 1, 1], [-1, 0, 1], [0, -1, 1]])
 
     expected_facets = {
@@ -61,41 +63,55 @@ def test_faces_nonsimplicial_3d():
         ((1, 0, 1),),
     }
 
-    assert len(c.faces(1)) == 4
-    assert len(c.faces(2)) == 4
-    assert {_canonical_face_rays(f) for f in c.faces(1)} == expected_facets
-    assert {_canonical_face_rays(f) for f in c.faces(2)} == expected_rays
+    assert len(c.face_lattice(1)) == 4
+    assert len(c.face_lattice(2)) == 4
+    assert {_canonical_face_rays(f) for f in c.face_lattice(1)} == expected_facets
+    assert {_canonical_face_rays(f) for f in c.face_lattice(2)} == expected_rays
 
 
-def test_faces_non_solid_pointed():
+def test_face_lattice_non_solid_pointed():
     c = Cone([[1, 0, 0], [0, 1, 0]])
 
     assert c.is_pointed()
     assert not c.is_solid()
-    assert len(c.faces()) == 1
-    assert len(c.faces(1)) == 2
-    assert {_canonical_face_rays(f) for f in c.faces(1)} == {
+    assert len(c.face_lattice()) == 1
+    assert len(c.face_lattice(1)) == 2
+    assert {_canonical_face_rays(f) for f in c.face_lattice(1)} == {
         ((1, 0, 0),),
         ((0, 1, 0),),
     }
     assert isinstance(c.facets(), list)
-    assert tuple(c.facets()) == c.faces(1)
+    assert {_canonical_face_rays(f) for f in c.facets()} == {
+        _canonical_face_rays(f) for f in c.face_lattice(1)
+    }
 
 
-def test_faces_one_dimensional_cone():
+def test_face_lattice_one_dimensional_cone():
     c = Cone([[1, 0]])
 
-    assert c.faces() == tuple()
-    assert c.faces(include_self=True) == ((c,),)
-    assert c.faces(1) == tuple()
+    assert c.face_lattice() == tuple()
+    assert c.face_lattice(include_self=True) == ((c,),)
+    assert c.face_lattice(1) == tuple()
     assert c.facets() == []
 
 
-def test_faces_non_pointed_not_implemented():
+def test_face_lattice_non_pointed_not_implemented():
     c = Cone([[1, 0], [0, 1], [-1, 0]])
 
     with pytest.raises(NotImplementedError):
-        c.faces()
+        c.face_lattice()
+
+
+def test_facets_non_pointed_still_supported():
+    c = Cone([[1, 0], [0, 1], [-1, 0]])
+
+    facets = c.facets()
+
+    assert len(facets) == 1
+    assert facets[0].dim() == 1
+    assert facets[0].contains([1, 0])
+    assert facets[0].contains([-1, 0])
+    assert not facets[0].contains([0, 1])
 
 
 def find_interior_point():

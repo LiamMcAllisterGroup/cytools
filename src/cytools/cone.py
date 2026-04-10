@@ -25,6 +25,7 @@ from collections.abc import Iterable
 from copy import deepcopy
 import contextlib
 from fractions import Fraction
+import itertools
 import joblib
 from multiprocessing import cpu_count
 import os
@@ -324,7 +325,7 @@ class Cone:
         self._is_simplicial = None
         self._is_smooth = None
         self._hilbert_basis = None
-        self._faces = None
+        self._face_lattice = None
         if self._rays_were_input:
             self._hyperplanes = None
         else:
@@ -914,14 +915,18 @@ class Cone:
             verbose=verbose
         )
 
-    def faces(self, codim: int = None, include_self: bool = False, verbosity: int = 0):
+    def face_lattice(
+        self, codim: int = None, include_self: bool = False, verbosity: int = 0
+    ):
         """
         **Description:**
-        Computes the positive-dimensional faces of a pointed cone.
+        Computes the positive-dimensional face lattice of a pointed cone.
 
-        The faces are organized by codimension inside the cone. The zero face
-        is currently omitted because the `Cone` class does not support
-        zero-dimensional cones.
+        The faces are organized by codimension inside the cone. The zero face is
+        currently omitted because the `Cone` class does not support
+        zero-dimensional cones. This computation is intentionally separated from
+        `facets()` so the historical facet code path and its support for
+        non-pointed cones remain unchanged.
 
         **Arguments:**
         - `codim`: Optional codimension of the desired faces. When set to `0`,
@@ -947,18 +952,18 @@ class Cone:
         if codim == dim:
             return tuple()
 
-        if self._faces is not None:
-            return self._faces[codim] if codim is not None else (
-                self._faces if include_self else self._faces[1:]
+        if self._face_lattice is not None:
+            return self._face_lattice[codim] if codim is not None else (
+                self._face_lattice if include_self else self._face_lattice[1:]
             )
 
         if not self.is_pointed():
             raise NotImplementedError(
-                "Cone.faces() currently supports only pointed cones."
+                "Cone.face_lattice() currently supports only pointed cones."
             )
 
         if verbosity >= 1:
-            print("Computing cone faces via extremal ray/hyperplane incidence...")
+            print("Computing cone face lattice via extremal ray/hyperplane incidence...")
 
         R = self.extremal_rays()
         H = self.extremal_hyperplanes()
@@ -1006,7 +1011,7 @@ class Cone:
             face_sets[face_codim].append(ray_inds)
             face_objects[ray_inds] = Cone(rays=face_rays, check=False)
 
-        faces = [(self,)]
+        face_lattice = [(self,)]
         for face_codim in range(1, dim):
             codim_faces = tuple(
                 face_objects[ray_inds]
@@ -1014,17 +1019,23 @@ class Cone:
                     face_sets[face_codim], key=lambda inds: tuple(sorted(inds))
                 )
             )
-            faces.append(codim_faces)
+            face_lattice.append(codim_faces)
 
-        self._faces = tuple(faces)
-        return self._faces[codim] if codim is not None else (
-            self._faces if include_self else self._faces[1:]
+        self._face_lattice = tuple(face_lattice)
+        return self._face_lattice[codim] if codim is not None else (
+            self._face_lattice if include_self else self._face_lattice[1:]
         )
 
     def facets(self, verbosity: int = 0):
         """
         **Description:**
-        Get the positive-dimensional facets of the cone.
+        Get the facets of the cone.
+
+        This is easy if:
+            -) the cone is simplicial OR
+            -) the cone is solid and the extremal hyperplanes can be computed.
+        Otherwise, the computation uses both rays and hyperplanes... this is
+        semi-expensive to compute...
 
         **Arguments:**
         - `verbosity`: The verbosity level.
@@ -1032,7 +1043,37 @@ class Cone:
         **Returns:**
         The facets of the cone.
         """
-        return list(self.faces(codim=1, verbosity=verbosity))
+        # ray-based computation
+        if self.is_simplicial():
+            if verbosity >= 1:
+                print("Cone is simplicial! Easy computation...")
+            R = self.extremal_rays()
+
+            dim = len(R)
+            if dim <= 1:
+                return []
+            ray_inds = list(range(dim))
+
+            # facets are defined by collections of #(dim-1) rays
+            return [Cone(rays=R[list(inds)]) for inds in\
+                                        itertools.combinations(ray_inds,dim-1)]
+
+        # hyperplane based-computation
+        if verbosity >= 1:
+            print("Computing facets via extremal hyperplanes...")
+        H = self.extremal_hyperplanes()
+
+        if self.is_solid():
+            # still pretty easy
+            can_saturate = H
+        else:
+            # this means that the cone contains both h and -h as hyperplanes...
+            # i.e., h is already saturated by definition...
+            # need to skip these when looking to saturate hyperplanes
+            can_saturate = [h for h in H if not self.dual().contains(-h)]
+
+        return [Cone(hyperplanes=np.vstack((H, -h)), check=False) for h in\
+                                                                can_saturate]
 
     def tip_of_stretched_cone(
         self,
