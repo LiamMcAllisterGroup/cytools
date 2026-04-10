@@ -53,13 +53,16 @@ def build_polytope(weights: tuple[int, ...]) -> Polytope:
 
 
 def time_once(
-    weights: tuple[int, ...], backend: str, *, include_heights: bool
+    weights: tuple[int, ...], backend: str, *, include_heights: bool, defer_height_check: bool
 ) -> RunResult:
     t0 = time.perf_counter()
     poly = build_polytope(weights)
     dual = poly.dual()
     t1 = time.perf_counter()
-    tri = dual.triangulate(backend=backend)
+    tri = dual.triangulate(
+        backend=backend,
+        defer_height_check=defer_height_check,
+    )
     t2 = time.perf_counter()
     heights_s = None
     if include_heights:
@@ -108,6 +111,11 @@ def main() -> int:
         help="Also force tri.heights() so deferred height checks appear in the timing.",
     )
     parser.add_argument(
+        "--defer-height-check",
+        action="store_true",
+        help="Use the opt-in fast path that defers default height validation.",
+    )
+    parser.add_argument(
         "--weights",
         type=int,
         nargs=5,
@@ -125,7 +133,12 @@ def main() -> int:
     weights = tuple(args.weights)
     results: list[RunResult] = []
     for i in range(args.repeats):
-        result = time_once(weights, args.backend, include_heights=args.include_heights)
+        result = time_once(
+            weights,
+            args.backend,
+            include_heights=args.include_heights,
+            defer_height_check=args.defer_height_check,
+        )
         results.append(
             RunResult(
                 run=i + 1,
@@ -164,6 +177,7 @@ def main() -> int:
     summary = {
         "weights": weights,
         "backend": args.backend,
+        "defer_height_check": args.defer_height_check,
         "include_heights": args.include_heights,
         "repeats": args.repeats,
         "points": results[0].points if results else None,

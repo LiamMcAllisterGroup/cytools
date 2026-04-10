@@ -125,6 +125,7 @@ class Triangulation:
         check_input_simplices: bool = True,
         heights: list = None,
         check_heights: bool = True,
+        defer_height_check: bool = False,
         backend: str = "cgal",
         verbosity: int = 1,
     ) -> None:
@@ -154,6 +155,10 @@ class Triangulation:
             backend.
         - `check_heights`: Whether to check if the input/default heights define
             a valid/unique triangulation.
+        - `defer_height_check`: Whether to defer the expensive uniqueness check
+            for backend-generated default heights until `heights()` or
+            `check_heights()` is called. Defaults to False to preserve the
+            historical eager-validation behavior.
         - `backend`: The backend used to compute the triangulation. Options are
             "qhull", "cgal", and "topcom". CGAL is the default as it is very
             fast and robust.
@@ -215,6 +220,7 @@ class Triangulation:
             "height_check_valid": None,
             "height_check_s": None,
             "height_check_deferred": False,
+            "height_check_deferred_requested": bool(defer_height_check),
             "heights_recomputed": False,
         }
 
@@ -397,7 +403,7 @@ class Triangulation:
 
             # check that the heights uniquely define this triangulation
             if check_heights and (self._heights is not None):
-                if default_triang:
+                if default_triang and defer_height_check:
                     self._unchecked_heights = np.asarray(self._heights)
                     self._heights = None
                     self._construction_audit["height_check_pending"] = True

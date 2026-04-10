@@ -66,11 +66,25 @@ def test_heights():
     assert t == t2
 
 
-def test_default_height_audit_is_lazy():
+def test_default_height_audit_is_eager():
     p = Polytope(
         [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -1, -1]]
     )
     t = p.triangulate()
+
+    audit = t.construction_audit()
+    assert audit["default_triangulation"] is True
+    assert audit["height_check_pending"] is False
+    assert audit["height_check_deferred"] is False
+    assert audit["height_check_ran"] is True
+    assert audit["height_check_s"] is not None
+
+
+def test_opt_in_height_audit_is_lazy():
+    p = Polytope(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -1, -1]]
+    )
+    t = p.triangulate(defer_height_check=True)
 
     audit = t.construction_audit()
     assert audit["default_triangulation"] is True
