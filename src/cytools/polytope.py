@@ -2203,6 +2203,8 @@ class Polytope:
         heights: "ArrayLike" = None,
         check_heights: bool = True,
         defer_height_check: bool = False,
+        fast_height_check: bool = False,
+        fast_secondary_cone: bool = False,
         backend: str = "cgal",
         verbosity: int = 1,
     ) -> Triangulation:
@@ -2247,6 +2249,12 @@ class Polytope:
             backend-generated default heights until `heights()` or
             `check_heights()` is explicitly requested. Defaults to False to
             preserve the historical eager-validation behavior.
+        - `fast_height_check`: Whether to opt into the optimized local
+            height-validation algorithm instead of the historical validation
+            against the full secondary cone.
+        - `fast_secondary_cone`: Whether to opt into the optimized
+            ridge-adjacency native secondary-cone construction instead of the
+            historical simplex-pair scan.
         - `backend`: The backend used to compute the triangulation. Options are
             "qhull", "cgal", and "topcom". CGAL is the default as it is very
             fast and robust.
@@ -2342,6 +2350,8 @@ class Polytope:
             heights=triang_heights,
             check_heights=check_heights,
             defer_height_check=defer_height_check,
+            fast_height_check=fast_height_check,
+            fast_secondary_cone=fast_secondary_cone,
             backend=backend,
             verbosity=verbosity,
         )

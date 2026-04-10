@@ -20,10 +20,12 @@
 
 # 'standard' imports
 import ast
+import collections
 from collections.abc import Iterable
 import copy
 import itertools
 import math
+import os
 import re
 import subprocess
 import time
@@ -41,6 +43,10 @@ from cytools import config
 from cytools.cone import Cone
 from cytools.toricvariety import ToricVariety
 from cytools.utils import gcd_list, lll_reduce
+
+
+def _integer_vector_gcd(vec) -> int:
+    return math.gcd(*(abs(int(c)) for c in vec))
 
 
 class Triangulation:
@@ -126,6 +132,8 @@ class Triangulation:
         heights: list = None,
         check_heights: bool = True,
         defer_height_check: bool = False,
+        fast_height_check: bool = False,
+        fast_secondary_cone: bool = False,
         backend: str = "cgal",
         verbosity: int = 1,
     ) -> None:
@@ -159,6 +167,14 @@ class Triangulation:
             for backend-generated default heights until `heights()` or
             `check_heights()` is called. Defaults to False to preserve the
             historical eager-validation behavior.
+        - `fast_height_check`: Whether to use the optimized local
+            height-validation algorithm instead of the historical validation
+            against the full secondary cone. Defaults to False so the original
+            behavior remains the default.
+        - `fast_secondary_cone`: Whether to use the optimized ridge-adjacency
+            algorithm for the native secondary-cone construction instead of the
+            historical simplex-pair scan. Defaults to False so the original
+            behavior remains the default.
         - `backend`: The backend used to compute the triangulation. Options are
             "qhull", "cgal", and "topcom". CGAL is the default as it is very
             fast and robust.
@@ -207,6 +223,8 @@ class Triangulation:
         # ------------------
         # backend
         self._backend = backend
+        self._fast_height_check = bool(fast_height_check)
+        self._fast_secondary_cone = bool(fast_secondary_cone)
         self._construction_audit = {
             "backend": backend,
             "default_triangulation": False,
@@ -218,9 +236,15 @@ class Triangulation:
             "height_check_pending": False,
             "height_check_ran": False,
             "height_check_valid": None,
+            "height_check_method": None,
             "height_check_s": None,
+            "height_check_fast_requested": bool(fast_height_check),
+            "height_check_relations_checked": None,
+            "height_check_wall_count": None,
+            "height_check_min_margin": None,
             "height_check_deferred": False,
             "height_check_deferred_requested": bool(defer_height_check),
+            "secondary_cone_fast_requested": bool(fast_secondary_cone),
             "heights_recomputed": False,
         }
 
@@ -611,7 +635,7 @@ class Triangulation:
         self._is_regular = None
         self._is_star = None
         self._is_valid = None
-        self._secondary_cone = [None] * 2
+        self._secondary_cone = dict()
         self._sr_ideal = None
         self._toricvariety = None
 
@@ -1217,7 +1241,9 @@ class Triangulation:
         self._is_valid = True
         return self._is_valid
 
-    def check_heights(self, verbosity: int = 1) -> bool:
+    def check_heights(
+        self, verbosity: int = 1, fast_height_check: bool = None
+    ) -> bool:
         """
         **Description:**
         Check if the heights uniquely define a triangulation. That is, if they
@@ -1228,6 +1254,9 @@ class Triangulation:
 
         **Arguments:**
         - `verbosity`: The verbosity level.
+        - `fast_height_check`: Whether to use the optimized local
+            height-validation algorithm. If not specified, the setting from
+            construction time is used.
 
         **Returns:**
         *(bool)* True if the heights uniquely define the triangulation, False
@@ -1240,20 +1269,99 @@ class Triangulation:
             self._construction_audit["height_check_pending"] = False
             self._construction_audit["height_check_ran"] = True
             self._construction_audit["height_check_valid"] = False
+            self._construction_audit["height_check_method"] = None
             self._construction_audit["height_check_s"] = 0.0
+            self._construction_audit["height_check_relations_checked"] = 0
+            self._construction_audit["height_check_wall_count"] = 0
+            self._construction_audit["height_check_min_margin"] = None
             return False
 
-        # find hyperplanes that we are within eps of wall
         eps = 1e-6
         check_start = time.perf_counter()
-        hyp_dist = np.matmul(self.secondary_cone().hyperplanes(), heights)
-        not_interior = hyp_dist < eps
+        use_fast_height_check = self._fast_height_check
+        if fast_height_check is not None:
+            use_fast_height_check = bool(fast_height_check)
+
+        if use_fast_height_check and self.is_fine():
+            height_map = dict(zip(self.labels, np.asarray(heights, dtype=float)))
+            relations_checked = 0
+            wall_count = 0
+            min_margin = math.inf
+            not_interior = False
+
+            for diff_pts, comm_pts, v, origin_label in self._iter_native_secondary_relations():
+                relation_dot = float(
+                    v[0] * height_map[diff_pts[0]] + v[1] * height_map[diff_pts[1]]
+                )
+                relation_dot += float(
+                    sum(v[i + 2] * height_map[pt] for i, pt in enumerate(comm_pts))
+                )
+                if origin_label is not None:
+                    relation_dot += float(v[-1] * height_map[origin_label])
+
+                # Evaluate the simplex on diff_pts[0] at the opposite vertex
+                # diff_pts[1]. The nullspace vector is only defined up to an
+                # overall sign, but this ratio is sign-invariant.
+                margin = relation_dot / float(v[1])
+
+                relations_checked += 1
+                if margin < min_margin:
+                    min_margin = margin
+                if margin < eps:
+                    wall_count = 1
+                    not_interior = True
+                    break
+
+            self._construction_audit["height_check_method"] = "native-local"
+            self._construction_audit["height_check_relations_checked"] = relations_checked
+            self._construction_audit["height_check_wall_count"] = wall_count
+            self._construction_audit["height_check_min_margin"] = (
+                None if relations_checked == 0 else float(min_margin)
+            )
+        else:
+            legacy_hyps = np.asarray(
+                self.secondary_cone(fast_secondary_cone=None).hyperplanes()
+            )
+            if len(legacy_hyps):
+                hyp_dist = np.matmul(legacy_hyps, heights)
+                not_interior = hyp_dist < eps
+                wall_count = int(not_interior.sum())
+                min_margin = float(np.min(hyp_dist))
+            else:
+                not_interior = False
+                wall_count = 0
+                min_margin = None
+            self._construction_audit["height_check_method"] = "legacy-secondary-cone"
+            self._construction_audit["height_check_relations_checked"] = int(
+                len(legacy_hyps)
+            )
+            self._construction_audit["height_check_wall_count"] = wall_count
+            self._construction_audit["height_check_min_margin"] = min_margin
+
+        if (
+            self._construction_audit["height_check_method"] == "native-local"
+            and os.environ.get("CYTOOLS_VERIFY_HEIGHT_CHECK_EQUIV") == "1"
+        ):
+            legacy_hyps = np.asarray(
+                self.secondary_cone(fast_secondary_cone=False).hyperplanes()
+            )
+            legacy_not_interior = False
+            if len(legacy_hyps):
+                legacy_not_interior = bool(
+                    (np.matmul(legacy_hyps, heights) < eps).any()
+                )
+            if legacy_not_interior != not_interior:
+                raise AssertionError(
+                    "Fast native-local height check disagrees with the "
+                    "legacy secondary-cone check."
+                )
+
         self._construction_audit["height_check_pending"] = False
         self._construction_audit["height_check_ran"] = True
         self._construction_audit["height_check_s"] = time.perf_counter() - check_start
 
         # if we are close to any walls
-        if not_interior.any():
+        if np.asarray(not_interior).any():
             self._heights = None
             self._unchecked_heights = None
             self._construction_audit["height_check_valid"] = False
@@ -1279,6 +1387,60 @@ class Triangulation:
             self._unchecked_heights = None
 
         return True
+
+    def _iter_native_secondary_relations(self):
+        """Yield native secondary-cone relations for adjacent simplices."""
+        simps = [tuple(s) for s in self.simplices()]
+        dim = self.dim()
+
+        m = np.zeros((dim + 1, dim + 2), dtype=int)
+        m[-1, :] = 1
+
+        origin_label = self.poly._label_origin
+        if self.is_star():
+            simps = [
+                tuple(label for label in s if label != origin_label) for s in simps
+            ]
+            dim -= 1
+            m[:-1, -1] = self.points(which=origin_label, optimal=True)
+        else:
+            origin_label = None
+
+        opt_pts = {
+            label: tuple(pt)
+            for label, pt in zip(self.labels, self.points(optimal=True))
+        }
+
+        ridge_to_simps = collections.defaultdict(list)
+        for simp in simps:
+            for ridge in itertools.combinations(simp, dim):
+                ridge_to_simps[ridge].append(simp)
+
+        for comm_pts, incident_simps in ridge_to_simps.items():
+            if len(incident_simps) < 2:
+                continue
+
+            comm_pts = tuple(comm_pts)
+            comm_pt_set = set(comm_pts)
+            comm_block = np.array([opt_pts[pt] for pt in comm_pts], dtype=int).T
+
+            for s1, s2 in itertools.combinations(incident_simps, 2):
+                diff_pts = [pt for pt in s1 if pt not in comm_pt_set]
+                diff_pts.extend(pt for pt in s2 if pt not in comm_pt_set)
+                diff_pts = tuple(diff_pts)
+
+                m[:-1, :2] = np.array([opt_pts[pt] for pt in diff_pts], dtype=int).T
+                m[:-1, 2 : (2 + dim)] = comm_block
+
+                v = flint.fmpz_mat(m.tolist()).nullspace()[0]
+                v = np.array(v.transpose().tolist()[0], dtype=int)
+                if v[0] < 0:
+                    v *= -1
+                g = _integer_vector_gcd(v)
+                if g != 1:
+                    v //= g
+
+                yield diff_pts, comm_pts, v, origin_label
 
     # main method
     # -----------
@@ -1474,6 +1636,7 @@ class Triangulation:
         as_cone: bool = True,
         on_faces_dim: int = None,
         use_cache: bool = True,
+        fast_secondary_cone: bool = None,
     ) -> Cone:
         """
         **Description:**
@@ -1516,6 +1679,9 @@ class Triangulation:
             interpretation of enforcing the triangulations on each of these
             faces, but being agnostic to the rest of the structure.
         - `use_cache`: Whether to use cached values of the secondary cone.
+        - `fast_secondary_cone`: Whether to use the optimized ridge-adjacency
+            native secondary-cone construction. If not specified, the setting
+            from construction time is used.
 
         **Returns:**
         The secondary cone.
@@ -1535,6 +1701,10 @@ class Triangulation:
         # input sanitization
         # ------------------
         args_id = int(include_points_not_in_triangulation)
+        use_fast_secondary_cone = self._fast_secondary_cone
+        if fast_secondary_cone is not None:
+            use_fast_secondary_cone = bool(fast_secondary_cone)
+        cache_key = (args_id, use_fast_secondary_cone)
 
         # set backend
         backends = (None, "native", "topcom")
@@ -1579,6 +1749,7 @@ class Triangulation:
                     include_points_not_in_triangulation=include_points_not_in_triangulation,
                     as_cone=False,
                     use_cache=False,
+                    fast_secondary_cone=use_fast_secondary_cone,
                 )
 
             # restrict to unique hyperplanes
@@ -1595,9 +1766,9 @@ class Triangulation:
                 return hyps
 
         # want the secondary cone of the triangulation
-        if use_cache and (self._secondary_cone[args_id] is not None):
+        if use_cache and (cache_key in self._secondary_cone):
             # we already know the answer!
-            hyps = self._secondary_cone[args_id]
+            hyps = self._secondary_cone[cache_key]
 
             # return in the desired format
             if as_cone:
@@ -1607,7 +1778,7 @@ class Triangulation:
 
                 return Cone(hyperplanes=hyps, check=False)
             else:
-                return self._secondary_cone[args_id]
+                return self._secondary_cone[cache_key]
 
         # we don't yet know the answer... calculate it now!
         if backend == "topcom":
@@ -1633,78 +1804,106 @@ class Triangulation:
             ambient_dim = len(ambient_labels)
             labels2inds = {v: i for i, v in enumerate(ambient_labels)}
 
-            # get the simplices and the actual dimension
-            simps = [set(s) for s in self.simplices()]
-            dim = self.dim()
+            if use_fast_secondary_cone:
+                # container for hyperplane normal
+                full_v = np.zeros(ambient_dim, dtype=int)
 
-            # container for matrix
-            m = np.zeros((dim + 1, dim + 2), dtype=int)
-            m[-1, :] = 1  # (homogenization)
-
-            # container for hyperplane normal
-            full_v = np.zeros(ambient_dim, dtype=int)
-
-            # small optimization
-            # (star triangulations all share 0th point, the origin, so it can
-            #  be removed from consideration, effectively reducing dimension)
-            if self.is_star():
-                simps = [s - {self.poly._label_origin} for s in simps]
-                dim -= 1
-
-                m[:-1, -1] = self.points(which=self.poly._label_origin, optimal=True)
-
-            # calculate the hyperplanes
-            null_vecs = set()
-            for i, s1 in enumerate(simps):
-                for s2 in simps[i + 1 :]:
-                    # ensure that the simps have a large enough intersection
-                    comm_pts = s1 & s2
-                    if len(comm_pts) != dim:
-                        continue
-
-                    # organize the diff
-                    diff_pts = list(s1 ^ s2)
-                    comm_pts = list(comm_pts)
-
-                    m[:-1, :2] = self.points(which=diff_pts, optimal=True).T
-                    m[:-1, 2 : (2 + dim)] = self.points(which=comm_pts, optimal=True).T
-
-                    # calculate nullspace/hyperplane ineq
-                    v = flint.fmpz_mat(m.tolist()).nullspace()[0]
-                    v = np.array(v.transpose().tolist()[0], dtype=int)
-
-                    # ensure the sign is correct
-                    if v[0] < 0:
-                        v *= -1
-
-                    # Reduce the vector
-                    g = gcd_list(v)
-                    if g != 1:
-                        v //= g
-
-                    # Construct the full vector (including all points)
-                    # (could get some more performance by allowing sparse vectors as Cone argument...)
+                # calculate the hyperplanes
+                null_vecs = set()
+                for diff_pts, comm_pts, v, origin_label in self._iter_native_secondary_relations():
                     for i, pt in enumerate(diff_pts):
                         full_v[labels2inds[pt]] = v[i]
                     for i, pt in enumerate(comm_pts):
                         full_v[labels2inds[pt]] = v[i + 2]
-
-                    if self.is_star():
-                        full_v[labels2inds[self.poly._label_origin]] = v[-1]
+                    if origin_label is not None:
+                        full_v[labels2inds[origin_label]] = v[-1]
 
                     null_vecs.add(tuple(full_v))
 
-                    # clear full_v
-                    for i, pt in enumerate(diff_pts):
+                    for pt in diff_pts:
                         full_v[labels2inds[pt]] = 0
-                    for i, pt in enumerate(comm_pts):
+                    for pt in comm_pts:
                         full_v[labels2inds[pt]] = 0
+                    if origin_label is not None:
+                        full_v[labels2inds[origin_label]] = 0
 
-            # organize the hyperplanes
-            hyps = list(null_vecs)
+                # organize the hyperplanes
+                hyps = list(null_vecs)
+            else:
+                # get the simplices and the actual dimension
+                simps = [set(s) for s in self.simplices()]
+                dim = self.dim()
+
+                # container for matrix
+                m = np.zeros((dim + 1, dim + 2), dtype=int)
+                m[-1, :] = 1  # (homogenization)
+
+                # container for hyperplane normal
+                full_v = np.zeros(ambient_dim, dtype=int)
+
+                # small optimization
+                # (star triangulations all share 0th point, the origin, so it can
+                #  be removed from consideration, effectively reducing dimension)
+                if self.is_star():
+                    simps = [s - {self.poly._label_origin} for s in simps]
+                    dim -= 1
+
+                    m[:-1, -1] = self.points(which=self.poly._label_origin, optimal=True)
+
+                # calculate the hyperplanes
+                null_vecs = set()
+                for i, s1 in enumerate(simps):
+                    for s2 in simps[i + 1 :]:
+                        # ensure that the simps have a large enough intersection
+                        comm_pts = s1 & s2
+                        if len(comm_pts) != dim:
+                            continue
+
+                        # organize the diff
+                        diff_pts = list(s1 ^ s2)
+                        comm_pts = list(comm_pts)
+
+                        m[:-1, :2] = self.points(which=diff_pts, optimal=True).T
+                        m[:-1, 2 : (2 + dim)] = self.points(which=comm_pts, optimal=True).T
+
+                        # calculate nullspace/hyperplane ineq
+                        v = flint.fmpz_mat(m.tolist()).nullspace()[0]
+                        v = np.array(v.transpose().tolist()[0], dtype=int)
+
+                        # ensure the sign is correct
+                        if v[0] < 0:
+                            v *= -1
+
+                        # Reduce the vector
+                        g = _integer_vector_gcd(v)
+                        if g != 1:
+                            v //= g
+
+                        # Construct the full vector (including all points)
+                        # (could get some more performance by allowing sparse vectors as Cone argument...)
+                        for j, pt in enumerate(diff_pts):
+                            full_v[labels2inds[pt]] = v[j]
+                        for j, pt in enumerate(comm_pts):
+                            full_v[labels2inds[pt]] = v[j + 2]
+
+                        if self.is_star():
+                            full_v[labels2inds[self.poly._label_origin]] = v[-1]
+
+                        null_vecs.add(tuple(full_v))
+
+                        # clear full_v
+                        for pt in diff_pts:
+                            full_v[labels2inds[pt]] = 0
+                        for pt in comm_pts:
+                            full_v[labels2inds[pt]] = 0
+                        if self.is_star():
+                            full_v[labels2inds[self.poly._label_origin]] = 0
+
+                # organize the hyperplanes
+                hyps = list(null_vecs)
 
         # save the answer
-        self._secondary_cone[args_id] = hyps
+        self._secondary_cone[cache_key] = hyps
 
         # return
         # (do via calling the same function to use above cached answer)
@@ -1712,6 +1911,7 @@ class Triangulation:
             backend=backend,
             include_points_not_in_triangulation=include_points_not_in_triangulation,
             as_cone=as_cone,
+            fast_secondary_cone=use_fast_secondary_cone,
         )
 
     # aliases

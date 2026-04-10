@@ -19,6 +19,8 @@ import statistics
 import time
 from dataclasses import asdict, dataclass
 
+import numpy as np
+
 from cytools import Polytope
 
 DEFAULT_WEIGHTS = (1, 1, 2, 5, 10)
@@ -53,15 +55,28 @@ def build_polytope(weights: tuple[int, ...]) -> Polytope:
 
 
 def time_once(
-    weights: tuple[int, ...], backend: str, *, include_heights: bool, defer_height_check: bool
+    weights: tuple[int, ...],
+    backend: str,
+    *,
+    include_heights: bool,
+    check_heights: bool,
+    defer_height_check: bool,
+    fast_height_check: bool,
+    fast_secondary_cone: bool,
+    seed: int | None,
 ) -> RunResult:
     t0 = time.perf_counter()
     poly = build_polytope(weights)
     dual = poly.dual()
     t1 = time.perf_counter()
+    if seed is not None:
+        np.random.seed(seed)
     tri = dual.triangulate(
         backend=backend,
+        check_heights=check_heights,
         defer_height_check=defer_height_check,
+        fast_height_check=fast_height_check,
+        fast_secondary_cone=fast_secondary_cone,
     )
     t2 = time.perf_counter()
     heights_s = None
@@ -105,15 +120,31 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--backend", choices=("cgal", "qhull"), default="cgal")
     parser.add_argument("--repeats", type=int, default=1)
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
+        "--skip-height-check",
+        action="store_true",
+        help="Skip the default height uniqueness check entirely.",
+    )
     parser.add_argument(
         "--include-heights",
         action="store_true",
         help="Also force tri.heights() so deferred height checks appear in the timing.",
     )
-    parser.add_argument(
+    mode_group.add_argument(
         "--defer-height-check",
         action="store_true",
         help="Use the opt-in fast path that defers default height validation.",
+    )
+    parser.add_argument(
+        "--fast-height-check",
+        action="store_true",
+        help="Use the opt-in local height-check optimization.",
+    )
+    parser.add_argument(
+        "--fast-secondary-cone",
+        action="store_true",
+        help="Use the opt-in native secondary-cone optimization.",
     )
     parser.add_argument(
         "--weights",
@@ -128,16 +159,31 @@ def main() -> int:
         action="store_true",
         help="Emit a JSON report after the human-readable summary.",
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Seed numpy before each run. Useful for reproducible QHull comparisons.",
+    )
     args = parser.parse_args()
 
     weights = tuple(args.weights)
+    height_check_mode = (
+        "skip"
+        if args.skip_height_check
+        else "defer" if args.defer_height_check else "eager"
+    )
     results: list[RunResult] = []
     for i in range(args.repeats):
         result = time_once(
             weights,
             args.backend,
             include_heights=args.include_heights,
+            check_heights=not args.skip_height_check,
             defer_height_check=args.defer_height_check,
+            fast_height_check=args.fast_height_check,
+            fast_secondary_cone=args.fast_secondary_cone,
+            seed=args.seed,
         )
         results.append(
             RunResult(
@@ -168,17 +214,28 @@ def main() -> int:
             "  audit: "
             f"triangulation_s={audit['triangulation_s']:.3f} "
             f"star_retries={audit['star_retries']} "
+            f"height_check_method={audit.get('height_check_method')} "
             f"height_check_pending={audit['height_check_pending']} "
             f"height_check_ran={audit['height_check_ran']} "
-            f"height_check_s={audit['height_check_s']}"
+            f"height_check_fast_requested={audit.get('height_check_fast_requested')} "
+            f"secondary_cone_fast_requested={audit.get('secondary_cone_fast_requested')} "
+            f"height_check_s={audit['height_check_s']} "
+            f"height_check_relations_checked={audit.get('height_check_relations_checked')} "
+            f"height_check_wall_count={audit.get('height_check_wall_count')} "
+            f"height_check_min_margin={audit.get('height_check_min_margin')}"
         )
 
     totals = [r.total_s for r in results]
     summary = {
         "weights": weights,
         "backend": args.backend,
+        "height_check_mode": height_check_mode,
+        "check_heights": not args.skip_height_check,
         "defer_height_check": args.defer_height_check,
+        "fast_height_check": args.fast_height_check,
+        "fast_secondary_cone": args.fast_secondary_cone,
         "include_heights": args.include_heights,
+        "seed": args.seed,
         "repeats": args.repeats,
         "points": results[0].points if results else None,
         "simplices": results[0].simplices if results else None,
