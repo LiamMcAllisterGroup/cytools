@@ -2475,7 +2475,7 @@ def _cgal_triangulate(points: ArrayLike, heights: ArrayLike) -> np.ndarray:
     # points in ZZ^4
     ```
     """
-    
+
     pc = triangulumancer.PointConfiguration(points)
     triang = pc.triangulate_with_heights(heights)
     simp = _triangulumancer_simplices(triang)
@@ -2510,7 +2510,6 @@ def _topcom_triangulate(points: ArrayLike) -> np.ndarray:
     # points in ZZ^4
     ```
     """
-    
     pc = triangulumancer.PointConfiguration(points)
     triang = pc.fine_triangulation()
     simp = _triangulumancer_simplices(triang)
@@ -2604,7 +2603,7 @@ def all_triangulations(
         optimal_pts = triang_pts
     else:
         optimal_pts = lll_reduce([pt - triang_pts[0] for pt in triang_pts])[:, -dim:]
-        
+
     pc = triangulumancer.PointConfiguration(optimal_pts)
     triangs = pc.all_triangulations(only_fine=only_fine)
 
