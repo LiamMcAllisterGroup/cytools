@@ -116,11 +116,10 @@ class HPolytope(polytope.Polytope):
             # (could likely be mapped to poly_v_to_h. Worry about rational inputs)
             self._real_vertices, _ = poly_h_to_v(self._ineqs, verbosity=verbosity)
 
-        # raise error if ineqs are not feasible
+        # shortcut if -1D
         if len(self._real_vertices) == 0:
-            raise ValueError("Inequalities are not feasible.")
-        elif len(self._real_vertices) == 1:
-            raise ValueError("CYTools doesn't support 0D polytopes.")
+            super().__init__(points=[], backend=backend)
+            return
 
         # convert this into a lattice polytope
         if self._real_vertices.dtype == int:
