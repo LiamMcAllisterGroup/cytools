@@ -25,6 +25,7 @@ from collections.abc import Iterable
 from copy import deepcopy
 import contextlib
 from fractions import Fraction
+import itertools
 import joblib
 from multiprocessing import cpu_count
 import os
@@ -35,7 +36,6 @@ import warnings
 
 # 3rd party imports
 from flint import fmpz_mat, fmpz, fmpq
-import itertools
 import numpy as np
 from ortools.linear_solver import pywraplp
 from ortools.sat.python import cp_model
@@ -326,6 +326,7 @@ class Cone:
         self._is_simplicial = None
         self._is_smooth = None
         self._hilbert_basis = None
+        self._face_lattice = None
         if self._rays_were_input:
             self._hyperplanes = None
         else:
@@ -915,6 +916,117 @@ class Cone:
             verbose=verbose
         )
 
+    def face_lattice(
+        self, codim: int = None, include_self: bool = False, verbosity: int = 0
+    ):
+        """
+        **Description:**
+        Computes the positive-dimensional face lattice of a pointed cone.
+
+        The faces are organized by codimension inside the cone. The zero face is
+        currently omitted because the `Cone` class does not support
+        zero-dimensional cones. This computation is intentionally separated from
+        `facets()` so the historical facet code path and its support for
+        non-pointed cones remain unchanged.
+
+        **Arguments:**
+        - `codim`: Optional codimension of the desired faces. When set to `0`,
+            returns the cone itself. When set to `self.dim()`, it returns an
+            empty tuple because the zero face is omitted.
+        - `include_self`: Whether to include the codimension-0 face when
+            returning all faces.
+        - `verbosity`: The verbosity level.
+
+        **Returns:**
+        A tuple of `Cone` objects of codimension `codim`, if specified.
+        Otherwise, a tuple of tuples of `Cone` objects organized in ascending
+        codimension. If `include_self=True`, the first tuple contains only the
+        cone itself.
+        """
+        dim = self.dim()
+
+        if (codim is not None) and (codim not in range(dim + 1)):
+            raise ValueError(f"Cone does not have faces of codimension {codim}")
+
+        if codim == 0:
+            return (self,)
+        if codim == dim:
+            return tuple()
+
+        if self._face_lattice is not None:
+            return self._face_lattice[codim] if codim is not None else (
+                self._face_lattice if include_self else self._face_lattice[1:]
+            )
+
+        if not self.is_pointed():
+            raise NotImplementedError(
+                "Cone.face_lattice() currently supports only pointed cones."
+            )
+
+        if verbosity >= 1:
+            print("Computing cone face lattice via extremal ray/hyperplane incidence...")
+
+        R = self.extremal_rays()
+        H = self.extremal_hyperplanes()
+
+        if self.is_solid():
+            can_saturate = H
+        else:
+            can_saturate = np.array(
+                [h for h in H if not self.dual().contains(-h)],
+                dtype=int,
+            )
+
+        facet_ray_sets = set()
+        for h in can_saturate:
+            ray_inds = frozenset(
+                i
+                for i, r in enumerate(R)
+                if sum(int(a) * int(b) for a, b in zip(h, r)) == 0
+            )
+            if ray_inds:
+                facet_ray_sets.add(ray_inds)
+
+        seen = set(facet_ray_sets)
+        frontier = list(facet_ray_sets)
+        while frontier:
+            current = frontier.pop()
+            for facet in facet_ray_sets:
+                inter = current & facet
+                if inter and inter not in seen:
+                    seen.add(inter)
+                    frontier.append(inter)
+
+        face_sets = [[] for _ in range(dim)]
+        face_objects = {}
+        for ray_inds in sorted(seen, key=lambda inds: tuple(sorted(inds))):
+            face_rays = R[list(ray_inds)]
+            face_dim = np.linalg.matrix_rank(face_rays)
+            if face_dim <= 0:
+                continue
+
+            face_codim = dim - face_dim
+            if face_codim in (0, dim):
+                continue
+
+            face_sets[face_codim].append(ray_inds)
+            face_objects[ray_inds] = Cone(rays=face_rays, check=False)
+
+        face_lattice = [(self,)]
+        for face_codim in range(1, dim):
+            codim_faces = tuple(
+                face_objects[ray_inds]
+                for ray_inds in sorted(
+                    face_sets[face_codim], key=lambda inds: tuple(sorted(inds))
+                )
+            )
+            face_lattice.append(codim_faces)
+
+        self._face_lattice = tuple(face_lattice)
+        return self._face_lattice[codim] if codim is not None else (
+            self._face_lattice if include_self else self._face_lattice[1:]
+        )
+
     def facets(self, verbosity: int = 0):
         """
         **Description:**
@@ -939,6 +1051,8 @@ class Cone:
             R = self.extremal_rays()
 
             dim = len(R)
+            if dim <= 1:
+                return []
             ray_inds = list(range(dim))
 
             # facets are defined by collections of #(dim-1) rays
