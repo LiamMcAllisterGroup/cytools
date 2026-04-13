@@ -34,11 +34,11 @@ def test_face_lattice_simplicial_4d():
     all_faces = c.face_lattice()
     all_faces_with_self = c.face_lattice(include_self=True)
 
-    assert [len(fs) for fs in all_faces] == [4, 6, 4]
-    assert [len(fs) for fs in all_faces_with_self] == [1, 4, 6, 4]
+    assert [len(fs) for fs in all_faces] == [4, 6, 4, 1]
+    assert [len(fs) for fs in all_faces_with_self] == [1, 4, 6, 4, 1]
     assert all_faces_with_self[0][0] is c
     assert c.face_lattice(0) == (c,)
-    assert c.face_lattice(4) == tuple()
+    assert c.face_lattice(4)[0].dim() == 0
     assert all(f.dim() == 2 for f in c.face_lattice(2))
     assert isinstance(c.facets(), list)
     assert {_canonical_face_rays(f) for f in c.facets()} == {
@@ -74,7 +74,7 @@ def test_face_lattice_non_solid_pointed():
 
     assert c.is_pointed()
     assert not c.is_solid()
-    assert len(c.face_lattice()) == 1
+    assert len(c.face_lattice()) == 2
     assert len(c.face_lattice(1)) == 2
     assert {_canonical_face_rays(f) for f in c.face_lattice(1)} == {
         ((1, 0, 0),),
@@ -89,9 +89,9 @@ def test_face_lattice_non_solid_pointed():
 def test_face_lattice_one_dimensional_cone():
     c = Cone([[1, 0]])
 
-    assert c.face_lattice() == tuple()
-    assert c.face_lattice(include_self=True) == ((c,),)
-    assert c.face_lattice(1) == tuple()
+    assert c.face_lattice()[-1][0].dim() == 0
+    assert c.face_lattice(include_self=True)[0] == (c,)
+    assert c.face_lattice(1)[0].dim() == 0
     assert c.facets() == []
 
 

@@ -918,41 +918,48 @@ class Cone:
 
     def face_lattice(
         self, codim: int = None, include_self: bool = False, verbosity: int = 0
-    ):
+    ) -> tuple(tuple(Cone)) | tuple(Cone):
         """
         **Description:**
         Computes the positive-dimensional face lattice of a pointed cone.
 
-        The faces are organized by codimension inside the cone. The zero face is
-        currently omitted because the `Cone` class does not support
-        zero-dimensional cones. This computation is intentionally separated from
-        `facets()` so the historical facet code path and its support for
-        non-pointed cones remain unchanged.
+        The faces are organized in a tuple of increasing codim. This method is
+        distinct from `facets` since this will be a lot slower for high-dim
+        H-cones.
 
         **Arguments:**
-        - `codim`: Optional codimension of the desired faces. When set to `0`,
-            returns the cone itself. When set to `self.dim()`, it returns an
-            empty tuple because the zero face is omitted.
-        - `include_self`: Whether to include the codimension-0 face when
-            returning all faces.
+        - `codim`: Optional codim of the desired faces. When set to `0`, returns
+            the cone itself.
+        - `include_self`: Whether to include the codim-0 face when returning all
+            faces.
         - `verbosity`: The verbosity level.
 
         **Returns:**
         A tuple of `Cone` objects of codimension `codim`, if specified.
-        Otherwise, a tuple of tuples of `Cone` objects organized in ascending
-        codimension. If `include_self=True`, the first tuple contains only the
-        cone itself.
+        Otherwise, a tuple of tuples of cone faces.
         """
         dim = self.dim()
 
-        if (codim is not None) and (codim not in range(dim + 1)):
+        # input guard
+        if (codim is not None) and ((codim < 0) or (codim > dim)):
             raise ValueError(f"Cone does not have faces of codimension {codim}")
 
+        if dim > 20:
+            warnings.warn("Getting the face lattice for high-dim cones is expensive")
+
+        # easy answers
         if codim == 0:
             return (self,)
         if codim == dim:
-            return tuple()
+            if self.is_pointed():
+                # return cone spanned by 0 rays
+                I = np.eye(self.ambient_dim(), dtype=int)
+                return ( Cone(hyperplanes=np.vstack([I,-I])), )
+            else:
+                # return empty list... no 0D faces here
+                return tuple()
 
+        # fast track if cached
         if self._face_lattice is not None:
             return self._face_lattice[codim] if codim is not None else (
                 self._face_lattice if include_self else self._face_lattice[1:]
@@ -966,9 +973,12 @@ class Cone:
         if verbosity >= 1:
             print("Computing cone face lattice via extremal ray/hyperplane incidence...")
 
+        # expensive work vvv
         R = self.extremal_rays()
         H = self.extremal_hyperplanes()
+        # expensive work ^^^
 
+        # compute the incidences
         if self.is_solid():
             can_saturate = H
         else:
@@ -1022,6 +1032,12 @@ class Cone:
             )
             face_lattice.append(codim_faces)
 
+        # add the 0D cone if this is pointed
+        if self.is_pointed():
+            I = np.eye(self.ambient_dim(), dtype=int)
+            face_lattice.append( (Cone(hyperplanes=np.vstack([I,-I])),) )
+
+        # cache and return
         self._face_lattice = tuple(face_lattice)
         return self._face_lattice[codim] if codim is not None else (
             self._face_lattice if include_self else self._face_lattice[1:]
