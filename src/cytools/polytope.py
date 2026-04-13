@@ -743,6 +743,44 @@ class Polytope:
             self._transl_vector = pts_input[0]
         pts_optimal = np.array(pts_input) - self._transl_vector
 
+        # 0D is a special case
+        if self._dim == 0:
+            # no LLL reduction; optimal space is 0-dimensional
+            self._transf_mat_inv = np.eye(self.ambient_dim(), dtype=int)
+
+            # no non-trivial inequalities on a single point
+            self._ineqs_optimal = np.zeros((0, 1), dtype=int)
+            self._poly_optimal  = None
+            self._ineqs_input   = np.zeros((0, self.ambient_dim() + 1), dtype=int)
+
+            # the one point (origin in optimal coords) and its data
+            label = labels[0] if labels is not None else 0
+            opt_pt   = ()
+            input_pt = tuple(int(x) for x in pts_input[0])
+
+            self._labels2optPts   = {label: opt_pt}
+            self._pts_saturating  = {label: frozenset()}
+
+            self._pts_order         = (label,)
+            self._labels2inputPts   = {label: input_pt}
+            self._inputpts2labels   = {input_pt: label}
+            self._optimalpts2labels = {opt_pt: label}
+            self._labels2inds       = {label: 0}
+
+            # origin handling: the single point is "interior" (no saturations)
+            origin = (0,) * self.ambient_dim()
+            self._label_origin = self._inputpts2labels.get(origin, None)
+
+            self._labels_int       = (label,)
+            self._labels_facet     = tuple()
+            self._labels_bdry      = tuple()
+            self._labels_codim2    = tuple()
+            self._labels_not_facet = (label,)
+
+            return
+
+        # >0D below...
+        # ============
         # LLL-reduction (allows reduction in dimension)
         pts_optimal, transf = lll_reduce(pts_optimal, transform=True)
         pts_optimal = pts_optimal[:, self._dim_diff :]
