@@ -92,7 +92,7 @@ def test_face_lattice_one_dimensional_cone():
     assert c.face_lattice()[-1][0].dim() == 0
     assert c.face_lattice(include_self=True)[0] == (c,)
     assert c.face_lattice(1)[0].dim() == 0
-    assert c.facets() == []
+    assert c.facets()[0].dim() == 0
 
 
 def test_face_lattice_non_pointed_not_implemented():

@@ -1067,8 +1067,13 @@ class Cone:
             R = self.extremal_rays()
 
             dim = len(R)
-            if dim <= 1:
+
+            if dim == 1:
+                I = np.eye(self.ambient_dim(), dtype=int)
+                return [ Cone(hyperplanes=np.vstack([I,-I])), ]
+            elif dim == 0:
                 return []
+
             ray_inds = list(range(dim))
 
             # facets are defined by collections of #(dim-1) rays
