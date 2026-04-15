@@ -254,6 +254,6 @@ def test_gv_invariants():
     assert gvs.size == 65
 
     m_cap = cy.mori_cone_cap(in_basis=True)
-    m_cap_pts = m_cap.find_lattice_points(min_points=100)
+    m_cap_pts = m_cap.find_lattice_points(min_points=100, fast_mode=False)
     gvs = cy.compute_gvs(m_cap_pts)
     assert gvs.size == len(m_cap_pts) - 1

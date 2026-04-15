@@ -25,6 +25,7 @@ dependencies:
     - qpsolvers
     - cygv
     - regfans
+    - latticepts
     # The actual cytools package (taken from pypi)
     - cytools
   # Common useful tools
