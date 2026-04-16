@@ -40,6 +40,7 @@ import numpy as np
 from ortools.linear_solver import pywraplp
 from ortools.sat.python import cp_model
 import ppl
+import ctypes; ctypes.CDLL(None).fesetround(0)  # ppl changes FPU rounding mode; reset to FE_TONEAREST
 import qpsolvers
 from scipy import sparse
 from scipy.optimize import linprog, nnls

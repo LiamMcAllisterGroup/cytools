@@ -25,6 +25,7 @@ import itertools
 # 3rd party imports
 import numpy as np
 import ppl
+import ctypes; ctypes.CDLL(None).fesetround(0)  # ppl changes FPU rounding mode; reset to FE_TONEAREST
 
 # CYTools imports
 from cytools import polytope

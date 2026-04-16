@@ -32,6 +32,7 @@ from flint import fmpz_mat, fmpq_mat
 import numpy as np
 from numpy.typing import ArrayLike
 import ppl
+import ctypes; ctypes.CDLL(None).fesetround(0)  # ppl changes FPU rounding mode; reset to FE_TONEAREST
 from scipy.spatial import ConvexHull
 from tqdm import tqdm
 import pypalp
