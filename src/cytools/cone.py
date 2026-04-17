@@ -45,6 +45,7 @@ import qpsolvers
 from scipy import sparse
 from scipy.optimize import linprog, nnls
 import latticepts
+from __future__ import annotations
 
 # CYTools imports
 from cytools import config
@@ -919,7 +920,7 @@ class Cone:
 
     def face_lattice(
         self, codim: int = None, include_self: bool = False, verbosity: int = 0
-    ) -> tuple(tuple(Cone)) | tuple(Cone):
+    ) -> tuple[tuple[Cone]] | tuple[Cone]:
         """
         **Description:**
         Computes the positive-dimensional face lattice of a pointed cone.
