@@ -18,6 +18,7 @@
 # Description:  This module contains tools designed to perform cone
 #               computations.
 # -----------------------------------------------------------------------------
+from __future__ import annotations
 
 # 'standard' imports
 from ast import literal_eval
@@ -45,7 +46,6 @@ import qpsolvers
 from scipy import sparse
 from scipy.optimize import linprog, nnls
 import latticepts
-from __future__ import annotations
 
 # CYTools imports
 from cytools import config
