@@ -2779,7 +2779,7 @@ class Polytope:
     # hodge
     # =====
     @instanced_lru_cache(maxsize=None)
-    def hpq(self, p: int, q: int, lattice: str) -> int:
+    def hpq(self, p: int, q: int, lattice: str="N") -> int:
         """
         **Description:**
         Returns the Hodge number $h^{p,q}$ of the Calabi-Yau obtained as the
@@ -2867,12 +2867,12 @@ class Polytope:
             return hpq
         raise RuntimeError("Error computing Hodge numbers.")
 
-    h11 = lambda self, lattice: self.hpq(1, 1, lattice=lattice)
-    h12 = lambda self, lattice: self.hpq(1, 2, lattice=lattice)
+    h11 = lambda self, lattice="N": self.hpq(1, 1, lattice=lattice)
+    h12 = lambda self, lattice="N": self.hpq(1, 2, lattice=lattice)
     h21 = h12
-    h13 = lambda self, lattice: self.hpq(1, 3, lattice=lattice)
+    h13 = lambda self, lattice="N": self.hpq(1, 3, lattice=lattice)
     h31 = h13
-    h22 = lambda self, lattice: self.hpq(2, 2, lattice=lattice)
+    h22 = lambda self, lattice="N": self.hpq(2, 2, lattice=lattice)
 
     def chi(self, lattice: str) -> int:
         """
