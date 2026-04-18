@@ -20,6 +20,7 @@
 # -----------------------------------------------------------------------------
 
 # 'standard' imports
+from __future__ import annotations
 from ast import literal_eval
 from collections.abc import Iterable
 from copy import deepcopy
