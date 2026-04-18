@@ -17,10 +17,12 @@ dependencies = [
     "scipy",
     "joblib",
     "cvxopt",
+    "numba",
     "python-flint",
     "pplpy",
     "ortools",
-    "triangulumancer>=0.3",
+    "triangulumancer<0.3; python_version < '3.10'",
+    "triangulumancer>=0.3; python_version >= '3.10'",
     "pypalp",
     "cygv",
     "regfans>=0.1.0",
@@ -28,6 +30,7 @@ dependencies = [
     "qpsolvers",
     "requests",
     "osqp",
+    "platformdirs",
     "latticepts"
 ]
 classifiers = [
@@ -57,6 +60,14 @@ test = [
 mosek = [
   "Mosek"
 ]
+
+[dependency-groups]
+dev = [
+  "pytest",
+]
+
+[tool.uv]
+default-groups = ["dev"]
 
 [project.urls]
 Homepage = "https://cy.tools"

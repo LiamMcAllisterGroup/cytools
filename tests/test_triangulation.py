@@ -66,6 +66,105 @@ def test_heights():
     assert t == t2
 
 
+def test_default_height_audit_is_eager():
+    p = Polytope(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -1, -1]]
+    )
+    t = p.triangulate()
+
+    audit = t.construction_audit()
+    assert audit["default_triangulation"] is True
+    assert audit["height_check_pending"] is False
+    assert audit["height_check_deferred"] is False
+    assert audit["height_check_ran"] is True
+    assert audit["height_check_method"] == "legacy-secondary-cone"
+    assert audit["height_check_s"] is not None
+    assert audit["height_check_relations_checked"] > 0
+    assert audit["height_check_min_margin"] is not None
+
+
+def test_opt_in_height_audit_is_lazy():
+    p = Polytope(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -1, -1]]
+    )
+    t = p.triangulate(defer_height_check=True)
+
+    audit = t.construction_audit()
+    assert audit["default_triangulation"] is True
+    assert audit["height_check_pending"] is True
+    assert audit["height_check_deferred"] is True
+    assert audit["height_check_ran"] is False
+
+    heights = t.heights()
+    audit = t.construction_audit()
+    assert len(heights) == len(t.labels)
+    assert audit["height_check_pending"] is False
+    assert audit["height_check_ran"] is True
+    assert audit["height_check_method"] == "legacy-secondary-cone"
+    assert audit["height_check_s"] is not None
+    assert audit["height_check_relations_checked"] > 0
+    assert audit["height_check_min_margin"] is not None
+
+
+def test_opt_in_fast_height_check_is_recorded():
+    p = Polytope(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -1, -1]]
+    )
+    t = p.triangulate(fast_height_check=True)
+
+    audit = t.construction_audit()
+    assert audit["height_check_fast_requested"] is True
+    assert audit["height_check_method"] == "native-local"
+    assert audit["height_check_ran"] is True
+
+
+def test_user_provided_heights_are_checked_eagerly():
+    p = Polytope(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -1, -1]]
+    )
+    heights = p.triangulate().heights()
+    t = p.triangulate(heights=heights)
+
+    audit = t.construction_audit()
+    assert audit["default_triangulation"] is False
+    assert audit["height_check_pending"] is False
+    assert audit["height_check_deferred"] is False
+    assert audit["height_check_ran"] is True
+    assert audit["height_check_valid"] is True
+    assert audit["height_check_method"] == "legacy-secondary-cone"
+
+
+def test_native_height_check_matches_secondary_cone():
+    p = Polytope(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -6, -9]]
+    )
+
+    legacy = p.triangulate(check_heights=False)
+    legacy_heights = np.asarray(legacy._heights)
+    legacy_hyps = np.asarray(legacy.secondary_cone(as_cone=False))
+    legacy_valid = True
+    if len(legacy_hyps):
+        legacy_valid = not ((legacy_hyps @ legacy_heights) < 1e-6).any()
+
+    fast = p.triangulate(check_heights=False, fast_height_check=True)
+    assert fast.check_heights(verbosity=0) == legacy_valid
+    assert fast.construction_audit()["height_check_method"] == "native-local"
+
+
+def test_fast_secondary_cone_matches_legacy():
+    p = Polytope(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -6, -9]]
+    )
+    legacy = p.triangulate(check_heights=False)
+    fast = p.triangulate(check_heights=False, fast_secondary_cone=True)
+
+    legacy_hyps = sorted(map(tuple, np.asarray(legacy.secondary_cone(as_cone=False))))
+    fast_hyps = sorted(
+        map(tuple, np.asarray(fast.secondary_cone(as_cone=False, fast_secondary_cone=True)))
+    )
+    assert legacy_hyps == fast_hyps
+
+
 def test_is_equivalent():
     p = Polytope(
         [

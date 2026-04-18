@@ -465,7 +465,7 @@ class Polytope:
         # self._ineqs_input
         # self._ineqs_optimal
         # self._poly_optimal
-        self._is_reflexive = None
+        self._is_reflexive = dict()
 
         # input, optimal points (DON'T CLEAR! Set in init...)
         # self._labels2inputPts
@@ -1566,7 +1566,8 @@ class Polytope:
         Returns True if the polytope is reflexive and False otherwise.
 
         **Arguments:**
-        - `allow_translations`: Whether to allow the polytope to be translated.
+        - `allow_translations`: Whether to allow lattice translations before
+            checking reflexivity.
 
         **Returns:**
         The truth value of the polytope being reflexive.
@@ -1583,23 +1584,42 @@ class Polytope:
             return False
 
         # check if we know the answer
-        if self._is_reflexive is not None:
-            return self._is_reflexive
+        if allow_translations in self._is_reflexive:
+            return self._is_reflexive[allow_translations]
 
         # calculate the answer
-        if self.is_solid():
-            self._is_reflexive = all(
-                c == 1 for c in self._ineqs_input[:, -1]
-            )
-        else:
-            if allow_translations:
-                p = Polytope(self.points(optimal=True))
+        if allow_translations:
+            pts_opt = self.points(optimal=True)
+            if len(pts_opt) == 0 or len(self.interior_points()) != 1:
+                self._is_reflexive[allow_translations] = False
             else:
-                p = Polytope(lll_reduce(self.points())[:,-self.dim():])
-            self._is_reflexive = p.is_reflexive()
+                # Reflexivity is defined with the unique interior lattice point
+                # at the origin, so translated copies should be recentered first.
+                p = Polytope(
+                    pts_opt - pts_opt[0],
+                    backend=self._backend,
+                    deterministic_glsm_basis=self._deterministic_glsm_basis,
+                )
+                self._is_reflexive[allow_translations] = p.is_reflexive(
+                    allow_translations=False
+                )
+        else:
+            if self.is_solid():
+                self._is_reflexive[allow_translations] = all(
+                    c == 1 for c in self._ineqs_input[:, -1]
+                )
+            else:
+                p = Polytope(
+                    lll_reduce(self.points())[:, -self.dim():],
+                    backend=self._backend,
+                    deterministic_glsm_basis=self._deterministic_glsm_basis,
+                )
+                self._is_reflexive[allow_translations] = p.is_reflexive(
+                    allow_translations=False
+                )
 
         # return
-        return self._is_reflexive
+        return self._is_reflexive[allow_translations]
 
     # symmetries
     # ==========
@@ -2222,6 +2242,9 @@ class Polytope:
         check_input_simplices: bool = True,
         heights: "ArrayLike" = None,
         check_heights: bool = True,
+        defer_height_check: bool = False,
+        fast_height_check: bool = False,
+        fast_secondary_cone: bool = False,
         backend: str = "cgal",
         verbosity: int = 1,
     ) -> Triangulation:
@@ -2262,6 +2285,16 @@ class Polytope:
             backend.
         - `check_heights`: Whether to check if the input/default heights define
             a valid/unique triangulation.
+        - `defer_height_check`: Whether to defer the uniqueness check for
+            backend-generated default heights until `heights()` or
+            `check_heights()` is explicitly requested. Defaults to False to
+            preserve the historical eager-validation behavior.
+        - `fast_height_check`: Whether to opt into the optimized local
+            height-validation algorithm instead of the historical validation
+            against the full secondary cone.
+        - `fast_secondary_cone`: Whether to opt into the optimized
+            ridge-adjacency native secondary-cone construction instead of the
+            historical simplex-pair scan.
         - `backend`: The backend used to compute the triangulation. Options are
             "qhull", "cgal", and "topcom". CGAL is the default as it is very
             fast and robust.
@@ -2356,6 +2389,9 @@ class Polytope:
             check_input_simplices=check_input_simplices,
             heights=triang_heights,
             check_heights=check_heights,
+            defer_height_check=defer_height_check,
+            fast_height_check=fast_height_check,
+            fast_secondary_cone=fast_secondary_cone,
             backend=backend,
             verbosity=verbosity,
         )

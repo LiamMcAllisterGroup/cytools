@@ -639,6 +639,9 @@ class PolytopeFace:
         heights: list = None,
         simplices: ArrayLike = None,
         check_input_simplices: bool = True,
+        defer_height_check: bool = False,
+        fast_height_check: bool = False,
+        fast_secondary_cone: bool = False,
         backend: str = "cgal",
         verbosity=0,
     ) -> "Triangulation":
@@ -663,6 +666,15 @@ class PolytopeFace:
             be consistent with the order that the `Polytope` class uses.
         - `check_input_simplices`: Flag that specifies whether to check if the
             input simplices define a valid triangulation.
+        - `defer_height_check`: Whether to defer the uniqueness check for
+            backend-generated default heights until `heights()` or
+            `check_heights()` is explicitly requested.
+        - `fast_height_check`: Whether to opt into the optimized local
+            height-validation algorithm instead of the historical validation
+            against the full secondary cone.
+        - `fast_secondary_cone`: Whether to opt into the optimized
+            ridge-adjacency native secondary-cone construction instead of the
+            historical simplex-pair scan.
         - `backend`: Specifies the backend used to compute the triangulation.
             The available options are "qhull", "cgal", and "topcom". CGAL is
             the default one as it is very fast and robust.
@@ -679,6 +691,9 @@ class PolytopeFace:
             heights=heights,
             simplices=simplices,
             check_input_simplices=check_input_simplices,
+            defer_height_check=defer_height_check,
+            fast_height_check=fast_height_check,
+            fast_secondary_cone=fast_secondary_cone,
             backend=backend,
             verbosity=verbosity,
         )
