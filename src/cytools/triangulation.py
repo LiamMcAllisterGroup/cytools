@@ -26,6 +26,7 @@ import itertools
 import math
 import re
 import subprocess
+import time
 import warnings
 
 # 3rd party imports
@@ -124,6 +125,7 @@ class Triangulation:
         check_input_simplices: bool = True,
         heights: list = None,
         check_heights: bool = True,
+        defer_height_check: bool = False,
         backend: str = "cgal",
         verbosity: int = 1,
     ) -> None:
@@ -153,6 +155,10 @@ class Triangulation:
             backend.
         - `check_heights`: Whether to check if the input/default heights define
             a valid/unique triangulation.
+        - `defer_height_check`: Whether to defer the expensive uniqueness check
+            for backend-generated default heights until `heights()` or
+            `check_heights()` is called. Defaults to False to preserve the
+            historical eager-validation behavior.
         - `backend`: The backend used to compute the triangulation. Options are
             "qhull", "cgal", and "topcom". CGAL is the default as it is very
             fast and robust.
@@ -201,6 +207,22 @@ class Triangulation:
         # ------------------
         # backend
         self._backend = backend
+        self._construction_audit = {
+            "backend": backend,
+            "default_triangulation": False,
+            "make_star": bool(make_star),
+            "triangulation_s": None,
+            "star_retries": 0,
+            "height_source": None,
+            "height_check_requested": bool(check_heights),
+            "height_check_pending": False,
+            "height_check_ran": False,
+            "height_check_valid": None,
+            "height_check_s": None,
+            "height_check_deferred": False,
+            "height_check_deferred_requested": bool(defer_height_check),
+            "heights_recomputed": False,
+        }
 
         # polytope
         self._poly = poly
@@ -238,6 +260,7 @@ class Triangulation:
         # Save input triangulation, or construct it
         # -----------------------------------------
         heights = copy.deepcopy(heights)
+        self._unchecked_heights = None
         if self._simplices is not None:
             self._heights = None
 
@@ -289,6 +312,7 @@ class Triangulation:
             self._is_valid = True
 
             default_triang = heights is None
+            self._construction_audit["default_triangulation"] = default_triang
             if default_triang:
                 # construct the heights
                 if backend is None:
@@ -307,10 +331,14 @@ class Triangulation:
                     heights = [np.dot(p, p) for p in self.points()]
                 else:  # TOPCOM
                     heights = None
+                self._construction_audit["height_source"] = (
+                    None if heights is None else "backend-generated"
+                )
             else:
                 # check the heights
                 if len(heights) != len(pts):
                     raise ValueError("Need same number of heights as points.")
+                self._construction_audit["height_source"] = "user-provided"
 
             if heights is None:
                 self._heights = None
@@ -319,6 +347,7 @@ class Triangulation:
 
             # Now run the appropriate triangulation function
             triang_pts = self.points(optimal=not self._is_fulldim)
+            triangulation_start = time.perf_counter()
             if backend == "qhull":
                 self._simplices = _qhull_triangulate(triang_pts, self._heights)
 
@@ -348,6 +377,7 @@ class Triangulation:
 
                     # reduce height of origin until it's in all simplices
                     while any(self._origin_index not in s for s in self._simplices):
+                        self._construction_audit["star_retries"] += 1
                         self._heights[self._origin_index] -= origin_step
                         self._simplices = _cgal_triangulate(triang_pts, self._heights)
                 # map to labels
@@ -367,9 +397,19 @@ class Triangulation:
                 if make_star:
                     _to_star(self)
 
+            self._construction_audit["triangulation_s"] = (
+                time.perf_counter() - triangulation_start
+            )
+
             # check that the heights uniquely define this triangulation
             if check_heights and (self._heights is not None):
-                self.check_heights(verbosity - default_triang)
+                if default_triang and defer_height_check:
+                    self._unchecked_heights = np.asarray(self._heights)
+                    self._heights = None
+                    self._construction_audit["height_check_pending"] = True
+                    self._construction_audit["height_check_deferred"] = True
+                else:
+                    self.check_heights(verbosity - default_triang)
 
         # Make sure that the simplices are sorted
         self._simplices = sorted([sorted(s) for s in self._simplices])
@@ -393,20 +433,7 @@ class Triangulation:
 
         # also set the heights data structure
         if self._heights is not None:
-            if not np.all(self._heights == 0):
-                self._heights = self._heights / gcd_list(self._heights)
-            self._heights -= min(self._heights)
-
-            max_h = max(abs(self._heights))
-            if max_h < 2**8:
-                dtype = np.uint8
-            elif max_h < 2**16:
-                dtype = np.uint16
-            elif max_h < 2**32:
-                dtype = np.uint32
-            else:
-                dtype = np.uint64
-            self._heights = self._heights.round().astype(dtype)
+            self._normalize_heights()
 
     # defaults
     # ========
@@ -593,6 +620,26 @@ class Triangulation:
         if recursive:
             self.poly.clear_cache()
 
+    def _normalize_heights(self) -> None:
+        """Normalize cached heights into the compact integer form used here."""
+        if self._heights is None:
+            return
+
+        if not np.all(self._heights == 0):
+            self._heights = self._heights / gcd_list(self._heights)
+        self._heights -= min(self._heights)
+
+        max_h = max(abs(self._heights))
+        if max_h < 2**8:
+            dtype = np.uint8
+        elif max_h < 2**16:
+            dtype = np.uint16
+        elif max_h < 2**32:
+            dtype = np.uint32
+        else:
+            dtype = np.uint64
+        self._heights = self._heights.round().astype(dtype)
+
     # getters
     # =======
     @property
@@ -624,6 +671,23 @@ class Triangulation:
         The labels of lattice points in the triangulation.
         """
         return self._labels
+
+    def construction_audit(self) -> dict:
+        """
+        **Description:**
+        Return a compact audit record for how the triangulation was built.
+
+        This is primarily intended for performance investigations so callers
+        can see whether star retries or height validation dominated the
+        construction path.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        A dictionary with construction metadata and timing information.
+        """
+        return dict(self._construction_audit)
 
     def dimension(self) -> int:
         """
@@ -1169,14 +1233,30 @@ class Triangulation:
         *(bool)* True if the heights uniquely define the triangulation, False
         if they are within eps of a wall of the secondary cone.
         """
+        heights = self._heights
+        if heights is None:
+            heights = self._unchecked_heights
+        if heights is None:
+            self._construction_audit["height_check_pending"] = False
+            self._construction_audit["height_check_ran"] = True
+            self._construction_audit["height_check_valid"] = False
+            self._construction_audit["height_check_s"] = 0.0
+            return False
+
         # find hyperplanes that we are within eps of wall
         eps = 1e-6
-        hyp_dist = np.matmul(self.secondary_cone().hyperplanes(), self._heights)
+        check_start = time.perf_counter()
+        hyp_dist = np.matmul(self.secondary_cone().hyperplanes(), heights)
         not_interior = hyp_dist < eps
+        self._construction_audit["height_check_pending"] = False
+        self._construction_audit["height_check_ran"] = True
+        self._construction_audit["height_check_s"] = time.perf_counter() - check_start
 
         # if we are close to any walls
         if not_interior.any():
             self._heights = None
+            self._unchecked_heights = None
+            self._construction_audit["height_check_valid"] = False
 
             if verbosity > 1:
                 print(
@@ -1191,6 +1271,12 @@ class Triangulation:
                     + "triangulation..."
                 )
             return False
+
+        self._construction_audit["height_check_valid"] = True
+        if self._heights is None:
+            self._heights = np.asarray(heights)
+            self._normalize_heights()
+            self._unchecked_heights = None
 
         return True
 
@@ -1696,6 +1782,9 @@ class Triangulation:
         # array([0., 0., 0., 0., 0., 1.])
         ```
         """
+        if self._heights is None and (self._unchecked_heights is not None):
+            self.check_heights(verbosity=0)
+
         # check if we already know the heights...
         if self._heights is not None:
             heights_out = self._heights.copy()
@@ -1722,6 +1811,7 @@ class Triangulation:
             # Otherwise we find a point in the secondary cone
             C = self.secondary_cone(include_points_not_in_triangulation=True)
             self._heights = C.find_interior_point(integral=integral, backend=backend)
+            self._construction_audit["heights_recomputed"] = True
 
         return self._heights.copy()
 
@@ -2020,15 +2110,16 @@ class Triangulation:
         # parse the outputs
         triangs = []
         for t in triangs_list:
+            simplices = _triangulumancer_simplices(t)
             # TODO: Is this needed
-            if not all(len(s) == self.dim() + 1 for s in t.simplices):
+            if not all(len(s) == self.dim() + 1 for s in simplices):
                 continue
 
             # construct and check triangulation
             tri = Triangulation(
                 self.poly,
                 self.labels,
-                simplices=[[self.labels[i] for i in s] for s in t.simplices],
+                simplices=[[self.labels[i] for i in s] for s in simplices],
                 check_input_simplices=False,
             )
             if only_fine and (not tri.is_fine()):
@@ -2390,6 +2481,14 @@ def _to_star(triang: Triangulation) -> None:
     triang._simplices = np.array(sorted([sorted(s) for s in star_triang]))
 
 
+def _triangulumancer_simplices(triang) -> ArrayLike:
+    """
+    Compatibility shim for triangulumancer triangulation objects.
+    """
+    simplices = triang.simplices
+    return simplices() if callable(simplices) else simplices
+
+
 def _qhull_triangulate(points: ArrayLike, heights: ArrayLike) -> np.ndarray:
     """
     **Description:**
@@ -2468,7 +2567,8 @@ def _cgal_triangulate(points: ArrayLike, heights: ArrayLike) -> np.ndarray:
     """
 
     pc = triangulumancer.PointConfiguration(points)
-    simp = pc.triangulate_with_heights(heights).simplices
+    triang = pc.triangulate_with_heights(heights)
+    simp = _triangulumancer_simplices(triang)
 
     return np.array(sorted([sorted(s) for s in simp]))
 
@@ -2501,7 +2601,8 @@ def _topcom_triangulate(points: ArrayLike) -> np.ndarray:
     ```
     """
     pc = triangulumancer.PointConfiguration(points)
-    simp = pc.fine_triangulation().simplices
+    triang = pc.fine_triangulation()
+    simp = _triangulumancer_simplices(triang)
 
     return np.array(sorted([sorted(s) for s in simp]))
 
@@ -2597,7 +2698,7 @@ def all_triangulations(
     triangs = pc.all_triangulations(only_fine=only_fine)
 
     # map the triangulations to labels
-    triangs = [[[pts[x] for x in i] for i in t.simplices] for t in triangs]
+    triangs = [[[pts[x] for x in i] for i in _triangulumancer_simplices(t)] for t in triangs]
 
     # sort the triangs
     srt_triangs = [

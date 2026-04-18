@@ -2182,6 +2182,7 @@ class Polytope:
         check_input_simplices: bool = True,
         heights: "ArrayLike" = None,
         check_heights: bool = True,
+        defer_height_check: bool = False,
         backend: str = "cgal",
         verbosity: int = 1,
     ) -> Triangulation:
@@ -2222,6 +2223,10 @@ class Polytope:
             backend.
         - `check_heights`: Whether to check if the input/default heights define
             a valid/unique triangulation.
+        - `defer_height_check`: Whether to defer the uniqueness check for
+            backend-generated default heights until `heights()` or
+            `check_heights()` is explicitly requested. Defaults to False to
+            preserve the historical eager-validation behavior.
         - `backend`: The backend used to compute the triangulation. Options are
             "qhull", "cgal", and "topcom". CGAL is the default as it is very
             fast and robust.
@@ -2316,6 +2321,7 @@ class Polytope:
             check_input_simplices=check_input_simplices,
             heights=triang_heights,
             check_heights=check_heights,
+            defer_height_check=defer_height_check,
             backend=backend,
             verbosity=verbosity,
         )
