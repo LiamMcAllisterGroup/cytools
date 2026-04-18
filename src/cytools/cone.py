@@ -18,6 +18,7 @@
 # Description:  This module contains tools designed to perform cone
 #               computations.
 # -----------------------------------------------------------------------------
+from __future__ import annotations
 
 # 'standard' imports
 from ast import literal_eval
@@ -919,7 +920,7 @@ class Cone:
 
     def face_lattice(
         self, codim: int = None, include_self: bool = False, verbosity: int = 0
-    ):
+    ) -> tuple[tuple[Cone]] | tuple[Cone]:
         """
         **Description:**
         Computes the positive-dimensional face lattice of a pointed cone.
