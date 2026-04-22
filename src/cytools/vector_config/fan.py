@@ -303,11 +303,10 @@ class Fan(regfans.fan.Fan):
                          array.
         - `eps`:         Compatibility-only tolerance for filtering near-zero
                          output entries. This does not affect the cached
-                         geometric tensor and should normally be left at the
-                         default.
+                         tensor and should normally be left at the default.
         - `digits`:      Compatibility-only rounding for the returned values.
-                         This does not affect the cached geometric tensor and
-                         should normally be left at the default.
+                         This does not affect the cached tensor and should 
+                         normally be left at the default.
         - `verbosity`:   The verbosity level. Higher is more verbose.
 
         **Returns:**
