@@ -191,6 +191,25 @@ def test_is_reflexive():
     assert p.is_reflexive()
 
 
+def test_is_reflexive_allow_translations_for_translated_polygon():
+    p = Polytope([[11, 10], [10, 11], [9, 9]])
+    assert p.is_reflexive()
+    assert not p.is_reflexive(allow_translations=False)
+
+
+def test_is_reflexive_allow_translations_for_embedded_polygon():
+    p = Polytope([[0, 0, 11, 10], [0, 0, 10, 11], [0, 0, 9, 9]])
+    assert p.is_reflexive()
+    assert not p.is_reflexive(allow_translations=False)
+
+
+def test_is_reflexive_cache_keeps_translation_modes_separate():
+    p = Polytope([[11, 10], [10, 11], [9, 9]])
+    assert not p.is_reflexive(allow_translations=False)
+    assert p.is_reflexive()
+    assert not p.is_reflexive(allow_translations=False)
+
+
 def test_is_solid():
     p = Polytope([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [-1, -1, -1, 0]])
     assert not p.is_solid()
