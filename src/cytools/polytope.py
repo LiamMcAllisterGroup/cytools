@@ -3540,46 +3540,70 @@ class Polytope:
         # [A 2-dimensional lattice polytope in ZZ^4]
         ```
         """
-        if not self.is_reflexive() or self.dim() != 4:
+        if not poly.is_reflexive("N") or poly.dim() != 4:
             raise NotImplementedError("Only 4D reflexive polytopes are supported.")
-        pts = self.points()
-        dual_vert = self.dual().vertices()
-        # Construct the sets S_i by finding the maximum dot product with dual
-        # vertices
-        S_i = [[]] * 3
-        for p in pts:
-            m = max(p.dot(v) for v in dual_vert)
-            if m in (1, 2, 3):
-                S_i[m - 1].append(tuple(p))
-        # Check each of the three conditions
-        gen_pts = []
-        for i in range(len(S_i[0])):
-            if tuple(-np.array(S_i[0][i])) in S_i[0]:
-                for j in range(i + 1, len(S_i[0])):
-                    if (
-                        tuple(-np.array(S_i[0][j])) in S_i[0]
-                        and tuple(-np.array(S_i[0][i])) != S_i[0][j]
-                    ):
-                        gen_pts.append((S_i[0][i], S_i[0][j]))
-        for i in range(len(S_i[1])):
-            for j in range(i + 1, len(S_i[1])):
-                p = tuple(-np.array(S_i[1][i]) - np.array(S_i[1][j]))
-                if p in S_i[0] or p in S_i[1]:
-                    gen_pts.append((S_i[1][i], S_i[1][j]))
-        for i in range(len(S_i[2])):
-            for j in range(i + 1, len(S_i[2])):
-                p = -np.array(S_i[2][i]) - np.array(S_i[2][j])
-                if all(c % 2 == 0 for c in p) and tuple(p // 2) in S_i[0]:
-                    gen_pts.append((S_i[2][i], S_i[2][j]))
-        polys_2d = set()
-        for p1, p2 in gen_pts:
-            pts_2d = set()
-            for p in pts:
-                if np.linalg.matrix_rank((p1, p2, p)) == 2:
-                    pts_2d.add(tuple(p))
-            if np.linalg.matrix_rank(list(pts_2d)) == 2:
-                polys_2d.add(tuple(sorted(pts_2d)))
-        return [Polytope(pp) for pp in polys_2d]
+
+        points = np.asarray(poly.points().tolist(), dtype=int)
+        dual_vertices = np.asarray(poly.dual().vertices().tolist(), dtype=int)
+    
+        maxima = np.max(points @ dual_vertices.T, axis=1)
+        buckets = {
+            i: [tuple(int(x) for x in pt) for pt in points[maxima == i]]
+            for i in (1, 2, 3)
+        }
+        bucket_sets = {i: set(bucket) for i, bucket in buckets.items()}
+    
+        candidate_planes = {}
+    
+        s1 = buckets[1]
+        s1_set = bucket_sets[1]
+        for i, p1 in enumerate(s1):
+            if tuple(-x for x in p1) not in s1_set:
+                continue
+            for p2 in s1[i + 1 :]:
+                neg_p2 = tuple(-x for x in p2)
+                if neg_p2 not in s1_set or neg_p2 == p1:
+                    continue
+                key = _plane_key_from_pair(p1, p2)
+                candidate_planes.setdefault(key, (p1, p2))
+    
+        s2 = buckets[2]
+        s12_set = bucket_sets[1] | bucket_sets[2]
+        for i, p1 in enumerate(s2):
+            p1_arr = np.asarray(p1, dtype=int)
+            for p2 in s2[i + 1 :]:
+                candidate = tuple((-p1_arr - np.asarray(p2, dtype=int)).tolist())
+                if candidate not in s12_set:
+                    continue
+                key = _plane_key_from_pair(p1, p2)
+                candidate_planes.setdefault(key, (p1, p2))
+    
+        s3 = buckets[3]
+        for i, p1 in enumerate(s3):
+            p1_arr = np.asarray(p1, dtype=int)
+            for p2 in s3[i + 1 :]:
+                summed = -p1_arr - np.asarray(p2, dtype=int)
+                if np.any(summed % 2):
+                    continue
+                if tuple((summed // 2).tolist()) not in s1_set:
+                    continue
+                key = _plane_key_from_pair(p1, p2)
+                candidate_planes.setdefault(key, (p1, p2))
+    
+        polys_2d = []
+        seen = set()
+        for p1, p2 in candidate_planes.values():
+            normals = np.asarray(orthogonal_lattice([p1, p2]), dtype=int)
+            support = points[np.all(points @ normals.T == 0, axis=1)]
+            if np.linalg.matrix_rank(support) != 2:
+                continue
+            poly_key = tuple(sorted(tuple(int(x) for x in pt) for pt in support.tolist()))
+            if poly_key in seen:
+                continue
+            seen.add(poly_key)
+            polys_2d.append(Polytope(list(poly_key)))
+    
+        return polys_2d
 
     def nef_partitions(
         self,
