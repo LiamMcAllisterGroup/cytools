@@ -49,11 +49,14 @@ class Fan(regfans.fan.Fan):
     be constructed from `VectorConfiguration.subdivide`.
 
     *Arguments:**
+
     - `vc`:      The ambient vector configuration that this fan is over.
+
     - `cones`:   The cones defining the fan. Each cone is a collection of
-                 integer labels.
+      integer labels.
+
     - `heights`: The heights defining the fan, if it is regular. Can be
-                 computed later.
+      computed later.
 
     **Returns:**
     Nothing.
@@ -87,9 +90,9 @@ class Fan(regfans.fan.Fan):
         """
         **Description:**
         Returns the cones in the fan, each cone specified either by
-            - (default) a tuple of labels
-            - (formal=True) as a formal Cone object.
-            - (as_inds=True) as a tuple of indices
+        - (default) a tuple of labels
+        - (formal=True) as a formal Cone object.
+        - (as_inds=True) as a tuple of indices
 
         **Arguments:**
         - `formal`:     Whether to return the cones as formal Cone objects.
@@ -122,11 +125,14 @@ class Fan(regfans.fan.Fan):
         Restrict input simplices to the to_dim-faces of the underlying polytope.
 
         **Arguments:**
+
         - `to_dim`:       The dimension of the faces to restrict to.
+
         - `padded`:       Whether to pad simplices that have <=to_dim points in
-                          the restriction
+          the restriction
+
         - `as_face_inds`: Whether to return the simplices as face-inds, not
-                          labels.
+          labels.
 
         **Returns:**
         The restricted simplices
@@ -234,7 +240,8 @@ class Fan(regfans.fan.Fan):
         """
         **Description:**
         Compute the hyperplanes of the secondary cone associated to this fan.
-        This cone has the interpretation:
+        This cone has the interpretation::
+
             for a regular fan, a height h generates the fan iff it is in the
             relative interior of the secondary cone.
 
@@ -249,14 +256,16 @@ class Fan(regfans.fan.Fan):
         CIRCUITS, ONE CAN GET A FULL-DIMENSIONAL CONE!!!
 
         **Arguments:**
+
         - `via_circuits`:      Whether to use circuits to compute the secondary
-                               cone. Should always be correct if the fan is
-                               regular but dangerous/not correct for checking
-                               irregularity... Alternative is local folding.
+          cone. Should always be correct if the fan is regular but
+          dangerous/not correct for checking
+          irregularity... Alternative is local folding.
+
         - `project_lineality`: Secondary cones have linear subspaces ('lineality
-                               spaces'). These can be projected out without
-                               loss of information, giving a cone in the
-                               chamber complex.
+          spaces'). These can be projected out without loss of
+          information, giving a cone in the chamber complex.
+
         - `verbosity`:         The verbosity level. Higher is more verbose.
 
         **Returns:**
@@ -290,15 +299,20 @@ class Fan(regfans.fan.Fan):
         """
         **Description:**
         Compute the intersection numbers of the toric variety defined by the
-        cones
+        cones::
+
             cones = [Cone(p.points(which=simp)) for simp in simps]
 
         **Arguments:**
+
         - `pushed_down`: Whether to push down the intersection numbers.
+
         - `in_basis`:    Whether to put the intersection numbers in basis.
+
         - `symmetrize`:  Whether to give all intersection numbers, using the
-                         symmetry of the intersection numbers. Otherwise, just
-                         give components kappa[i,j,k] for i<=j<=k.
+          symmetry of the intersection numbers. Otherwise, just
+          give components kappa[i,j,k] for i<=j<=k.
+
         - `as_np_array`: Whether to format the intersection numbers as a NumPy
                          array.
         - `eps`:         Compatibility-only tolerance for filtering near-zero
@@ -642,10 +656,12 @@ class Fan(regfans.fan.Fan):
         Compute the second chern class associated to the fan.
 
         **Arguments:**
+
         - `eps`:    The tolerance for rejecting 0 intersection numbers in the
-                    `Fan.intersection_numbers` method.
+          `Fan.intersection_numbers` method.
+
         - `digits`: The number of digits to use in the intersection number
-                    computations.
+          computations.
 
         **Returns:**
         The second chern class.
@@ -846,19 +862,20 @@ class Fan(regfans.fan.Fan):
         divisors inherited by the CY hypersurface.
 
         **Arguments:**
-        - `divisor`: A list of indices with length equal to the Picard group of
-                     the CY hypersurface (assuming favorability), or the number
-                     of points not interior to facets of the polytope. This can
-                     be interpreted as a torus-invariant divisor, the set of
-                     which overparameterize the Class group. Alternatively,
-                     this is the obvious multidegree of a monomial in the Cox
-                     ring, mapped to the Class group multidegree by multiplying
-                     by the GLSM charge matrix.
-        - `dilate`:  Whether to dilate the Newton polytope into a normally
-                     equivalent integer polytope or not. If False, then just
-                     compute the integer hull (convex hull of contained lattice
-                     points) instead.
 
+        - `divisor`: A list of indices with length equal to the Picard group of
+          the CY hypersurface (assuming favorability), or the number
+          of points not interior to facets of the polytope. This can
+          be interpreted as a torus-invariant divisor, the set of
+          which overparameterize the Class group. Alternatively,
+          this is the obvious multidegree of a monomial in the Cox
+          ring, mapped to the Class group multidegree by multiplying
+          by the GLSM charge matrix.
+
+        - `dilate`:  Whether to dilate the Newton polytope into a normally
+          equivalent integer polytope or not. If False, then just
+          compute the integer hull (convex hull of contained lattice
+          points) instead.
 
         **Returns:**
         The Newton polytope for the passed divisor
@@ -1114,8 +1131,9 @@ def vc(self, include_points_interior_to_facets=None):
     Construct the VectorConfiguration associated to the triangulation.
 
     **Arguments:**
+
     - `include_points_interior_to_facets`: Whether to include points interior
-        to facets
+      to facets
 
     **Returns:**
     The associated VectorConfiguration.
@@ -1136,8 +1154,9 @@ def fan(self, include_points_interior_to_facets=None):
     Construct the Fan associated to the triangulation.
 
     **Arguments:**
+
     - `include_points_interior_to_facets`: Whether to include points interior
-        to facets
+      to facets
 
     **Returns:**
     The associated Fan.
