@@ -3540,11 +3540,11 @@ class Polytope:
         # [A 2-dimensional lattice polytope in ZZ^4]
         ```
         """
-        if not poly.is_reflexive("N") or poly.dim() != 4:
+        if not self.is_reflexive("N") or self.dim() != 4:
             raise NotImplementedError("Only 4D reflexive polytopes are supported.")
 
-        points = np.asarray(poly.points().tolist(), dtype=int)
-        dual_vertices = np.asarray(poly.dual().vertices().tolist(), dtype=int)
+        points = np.asarray(self.points().tolist(), dtype=int)
+        dual_vertices = np.asarray(self.dual().vertices().tolist(), dtype=int)
     
         maxima = np.max(points @ dual_vertices.T, axis=1)
         buckets = {
