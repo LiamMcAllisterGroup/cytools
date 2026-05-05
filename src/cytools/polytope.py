@@ -47,7 +47,7 @@ from cytools.triangulation import (
     random_triangulations_fast_generator,
     random_triangulations_fair_generator,
 )
-from cytools.utils import gcd_list, lll_reduce, instanced_lru_cache
+from cytools.utils import gcd_list, lll_reduce, instanced_lru_cache, integral_nullspace
 
 
 class Polytope:
@@ -1608,14 +1608,19 @@ class Polytope:
                     c == 1 for c in self._ineqs_input[:, -1]
                 )
             else:
-                p = Polytope(
-                    lll_reduce(self.points())[:, -self.dim() :],
-                    backend=self._backend,
-                    deterministic_glsm_basis=self._deterministic_glsm_basis,
-                )
-                self._is_reflexive[allow_translations] = p.is_reflexive(
-                    allow_translations=False
-                )
+                codim = len(integral_nullspace(self.points()))
+                dim = self.ambient_dim()-codim
+                if dim!=self.dim():
+                    self._is_reflexive[allow_translations] = False
+                else:
+                    p = Polytope(
+                        lll_reduce(self.points())[:, -self.dim() :],
+                        backend=self._backend,
+                        deterministic_glsm_basis=self._deterministic_glsm_basis,
+                    )
+                    self._is_reflexive[allow_translations] = p.is_reflexive(
+                        allow_translations=False
+                    )
 
         # return
         return self._is_reflexive[allow_translations]
