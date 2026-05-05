@@ -77,7 +77,7 @@ class VectorConfiguration(regfans.VectorConfiguration):
 
         # some Polytope info
         p = Polytope(self.vectors(), labels=self.labels)
-        self._is_reflexive = p.is_reflexive()
+        self._is_reflexive = p.is_reflexive(allow_translations=False)
         self._poly = {self.labels: p}
 
         # some toric info
