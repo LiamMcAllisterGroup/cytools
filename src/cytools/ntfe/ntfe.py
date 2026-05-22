@@ -33,6 +33,7 @@ import time
 # 3rd party imports
 import flint
 import numpy as np
+from scipy.optimize import linprog
 from tqdm import tqdm
 
 # CYTools imports
@@ -46,6 +47,45 @@ from . import face_triangulations
 # typing
 from numpy.typing import ArrayLike
 from typing import Generator, Union
+
+
+# fast HiGHS feasibility helper for NTFE cones
+# --------------------------------------------
+def _find_interior_point_highs(
+    hyperplanes,
+    ambient_dim: int,
+    c: float = 1,
+):
+    """
+    Find a point in the strict interior of the cone $H x \\geq c$ using
+    SciPy's HiGHS solver. Faster than CYTools `Cone` methods for this case.
+
+    **Arguments:**
+    - `hyperplanes`: The defining hyperplanes $H$.
+    - `ambient_dim`: The ambient dimension (number of columns of $H$).
+    - `c`: The 'stretching'. Default 1.
+    """
+    # convert hyperplanes to a dense numpy array
+    if hasattr(hyperplanes, "tolist") and not isinstance(
+            hyperplanes, (list, np.ndarray)):
+        H = np.asarray(hyperplanes.tolist(), dtype=np.float64)
+    else:
+        H = np.asarray(hyperplanes, dtype=np.float64)
+
+    # trivial cone (no constraints) -- interior is all of R^n
+    if H.size == 0 or H.shape[0] == 0:
+        return np.ones(ambient_dim)
+
+    res = linprog(
+        np.zeros(ambient_dim),
+        A_ub=-H,
+        b_ub=-c * np.ones(H.shape[0]),
+        bounds=[(None, None)] * ambient_dim,
+        method="highs",
+    )
+    if res.status == 0:
+        return np.asarray(res.x, dtype=np.float64)
+    return None
 
 
 # (low-level) 2-face inequality functions
@@ -588,10 +628,10 @@ def triangfaces_to_frt(
     """
     npts = len(self.labels)
 
-    c = cone_of_permissible_heights(
-        triangs, poly=self, npts=npts
+    ineqs = cone_of_permissible_heights(
+        triangs, poly=self, npts=npts, as_cone=False,
     )
-    h = c.find_interior_point(backend=backend, verbose=verbosity > 1)
+    h = _find_interior_point_highs(ineqs, npts)
 
     if h is None:
         return None
@@ -1052,13 +1092,18 @@ def ntfe_frts(
     triang_method: str = "grow2d",
     as_generator: bool = False,
     backend: str = None,
+    heights_only: bool = False,
     verbosity: int = 0,
 ):
     """
     **Description:**
     See https://arxiv.org/abs/2309.10855
 
-    Generate (some of) the NTFE FR(S)Ts for this polytope
+    Generate (some of) the NTFE FR(S)Ts for this polytope.
+
+    If `heights_only=True`, skip building Triangulation objects and just
+    return the height vectors realising each NTFE. Much faster when you
+    only need to count or post-process the heights.
 
     **Arguments:**
     - `cones`: The expanded secondary cones corresponding to the NTFEs. If no
@@ -1131,14 +1176,15 @@ def ntfe_frts(
         data = data[:N]
 
     # if returning a generator, just do so here
+    npts_amb = len(self.labels)
     if as_generator:
         def gen():
             for datum in data:
-                c = Cone(hyperplanes=datum, parse_inputs=(len(datum)==0))
-                h = c.find_interior_point(
-                    backend=backend, verbose=verbosity > 1
-                )
+                h = _find_interior_point_highs(datum, npts_amb)
                 if h is None:
+                    continue
+                if heights_only:
+                    yield h
                     continue
 
                 frst = self.triangulate(heights=h, make_star=make_star)
@@ -1162,10 +1208,11 @@ def ntfe_frts(
     frsts = []
 
     def func(datum):
-        c = Cone(hyperplanes=datum, parse_inputs=(len(datum)==0))
-        h = c.find_interior_point(backend=backend, verbose=verbosity > 1)
+        h = _find_interior_point_highs(datum, npts_amb)
         if h is None:
             return None
+        if heights_only:
+            return h
 
         return self.triangulate(heights=h, make_star=make_star)
 
@@ -1198,13 +1245,17 @@ def ntfe_frsts(
     triang_method: str = "grow2d",
     as_generator: bool = False,
     backend: str = None,
+    heights_only: bool = False,
     verbosity: int = 0,
 ):
     """
     **Description:**
     See https://arxiv.org/abs/2309.10855
 
-    Generate (some of) the NTFE FRSTs for this polytope
+    Generate (some of) the NTFE FRSTs for this polytope.
+
+    If `heights_only=True`, skip building Triangulation objects and just
+    return the height vectors realising each NTFE.
 
     **Arguments:**
     - `hypers`: The expanded secondary cones corresponding to the NTFEs. If no
@@ -1256,6 +1307,7 @@ def ntfe_frsts(
         triang_method=triang_method,
         as_generator=as_generator,
         backend=backend,
+        heights_only=heights_only,
         verbosity=verbosity,
     )
 
