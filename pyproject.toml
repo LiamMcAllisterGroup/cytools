@@ -28,7 +28,8 @@ dependencies = [
     "qpsolvers",
     "requests",
     "osqp",
-    "latticepts"
+    "latticepts",
+    "platformdirs"
 ]
 classifiers = [
   "Development Status :: 5 - Production/Stable",
