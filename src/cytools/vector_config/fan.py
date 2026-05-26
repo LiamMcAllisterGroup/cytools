@@ -317,6 +317,10 @@ class Fan(regfans.fan.Fan):
             self._kappa_known_labels = set()
         if not hasattr(self, "_kappa_default"):
             self._kappa_default = None
+        if not hasattr(self, "_kappa_view_cache"):
+            # formatted views keyed by (pushed_down, in_basis, symmetrize, as_np_array)
+            # invalidated alongside _kappa when labels change
+            self._kappa_view_cache = {}
 
         if not self.is_triangulation():
             raise ValueError("Fan is not a triangulation!")
@@ -375,6 +379,17 @@ class Fan(regfans.fan.Fan):
         # -------------
         # push down the intersection numbers and represent them in said basis
         if pushed_down or in_basis:
+            # view cache — these flag combos are pure functions of _kappa
+            can_use_view_cache = self._kappa_known_labels == set(self.labels)
+            if can_use_view_cache:
+                view_key = (bool(pushed_down), bool(in_basis),
+                            bool(symmetrize), bool(as_np_array))
+                cached = self._kappa_view_cache.get(view_key)
+                if cached is not None:
+                    return (cached.copy()
+                            if isinstance(cached, np.ndarray)
+                            else dict(cached))
+
             # get the ambient intersection numbers
             kappa = self.intersection_numbers(symmetrize=False,
                                               digits=None)
@@ -409,11 +424,14 @@ class Fan(regfans.fan.Fan):
                 basis = list(basis)
                 arr_size = len(basis)
 
-                non_basis = [0]+[i for i in self.used_labels if i not in basis]
+                # set/dict lookups in place of list scans — hot path for in_basis=True
+                basis_set = set(basis)
+                basis_idx = {x: i for i, x in enumerate(basis)}
+                non_basis_set = {0, *(i for i in self.used_labels if i not in basis_set)}
                 kappa = {
-                    tuple([basis.index(i) for i in k]): kappa[k]
+                    tuple(basis_idx[i] for i in k): kappa[k]
                     for k in kappa
-                    if len(set(k).intersection(non_basis)) == 0
+                    if not any(i in non_basis_set for i in k)
                 }
 
                 if verbosity >= 10:
@@ -441,9 +459,17 @@ class Fan(regfans.fan.Fan):
                     # map labels to indices...
                     for k,v in kappa.items():
                         kappa_np[tuple(ki - 1 for ki in k)] = v
-                return kappa_np
-            
-            return kappa
+                result = kappa_np
+            else:
+                result = kappa
+
+            # store canonical, hand out a copy (callers may mutate)
+            if can_use_view_cache:
+                self._kappa_view_cache[view_key] = result
+                return (result.copy()
+                        if isinstance(result, np.ndarray)
+                        else dict(result))
+            return result
 
         # not given a basis
         # -----------------
@@ -613,8 +639,9 @@ class Fan(regfans.fan.Fan):
         for kappa_n in kappa_nzeros[1:]:
             self._kappa.update(kappa_n)
 
-        # save kappa labels (for caching)
+        # save kappa labels (for caching); drop stale views since _kappa just changed
         self._kappa_known_labels = set(self.labels)
+        self._kappa_view_cache = {}
         self._kappa_default = format_kappa(
             self._kappa,
             eps_value=_INTERSECTION_NUMBERS_DEFAULT_EPS,
