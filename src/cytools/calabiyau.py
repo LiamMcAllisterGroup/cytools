@@ -1754,19 +1754,19 @@ class CalabiYau:
         # 3.4999999988856496
         ```
         """
-        intnums = self.intersection_numbers(in_basis=True, exact_arithmetic=False)
-        xvol = 0
-        basis = self.divisor_basis()
-        if len(basis.shape) == 2:  # If basis is matrix
-            tmp = np.array(intnums)
-            for i in range(self.dim()):
-                tmp = np.tensordot(tmp, tloc, axes=[[self.dim() - 1 - i], [0]])
-            xvol = tmp / factorial(self.dim())
-        else:
-            for ii in intnums:
-                mult = np.prod([factorial(c) for c in Counter(ii).values()])
-                xvol += intnums[ii] * np.prod([tloc[int(j)] for j in ii]) / mult
-        return xvol
+        if self.dim() != 3:
+            raise NotImplementedError(
+                "This function only supports Calabi-Yau 3-folds."
+            )
+        if not hasattr(self, "_fan"):
+            self._fan = self.triangulation().fan()
+        intnums = self._fan.intersection_numbers(
+            pushed_down=True, in_basis=True, as_np_array=True, copy=False,
+        )
+        # the 3D x 1D first contraction goes via tensordot because `@`
+        # dispatches it as a stack of 2D gemvs and is ~2x slower here
+        K = np.tensordot(intnums, tloc, axes=([-1], [0]))
+        return (K @ tloc) @ tloc / 6
 
     def compute_divisor_volumes(self, tloc, in_basis=False):
         """
@@ -1800,44 +1800,24 @@ class CalabiYau:
         #         0.5       ])
         ```
         """
-        if not in_basis:
-            tloc_new = np.array(tloc).dot(
-                self.divisor_basis(as_matrix=True, include_origin=False)
+        if self.dim() != 3:
+            raise NotImplementedError(
+                "This function only supports Calabi-Yau 3-folds."
             )
-            intnums = self.intersection_numbers(in_basis=False, exact_arithmetic=False)
-            tau = np.zeros(len(self.prime_toric_divisors()), dtype=float)
-            for ii in intnums:
-                if 0 in ii:
-                    continue
-                c = Counter(ii)
-                for j in c.keys():
-                    tau[j - 1] += intnums[ii] * np.prod(
-                        [
-                            tloc_new[k - 1] ** (c[k] - (j == k))
-                            / factorial(c[k] - (j == k))
-                            for k in c.keys()
-                        ]
-                    )
-            return np.array(tau)
-        intnums = self.intersection_numbers(in_basis=True, exact_arithmetic=False)
-        basis = self.divisor_basis()
-        if len(basis.shape) == 2:  # If basis is matrix
-            tmp = np.array(intnums)
-            for i in range(1, self.dim()):
-                tmp = np.tensordot(tmp, tloc, axes=[[self.dim() - 1 - i], [0]])
-            tau = tmp / factorial(self.dim() - 1)
-        else:
-            tau = np.zeros(len(basis), dtype=float)
-            for ii in intnums:
-                c = Counter(ii)
-                for j in c.keys():
-                    tau[j] += intnums[ii] * np.prod(
-                        [
-                            tloc[k] ** (c[k] - (j == k)) / factorial(c[k] - (j == k))
-                            for k in c.keys()
-                        ]
-                    )
-        return np.array(tau)
+        if not hasattr(self, "_fan"):
+            self._fan = self.triangulation().fan()
+        intnums = self._fan.intersection_numbers(
+            pushed_down=True, in_basis=True, as_np_array=True, copy=False,
+        )
+        # the 3D x 1D first contraction goes via tensordot because `@`
+        # dispatches it as a stack of 2D gemvs and is ~2x slower here
+        K = np.tensordot(intnums, tloc, axes=([-1], [0]))
+        tau_basis = (K @ tloc) / 2
+        if in_basis:
+            return np.asarray(tau_basis)
+        # convert basis-form volumes to out-of-basis form via the glsm matrix
+        glsm = self.polytope().glsm_charge_matrix(include_origin=False)
+        return np.asarray(glsm.T @ tau_basis)
 
     def compute_curve_volumes(self, tloc, only_extremal=False):
         """
@@ -1910,31 +1890,15 @@ class CalabiYau:
         ```
         """
         if self.dim() != 3:
-            raise NotImplementedError("This function only supports Calabi-Yau 3-folds.")
-        intnums = self.intersection_numbers(in_basis=True, exact_arithmetic=False)
-        basis = self.divisor_basis()
-        if len(basis.shape) == 2:  # If basis is matrix
-            AA = np.tensordot(intnums, tloc, axes=[[2], [0]])
-            return AA
-        AA = np.zeros((len(basis),) * 2, dtype=float)
-        for ii in intnums:
-            ii_list = Counter(ii).most_common(3)
-            if len(ii_list) == 1:
-                AA[ii_list[0][0], ii_list[0][0]] += intnums[ii] * tloc[ii_list[0][0]]
-            elif len(ii_list) == 2:
-                AA[ii_list[0][0], ii_list[0][0]] += intnums[ii] * tloc[ii_list[1][0]]
-                AA[ii_list[0][0], ii_list[1][0]] += intnums[ii] * tloc[ii_list[0][0]]
-                AA[ii_list[1][0], ii_list[0][0]] += intnums[ii] * tloc[ii_list[0][0]]
-            elif len(ii_list) == 3:
-                AA[ii_list[0][0], ii_list[1][0]] += intnums[ii] * tloc[ii_list[2][0]]
-                AA[ii_list[1][0], ii_list[0][0]] += intnums[ii] * tloc[ii_list[2][0]]
-                AA[ii_list[0][0], ii_list[2][0]] += intnums[ii] * tloc[ii_list[1][0]]
-                AA[ii_list[2][0], ii_list[0][0]] += intnums[ii] * tloc[ii_list[1][0]]
-                AA[ii_list[1][0], ii_list[2][0]] += intnums[ii] * tloc[ii_list[0][0]]
-                AA[ii_list[2][0], ii_list[1][0]] += intnums[ii] * tloc[ii_list[0][0]]
-            else:
-                raise Exception("Error: Inconsistent intersection numbers.")
-        return AA
+            raise NotImplementedError(
+                "This function only supports Calabi-Yau 3-folds."
+            )
+        if not hasattr(self, "_fan"):
+            self._fan = self.triangulation().fan()
+        intnums = self._fan.intersection_numbers(
+            pushed_down=True, in_basis=True, as_np_array=True, copy=False,
+        )
+        return np.tensordot(intnums, tloc, axes=[[-1], [0]])
 
     # aliases
     compute_AA = compute_kappa_matrix
