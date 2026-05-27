@@ -385,7 +385,7 @@ class Fan(regfans.fan.Fan):
         # -------------
         # push down the intersection numbers and represent them in said basis
         if pushed_down or in_basis:
-            # view cache — these flag combos are pure functions of _kappa
+            # view cache: these flag combos are pure functions of _kappa
             can_use_view_cache = self._kappa_known_labels == set(self.labels)
             if can_use_view_cache:
                 view_key = (bool(pushed_down), bool(in_basis),
@@ -432,7 +432,7 @@ class Fan(regfans.fan.Fan):
                 basis = list(basis)
                 arr_size = len(basis)
 
-                # set/dict lookups in place of list scans — hot path for in_basis=True
+                # set/dict lookups in place of list scans (faster for in_basis=True)
                 basis_set = set(basis)
                 basis_idx = {x: i for i, x in enumerate(basis)}
                 non_basis_set = {0, *(i for i in self.used_labels if i not in basis_set)}
