@@ -285,6 +285,7 @@ class Fan(regfans.fan.Fan):
         as_np_array: bool = False,
         eps: float = _INTERSECTION_NUMBERS_DEFAULT_EPS,
         digits: int = _INTERSECTION_NUMBERS_DEFAULT_DIGITS,
+        copy: bool = True,
         verbosity: int = 0,
     ) -> Union[dict, "ArrayLike"]:
         """
@@ -305,8 +306,13 @@ class Fan(regfans.fan.Fan):
                          output entries. This does not affect the cached
                          tensor and should normally be left at the default.
         - `digits`:      Compatibility-only rounding for the returned values.
-                         This does not affect the cached tensor and should 
+                         This does not affect the cached tensor and should
                          normally be left at the default.
+        - `copy`:        Whether to return a copy of the cached view
+                         (dict or ndarray). True is the safe default; set to
+                         False when the caller guarantees the result is
+                         treated as read-only, which avoids re-allocating the
+                         dict/ndarray on each call.
         - `verbosity`:   The verbosity level. Higher is more verbose.
 
         **Returns:**
@@ -386,6 +392,8 @@ class Fan(regfans.fan.Fan):
                             bool(symmetrize), bool(as_np_array))
                 cached = self._kappa_view_cache.get(view_key)
                 if cached is not None:
+                    if not copy:
+                        return cached
                     return (cached.copy()
                             if isinstance(cached, np.ndarray)
                             else dict(cached))
@@ -463,13 +471,14 @@ class Fan(regfans.fan.Fan):
             else:
                 result = kappa
 
-            # store canonical, hand out a copy (callers may mutate)
+            # cache the freshly-built result; hand back canonical or a copy
             if can_use_view_cache:
                 self._kappa_view_cache[view_key] = result
-                return (result.copy()
-                        if isinstance(result, np.ndarray)
-                        else dict(result))
-            return result
+            if not copy:
+                return result
+            return (result.copy()
+                    if isinstance(result, np.ndarray)
+                    else dict(result))
 
         # not given a basis
         # -----------------
