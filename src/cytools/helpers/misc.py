@@ -133,5 +133,16 @@ def save_zipped_pickle(
         fname += ".p"
     file = os.path.join(path, fname)
 
-    with gzip.open(file, "wb") as f:
-        pickle.dump(obj, f, protocol)
+    # Write to a per-process temp file, then atomically rename into place. This
+    # keeps concurrent writers (e.g. a 128-way array sweep all sharing one cache)
+    # and processes killed mid-write from ever leaving a truncated/zero-padded
+    # file: readers always see either the old or the new complete file.
+    tmp = f"{file}.tmp.{os.getpid()}"
+    try:
+        with gzip.open(tmp, "wb") as f:
+            pickle.dump(obj, f, protocol)
+        os.replace(tmp, file)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        raise
