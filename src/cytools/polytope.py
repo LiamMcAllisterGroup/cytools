@@ -145,6 +145,15 @@ class Polytope:
         """
         # input checking
         # --------------
+        # reject a string: it would be iterated as single-character "points"
+        # and fail with a confusing uniqueness error
+        if isinstance(points, str):
+            raise ValueError(
+                "`points` must be a list of lattice points, not a string "
+                f"(got {points!r}). Pass coordinates, e.g. "
+                "[[1,0,0,0],[0,1,0,0],...]."
+            )
+
         # check that points are unique
         N_input_pts = len(points)
         N_unique_pts = len({tuple(pt) for pt in points})
