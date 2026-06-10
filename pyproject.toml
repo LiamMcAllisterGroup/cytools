@@ -59,6 +59,9 @@ test = [
 mosek = [
   "Mosek"
 ]
+gnn = [
+  "dualgnn"
+]
 
 [project.urls]
 Homepage = "https://cy.tools"

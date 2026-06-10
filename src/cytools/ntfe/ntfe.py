@@ -721,7 +721,7 @@ def triangface_ineqs(
     - `triang_method`: For each face with |points|>max_npts, sample FRTs using
         the specified method (if face_triangs=None). Allowed options are
         listed in Polytope.face_triangs. Currently, they are "fast", "fair",
-        and "grow2d".
+        "grow2d", and "dualgnn".
     - `return_triangs`: Whether to return the 2-face triangulation objects in
         addition to the inequalities. Only relevant if face_triangs=None.
     - `verbosity: Verbosity level. Higher means more verbose.
@@ -815,7 +815,7 @@ def ntfe_hypers(
     - `triang_method`: For each face with |points|>max_npts, sample FRTs using
         the specified method (if face_triangs=None). Allowed options are
         listed in Polytope.face_triangs. Currently, they are "fast", "fair",
-        and "grow2d".
+        "grow2d", and "dualgnn".
     - `as_generator`: Whether to return a generator which iterates over (the
         hyperplanes of) expanded secondary cones. If False, then a list of all
         such cones is returned. Use generators if memory is a concern.
@@ -982,7 +982,7 @@ def ntfe_cones(
     - `triang_method`: For each face with |points|>max_npts, sample FRTs using
         the specified method (if face_triangs=None). Allowed options are
         listed in Polytope.face_triangs. Currently, they are "fast", "fair",
-        and "grow2d".
+        "grow2d", and "dualgnn".
     - `as_generator`: Whether to return a generator which iterates over (the
         hyperplanes of) expanded secondary cones. If False, then a list of all
         such cones is returned. Use generators if memory is a concern.
@@ -1131,7 +1131,7 @@ def ntfe_frts(
     - `triang_method`: For each face with |points|>max_npts, sample FRTs using
         the specified method (if face_triangs=None). Allowed options are
         listed in Polytope.face_triangs. Currently, they are "fast", "fair",
-        and "grow2d".
+        "grow2d", and "dualgnn".
     - `as_generator`: Whether to return a generator which iterates over (the
         hyperplanes of) expanded secondary cones. If False, then a list of all
         such cones is returned. Use generators if memory is a concern.
@@ -1170,7 +1170,9 @@ def ntfe_frts(
 
     # randomly select N cones/hyperplanes
     # (might get fewer than N FRSTs, in case the cones aren't all solid)
-    if N is not None:
+    # (when data is a generator from ntfe_hypers, it already consists of N
+    # randomly sampled cones, so no shuffling/slicing is needed)
+    if (N is not None) and isinstance(data, list):
         random.seed(seed2)
         random.shuffle(data)
         data = data[:N]
@@ -1281,7 +1283,7 @@ def ntfe_frsts(
     - `triang_method`: For each face with |points|>max_npts, sample FRTs using
         the specified method (if face_triangs=None). Allowed options are
         listed in Polytope.face_triangs. Currently, they are "fast", "fair",
-        and "grow2d".
+        "grow2d", and "dualgnn".
     - `as_generator`: Whether to return a generator which iterates over (the
         hyperplanes of) expanded secondary cones. If False, then a list of all
         such cones is returned. Use generators if memory is a concern.

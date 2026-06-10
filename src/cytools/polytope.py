@@ -2685,6 +2685,112 @@ class Polytope:
                 break
         return triangs_list
 
+    def random_triangulations_gnn(
+        self,
+        N: int,
+        make_star: bool = True,
+        max_npts: int = 17,
+        N_face_triangs: int = 1000,
+        as_heights: bool = False,
+        as_generator: bool = False,
+        seed: int = None,
+        verbosity: int = 0,
+    ) -> "list | generator":
+        """
+        **Description:**
+        Constructs random NTFE FR(S)Ts of a reflexive 4D polytope, sampling
+        the 2-face FRTs with the dualGNN graph neural network
+        [arXiv:2605.27770](https://arxiv.org/abs/2605.27770) and extending
+        them via the NTFE algorithm
+        [arXiv:2309.10855](https://arxiv.org/abs/2309.10855).
+
+        This is a thin convenience wrapper around
+        [`ntfe_frts`](./ntfe#ntfe_frts) with `triang_method="dualgnn"`, which
+        should be used directly when more control is needed (e.g., providing
+        precomputed face triangulations or a custom GNN checkpoint).
+
+        This sampler is much closer to uniform over the set of FRSTs than
+        [`random_triangulations_fast`](#random_triangulations_fast), while
+        being far faster than
+        [`random_triangulations_fair`](#random_triangulations_fair) at large
+        $h^{1,1}$.
+
+        :::note
+        This function requires the optional `dualgnn` package (which depends
+        on PyTorch). It can be installed with `pip install cytools[gnn]` or
+        `pip install dualgnn`.
+        :::
+
+        **Arguments:**
+        - `N`: Number of NTFEs to sample. Fewer triangulations may be
+            returned if some expanded secondary cones are not solid. The
+            acceptance rate can be low for polytopes with large 2-faces
+            (e.g., ~1% at the h11=86 benchmark of arXiv:2605.27770), so set
+            `N` well above the desired count.
+        - `make_star`: Whether to convert the NTFE FRTs into FRSTs (i.e., to
+            make them star).
+        - `max_npts`: The maximum number of points of 2-faces for which all
+            FRTs are enumerated. The GNN is only used to sample FRTs of
+            2-faces with more points.
+        - `N_face_triangs`: Number of FRTs the GNN samples per (large)
+            2-face.
+        - `as_heights`: By default this function returns
+            [`Triangulation`](./triangulation) objects. This flag can be set
+            to True so that it instead returns the height vectors realizing
+            each NTFE, which is cheaper when the `Triangulation` objects are
+            not needed.
+        - `as_generator`: Whether to return a generator instead of a list.
+            Use generators if memory is a concern.
+        - `seed`: A seed for the random number generator. This can be used to
+            obtain reproducible results.
+        - `verbosity`: Verbosity level. Higher means more verbose.
+
+        **Returns:**
+        A list of [`Triangulation`](./triangulation) objects (or of height
+        vectors if `as_heights` is set to True), or a generator of them if
+        `as_generator` is set to True.
+
+        **Example:**
+        We construct a polytope and sample some random triangulations.
+        (`max_npts=0` makes the GNN sample every 2-face; by default, 2-faces
+        with up to 17 points have their FRTs enumerated instead.)
+        ```python {2}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[0,0,0,-1],[-1,-1,-6,-9]])
+        frsts = p.random_triangulations_gnn(N=4, max_npts=0, seed=0)
+        # [A fine, regular, star triangulation of a 4-dimensional point configuration with 7 points in ZZ^4]
+        ```
+        For large polytopes, build the GNN-sampled 2-face FRT pools once via
+        [`face_triangs`](./ntfe#face_triangs) and reuse them across NTFE
+        draws. Since only ~1% of the sampled expanded secondary cones may be
+        solid, request many more than the desired count.
+        ```python {4,5}
+        verts = [[-1,-1,-1,-1],[-1,-1,-1,3],[-1,-1,3,-1],[-1,3,-1,-1],
+                 [ 1,-1,-1,-1],[ 1,-1,-1,3],[ 1,-1,3,-1],[ 1,3,-1,-1]]
+        p = Polytope(verts) # h11=86
+        pools = p.face_triangs(dim=2, triang_method="dualgnn", max_npts=0, N_face_triangs=50, seed=0) # the expensive step (~10s)
+        frsts = p.ntfe_frts(N=300, face_triangs=pools, make_star=True, seed=0) # cheap (~2s)
+        # [A fine, regular, star triangulation of a 4-dimensional point configuration with 91 points in ZZ^4,
+        #  A fine, regular, star triangulation of a 4-dimensional point configuration with 91 points in ZZ^4,
+        #  A fine, regular, star triangulation of a 4-dimensional point configuration with 91 points in ZZ^4]
+        ```
+        """
+        if self.dim() != 4 or not self.is_reflexive():
+            raise NotImplementedError(
+                "GNN-based sampling is only implemented for reflexive "
+                "4-dimensional polytopes."
+            )
+        return self.ntfe_frts(
+            N=N,
+            make_star=make_star,
+            seed=seed,
+            max_npts=max_npts,
+            N_face_triangs=N_face_triangs,
+            triang_method="dualgnn",
+            as_generator=as_generator,
+            heights_only=as_heights,
+            verbosity=verbosity,
+        )
+
     def all_triangulations(
         self,
         points: ArrayLike = None,

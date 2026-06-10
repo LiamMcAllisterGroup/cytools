@@ -1,0 +1,21 @@
+# Optional add-on: the dualGNN triangulation sampler
+# (https://arxiv.org/abs/2605.27770), used by
+# Polytope.random_triangulations_gnn and triang_method="dualgnn".
+#
+# Apply on top of an existing CYTools environment:
+#
+#     conda env update -n cytools -f environment-gnn.yml
+#
+# (use `-n cytools-dev` for the dev environment)
+#
+# Installing pytorch via conda keeps pip from pulling in its own (multi-GB)
+# copy of torch; on machines with NVIDIA drivers, conda automatically selects
+# a CUDA-enabled build.
+name: cytools
+channels:
+  - conda-forge
+dependencies:
+  - pytorch>=2.7
+  - pip
+  - pip:
+    - dualgnn

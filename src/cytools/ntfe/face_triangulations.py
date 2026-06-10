@@ -19,7 +19,10 @@
 # -----------------------------------------------------------------------------
 
 # 'standard' imports
+import importlib
 import math
+import subprocess
+import sys
 import time
 
 # 3rd party imports
@@ -32,6 +35,118 @@ from cytools.helpers import basic_geometry
 # typing
 from typing import Iterable, Union
 
+_DUALGNN_HINT = (
+    "The optional dualgnn package is required for GNN-based sampling "
+    "(triang_method='dualgnn'). Install it with `pip install cytools[gnn]`, "
+    "or with `conda env update -f environment-gnn.yml` in conda environments."
+)
+
+
+def _is_interactive() -> bool:
+    """Whether a human is plausibly at the controls (REPL, Jupyter, tty)."""
+    return (
+        hasattr(sys, "ps1")
+        or "ipykernel" in sys.modules
+        or (hasattr(sys.stdin, "isatty") and sys.stdin.isatty())
+    )
+
+
+def _import_dualgnn():
+    """
+    Import dualgnn, returning (sample_frts, DualGNN). If it's missing and the
+    session is interactive, offer to pip-install it (never install without
+    explicit consent).
+    """
+    try:
+        from dualgnn import sample_frts
+        from dualgnn.model import DualGNN
+        return sample_frts, DualGNN
+    except ImportError as e:
+        if not _is_interactive():
+            raise ImportError(_DUALGNN_HINT) from e
+
+    try:
+        import torch  # noqa: F401
+        size_note = ""
+    except ImportError:
+        size_note = (
+            "\n(This will also install PyTorch, a multi-GB download. Conda "
+            "users may prefer `conda env update -f environment-gnn.yml`.)"
+        )
+    try:
+        answer = input(
+            "GNN-based sampling requires the optional dualgnn package."
+            f"{size_note}\nInstall it now via pip? [y/N] "
+        )
+    except EOFError:
+        answer = ""
+    if answer.strip().lower() not in ("y", "yes"):
+        raise ImportError(_DUALGNN_HINT)
+
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "dualgnn"])
+    importlib.invalidate_caches()
+    from dualgnn import sample_frts
+    from dualgnn.model import DualGNN
+    return sample_frts, DualGNN
+
+
+def _dualgnn_face_triangs(
+    face,
+    face_poly: "Polytope",
+    N: int,
+    model=None,
+    seed: int = None,
+    verbosity: int = 0,
+) -> list:
+    """
+    **Description:**
+    Sample (up to) N distinct FRTs of a 2-face using the dualGNN sampler,
+    https://arxiv.org/abs/2605.27770. Helper for face_triangs.
+
+    **Arguments:**
+    - `face`: The 2-face (PolytopeFace) of interest.
+    - `face_poly`: The 2-face as a Polytope (i.e., face.as_poly()).
+    - `N`: The number of triangulations to sample (with replacement, so
+        fewer may be returned after deduplication and regularity filtering).
+    - `model`: A dualgnn.model.DualGNN instance, or a path to a model
+        checkpoint. If not provided, the default checkpoint shipped with the
+        dualgnn package is used (cached by dualgnn).
+    - `seed`: Random seed for the GNN sampler.
+    - `verbosity`: Verbosity level.
+
+    **Returns:**
+    List of (unique, regular) Triangulation objects.
+    """
+    sample_frts, DualGNN = _import_dualgnn()
+
+    # resolve a checkpoint path to a model (None -> dualgnn's cached default)
+    if (model is not None) and (not isinstance(model, DualGNN)):
+        model = DualGNN.from_ckpt(model)
+
+    # sample unique regular FRTs as point-index triples
+    # (row i of face.points(optimal=True) <-> face.labels[i])
+    pts2d = np.asarray(face.points(optimal=True), dtype=np.int64)
+    simps = sample_frts(
+        pts2d,
+        N,
+        model=model,
+        only_regular=True,
+        seed=seed,
+        verbose=verbosity >= 2,
+    )
+
+    # map point indices to labels
+    labels = np.asarray(face.labels)
+    return [
+        # include_points_interior_to_facets=True: 2-faces that are themselves
+        # reflexive would otherwise drop edge-interior points
+        face_poly.triangulate(
+            simplices=labels[s].tolist(),
+            include_points_interior_to_facets=True,
+        )
+        for s in simps
+    ]
+
 
 def face_triangs(
     self,
@@ -41,6 +156,7 @@ def face_triangs(
     max_npts: int = None,
     N_face_triangs: int = 1000,
     triang_method: str = "grow2d",
+    dualgnn_model=None,
     seed: int = None,
     verbosity: int = 0,
 ):
@@ -59,7 +175,14 @@ def face_triangs(
     - `N_face_triangs`: If we aren't trying to get all triangulations, how
         many to grab per face (upper bound).
     - `triang_method`: The method to generate random triangulations. Allowed
-        are "fast", "fair", and "grow2d".
+        are "fast", "fair", "grow2d", and "dualgnn". The "dualgnn" method
+        samples FRTs with a graph neural network
+        (https://arxiv.org/abs/2605.27770) and requires the optional dualgnn
+        package.
+    - `dualgnn_model`: Only used if triang_method="dualgnn". A
+        dualgnn.model.DualGNN instance, or a path to a model checkpoint. If
+        not provided, the default checkpoint shipped with the dualgnn package
+        is used.
     - `seed`: Random seed if grabbing only some triangulations.
     - `verbosity`: Verbosity level.
 
@@ -69,7 +192,7 @@ def face_triangs(
     """
 
     # check input for generating triangulations
-    allowed_methods = ["fast", "fair", "grow2d"]
+    allowed_methods = ["fast", "fair", "grow2d", "dualgnn"]
     if triang_method not in allowed_methods:
         raise ValueError(
             f"triang_method={triang_method} was not an "
@@ -124,7 +247,23 @@ def face_triangs(
                     )
                 )
             elif triang_method == "grow2d":
-                triangs.append(list(p.grow_frt(N=N_face_triangs, seed=seed)))
+                frts = p.grow_frt(N=N_face_triangs, seed=seed)
+                if isinstance(frts, Triangulation):
+                    # grow_frt returns a bare Triangulation when it finds
+                    # exactly one
+                    frts = {frts}
+                triangs.append(list(frts))
+            elif triang_method == "dualgnn":
+                triangs.append(
+                    _dualgnn_face_triangs(
+                        face,
+                        p,
+                        N_face_triangs,
+                        model=dualgnn_model,
+                        seed=seed,
+                        verbosity=verbosity,
+                    )
+                )
 
             if verbosity >= 2:
                 print(f"face_triangs: found {len(triangs[-1])} triangs...")
