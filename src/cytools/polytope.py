@@ -2705,7 +2705,7 @@ class Polytope:
         [arXiv:2309.10855](https://arxiv.org/abs/2309.10855).
 
         This is a thin convenience wrapper around
-        [`ntfe_frts`](./ntfe#ntfe_frts) with `triang_method="dualgnn"`, which
+        `ntfe_frts` with `triang_method="dualgnn"`, which
         should be used directly when more control is needed (e.g., providing
         precomputed face triangulations or a custom GNN checkpoint).
 
@@ -2760,7 +2760,7 @@ class Polytope:
         # [A fine, regular, star triangulation of a 4-dimensional point configuration with 7 points in ZZ^4]
         ```
         For large polytopes, build the GNN-sampled 2-face FRT pools once via
-        [`face_triangs`](./ntfe#face_triangs) and reuse them across NTFE
+        `face_triangs` and reuse them across NTFE
         draws. Since only ~1% of the sampled expanded secondary cones may be
         solid, request many more than the desired count.
         ```python {4,5}
