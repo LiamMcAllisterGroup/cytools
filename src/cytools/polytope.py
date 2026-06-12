@@ -25,6 +25,7 @@ import copy
 import itertools
 import math
 import subprocess
+import time
 import warnings
 
 # 3rd party imports
@@ -2689,7 +2690,7 @@ class Polytope:
         self,
         N: int,
         make_star: bool = True,
-        max_npts: int = 17,
+        max_npts: int = 0,
         N_face_triangs: int = 1000,
         as_heights: bool = False,
         as_generator: bool = False,
@@ -2722,18 +2723,28 @@ class Polytope:
         :::
 
         **Arguments:**
-        - `N`: Number of NTFEs to sample. Fewer triangulations may be
-            returned if some expanded secondary cones are not solid. The
-            acceptance rate can be low for polytopes with large 2-faces
-            (e.g., ~1% at the h11=86 benchmark of arXiv:2605.27770), so set
-            `N` well above the desired count.
+        - `N`: Number of NTFEs to sample. Since not every combination of
+            2-face FRTs glues into an NTFE (acceptance can be ~1% for
+            polytopes with large 2-faces, e.g., the h11=86 benchmark of
+            arXiv:2605.27770), draws are retried until `N` distinct NTFEs
+            are found. Fewer are returned only if the attempt budget
+            (1000*N draws) is exhausted or every combination has been
+            checked.
         - `make_star`: Whether to convert the NTFE FRTs into FRSTs (i.e., to
             make them star).
         - `max_npts`: The maximum number of points of 2-faces for which all
-            FRTs are enumerated. The GNN is only used to sample FRTs of
-            2-faces with more points.
+            FRTs are enumerated; the GNN samples FRTs of 2-faces with more
+            points. Default 0, i.e., the GNN samples every 2-face:
+            enumerating a face's FRTs can be slow even when only a handful
+            of triangulations are wanted.
         - `N_face_triangs`: Number of FRTs the GNN samples per (large)
-            2-face.
+            2-face. Every sampled NTFE is assembled from these per-face
+            pools, so the pool size sets the support of the sampler:
+            small pools restrict (and so bias) which NTFEs can appear,
+            while the pool-building step's cost is proportional to the
+            pool size. Lower it (e.g., 50) for quick exploratory draws on
+            polytopes with large 2-faces; raise it when coverage of the
+            NTFE space matters.
         - `as_heights`: By default this function returns
             [`Triangulation`](./triangulation) objects. This flag can be set
             to True so that it instead returns the height vectors realizing
@@ -2752,11 +2763,11 @@ class Polytope:
 
         **Example:**
         We construct a polytope and sample some random triangulations.
-        (`max_npts=0` makes the GNN sample every 2-face; by default, 2-faces
-        with up to 17 points have their FRTs enumerated instead.)
+        (This polytope has a single NTFE, so a single triangulation comes
+        back no matter `N`.)
         ```python {2}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[0,0,0,-1],[-1,-1,-6,-9]])
-        frsts = p.random_triangulations_gnn(N=4, max_npts=0, seed=0)
+        frsts = p.random_triangulations_gnn(N=4, seed=0)
         # [A fine, regular, star triangulation of a 4-dimensional point configuration with 7 points in ZZ^4]
         ```
         For large polytopes, build the GNN-sampled 2-face FRT pools once via
@@ -2779,17 +2790,99 @@ class Polytope:
                 "GNN-based sampling is only implemented for reflexive "
                 "4-dimensional polytopes."
             )
-        return self.ntfe_frts(
-            N=N,
-            make_star=make_star,
-            seed=seed,
+
+        # sample the 2-face FRT pools once (the expensive, GNN step) and
+        # derive each FRT's secondary-cone inequality block
+        if verbosity >= 1:
+            print(
+                f"Sampling up to {N_face_triangs} FRTs per 2-face with "
+                "the GNN (the expensive step; its cost is proportional "
+                "to N_face_triangs)..."
+            )
+        t0 = time.time()
+        pools = self.face_triangs(
+            dim=2,
+            triang_method="dualgnn",
             max_npts=max_npts,
             N_face_triangs=N_face_triangs,
-            triang_method="dualgnn",
-            as_generator=as_generator,
-            heights_only=as_heights,
-            verbosity=verbosity,
+            seed=seed,
+            verbosity=verbosity - 1,
         )
+        if verbosity >= 1:
+            print(
+                f"Built pools of sizes {[len(f) for f in pools]} "
+                f"in {time.time() - t0:.1f}s. Drawing NTFEs..."
+            )
+        ineqs = self.triangface_ineqs(
+            face_triangs=pools, verbosity=verbosity - 1
+        )
+        from cytools.ntfe.ntfe import _adjacency_order, _IncrementalLP
+
+        dense = [[np.asarray(t.dense(), dtype=np.float64) for t in f]
+                 for f in ineqs]
+        # 2-faces conflict only through shared points, so checking
+        # adjacent ones early aborts rejected draws at shallower depth
+        dense = [dense[j] for j in _adjacency_order(self)]
+        counts = np.array([len(f) for f in dense])
+        n_combos = math.prod(counts.tolist())
+
+        def gen():
+            rng = np.random.default_rng(seed)
+            lp = _IncrementalLP(len(self.labels))
+            # remember drawn combinations so no NTFE is yielded twice; if
+            # the space is too large to exhaust (redraws are then also
+            # vanishingly rare), only remember the accepted ones
+            remember_rejects = n_combos <= 1_000_000
+            seen = set()
+            n_out = 0
+            pbar = tqdm(total=N, desc="NTFEs") if verbosity >= 1 else None
+            try:
+                # each attempt is an independent uniform draw of one FRT
+                # per 2-face, accepted iff the stacked inequalities are
+                # feasible -- checked face-by-face on one warm LP, so most
+                # rejections cost only a few solves instead of a
+                # full-stack one
+                for _ in range(1000 * N):
+                    if n_out >= N or len(seen) >= n_combos:
+                        return
+                    combo = tuple(rng.integers(counts).tolist())
+                    if combo in seen:
+                        continue
+                    ok, pushed = True, 0
+                    for d, k in enumerate(combo):
+                        if lp.push(dense[d][k]):
+                            pushed += 1
+                        else:
+                            ok = False
+                            break
+                    if ok:
+                        h = lp.witness()
+                    for _ in range(pushed):
+                        lp.pop()
+                    if ok or remember_rejects:
+                        seen.add(combo)
+                    if not ok:
+                        continue
+                    n_out += 1
+                    if pbar is not None:
+                        pbar.update(1)
+                    yield (h if as_heights else
+                           self.triangulate(heights=h,
+                                            make_star=make_star))
+            finally:
+                if pbar is not None:
+                    pbar.close()
+
+        if as_generator:
+            return gen()
+        if (not as_heights) and N >= 1000:
+            print(
+                f"Warning: a list of {N} Triangulation objects can take "
+                "several GB of RAM. Consider as_generator=True (process "
+                "them one at a time) or as_heights=True (height vectors "
+                "are far smaller)."
+            )
+        return list(gen())
 
     def all_triangulations(
         self,

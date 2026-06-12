@@ -103,6 +103,7 @@ class _IncrementalLP:
                 "pip install highspy"
             ) from e
         self._highspy = highspy
+        self.npts = npts
         self.h = highspy.Highs()
         self.h.silent()
         inf = highspy.kHighsInf
@@ -139,7 +140,39 @@ class _IncrementalLP:
 
     def witness(self) -> np.ndarray:
         """The current solve's interior point."""
+        if self.h.getNumRow() == 0:  # unconstrained: any point works
+            return np.ones(self.npts)
         return np.array(self.h.getSolution().col_value)
+
+
+def _adjacency_order(poly):
+    """Order the 2-faces so ones sharing points are checked early."""
+    face_pts = [set(int(v) for v in f.labels) for f in poly.faces(2)]
+    facet_pts = [set(int(v) for v in f.labels) for f in poly.facets()]
+    facet_faces = [[j for j, fp in enumerate(face_pts) if fp <= fl]
+                   for fl in facet_pts]
+
+    # greedy facet walk: hop to an unvisited facet sharing a 2-face with
+    # the current one; fall back to any unvisited facet
+    n_facets = len(facet_pts)
+    visited = [False] * n_facets
+    cur, facet_walk = 0, [0]
+    visited[0] = True
+    while len(facet_walk) < n_facets:
+        shared = [i for i in range(n_facets) if not visited[i]
+                  and set(facet_faces[i]) & set(facet_faces[cur])]
+        cur = shared[0] if shared else visited.index(False)
+        visited[cur] = True
+        facet_walk.append(cur)
+
+    order, seen = [], set()
+    for i in facet_walk:
+        for j in facet_faces[i]:
+            if j not in seen:
+                seen.add(j)
+                order.append(j)
+    assert len(order) == len(face_pts)
+    return order
 
 
 def _enumerate_ntfes_dfs(poly, face_ineqs, make_star, heights_only,
@@ -149,6 +182,9 @@ def _enumerate_ntfes_dfs(poly, face_ineqs, make_star, heights_only,
     # rows highspy takes, once up front (each is pushed many times)
     dense = [[np.asarray(t.dense(), dtype=np.float64) for t in f]
              for f in face_ineqs]
+    # 2-faces conflict only through shared points, so checking adjacent
+    # ones early surfaces infeasibility at shallower depth
+    dense = [dense[j] for j in _adjacency_order(poly)]
     lp = _IncrementalLP(len(poly.labels))
     n_faces = len(dense)
     n_out = 0

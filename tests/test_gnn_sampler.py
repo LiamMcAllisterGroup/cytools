@@ -32,6 +32,24 @@ p11169 = Polytope(
     ]
 )
 
+# h11=8 polytope whose 2-faces have several FRTs each, with some
+# combinations failing to glue -- a single batch of NTFE draws can come
+# back short of N, exercising the retry loop
+p_h11_8 = Polytope(
+    [
+        [1, -1, -2, 1],
+        [1, -1, 0, -1],
+        [-1, 0, 1, 1],
+        [-1, 2, 1, -1],
+        [1, 0, 0, 0],
+        [-1, 0, 0, 0],
+        [0, 0, 0, 1],
+        [0, 0, 1, 0],
+        [0, 1, 0, 0],
+        [0, 1, 1, -1],
+    ]
+)
+
 
 def test_dualgnn_is_an_allowed_method():
     with pytest.raises(ValueError, match="dualgnn"):
@@ -111,6 +129,29 @@ def test_sample_frsts():
         assert t.is_fine()
         assert t.is_star()
         assert t.is_regular()
+
+
+@pytest.mark.skipif(not HAS_DUALGNN, reason="dualgnn is not installed")
+def test_seed_reproducibility():
+    # same seed -> bitwise-identical heights (per device; the torch CPU
+    # and CUDA generators are independent streams)
+    h1, h2 = (
+        p_h11_8.random_triangulations_gnn(
+            N=5, N_face_triangs=5, seed=7, as_heights=True
+        )
+        for _ in range(2)
+    )
+    assert len(h1) == len(h2) > 0
+    assert all((a == b).all() for a, b in zip(h1, h2))
+
+
+@pytest.mark.skipif(not HAS_DUALGNN, reason="dualgnn is not installed")
+def test_fills_N():
+    triangs = p_h11_8.random_triangulations_gnn(
+        N=10, N_face_triangs=5, seed=0
+    )
+    assert len(triangs) == 10
+    assert len(set(triangs)) == 10
 
 
 @pytest.mark.skipif(not HAS_DUALGNN, reason="dualgnn is not installed")
