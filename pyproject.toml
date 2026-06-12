@@ -30,7 +30,8 @@ dependencies = [
     "requests",
     "osqp",
     "latticepts",
-    "platformdirs"
+    "platformdirs",
+    "highspy"
 ]
 classifiers = [
   "Development Status :: 5 - Production/Stable",

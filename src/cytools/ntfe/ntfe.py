@@ -88,6 +88,102 @@ def _find_interior_point_highs(
     return None
 
 
+# incremental feasibility for NTFE enumeration
+# --------------------------------------------
+class _IncrementalLP:
+    """Warm LP for feasibility of a stack of inequalities H x >= 1."""
+
+    def __init__(self, npts: int):
+        # lazy: keeps `import cytools` working without highspy installed
+        try:
+            import highspy
+        except ImportError as e:
+            raise ImportError(
+                "NTFE enumeration needs the `highspy` LP solver: "
+                "pip install highspy"
+            ) from e
+        self._highspy = highspy
+        self.h = highspy.Highs()
+        self.h.silent()
+        inf = highspy.kHighsInf
+        self.h.addVars(npts, np.full(npts, -inf), np.full(npts, inf))
+        self.depth_rows = []
+
+    def push(self, rows: np.ndarray) -> bool:
+        """Add one face's rows; return feasibility (rolls back if not)."""
+        n = len(rows)
+        if n:
+            ncols = rows.shape[1]
+            starts = np.arange(n, dtype=np.int32) * ncols
+            index = np.tile(np.arange(ncols, dtype=np.int32), n)
+            self.h.addRows(n, np.ones(n),
+                           np.full(n, self._highspy.kHighsInf),
+                           n * ncols, starts, index, rows.ravel())
+            self.h.run()
+            ok = (self.h.getModelStatus()
+                  == self._highspy.HighsModelStatus.kOptimal)
+        else:  # e.g. an elementary 2-face: no inequalities
+            ok = True
+        self.depth_rows.append(n)
+        if not ok:
+            self.pop()
+        return ok
+
+    def pop(self):
+        """Remove the most recent level's rows (backtrack)."""
+        n = self.depth_rows.pop()
+        if n:
+            total = self.h.getNumRow()
+            self.h.deleteRows(
+                n, np.arange(total - n, total, dtype=np.int32))
+
+    def witness(self) -> np.ndarray:
+        """The current solve's interior point."""
+        return np.array(self.h.getSolution().col_value)
+
+
+def _enumerate_ntfes_dfs(poly, face_ineqs, make_star, heights_only,
+                         verbosity):
+    """Generate all NTFEs by DFS over the per-2-face FRT choices."""
+    # convert each FRT's matrix.LIL inequality block to the dense float
+    # rows highspy takes, once up front (each is pushed many times)
+    dense = [[np.asarray(t.dense(), dtype=np.float64) for t in f]
+             for f in face_ineqs]
+    lp = _IncrementalLP(len(poly.labels))
+    n_faces = len(dense)
+    n_out = 0
+    t0 = time.perf_counter()
+
+    # iterative DFS (explicit stack; recursion would hit Python's limit
+    # on polytopes with many 2-faces)
+    candidates = [list(range(len(dense[0])))[::-1]]
+    while candidates:
+        d = len(candidates) - 1
+        if not candidates[d]:
+            candidates.pop()
+            if candidates:
+                lp.pop()
+            continue
+        k = candidates[d].pop()
+        if not lp.push(dense[d][k]):
+            continue
+        if d + 1 < n_faces:
+            candidates.append(list(range(len(dense[d + 1])))[::-1])
+            continue
+        # leaf: a full feasible choice -- an NTFE
+        h = lp.witness()
+        lp.pop()
+        n_out += 1
+        if verbosity >= 1 and n_out % 500_000 == 0:
+            dt = time.perf_counter() - t0
+            print(f"  {n_out:,} NTFEs at {dt:.0f}s "
+                  f"({n_out / dt:.0f}/s)", flush=True)
+        if heights_only:
+            yield h
+        else:
+            yield poly.triangulate(heights=h, make_star=make_star)
+
+
 # (low-level) 2-face inequality functions
 # ---------------------------------------
 # prefix with '_' to indicate that these shouldn't directly be called by user
@@ -1114,7 +1210,11 @@ def ntfe_frts(
     - `make_star`: Whether to convert the NTFE FRTs into FRSTs (i.e., to make
         them star).
     - `N`: The number of expanded secondary cones (i.e., of NTFEs) to generate.
-        If not set, then *all* expanded secondary cones are generated.
+        If not set, then *all* expanded secondary cones are generated (by
+        depth-first search over the 2-face FRT choices, pruning infeasible
+        prefixes on a warm incremental LP -- much faster than checking
+        every combination in the product of choices, with identical
+        results).
     - `seed`: If only generating a subset of the expanded secondary cones, use
         this as the random seed for selecting the subset. If not provided, it
         is initialized either as the system time or using hardware-based
@@ -1141,6 +1241,21 @@ def ntfe_frts(
     **Returns:**
     The FRTs
     """
+    # full enumeration -> DFS with prefix pruning
+    if (N is None) and (cones is None) and (hypers is None):
+        if face_ineqs is None:
+            face_ineqs = self.triangface_ineqs(
+                face_triangs=face_triangs,
+                max_npts=max_npts,
+                N_face_triangs=N_face_triangs,
+                triang_method=triang_method,
+                require_star=False,
+                verbosity=verbosity - 1,
+            )
+        gen = _enumerate_ntfes_dfs(self, face_ineqs, make_star,
+                                   heights_only, verbosity)
+        return gen if as_generator else list(gen)
+
     # random seed stuff
     random.seed(seed)
     seed1 = random.randint(0, 2**16 - 1)  # seed for self.ntfe_hypers
