@@ -27,6 +27,7 @@ dependencies:
     - cygv
     - regfans
     - latticepts
+    - fanroots
     # Editable CYTools installation
     - -e .
   # Common useful tools
