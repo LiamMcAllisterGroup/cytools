@@ -20,7 +20,6 @@
 # -----------------------------------------------------------------------------
 
 # 'standard' imports
-import ast
 import fractions
 import functools
 import io
@@ -28,7 +27,6 @@ import itertools
 import math
 import re
 import requests
-import subprocess
 from typing import Generator
 
 # 3rd party imports
@@ -67,6 +65,7 @@ def instanced_lru_cache(maxsize=128):
 
     return decorator
 
+
 # basic math
 # ----------
 def gcd_float(a: float, b: float, tol: float = 1e-5) -> float:
@@ -103,8 +102,11 @@ def gcd_float(a: float, b: float, tol: float = 1e-5) -> float:
         return abs(a)
     return gcd_float(b, a % b, tol)
 
+
 # variant that computes gcd over all elements in arr
-gcd_list = lambda arr: functools.reduce(gcd_float, arr)
+def gcd_list(arr):
+    return functools.reduce(gcd_float, arr)
+
 
 # linear algebra
 # --------------
@@ -113,16 +115,17 @@ def integral_nullspace(M, reduce_by_gcd=True):
     Returns the integral nullspace as column vectors
     """
     null, nullity = flint.fmpz_mat(M.tolist()).nullspace()
-    
+
     # trim extra columns
-    null = np.array(null.tolist(), dtype=int)[:,:nullity]
-    
+    null = np.array(null.tolist(), dtype=int)[:, :nullity]
+
     # reduce by gcd
     if reduce_by_gcd:
         gcds = np.array([math.gcd(*c) for c in null.T])
-        null = null//gcds
-    
+        null = null // gcds
+
     return null
+
 
 # flint conversion
 # ----------------
@@ -150,6 +153,7 @@ def float_to_fmpq(c: float) -> flint.fmpq:
     f = fractions.Fraction(c).limit_denominator()
     return flint.fmpq(f.numerator, f.denominator)
 
+
 def fmpq_to_float(c: flint.fmpq) -> float:
     """
     **Description:**
@@ -174,6 +178,7 @@ def fmpq_to_float(c: flint.fmpq) -> float:
     ```
     """
     return int(c.p) / int(c.q)
+
 
 def array_to_flint(arr: np.ndarray, t: "int | float" = None) -> np.ndarray:
     """
@@ -208,15 +213,18 @@ def array_to_flint(arr: np.ndarray, t: "int | float" = None) -> np.ndarray:
         t = arr.dtype
 
     if t is int:
-        f = lambda n: flint.fmpz(int(n))
+        def f(n):
+            return flint.fmpz(int(n))
     else:
         f = float_to_fmpq
 
     return np.vectorize(f)(arr).astype(object)
 
+
 # some type-specific aliases
 array_int_to_fmpz = lambda arr: array_to_flint(arr, t=int)
 array_float_to_fmpq = lambda arr: array_to_flint(arr, t=float)
+
 
 def array_from_flint(arr: np.ndarray, t=None) -> np.ndarray:
     """
@@ -244,9 +252,11 @@ def array_from_flint(arr: np.ndarray, t=None) -> np.ndarray:
             f"Input array had element of type {t}!" + "This is not a flint type!"
         )
 
+
 # some type-specific aliases
 array_fmpz_to_int = lambda arr: array_from_flint(arr, t=flint.fmpz)
 array_fmpq_to_float = lambda arr: array_from_flint(arr, t=flint.fmpq)
+
 
 # sparse conversions
 # ------------------
@@ -305,6 +315,7 @@ def to_sparse(
     else:
         return sp.csr_matrix(sp_mat)
 
+
 def symmetric_sparse_to_dense(tensor: dict, basis: ArrayLike = None) -> np.ndarray:
     """
     **Description:**
@@ -355,6 +366,7 @@ def symmetric_sparse_to_dense(tensor: dict, basis: ArrayLike = None) -> np.ndarr
             out = np.tensordot(out, basis, axes=[[i], [1]])
 
     return out
+
 
 def symmetric_dense_to_sparse(tensor: ArrayLike, basis: ArrayLike = None) -> dict:
     """
@@ -408,6 +420,7 @@ def symmetric_dense_to_sparse(tensor: ArrayLike, basis: ArrayLike = None) -> dic
 
     return out
 
+
 # other tensor operations
 # -----------------------
 def filter_tensor_indices(tensor: dict, indices: list[int]) -> dict:
@@ -456,6 +469,7 @@ def filter_tensor_indices(tensor: dict, indices: list[int]) -> dict:
     return {
         tuple(sorted(reindex[c] for c in key)): val for key, val in filtered.items()
     }
+
 
 # solve systems
 # -------------
@@ -548,6 +562,7 @@ def solve_linear_system(
             solution = None
 
     return solution
+
 
 # set algebraic geometric bases
 # -----------------------------
@@ -646,14 +661,14 @@ def set_divisor_basis(
 
         linrels_tmp = np.empty(linrels.shape, dtype=int)
         linrels_tmp[:, : len(nobasis)] = linrels[:, nobasis]
-        linrels_tmp[:, len(nobasis) :] = linrels[:, b]
+        linrels_tmp[:, len(nobasis):] = linrels[:, b]
 
         linrels_tmp = flint.fmpz_mat(linrels_tmp.tolist()).hnf()
         linrels_tmp = np.array(linrels_tmp.tolist(), dtype=int)
 
         linrels_new = np.empty(linrels.shape, dtype=int)
         linrels_new[:, nobasis] = linrels_tmp[:, : len(nobasis)]
-        linrels_new[:, b] = linrels_tmp[:, len(nobasis) :]
+        linrels_new[:, b] = linrels_tmp[:, len(nobasis):]
 
         self._curve_basis_mat = np.zeros(glsm_cm.shape, dtype=int)
         self._curve_basis_mat[:, b] = np.eye(len(b), dtype=int)
@@ -870,6 +885,7 @@ def set_curve_basis(
     if b.shape == (glsm_rnk, glsm_cm.shape[1]):
         new_b = b
     elif b.shape == (glsm_rnk, glsm_cm.shape[1] - 1):
+        # HERE PROBLEM with undefined variable t
         new_b = np.empty(glsm_cm.shape, dtype=t)
         new_b[:, 1:] = b
         new_b[:, 0] = -np.sum(b, axis=1)
@@ -1014,7 +1030,7 @@ def polytope_generator(
         # read the polytopes as weight systems
         while (limit is None) or (n_yielded < limit):
             # pass line to PALP
-            p    = pypalp.Polytope(buf.readline())
+            p = pypalp.Polytope(buf.readline())
             vert = p.vertices()
 
             # ensure reasonable shape
@@ -1416,17 +1432,17 @@ def fetch_polytopes(
             items = [item.strip() for item in items if item.strip()]
         else:
             items = data_str.split("\n")
-        
+
         # check if we actually need to sample (otherwise, just use full list)
         if len(items) > samples:
             np.random.seed(sample_seed)
-            sampled  = np.random.choice(items, size=samples, replace=False)
+            sampled = np.random.choice(items, size=samples, replace=False)
         else:
             sampled = items
 
         # rejoin in the previous format
         data_str = "\n".join(sampled) + "\n"
-        limit    = samples
+        limit = samples
 
     # return the generator/list based off of output of request
     return read_polytopes(
@@ -1533,6 +1549,7 @@ def find_new_affinely_independent_points(pts: ArrayLike) -> np.ndarray:
     pts -= translation
 
     if shape[0] == 1:
+        # HERE PROBLEM with undefined variable pts_trans
         pts = np.append(pts_trans, [[1] + [0] * (shape[1] - 1)], axis=0)
 
     dim = np.linalg.matrix_rank(pts)
@@ -1561,6 +1578,7 @@ def find_new_affinely_independent_points(pts: ArrayLike) -> np.ndarray:
 
     return new_pts + translation
 
+
 # heights to/from kahlers
 # -----------------------
 # TEMPORARY
@@ -1569,21 +1587,24 @@ def project_heights_to_kahler(poly, heights_in, prime_divisors=None):
     Given an h11+5 dimensional height vector,
     returns an h11+5 dimensional vector that corresponds to point in the kahler cone.
     """
-    basis = [i-1 for i in poly.glsm_basis(include_origin=True)]
+    basis = [i - 1 for i in poly.glsm_basis(include_origin=True)]
     if prime_divisors is None:
-        prime_divisors = np.array([rr for r,rr in enumerate(poly.triangulate(verbosity=0).get_cy().toric_effective_cone().rays()) if r not in basis], dtype=float)
-    extra_divs = [i for i in range(poly.h11(lattice='N')+4) if i not in basis]
+        prime_divisors = np.array([rr
+                                   for r, rr in enumerate(poly.triangulate(verbosity=0).get_cy().toric_effective_cone().rays())
+                                   if r not in basis], dtype=float)
+    extra_divs = [i for i in range(poly.h11(lattice='N') + 4) if i not in basis]
     origin_height = heights_in[0]
-    kahler_parameters = np.array([i-origin_height for i in heights_in[1:]])
-    for e,ee in enumerate(prime_divisors):
+    kahler_parameters = np.array([i - origin_height for i in heights_in[1:]])
+    for e, ee in enumerate(prime_divisors):
         prime_ind = extra_divs[e]
         prime_height = kahler_parameters[prime_ind]
-        lin_rel = np.zeros(poly.h11(lattice='N')+4)
+        lin_rel = np.zeros(poly.h11(lattice='N') + 4)
         lin_rel[basis] = ee
         lin_rel[prime_ind] = -1
-        corr = prime_height*lin_rel
+        corr = prime_height * lin_rel
         kahler_parameters = np.array(kahler_parameters) + np.array(corr)
-    return np.concatenate(([0],kahler_parameters))
+    return np.concatenate(([0], kahler_parameters))
+
 
 def heights_to_kahler(poly, heights_in, prime_divisors=None):
     """
@@ -1593,11 +1614,13 @@ def heights_to_kahler(poly, heights_in, prime_divisors=None):
     basis = poly.glsm_basis()
     return project_heights_to_kahler(poly, heights_in, prime_divisors)[basis]
 
+
 def kahler_to_heights(poly, kahler_in):
     """
     Given an h11 dimensional vector hat corresponds to point in the kahler cone,
     returns an h11+5 dimensional height vector.
     """
-    basis = [i for i in poly.glsm_basis(include_origin=True)]
+    basis = list(poly.glsm_basis(include_origin=True))
     kahler_gen = iter(kahler_in)
-    return np.array([next(kahler_gen) if i in basis else 0 for i in range(poly.h11(lattice='N')+5)])
+    return np.array([next(kahler_gen) if i in basis else 0
+                     for i in range(poly.h11(lattice='N') + 5)])
