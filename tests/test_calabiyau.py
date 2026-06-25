@@ -118,6 +118,26 @@ def test_intersection_numbers():
     assert len(intnum_basis) == 3
 
 
+def test_intersection_numbers_zero_as_anticanonical():
+    p = Polytope(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -6, -9]]
+    )
+    t = p.triangulate(backend="qhull")
+    cy = t.get_cy()
+
+    canonical = cy.intersection_numbers()
+    anticanonical = cy.intersection_numbers(zero_as_anticanonical=True)
+
+    assert len(anticanonical) == len(canonical)
+
+    for ii, val in canonical.items():
+        zero_count = sum(jj == 0 for jj in ii)
+        expected = val * (-1 if zero_count % 2 == 1 else 1)
+        assert np.isclose(anticanonical[ii], expected)
+
+    assert cy.intersection_numbers() == canonical
+
+
 def test_is_smooth():
     p = Polytope(
         [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -6, -9]]

@@ -1632,15 +1632,17 @@ class ToricVariety:
         # Now intersection numbers have been computed
         # We now compute the intersection numbers of the basis if necessary
         if zero_as_anticanonical and not in_basis:
-            self._intersection_numbers[args_id] = self._intersection_numbers[
+            base_intnums = self._intersection_numbers[
                 (False, False, exact_arithmetic, "dok")
             ]
-            for ii in self._intersection_numbers[args_id]:
-                if 0 not in ii:
-                    continue
-                self._intersection_numbers[args_id][ii] *= (
-                    -1 if sum(ii == 0) % 2 == 1 else 1
+            self._intersection_numbers[args_id] = {
+                ii: (
+                    val * (-1 if sum(jj == 0 for jj in ii) % 2 == 1 else 1)
+                    if 0 in ii
+                    else val
                 )
+                for ii, val in base_intnums.items()
+            }
         elif in_basis:
             basis = self.divisor_basis()
             if len(basis.shape) == 2:  # If basis is matrix
