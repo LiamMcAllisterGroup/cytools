@@ -23,7 +23,7 @@ dependencies = [
     "ortools",
     "triangulumancer>=0.3",
     "pypalp",
-    "cygv",
+    "cygv>=0.2.3",
     "regfans>=0.1.0",
     "tqdm",
     "qpsolvers",
