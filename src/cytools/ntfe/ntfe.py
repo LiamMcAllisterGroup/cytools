@@ -752,7 +752,7 @@ def triangfaces_to_frt(
     - `check_heights`: Whether to check the heights used in the Triangulation.
     - `backend`: The backend to use for cone calculations. Options are
         enumerated in the Cone.find_interior_points docstring. Currently, they
-        are "glop", "scip", "cpsat", "mosek", "osqp", and "cvxopt".
+        are "highs", "glop", "scip", "cpsat", "mosek", "osqp", and "cvxopt".
     - `verbosity: Verbosity level. Higher means more verbose.
 
     **Returns:**
@@ -806,7 +806,7 @@ def triangfaces_to_frst(
     - `check_heights`: Whether to check the heights used in the Triangulation.
     - `backend`: The backend to use for cone calculations. Options are
         enumerated in the Cone.find_interior_points docstring. Currently, they
-        are "glop", "scip", "cpsat", "mosek", "osqp", and "cvxopt".
+        are "highs", "glop", "scip", "cpsat", "mosek", "osqp", and "cvxopt".
     - `verbosity: Verbosity level. Higher means more verbose.
 
     **Returns:**

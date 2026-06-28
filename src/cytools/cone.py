@@ -41,6 +41,7 @@ from flint import fmpz_mat, fmpz, fmpq
 import numpy as np
 from ortools.linear_solver import pywraplp
 from ortools.sat.python import cp_model
+import highspy
 import ppl
 import ctypes; ctypes.CDLL(None).fesetround(0)  # ppl changes FPU rounding mode; reset to FE_TONEAREST
 import qpsolvers
@@ -1133,20 +1134,20 @@ class Cone:
         - `c` *(float)*: A real positive number specifying the stretching of
             the cone (i.e. the minimum distance to the defining hyperplanes).
         - `backend` *(str, optional, default=None)*: String that specifies the
-            optimizer to use. Options are "mosek", "osqp", "cvxopt", and
-            "glop". If it is not specified then for $d<25$ it uses "osqp" by
+            optimizer to use. Options are "mosek", "osqp", "cvxopt", "highs",
+            and "glop". If it is not specified then for $d<25$ it uses "osqp" by
             default. For $d\geq25$ it uses "mosek" if it is activated, or
-            "glop" otherwise.
+            "highs" otherwise.
         - `check` *(bool, optional, default=True)*: Flag that specifies whether
             to check if the output of the optimizer is consistent and satisfies
             `constraint_error_tol`.
         - `constraint_error_tol` *(float, optional, default=1e-2)*: Error
             tolerance for the linear constraints.
         - `max_iter` *(int, optional, default=10**6)*: The maximum number of
-            iterations allowed for the non-GLOP backends. If this function is
+            iterations allowed for the non-LP backends. If this function is
             returning None, then increasing this parameter (maximum
-            permissible value: 2**31-1) might resolve the issue. For
-            backend=="glop", this does nothing.
+            permissible value: 2**31-1) might resolve the issue. For the LP
+            backends ("highs"/"glop"), this does nothing.
         - `show_hints`: Whether to show hints about odd backend behavior.
         - `verbose` *(boolean, optional)*: Whether to print extra diagnostic
             information (True) or not (False).
@@ -1168,7 +1169,7 @@ class Cone:
         ```
         """
         # set the backend
-        backends = (None, "mosek", "osqp", "cvxopt", "glop")
+        backends = (None, "mosek", "osqp", "cvxopt", "highs", "glop")
         if backend not in backends:
             raise ValueError("Invalid backend. " f"The options are: {backends}.")
 
@@ -1179,7 +1180,7 @@ class Cone:
                 backend = (
                     "mosek"
                     if config.mosek_is_activated() and self.ambient_dim() >= 25
-                    else "glop"
+                    else "highs"
                 )
         elif backend == "mosek" and not config.mosek_is_activated():
             raise Exception(
@@ -1197,8 +1198,8 @@ class Cone:
             # trivial
             return np.ones(self._ambient_dim)
 
-        if backend == "glop":
-            solution = self.find_interior_point(c, backend="glop", verbose=verbose)
+        if backend in ("glop", "highs"):
+            solution = self.find_interior_point(c, backend=backend, verbose=verbose)
             G = -1 * sparse.csc_matrix(self.hyperplanes(), dtype=float)
         else:
             hp = self._hyperplanes
@@ -1234,7 +1235,7 @@ class Cone:
                 print("some potential reasons why:")
 
                 # max_iter
-                if backend != "glop":
+                if backend not in ("glop", "highs"):
                     print(f"-) maybe max_iter={max_iter} was too low?")
 
                 # bad solver
@@ -1321,9 +1322,10 @@ class Cone:
         - `lower`: A lower bound on the components of the interior point.
         - `integral`: A flag that specifies whether the point should have
             integral coordinates.
-        - `backend`: String that specifies the optimizer to use. Options are
-            "glop", "scip", "cpsat", "mosek", "osqp", and "cvxopt". If it is
-            not specified then "glop" is used by default. For $d\geq25$ it uses
+        - `backend`: String that specifies the optimizer to use. The LP options
+            are "highs" (LP via HiGHS) and "glop" (LP via ORTools); the others
+            are "scip", "cpsat", "mosek", "osqp", and "cvxopt". If it is not
+            specified then "highs" is used by default. For $d\geq25$ it uses
             "mosek" if it is activated.
         - `check`: Whether to verify that the point is inside the cone.
         - `show_hints`: Whether to show hints about odd backend behavior.
@@ -1343,7 +1345,7 @@ class Cone:
         # array([8, 5])
         ```
         """
-        backends = (None, "glop", "scip", "cpsat", "mosek", "osqp", "cvxopt")
+        backends = (None, "highs", "glop", "scip", "cpsat", "mosek", "osqp", "cvxopt")
         if backend not in backends:
             raise ValueError("Invalid backend. " f"The options are: {backends}.")
 
@@ -1380,9 +1382,9 @@ class Cone:
             if config.mosek_is_activated() and (self.ambient_dim() >= 25):
                 backend = "mosek"
             else:
-                backend = "glop"
+                backend = "highs"
 
-        if backend in ("glop", "scip", "cpsat"):
+        if backend in ("highs", "glop", "scip", "cpsat"):
             solution = feasibility(
                 hyperplanes=H,
                 c=c,
@@ -1749,6 +1751,7 @@ class Cone:
         backends = (
             None,
             "ppl",
+            "highs",
             "glop",
             "scip",
             "cpsat",
@@ -2335,7 +2338,8 @@ def feasibility(
     - `hyperplanes`: The constraining hyperplanes, A.
     - `c`: The 'stretching'.
     - `ambient_dim`: The ambient dimension... A.shape[1].
-    - `backend`: The backend to use. Options are "glop", "scip", or "cpsat".
+    - `backend`: The backend to use. Options are "highs" (LP, on HiGHS),
+        "glop" (LP, on ORTools), "scip", or "cpsat".
     - `verbose`: Whether to print extra diagnostic info.
 
     **Returns:**
@@ -2350,6 +2354,42 @@ def feasibility(
     # accommodate trivial hyperplanes
     if len(hyperplanes) == 0:
         return np.ones(ambient_dim)
+
+    if backend == "highs":
+        # LP feasibility via HiGHS. Benchmarked against GLOP on synthetic
+        # over-determined cones (random integer facets, ~5x as many as
+        # dimensions, d=8-60): 7-13% faster for d>=16, marginally slower at
+        # d=8. Not measured on real cone workloads.
+        n = ambient_dim
+        starts, index, value = [], [], []
+        grading = np.zeros(n)
+        for v in hyperplanes:
+            starts.append(len(index))
+            for ind, val in hp_iter(v):
+                index.append(int(ind))
+                value.append(float(val))
+                grading[int(ind)] += float(val)
+        grading /= len(starts)
+
+        inf = highspy.kHighsInf
+        lb = -inf if lower_bound is None else float(lower_bound)
+        h = highspy.Highs()
+        if not verbose:
+            h.silent()
+        h.addVars(n, np.full(n, lb), np.full(n, inf))
+        h.changeColsCost(n, np.arange(n, dtype=np.int32), grading)
+        h.addRows(len(starts), np.full(len(starts), float(c)),
+                  np.full(len(starts), inf), len(index),
+                  np.asarray(starts, dtype=np.int32),
+                  np.asarray(index, dtype=np.int32),
+                  np.asarray(value, dtype=float))
+        h.run()
+        status = h.getModelStatus()
+        if status == highspy.HighsModelStatus.kOptimal:
+            return np.asarray(h.getSolution().col_value, dtype=float)
+        if verbose and status != highspy.HighsModelStatus.kInfeasible:
+            warnings.warn(f"Solver returned status {status!r}.")
+        return None
 
     if backend in ("glop", "scip"):
         solver = pywraplp.Solver.CreateSolver(backend.upper())
