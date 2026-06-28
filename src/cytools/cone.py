@@ -1966,6 +1966,8 @@ class Cone:
 
             if certificate:
                 degen, (x,z) = out
+            else:
+                degen = out
 
         # return
         if certificate:
@@ -2601,7 +2603,7 @@ def _is_degenerate(
     cb = EarlyStopCallback(H.shape[1]+1, solver)
 
     # solve and parse solution
-    status = solver.SolveWithSolutionCallback(model, cb)
+    status = solver.Solve(model, cb)
     if status in (cp_model.FEASIBLE, cp_model.OPTIMAL):
         x = np.array([solver.Value(_x) for _x in x])
         z = np.array([solver.Value( z) for  z in satd])
