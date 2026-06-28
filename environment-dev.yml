@@ -14,7 +14,7 @@ dependencies:
   - joblib
   - tqdm
   - requests
-  - osqp
+  - osqp>=1.0
   - pytest
   - pip
   - pip:

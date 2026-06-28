@@ -1215,7 +1215,7 @@ class Cone:
                     "scaling": 50,
                     "eps_abs": 1e-4,
                     "eps_rel": 1e-4,
-                    "polish": True,
+                    "polishing": True,
                 }
                 if backend == "osqp"
                 else dict()

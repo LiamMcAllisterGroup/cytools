@@ -28,7 +28,7 @@ dependencies = [
     "tqdm",
     "qpsolvers",
     "requests",
-    "osqp",
+    "osqp>=1.0",
     "latticepts",
     "platformdirs",
     "highspy==1.12.*"       # must match ortools' bundled HiGHS (SONAME clash)
