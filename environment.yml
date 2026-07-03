@@ -14,10 +14,11 @@ dependencies:
   - joblib
   - tqdm
   - requests
-  - osqp
+  - osqp>=1.0
   - pip
   - pip:
-    - ortools
+    - ortools==9.15.*      # bundles HiGHS 1.12; keep matched to highspy below
+    - highspy==1.12.*      # must match ortools' bundled HiGHS (SONAME clash)
     - mosek
     - triangulumancer
     - pplpy

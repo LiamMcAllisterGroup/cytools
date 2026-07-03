@@ -20,7 +20,7 @@ dependencies = [
     "cvxopt",
     "python-flint",
     "pplpy",
-    "ortools",
+    "ortools==9.15.*",      # bundles HiGHS 1.12; keep matched to highspy below
     "triangulumancer>=0.3",
     "pypalp",
     "cygv",
@@ -28,10 +28,10 @@ dependencies = [
     "tqdm",
     "qpsolvers",
     "requests",
-    "osqp",
+    "osqp>=1.0",
     "latticepts",
     "platformdirs",
-    "highspy"
+    "highspy==1.12.*"       # must match ortools' bundled HiGHS (SONAME clash)
 ]
 classifiers = [
   "Development Status :: 5 - Production/Stable",
