@@ -79,7 +79,7 @@ def check_mosek_license(silent=False):
             f"Error encountered: {e}"
         )
         _mosek_is_activated = False
-    except:
+    except Exception:
         _mosek_error = (
             "Info: There was a problem with Mosek. "
             "An alternative optimizer will be used."
