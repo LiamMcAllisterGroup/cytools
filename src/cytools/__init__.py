@@ -56,7 +56,7 @@ def check_for_updates():
         # get updated __init__ from github
         p = requests.get(
             "https://raw.githubusercontent.com/"
-            + "LiamMcAllisterGroup/cytools/main/cytools/"
+            + "LiamMcAllisterGroup/cytools/main/src/cytools/"
             + "__init__.py",
             timeout=2,
         )
@@ -99,8 +99,13 @@ def check_for_updates():
 
             if checked_version and checked_bugs:
                 break
-    except:
+    except Exception:
         pass
 
 
-check_for_updates()
+# Automatically check for updates on import, unless disabled via the
+# CYTOOLS_NO_UPDATE_CHECK environment variable (e.g. for HPC/air-gapped use).
+import os
+
+if not os.environ.get("CYTOOLS_NO_UPDATE_CHECK"):
+    check_for_updates()
