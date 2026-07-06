@@ -537,14 +537,14 @@ def solve_linear_system(
 
             factor = cholesky_AAt(M.transpose())
             solution = factor(-M.transpose() * C)
-        except:
+        except Exception:
             if verbosity >= 1:
                 print("Linear backend error: sksparse failed.")
 
     elif backend == "scipy":
         try:
             solution = sp.linalg.spsolve(M.transpose() * M, -M.transpose() * C).tolist()
-        except:
+        except Exception:
             if verbosity >= 1:
                 print("Linear backend error: scipy failed.")
 

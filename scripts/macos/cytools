@@ -1,138 +1,83 @@
 #!/bin/bash
+#
+# CYTools launcher (macOS): starts JupyterLab in the CYTools conda environment.
+# (Replaces the previous Docker-based launcher. Uses BSD getopts, not GNU getopt.)
 
-# Function that prints help
+set -euo pipefail
+
+ENV_NAME="cytools"
+NOTEBOOK_DIR="$HOME"
+runbash=false
+doupdate=false
+
 showHelp() {
 cat << EOF
 CYTools: A software package for analyzing Calabi-Yau hypersurfaces in toric varieties.
 
 Usage: cytools [OPTIONS]
-The CYTools Docker image must be built for this script to work
+Starts JupyterLab in the CYTools conda environment.
 
 Options:
- -h          Display help
-
- -b          Start a bash terminal in the CYTools container instead of Jupyter Lab.
-
- -d          Specify the directory to mount on the container. Default is ~ .
-
- --update    Update CYTools
+ -h, --help    Display help
+ -d DIR        Directory to open JupyterLab in (default: \$HOME)
+ -b, --bash    Start a shell in the CYTools environment instead of JupyterLab
+     --update  Update CYTools (pip install -U cytools) in the environment
 
 For more detailed instructions please visit https://cytools.liammcallistergroup.com
-
 EOF
 }
 
-# Function that updates cytools
-updateCYTools() {
-  cd /tmp/
-  tmp_dir="cytools-update-$RANDOM"
-  mkdir $tmp_dir
-  cd $tmp_dir
-  curl -s https://api.github.com/repos/LiamMcAllisterGroup/cytools/tags | grep "tarball_url" | grep -Eo 'https://[^\"]*' | sed -n '1p' | xargs curl -s -L -o - | tar -xz --strip-components 1
-  make install
-  cd /tmp/
-  rm -rf $tmp_dir
-}
-
-# Function that (partially) updates cytools quickly
-updateCYToolsFast() {
-  cd /tmp/
-  tmp_dir="cytools-update-$RANDOM"
-  mkdir $tmp_dir
-  cd $tmp_dir
-  curl -s https://api.github.com/repos/LiamMcAllisterGroup/cytools/tags | grep "tarball_url" | grep -Eo 'https://[^\"]*' | sed -n '1p' | xargs curl -s -L -o - | tar -xz --strip-components 1
-  make build-fast
-  cd /tmp/
-  rm -rf $tmp_dir
-}
-
-# Make sure that the script is not being run as root
-userid=$(id -u)
-if [[ "$userid" == "0" ]]
-then
-  echo "Please run the script as a non-root user."
-  exit
-fi
-port=$(( $userid + 2875 ))
-
-# We first parse the input parameters and set the way the container will run
-runbash=false
-mountdir=~
-while getopts "hbd:-:" OPT
-do
-  case $OPT in
-    h)
-      showHelp
-      exit 0
-      ;;
-    b)
-      runbash=true
-      ;;
-    d)
-      mountdir=$OPTARG
-      if [ -z "$mountdir" ]
-      then
-        echo "A directory must be specified after -d flag."
-        exit
-      fi
-      ;;
-    -)
-      case "${OPTARG}" in
-        update)
-          updateCYTools
-          exit 0
-          ;;
-        update-fast)
-          updateCYToolsFast
-          exit 0
-          ;;
-        *)
-          echo "Unrecognized option --${OPTARG}"
-          exit 1
-          ;;
-      esac;;
-    *)
-      echo "Unrecognized option -$OPT"
-      exit 1
-      ;;
+# --- parse args (BSD getopts + manual long options) ---
+while getopts "hbd:-:" OPT; do
+  case "$OPT" in
+    h) showHelp; exit 0 ;;
+    b) runbash=true ;;
+    d) NOTEBOOK_DIR="$OPTARG" ;;
+    -) case "$OPTARG" in
+         help)   showHelp; exit 0 ;;
+         bash)   runbash=true ;;
+         update) doupdate=true ;;
+         *) echo "Unrecognized option --$OPTARG" >&2; exit 1 ;;
+       esac ;;
+    *) echo "Unrecognized option" >&2; exit 1 ;;
   esac
 done
 
-# Check if there is already a cytools container
-containers=$(docker ps -a -q --filter="name=cytools-uid-${userid}")
-if [[ "$containers" == "" ]]
-then
-  exists=false
+# --- locate conda (GUI apps don't inherit the shell PATH; include macOS/homebrew paths) ---
+CONDA=""
+if [[ -n "${CONDA_EXE:-}" && -x "${CONDA_EXE}" ]]; then
+  CONDA="$CONDA_EXE"
 else
-  exists=true
+  for c in "$HOME/miniforge3" "$HOME/miniconda3" "$HOME/anaconda3" \
+           "/opt/miniconda3" "/opt/anaconda3" "/opt/homebrew/Caskroom/miniforge/base"; do
+    [[ -x "$c/bin/conda" ]] && { CONDA="$c/bin/conda"; break; }
+  done
+fi
+if [[ -z "$CONDA" ]]; then
+  echo "Error: could not find a conda installation." >&2
+  echo "Install conda/miniforge and create the CYTools environment, or set CONDA_EXE." >&2
+  exit 1
 fi
 
-if $exists
-then
-  echo "A CYTools container already exists!"
-  read -p "Do you want to remove it and start a new one? (y/[n]) " -n 1 -r
-  echo
-  if [[ ! $REPLY =~ ^[Yy]$ ]]
-  then
-    exit
-  fi
-  echo "Stopping and removing old CYTools container..."
-  tmp=$(docker stop cytools-uid-${userid})
-  # Check if we have to remove the stopped container
-  containers=$(docker ps -a -q --filter="name=cytools-uid-${userid}")
-  if [[ "$containers" == "" ]]
-  then
-    exists=false
-  else
-    exists=true
-  fi
-  if $exists
-  then
-    tmp=$(docker rm cytools-uid-${userid})
-  fi
+# --- verify the environment exists ---
+if ! "$CONDA" env list | awk '{print $1}' | grep -qx "$ENV_NAME"; then
+  echo "Error: conda environment '$ENV_NAME' not found." >&2
+  echo "Create it with: conda env create -f environment.yml" >&2
+  exit 1
 fi
 
-cat << EOF
+# --- update path ---
+if $doupdate; then
+  exec "$CONDA" run --no-capture-output -n "$ENV_NAME" pip install -U cytools
+fi
+
+# --- bash path ---
+if $runbash; then
+  exec "$CONDA" run --no-capture-output -n "$ENV_NAME" bash
+fi
+
+# --- launch JupyterLab (it opens the browser itself) ---
+cat << "EOF"
 
    █████████  █████ █████ ███████████                   ████
   ███░░░░░███░░███ ░░███ ░█░░░███░░░█                  ░░███
@@ -144,68 +89,10 @@ cat << EOF
   ░░░░░░░░░     ░░░░░       ░░░░░     ░░░░░░   ░░░░░░  ░░░░░ ░░░░░░
 
                 Developed by Liam McAllister's Group
-                  https://cy.tools | Version 1.4.11
-
 EOF
-
-# Initialize docker container
-echo "Initializing CYTools container..."
-if $runbash
-then
-  contid=$(sudo docker run --rm -d -it --name cytools-uid-${userid} -p $port:$port -v $mountdir:/home/cytools/mounted_volume cytools:uid-${userid} bash || echo "failed")
-  if [[ "$contid" == "failed" ]]
-  then
-    echo "The Docker container failed to start."
-    echo "Please make sure the CYTools Docker image has been built and that the Docker daemon is running."
-    echo "If a custom mount directory was specified please make sure you give its absolute path."
-    sleep 10
-    exit
-  fi
-  echo "To exit CYTools press Ctrl+D or use the command 'exit'"
-  echo
-else
-  contid=$(sudo docker run --rm -d -it --name cytools-uid-${userid} -p $port:$port -v $mountdir:/home/cytools/mounted_volume cytools:uid-${userid} || echo "failed")
-  if [[ "$contid" == "failed" ]]
-  then
-    echo "The Docker container failed to start."
-    echo "Please make sure the CYTools Docker image has been built and that the Docker daemon is running."
-    echo "If a custom mount directory was specified please make sure you give its absolute path."
-    sleep 10
-    exit
-  fi
-  # Wait for up to 10 seconds for Jupyter Lab to initialize
-  initialized=false
-  for n in {1..20}
-  do
-    sleep .5
-    logs=$(docker logs cytools-uid-${userid})
-    # Check if logs contain hyperlink
-    for l in $logs
-    do
-      if [[ "$l" == *"127.0.0.1"* ]]
-      then
-        initialized=true
-        link=$l
-        break 2
-      fi
-    done
-  done
-
-  if ! $initialized
-  then
-    echo "Something went wrong. Please make sure the CYTools Docker image has been built."
-    sleep 10
-    exit
-  fi
-
-  # We open the link in a new browser tab
-  open $link
-  echo "CYTools is now running. If a new tab in your browser was not opened, please copy and paste the following link into your web browser of choice."
-  echo "$link"
-
-  echo "To exit CYTools press Ctrl+C twice or close your terminal."
-  echo
-fi
-
-# We attach the cytools container so that we can see the output and close it when we want to
-docker attach cytools-uid-${userid}
+ver=$("$CONDA" run -n "$ENV_NAME" python -c "import importlib.metadata as m; print(m.version('cytools'))" 2>/dev/null || true)
+if [[ -n "$ver" ]]; then echo "                     https://cy.tools | v$ver"; else echo "                       https://cy.tools"; fi
+echo
+echo "Starting JupyterLab in the '$ENV_NAME' environment..."
+echo "To exit CYTools, press Ctrl+C in this terminal."
+exec "$CONDA" run --no-capture-output -n "$ENV_NAME" jupyter lab --notebook-dir="$NOTEBOOK_DIR"

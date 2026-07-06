@@ -3357,7 +3357,7 @@ class Polytope:
                     linrel_rand = np.array(linrel[:, indices])
                     try:
                         linrel_hnf = fmpz_mat(linrel_rand.tolist()).hnf()
-                    except:
+                    except Exception:
                         continue
                     linrel_rand = np.array(linrel_hnf.tolist(), dtype=int)
                     good_exclusions = 0
