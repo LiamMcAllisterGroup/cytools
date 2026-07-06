@@ -94,7 +94,7 @@ In this example we can see that the set of Calabi-Yaus was significantly reduced
 
 ### Mosek
 
-There are various computations that require finding a point in a cone. This task is particularly difficult when it is a high-dimensional problem and the cone is very narrow. The CYTools Docker image bundles some good tools to perform these computations, such as [OR-Tools](https://developers.google.com/optimization). However, for high-dimensional cases, the [Mosek](https://www.mosek.com/) optimizer is significantly faster. Therefore, if you plan to scan over a large number of Calabi-Yaus with large $h^{1,1}$, it is worth using Mosek.
+There are various computations that require finding a point in a cone. This task is particularly difficult when it is a high-dimensional problem and the cone is very narrow. CYTools bundles some good tools to perform these computations, such as [OR-Tools](https://developers.google.com/optimization). However, for high-dimensional cases, the [Mosek](https://www.mosek.com/) optimizer is significantly faster. Therefore, if you plan to scan over a large number of Calabi-Yaus with large $h^{1,1}$, it is worth using Mosek.
 
 Unfortunately, Mosek is proprietary software and requires a license to use it. Fortunately, it is easy to obtain and activate a free academic license and we have listed the instructions to do so here.
 

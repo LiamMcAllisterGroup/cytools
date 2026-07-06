@@ -8,8 +8,6 @@ import TabItem from '@theme/TabItem';
 
 The installation of CYTools on Windows is exclusively done using the Windows Subsystem for Linux (WSL). Except for this, the installation is identical to that for a Linux/macOS system.
 
-utilizes . Other than WSL, this install is identical
-
 ## Requirements
 
 - A recent version of Windows 10 or 11.
@@ -35,7 +33,7 @@ curl https://cy.tools/install.sh | bash
 </TabItem>
 </Tabs>
 
-You can take a look at exactly what is being done by the install script by looking at the `scripts/install.sh` file in the [GitHub repository](https://github.com/LiamMcAllisterGroup/cytools) (that's the point of open-source software!). In short, it downloads an `environment.yml` file and then creates a conda environment from this file.
+You can take a look at exactly what the install script does by viewing it at [https://cy.tools/install.sh](https://cy.tools/install.sh) (that's the point of open-source software!). In short, it downloads an `environment.yml` file and then creates a conda environment from this file.
 
 ## Usage
 
