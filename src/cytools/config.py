@@ -28,9 +28,9 @@ import os
 n_threads = None
 
 # Mosek license
-_mosek_license = (
-    f"/home/{'root' if os.geteuid()==0 else 'cytools'}/mounted_volume/mosek/mosek.lic"
-)
+# Default: defer to Mosek's own license discovery (the MOSEKLM_LICENSE_FILE
+# environment variable, or ~/mosek/mosek.lic). set_mosek_path() overrides this.
+_mosek_license = None
 _mosek_is_activated = None
 _mosek_error = ""
 
@@ -57,7 +57,8 @@ def check_mosek_license(silent=False):
     ```
     """
     global _mosek_license
-    os.environ["MOSEKLM_LICENSE_FILE"] = _mosek_license
+    if _mosek_license is not None:
+        os.environ["MOSEKLM_LICENSE_FILE"] = _mosek_license
     global _mosek_error
     global _mosek_is_activated
     try:
@@ -101,24 +102,20 @@ def mosek_is_activated():
 def set_mosek_path(path):
     """
     **Description:**
-    Sets a custom path to the Mosek license. This is useful if the Docker image
-    was built without the license, but it is stored somewhere in your computer.
-    The license will be checked after the new path is set.
+    Sets a custom path to the Mosek license, for when it is stored in a
+    non-default location on your computer. The license will be checked after
+    the new path is set.
 
     **Arguments:**
-    - `path` *(str)*: The path to the Mosek license. Note that the mounted
-        directory on the Docker container is `/home/cytools/mounted_volume/`.
+    - `path` *(str)*: The path to the Mosek license.
 
     **Returns:**
     Nothing.
 
     **Example:**
-    We set the path to the original one for illustation purposes, and show how
-    to set the path to a directory on the host computer.
-    ```python {2,3}
+    ```python {2}
     import cytools
-    cytools.config.set_mosek_path("/opt/cytools/external/mosek/mosek.lic") # Original path
-    cytools.config.set_mosek_path("/home/cytools/mounted_volume/[path-to-license]") # If not in the Docker image
+    cytools.config.set_mosek_path("/path/to/mosek.lic")
     ```
     """
     global _mosek_license

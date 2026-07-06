@@ -1,6 +1,6 @@
 # CGAL triangulations
 
-This folder contains some code that uses the Computer Geometry Algorithms Library (CGAL) to produce regular triangulations from given heights or weights (or Delaunay triangulations in the absence thereof). The full documentation of the library can be found [here](https://doc.cgal.org/latest/Triangulation/index.html#Chapter_Triangulations), along with installation instructions. The easiest way to get this code working is by building the ```cytools``` Docker image.
+This folder contains some code that uses the Computer Geometry Algorithms Library (CGAL) to produce regular triangulations from given heights or weights (or Delaunay triangulations in the absence thereof). The full documentation of the library can be found [here](https://doc.cgal.org/latest/Triangulation/index.html#Chapter_Triangulations), along with installation instructions.
 
 ## Usage
 
