@@ -23,7 +23,8 @@ command -v gtk-update-icon-cache   >/dev/null 2>&1 && \
   gtk-update-icon-cache -f -t "$HOME/.local/share/icons/hicolor" >/dev/null 2>&1 || true
 echo "Launcher and icon removed."
 
-# --- optionally remove the conda environment ---
+# optionally remove the conda environment
+# ---------------------------------------
 CONDA=""
 if [[ -n "${CONDA_EXE:-}" && -x "${CONDA_EXE}" ]]; then
   CONDA="$CONDA_EXE"

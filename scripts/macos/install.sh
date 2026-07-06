@@ -15,7 +15,8 @@ REPO_ROOT="$(cd "$SRC_DIR/../.." && pwd)"
 ENV_FILE="$REPO_ROOT/environment.yml"
 ENV_NAME="cytools"
 
-# --- 0. platform preflight: Intel Macs are unsupported (native deps are arm64-only) ---
+# 0. platform preflight: Intel Macs are unsupported (native deps are arm64-only)
+# ------------------------------------------------------------------------------
 if [[ "$(uname -s)" == "Darwin" && "$(uname -m)" == "x86_64" && -z "${CYTOOLS_FORCE_INTEL:-}" ]]; then
   cat >&2 << 'EOF'
 Error: This looks like an Intel (x86_64) Mac, which CYTools does not support.
@@ -35,7 +36,8 @@ EOF
   exit 1
 fi
 
-# --- 1. locate conda, or offer to install Miniforge --------------------------
+# 1. locate conda, or offer to install Miniforge
+# ----------------------------------------------
 find_conda() {
   if [[ -n "${CONDA_EXE:-}" && -x "${CONDA_EXE}" ]]; then echo "$CONDA_EXE"; return 0; fi
   local c
@@ -73,7 +75,8 @@ CONDA=""
 if path="$(find_conda)"; then CONDA="$path"; else install_miniforge; fi
 echo "Using conda at: $CONDA"
 
-# --- 2. create or update the 'cytools' environment ---------------------------
+# 2. create or update the 'cytools' environment
+# ---------------------------------------------
 if "$CONDA" env list | awk '{print $1}' | grep -qx "$ENV_NAME"; then
   echo "Updating existing '$ENV_NAME' environment..."
   "$CONDA" env update -n "$ENV_NAME" -f "$ENV_FILE" --prune || {
@@ -84,7 +87,8 @@ else
     echo "Error: environment creation failed (see the conda/pip output above)." >&2; exit 1; }
 fi
 
-# --- 3. assemble CYTools.app into ~/Applications -----------------------------
+# 3. assemble CYTools.app into ~/Applications
+# -------------------------------------------
 APP="$HOME/Applications/CYTools.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 

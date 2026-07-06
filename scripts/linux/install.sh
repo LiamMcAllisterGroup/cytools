@@ -15,7 +15,8 @@ REPO_ROOT="$(cd "$SRC_DIR/../.." && pwd)"
 ENV_FILE="$REPO_ROOT/environment.yml"
 ENV_NAME="cytools"
 
-# --- 1. locate conda, or offer to install Miniforge --------------------------
+# 1. locate conda, or offer to install Miniforge
+# ----------------------------------------------
 find_conda() {
   if [[ -n "${CONDA_EXE:-}" && -x "${CONDA_EXE}" ]]; then echo "$CONDA_EXE"; return 0; fi
   local c
@@ -56,7 +57,8 @@ CONDA=""
 if path="$(find_conda)"; then CONDA="$path"; else install_miniforge; fi
 echo "Using conda at: $CONDA"
 
-# --- 2. create or update the 'cytools' environment ---------------------------
+# 2. create or update the 'cytools' environment
+# ---------------------------------------------
 if "$CONDA" env list | awk '{print $1}' | grep -qx "$ENV_NAME"; then
   echo "Updating existing '$ENV_NAME' environment..."
   "$CONDA" env update -n "$ENV_NAME" -f "$ENV_FILE" --prune
@@ -65,7 +67,8 @@ else
   "$CONDA" env create -f "$ENV_FILE"
 fi
 
-# --- 3. install launcher + icon + desktop entry into ~/.local ----------------
+# 3. install launcher + icon + desktop entry into ~/.local
+# --------------------------------------------------------
 BIN_DIR="$HOME/.local/bin"
 ICON_DIR="$HOME/.local/share/icons/hicolor/512x512/apps"
 APP_DIR="$HOME/.local/share/applications"

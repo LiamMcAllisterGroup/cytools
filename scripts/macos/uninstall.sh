@@ -24,7 +24,8 @@ if [ -e /Applications/CYTools.app ]; then
   echo "  sudo rm -rf /Applications/CYTools.app"
 fi
 
-# --- optionally remove the conda environment ---
+# optionally remove the conda environment
+# ---------------------------------------
 CONDA=""
 if [[ -n "${CONDA_EXE:-}" && -x "${CONDA_EXE}" ]]; then
   CONDA="$CONDA_EXE"

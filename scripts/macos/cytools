@@ -27,7 +27,8 @@ For more detailed instructions please visit https://cytools.liammcallistergroup.
 EOF
 }
 
-# --- parse args (BSD getopts + manual long options) ---
+# parse args (BSD getopts + manual long options)
+# ----------------------------------------------
 while getopts "hbd:-:" OPT; do
   case "$OPT" in
     h) showHelp; exit 0 ;;
@@ -43,7 +44,8 @@ while getopts "hbd:-:" OPT; do
   esac
 done
 
-# --- locate conda (GUI apps don't inherit the shell PATH; include macOS/homebrew paths) ---
+# locate conda (GUI apps don't inherit the shell PATH; include macOS/homebrew paths)
+# ----------------------------------------------------------------------------------
 CONDA=""
 if [[ -n "${CONDA_EXE:-}" && -x "${CONDA_EXE}" ]]; then
   CONDA="$CONDA_EXE"
@@ -59,24 +61,28 @@ if [[ -z "$CONDA" ]]; then
   exit 1
 fi
 
-# --- verify the environment exists ---
+# verify the environment exists
+# -----------------------------
 if ! "$CONDA" env list | awk '{print $1}' | grep -qx "$ENV_NAME"; then
   echo "Error: conda environment '$ENV_NAME' not found." >&2
   echo "Create it with: conda env create -f environment.yml" >&2
   exit 1
 fi
 
-# --- update path ---
+# update path
+# -----------
 if $doupdate; then
   exec "$CONDA" run --no-capture-output -n "$ENV_NAME" pip install -U cytools
 fi
 
-# --- bash path ---
+# bash path
+# ---------
 if $runbash; then
   exec "$CONDA" run --no-capture-output -n "$ENV_NAME" bash
 fi
 
-# --- launch JupyterLab (it opens the browser itself) ---
+# launch JupyterLab (it opens the browser itself)
+# -----------------------------------------------
 cat << "EOF"
 
    █████████  █████ █████ ███████████                   ████
