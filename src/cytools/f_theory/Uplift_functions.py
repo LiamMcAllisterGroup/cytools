@@ -1914,31 +1914,6 @@ def find_cone(new_ray, current_cones, all_vectors, tol=1e-10):
 
     return None
 
-def primitive_rows(A):
-    """
-
-    Makes integer matrix rows primitive.
-
-    **Description:**
-
-    Divides each row of an integer matrix by the greatest common divisor of its entries.
-
-    **Arguments:**
-
-    - `A (array-like)`: Integer matrix.
-
-    **Returns:**
-
-    - `numpy.ndarray`: The row-primitive integer matrix.
-
-    """
-    A = np.asarray(A, dtype=int)
-
-    row_gcds = np.gcd.reduce(np.abs(A), axis=1, keepdims=True)
-    row_gcds[row_gcds == 0] = 1  
-
-    return A // row_gcds
-
 
 def divisor_intersections(fan, intersection_dict,divisors, basis_set,as_LLL=True):
 
