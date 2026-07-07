@@ -35,6 +35,7 @@ from scipy.optimize import milp, LinearConstraint
 
 # CYTools imports
 from cytools import Polytope, h_polytope, Cone
+from cytools.utils import integral_nullspace, lll_reduce
 from cytools.vector_config.fan import Fan
 from cytools.vector_config import VectorConfiguration
 
@@ -1020,70 +1021,7 @@ def is_effective(points,weights):
         return False
 
 
-def integer_kernel_basis(A):
-    """
 
-    Computes an integral kernel basis.
-
-    **Description:**
-
-    Computes a `Z`-basis for the integer kernel of the matrix `A` using Hermite normal form.
-
-    **Arguments:**
-
-    - `A (array-like)`: Integer matrix of shape `(m, n)`.
-
-    **Returns:**
-
-    - `numpy.ndarray`: Rows forming an integral basis of `ker(A : Z^n -> Z^m)`.
-
-    WARNING: Written by chatGPT, but seems to work.
-    """
-    if isinstance(A, np.ndarray):
-        A = A.tolist()
-
-    AT = fmpz_mat(A).transpose()      
-    H, T = AT.hnf(transform=True)     
-
-    rank = sum(
-        any(int(H[i, j]) != 0 for j in range(H.ncols()))
-        for i in range(H.nrows())
-    )
-
-    basis = []
-    for i in range(rank, T.nrows()):
-        v = np.array([int(T[i, j]) for j in range(T.ncols())], dtype=object)
-        basis.append(v)
-
-    return np.array(basis).astype(int)
-
-
-
-def LLL_wrapper(A):
-    """
-
-    LLL-reduces an integer matrix.
-
-    **Description:**
-
-    Applies FLINT's LLL reduction to the rows of an integer matrix and removes zero rows.
-
-    **Arguments:**
-
-    - `A (array-like)`: Integer matrix.
-
-    **Returns:**
-
-    - `numpy.ndarray`: The LLL-reduced nonzero rows.
-
-    """
-    
-    if isinstance(A, np.ndarray):
-        A = A.tolist()
-    L = np.array(fmpz_mat(A).lll().tolist()).astype(int)
-    zeropos = np.where(sum(abs(L.T))==0)[0]
-    L = np.delete(L,zeropos,0)
-    return L
 
 
 def integer_rowspan_basis(A):
@@ -1136,7 +1074,7 @@ def moving_cone(toric_variety):
     """
     
     rays = toric_variety.vectors()
-    glsm = integer_kernel_basis(rays.T)
+    glsm = np.array(integral_nullspace(np.asarray(rays.T, dtype=int))).T
     h_planes = np.array([h for i in range(len(rays)) for h in Cone(np.delete(glsm.T,i,0)).hyperplanes()])@glsm
     mov = Cone(hyperplanes = h_planes)
     
@@ -2094,5 +2032,6 @@ def divisor_intersections(fan, intersection_dict,divisors, basis_set,as_LLL=True
             curves_homology_in_basis[s_idx, i_idx] = total_intersection
 
     if as_LLL:
-        return LLL_wrapper(curves_homology_in_basis)
+        reduced = np.array(lll_reduce(np.asarray(curves_homology_in_basis, dtype=int).T)).T
+        return reduced[np.any(reduced != 0, axis=1)]
     return curves_homology_in_basis
