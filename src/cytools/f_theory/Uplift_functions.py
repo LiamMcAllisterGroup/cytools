@@ -34,7 +34,7 @@ from scipy.optimize import nnls
 from scipy.optimize import milp, LinearConstraint
 
 # CYTools imports
-from cytools import Polytope, h_polytope, Cone, fetch_polytopes
+from cytools import Polytope, h_polytope, Cone
 from cytools.vector_config.fan import Fan
 from cytools.vector_config import VectorConfiguration
 

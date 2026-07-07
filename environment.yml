@@ -15,6 +15,9 @@ dependencies:
   - tqdm
   - requests
   - osqp>=1.0
+  - pandas
+  - pyarrow
+  - sympy
   - pip
   - pip:
     - ortools==9.15.*      # bundles HiGHS 1.12; keep matched to highspy below

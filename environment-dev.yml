@@ -15,6 +15,9 @@ dependencies:
   - tqdm
   - requests
   - osqp>=1.0
+  - pandas
+  - pyarrow
+  - sympy
   - pytest
   - pip
   - pip:
