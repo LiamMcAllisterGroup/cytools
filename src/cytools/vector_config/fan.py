@@ -917,17 +917,14 @@ class Fan(regfans.fan.Fan):
 
     def h21_cy(self):
         """
-        Makes assumption that for CYs in Gorenstein Fano four-folds, h21(CY) = h11(CY) for dual polytope.
+        h21 of the anticanonical CY hypersurface. The Hodge numbers are
+        determined by the polytope alone (a birational invariant), so they are
+        the same for every FRST/vex fan of it; this returns the polytope's h21.
         """
         if not self.is_gorenstein_fano():
             raise NotImplementedError()
 
-        if self.conv().labels_not_facet[1:] != self.used_labels:
-            print(
-                f"This function may not hold! Polytope labels are {self.conv().labels_not_facet} and VC labels are {self.used_labels}"
-            )
-
-        return len(self.newton_polytope([1] * len(self.used_labels)).labels_not_facet)
+        return self.vc.conv().h21()
 
     # generalize flip_linear
     # ----------------------
