@@ -13,6 +13,20 @@ CYTools is an open-source software package developed by [Liam McAllister's group
 
 Most of the code is written in Python, with wrappers to interface with various other open-source software. It is distributed as a Python package that can be installed with pip or conda, which pull in the necessary dependencies so that it is easy to install and use on most operating systems.
 
+## Quick example
+
+After [installing CYTools](INSTALL.md), compute the Hodge numbers of the quintic Calabi-Yau threefold:
+
+```python
+from cytools import Polytope
+
+p = Polytope([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -1, -1]])
+cy = p.triangulate().get_cy()
+print(cy.h11(), cy.h21())   # 1 101
+```
+
+## Acknowledgements
+
 CYTools makes use of a variety of open-source projects. It includes a few code snippets from [SageMath](https://www.sagemath.org/) [[GPLv2](http://www.gnu.org/licenses/gpl-2.0.html)], a modified version of [TOPCOM](https://www.wm.uni-bayreuth.de/de/team/rambau_joerg/TOPCOM/index.html) [[GPLv2](http://www.gnu.org/licenses/gpl-2.0.html)] that can be found [here](https://github.com/LiamMcAllisterGroup/topcom), the [Computational Geometry Algorithms Library](https://www.cgal.org) [[LGPLv3](http://www.gnu.org/licenses/lgpl-3.0.html)], and multiple Python packages including [SciPy](https://www.scipy.org/), [NumPy](https://numpy.org/), [pplpy](https://gitlab.com/videlec/pplpy), [OR-Tools](https://developers.google.com/optimization), [scikit-sparse](https://github.com/scikit-sparse/scikit-sparse), and [flint-py](https://gitlab.com/alisianoi/flint-py).
 
 All original CYTools code is distributed under the terms of the [GNU General Public License version 3](https://www.gnu.org/licenses/gpl-3.0.txt). All other packages and code snippets are redistributed under their respective licenses.
