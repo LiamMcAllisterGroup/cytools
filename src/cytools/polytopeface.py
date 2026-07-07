@@ -20,7 +20,6 @@
 # -----------------------------------------------------------------------------
 
 # 'standard' imports
-import copy
 
 # 3rd party imports
 import numpy as np

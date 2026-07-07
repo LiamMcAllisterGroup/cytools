@@ -19,13 +19,10 @@
 # -----------------------------------------------------------------------------
 
 # 'standard' imports
-import ast
 from collections.abc import Iterable
 import copy
 import itertools
 import math
-import re
-import subprocess
 import warnings
 
 # 3rd party imports
@@ -36,7 +33,6 @@ from scipy.spatial import ConvexHull
 import triangulumancer
 
 # CYTools imports
-from cytools import config
 from cytools.cone import Cone
 from cytools.toricvariety import ToricVariety
 from cytools.utils import gcd_list, lll_reduce
