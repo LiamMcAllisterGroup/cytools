@@ -1185,7 +1185,15 @@ def fan(self, include_points_interior_to_facets=None):
     # get the vc
     vc = self.polytope().vc(include_points_interior_to_facets=include_points_interior_to_facets)
 
-    # get/return the fan
-    fan = vc.subdivide(cells=self.simplices()[:,1:])
+    # build the star fan: keep only simplices containing the origin and drop
+    # the origin label from each. the vc above already carries these same
+    # labels (minus the origin), so the cells index it directly (no remap).
+    origin = self.polytope().label_origin
+    cells = [
+        sorted(x for x in simp if x != origin)
+        for simp in self.simplices().tolist()
+        if origin in simp
+    ]
+    fan = vc.subdivide(cells=cells)
     return fan
 Triangulation.fan = fan
