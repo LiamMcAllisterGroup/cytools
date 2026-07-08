@@ -27,7 +27,7 @@ dependencies = [
     "ortools==9.15.*",      # bundles HiGHS 1.12; keep matched to highspy below
     "triangulumancer>=0.3",
     "pypalp",
-    "cygv",
+    "cygv>=0.2.3",
     "regfans>=0.1.0",
     "tqdm",
     "qpsolvers",
