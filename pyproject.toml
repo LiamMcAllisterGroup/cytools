@@ -28,7 +28,7 @@ dependencies = [
     "triangulumancer>=0.3",
     "pypalp",
     "cygv",
-    "regfans>=0.1.0",
+    "regfans>=0.2.1",
     "tqdm",
     "qpsolvers",
     "requests",

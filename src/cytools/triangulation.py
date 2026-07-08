@@ -2257,9 +2257,6 @@ class Triangulation:
         face_triangs = self.restrict(as_poly=True)
         n_faces = len(face_triangs)
 
-        def restriction_key(triang):
-            return tuple(tuple(map(tuple, f)) for f in triang.restrict())
-
         def ineqs(ft):
             return np.asarray(_2d_frt_cone_ineqs(ft, npts).dense(),
                               dtype=np.float64)
@@ -2271,7 +2268,10 @@ class Triangulation:
         # a full triangulation.
         fixed = [ineqs(ft) for ft in face_triangs]
 
-        seen = {restriction_key(self)}
+        # each (face, flipped triangulation) pair is a distinct 2-face
+        # restriction, so it is its own dedup key -- no need to restrict the
+        # (large) extended triangulation just to deduplicate
+        seen = set()
         neighbors = []
         for i, face_triang in enumerate(face_triangs):
             flips = face_triang.fine_neighbors_2d(only_regular=only_regular)
@@ -2285,6 +2285,12 @@ class Triangulation:
             lp.push(base)
 
             for flipped in flips:
+                key = (i, tuple(sorted(
+                    tuple(sorted(int(x) for x in s))
+                    for s in flipped.simplices())))
+                if key in seen:
+                    continue
+
                 # skip flips that cannot be extended (no full triangulation
                 # has that 2-face restriction); push() rolls back on its own
                 if not lp.push(ineqs(flipped)):
@@ -2292,17 +2298,13 @@ class Triangulation:
                 heights = lp.witness()
                 lp.pop()
 
-                extended = poly.triangulate(
+                seen.add(key)
+                neighbors.append(poly.triangulate(
                     heights=np.delete(heights, poly.labels_facet),
                     include_points_interior_to_facets=False,
                     make_star=make_star, check_heights=False,
                     **({} if backend is None else {"backend": backend}),
-                )
-                key = restriction_key(extended)
-                if key in seen:
-                    continue
-                seen.add(key)
-                neighbors.append(extended)
+                ))
 
         return neighbors
 
