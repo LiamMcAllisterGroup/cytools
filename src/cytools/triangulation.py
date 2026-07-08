@@ -2207,6 +2207,7 @@ class Triangulation:
     def two_neighbors(
         self,
         make_star: bool = None,
+        only_regular: bool = False,
         backend: str = None,
         verbosity: int = 0,
     ) -> list["Triangulation"]:
@@ -2218,8 +2219,13 @@ class Triangulation:
         arXiv:2309.10855.
 
         **Arguments:**
-        - `make_star`: Whether to produce star triangulations. If not specified,
+        - `make_star`: Whetherw to produce star triangulations. If not specified,
             it is set to whether the current triangulation is star.
+        - `only_regular`: Whether to pre-filter each 2-face's diagonal flips to
+            regular triangulations before extending. This does not change the
+            output (a non-regular 2-face never extends), but trades a cheap
+            per-face regularity check for skipping a failed extend; only worth
+            it when non-regular flips are common. Defaults to False.
         - `backend`: The backend used when extending. If not specified, it is
             picked automatically.
         - `verbosity`: The verbosity level.
@@ -2255,7 +2261,8 @@ class Triangulation:
 
         # flip each 2-face in turn, then extend back to a full triangulation
         for i, face_triang in enumerate(face_triangs):
-            for flipped in face_triang.fine_neighbors_2d():
+            flips = face_triang.fine_neighbors_2d(only_regular=only_regular)
+            for flipped in flips:
                 spliced = list(face_triangs)
                 spliced[i] = flipped
 
