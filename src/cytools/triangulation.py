@@ -2219,7 +2219,7 @@ class Triangulation:
         arXiv:2309.10855.
 
         **Arguments:**
-        - `make_star`: Whetherw to produce star triangulations. If not specified,
+        - `make_star`: Whether to produce star triangulations. If not specified,
             it is set to whether the current triangulation is star.
         - `only_regular`: Whether to pre-filter each 2-face's diagonal flips to
             regular triangulations before extending. This does not change the
@@ -2246,41 +2246,58 @@ class Triangulation:
         # 2
         ```
         """
+        from cytools.ntfe.ntfe import _2d_frt_cone_ineqs, _IncrementalLP
+
         if make_star is None:
             make_star = self.is_star()
 
         poly = self.polytope()
+        npts = len(poly.labels)
         # the per-2-face triangulations, aligned to poly.faces(2)
         face_triangs = self.restrict(as_poly=True)
+        n_faces = len(face_triangs)
 
         def restriction_key(triang):
             return tuple(tuple(map(tuple, f)) for f in triang.restrict())
 
+        def ineqs(ft):
+            return np.asarray(_2d_frt_cone_ineqs(ft, npts).dense(),
+                              dtype=np.float64)
+
+        # A single 2-face flip changes only that one face's inequalities, so
+        # the other faces' blocks are stacked once into a warm incremental LP
+        # and reused across all of a face's flips; only the flipped block is
+        # pushed/popped per neighbor. The feasible heights are then extended to
+        # a full triangulation.
+        fixed = [ineqs(ft) for ft in face_triangs]
+
         seen = {restriction_key(self)}
         neighbors = []
-
-        # flip each 2-face in turn, then extend back to a full triangulation
         for i, face_triang in enumerate(face_triangs):
             flips = face_triang.fine_neighbors_2d(only_regular=only_regular)
+            if not flips:
+                continue
+
+            other = [fixed[j] for j in range(n_faces)
+                     if j != i and len(fixed[j])]
+            base = np.vstack(other) if other else np.zeros((0, npts))
+            lp = _IncrementalLP(npts)
+            lp.push(base)
+
             for flipped in flips:
-                spliced = list(face_triangs)
-                spliced[i] = flipped
-
-                if make_star:
-                    extended = poly.triangfaces_to_frst(
-                        spliced, backend=backend, verbosity=verbosity - 1
-                    )
-                else:
-                    extended = poly.triangfaces_to_frt(
-                        spliced, make_star=False, backend=backend,
-                        verbosity=verbosity - 1,
-                    )
-
-                # skip flips that cannot be extended (no FRST has that
-                # 2-face restriction)
-                if extended is None:
+                # skip flips that cannot be extended (no full triangulation
+                # has that 2-face restriction); push() rolls back on its own
+                if not lp.push(ineqs(flipped)):
                     continue
+                heights = lp.witness()
+                lp.pop()
 
+                extended = poly.triangulate(
+                    heights=np.delete(heights, poly.labels_facet),
+                    include_points_interior_to_facets=False,
+                    make_star=make_star, check_heights=False,
+                    **({} if backend is None else {"backend": backend}),
+                )
                 key = restriction_key(extended)
                 if key in seen:
                     continue
