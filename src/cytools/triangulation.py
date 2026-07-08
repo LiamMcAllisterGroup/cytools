@@ -1563,52 +1563,70 @@ class Triangulation:
 
                 m[:-1, -1] = self.points(which=self.poly._label_origin, optimal=True)
 
+            # find adjacent simplices (those sharing a facet) via a
+            # facet->simplices incidence map, rather than scanning all O(n^2)
+            # pairs of simplices
+            facet_to_simps = {}
+            for idx, s in enumerate(simps):
+                for pt in s:
+                    facet = frozenset(s - {pt})
+                    facet_to_simps.setdefault(facet, []).append(idx)
+
+            # cache the optimal coordinates of every point once, rather than
+            # re-fetching them for each adjacent pair
+            all_labels = list(set().union(*simps))
+            all_opt = self.points(which=all_labels, optimal=True)
+            opt_pts = {lbl: all_opt[i] for i, lbl in enumerate(all_labels)}
+
             # calculate the hyperplanes
             null_vecs = set()
-            for i, s1 in enumerate(simps):
-                for s2 in simps[i + 1 :]:
-                    # ensure that the simps have a large enough intersection
-                    comm_pts = s1 & s2
-                    if len(comm_pts) != dim:
-                        continue
+            for idxs in facet_to_simps.values():
+                # an interior facet joins exactly two simplices; a boundary
+                # facet joins one (and is not flippable)
+                if len(idxs) != 2:
+                    continue
+                s1 = simps[idxs[0]]
+                s2 = simps[idxs[1]]
 
-                    # organize the diff
-                    diff_pts = list(s1 ^ s2)
-                    comm_pts = list(comm_pts)
+                # the two opposite vertices and the shared facet
+                diff_pts = list(s1 ^ s2)
+                comm_pts = list(s1 & s2)
 
-                    m[:-1, :2] = self.points(which=diff_pts, optimal=True).T
-                    m[:-1, 2 : (2 + dim)] = self.points(which=comm_pts, optimal=True).T
+                for c, pt in enumerate(diff_pts):
+                    m[:-1, c] = opt_pts[pt]
+                for c, pt in enumerate(comm_pts):
+                    m[:-1, 2 + c] = opt_pts[pt]
 
-                    # calculate nullspace/hyperplane ineq
-                    v = flint.fmpz_mat(m.tolist()).nullspace()[0]
-                    v = np.array(v.transpose().tolist()[0], dtype=int)
+                # calculate nullspace/hyperplane ineq
+                # (quicker than the determinant method)
+                v = flint.fmpz_mat(m.tolist()).nullspace()[0]
+                v = np.array(v.transpose().tolist()[0], dtype=int)
 
-                    # ensure the sign is correct
-                    if v[0] < 0:
-                        v *= -1
+                # ensure the sign is correct
+                if v[0] < 0:
+                    v *= -1
 
-                    # Reduce the vector
-                    g = gcd_list(v)
-                    if g != 1:
-                        v //= g
+                # Reduce the vector
+                g = math.gcd(*v.tolist())
+                if g != 1:
+                    v //= g
 
-                    # Construct the full vector (including all points)
-                    # (could get some more performance by allowing sparse vectors as Cone argument...)
-                    for i, pt in enumerate(diff_pts):
-                        full_v[labels2inds[pt]] = v[i]
-                    for i, pt in enumerate(comm_pts):
-                        full_v[labels2inds[pt]] = v[i + 2]
+                # Construct the full vector (including all points)
+                for k, pt in enumerate(diff_pts):
+                    full_v[labels2inds[pt]] = v[k]
+                for k, pt in enumerate(comm_pts):
+                    full_v[labels2inds[pt]] = v[k + 2]
 
-                    if self.is_star():
-                        full_v[labels2inds[self.poly._label_origin]] = v[-1]
+                if self.is_star():
+                    full_v[labels2inds[self.poly._label_origin]] = v[-1]
 
-                    null_vecs.add(tuple(full_v))
+                null_vecs.add(tuple(full_v))
 
-                    # clear full_v
-                    for i, pt in enumerate(diff_pts):
-                        full_v[labels2inds[pt]] = 0
-                    for i, pt in enumerate(comm_pts):
-                        full_v[labels2inds[pt]] = 0
+                # clear full_v
+                for pt in diff_pts:
+                    full_v[labels2inds[pt]] = 0
+                for pt in comm_pts:
+                    full_v[labels2inds[pt]] = 0
 
             # organize the hyperplanes
             hyps = list(null_vecs)
@@ -2007,7 +2025,9 @@ class Triangulation:
 
         # optimized method for 2D fine neighbors
         if self.is_fine() and (self.dim() == 2) and only_fine:
-            return self._fine_neighbors_2d()
+            return self.fine_neighbors_2d(
+                only_regular=only_regular, backend=backend
+            )
 
         pc = triangulumancer.PointConfiguration(self.points(optimal=True))
         t = triangulumancer.Triangulation(pc, self._simplices) # TODO: Need to implement this
@@ -2119,10 +2139,9 @@ class Triangulation:
 
         return curr_triang
 
-    def _fine_neighbors_2d(
+    def fine_neighbors_2d(
         self,
         only_regular: bool = False,
-        only_star: bool = False,
         backend: str = None,
     ) -> list["Triangulation"]:
         """
@@ -2132,12 +2151,11 @@ class Triangulation:
             1) 2D (in dimension... ambient dimension doesn't matter)
             2) fine
             3) fine neighbors are desired
-        In this case, _fine_neighbors_2d runs much quicker than the
+        In this case, fine_neighbors_2d runs much quicker than the
         corresponding TOPCOM calculation
 
         **Arguments:**
         - `only_regular`: Restricts the to regular triangulations.
-        - `only_star`: Restricts to star triangulations.
         - `backend`: The backend used to check regularity. The options are any
             backend available for the [`is_solid`](./cone#is_solid) function of
             the [`Cone`](./cone) class. If not specified, it will be picked
@@ -2148,22 +2166,20 @@ class Triangulation:
         current triangulation.
         """
         simps_set = [set(s) for s in self._simplices]
-        triangs = []
 
-        # for each pair of simplices
+        triangs = []
         for i, s1 in enumerate(simps_set):
             for _j, s2 in enumerate(simps_set[i + 1 :]):
                 j = i + 1 + _j
 
-                # check if they form a quadrilateral
-                # (i.e., if they intersect along an edge)
+                # the two simplices must share an edge (form a quadrilateral)
                 inter = s1 & s2
                 if len(inter) != 2:
                     continue
 
-                # (and if the edge is 'internal')
+                # ...and the quadrilateral must be a parallelogram, so that
+                # swapping the diagonal gives a fine triangulation
                 other = s1.union(s2) - inter
-
                 pts_inter = self.points(inter, check_labels=False)
                 pts_other = self.points(other, check_labels=False)
                 if (sum(pts_inter) != sum(pts_other)).any():
@@ -2175,23 +2191,96 @@ class Triangulation:
                 new_simps[i] = flipped[0]
                 new_simps[j] = flipped[1]
 
-                # construct the triangulation
                 tri = Triangulation(
                     self.poly,
                     self.labels,
                     simplices=new_simps,
                     check_input_simplices=False,
                 )
-
-                # check the triangulation
-                if only_star and (not tri.is_star()):
-                    continue
                 if only_regular and (not tri.is_regular(backend=backend)):
                     continue
 
-                # keep it :)
                 triangs.append(tri)
+
         return triangs
+
+    def two_neighbors(
+        self,
+        make_star: bool = None,
+        backend: str = None,
+        verbosity: int = 0,
+    ) -> list["Triangulation"]:
+        """
+        **Description:**
+        Returns the "2-neighbors" of this triangulation: the FRSTs reachable
+        by a single 2D diagonal flip of one 2-face, extended back to a full
+        triangulation. Flips that cannot be extended are skipped. See
+        arXiv:2309.10855.
+
+        **Arguments:**
+        - `make_star`: Whether to produce star triangulations. If not specified,
+            it is set to whether the current triangulation is star.
+        - `backend`: The backend used when extending. If not specified, it is
+            picked automatically.
+        - `verbosity`: The verbosity level.
+
+        **Returns:**
+        The list of 2-neighbor triangulations. Each differs from the current one
+        by a single 2-face diagonal flip and is fine and regular (and star if
+        `make_star`); they are the neighboring Calabi-Yaus.
+
+        **Example:**
+        We construct an FRST and find its 2-neighbors.
+        ```python {3}
+        p = Polytope([[0,0,1,0],[-2,-2,-1,-2],[0,0,1,2],[-1,0,1,0],
+                      [1,2,-2,-1],[-1,0,0,-1],[0,1,0,0],[1,0,0,0]])
+        t = p.triangulate()
+        neighbors = t.two_neighbors()
+        len(neighbors) # Print how many 2-neighbors it found
+        # 2
+        ```
+        """
+        if make_star is None:
+            make_star = self.is_star()
+
+        poly = self.polytope()
+        # the per-2-face triangulations, aligned to poly.faces(2)
+        face_triangs = self.restrict(as_poly=True)
+
+        def restriction_key(triang):
+            return tuple(tuple(map(tuple, f)) for f in triang.restrict())
+
+        seen = {restriction_key(self)}
+        neighbors = []
+
+        # flip each 2-face in turn, then extend back to a full triangulation
+        for i, face_triang in enumerate(face_triangs):
+            for flipped in face_triang.fine_neighbors_2d():
+                spliced = list(face_triangs)
+                spliced[i] = flipped
+
+                if make_star:
+                    extended = poly.triangfaces_to_frst(
+                        spliced, backend=backend, verbosity=verbosity - 1
+                    )
+                else:
+                    extended = poly.triangfaces_to_frt(
+                        spliced, make_star=False, backend=backend,
+                        verbosity=verbosity - 1,
+                    )
+
+                # skip flips that cannot be extended (no FRST has that
+                # 2-face restriction)
+                if extended is None:
+                    continue
+
+                key = restriction_key(extended)
+                if key in seen:
+                    continue
+                seen.add(key)
+                neighbors.append(extended)
+
+        return neighbors
 
     # misc
     # ====

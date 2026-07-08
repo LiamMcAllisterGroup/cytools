@@ -135,6 +135,57 @@ def test_neighbor_triangulations():
     assert len(triangs) == 2
 
 
+def test_fine_neighbors_2d():
+    p = Polytope([[1, 1], [1, -1], [-1, 1], [-1, -1]])
+    t = p.triangulate(include_points_interior_to_facets=True)
+    triangs = t.fine_neighbors_2d()
+    assert len(triangs) == 4
+    # each neighbor differs by exactly one diagonal (two simplices swapped)
+    base = {tuple(sorted(s)) for s in t.simplices().tolist()}
+    for n in triangs:
+        other = {tuple(sorted(s)) for s in n.simplices().tolist()}
+        assert len(base - other) == 2 and len(other - base) == 2
+    # agrees with the general (TOPCOM) path
+    assert len(t.neighbor_triangulations(only_fine=True)) == 4
+
+
+def test_two_neighbors():
+    p = Polytope(
+        [[0, 0, 1, 0], [-2, -2, -1, -2], [0, 0, 1, 2], [-1, 0, 1, 0],
+         [1, 2, -2, -1], [-1, 0, 0, -1], [0, 1, 0, 0], [1, 0, 0, 0]]
+    )
+    t = p.triangulate()
+    triangs = t.two_neighbors()
+    assert len(triangs) == 2
+    base = t.restrict()
+    for n in triangs:
+        assert n.is_star() and n.is_fine() and n.is_regular()
+        # a 2-neighbor differs from t in exactly one 2-face restriction
+        assert sum(a != b for a, b in zip(base, n.restrict())) == 1
+
+
+def test_two_neighbors_skips_unextendable_flips():
+    # An h11=16 polytope with a 2-face flip that cannot be extended to a full
+    # triangulation, so two_neighbors returns fewer FRSTs than there are flips.
+    p = Polytope(
+        [
+            [-2, 2, 1, 0], [0, 0, 1, 0], [4, -2, -1, -2], [-2, 0, -1, 2],
+            [-2, 2, 0, 1], [0, 0, 0, 1], [0, 1, 0, 0], [1, -1, 1, -2],
+            [1, 0, 0, 0],
+        ]
+    )
+    t = p.triangulate()
+    total_flips = sum(
+        len(ft.fine_neighbors_2d()) for ft in t.restrict(as_poly=True)
+    )
+    neighbors = t.two_neighbors()
+    assert total_flips == 8
+    assert len(neighbors) == 7  # one flip is not realizable and is skipped
+    base = t.restrict()
+    for n in neighbors:
+        assert sum(a != b for a, b in zip(base, n.restrict())) == 1
+
+
 def test_points():
     p = Polytope(
         [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -6, -9]]

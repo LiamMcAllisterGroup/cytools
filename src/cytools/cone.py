@@ -2357,20 +2357,31 @@ def feasibility(
         return np.ones(ambient_dim)
 
     if backend == "highs":
-        # LP feasibility via HiGHS. Benchmarked against GLOP on synthetic
-        # over-determined cones (random integer facets, ~5x as many as
-        # dimensions, d=8-60): 7-13% faster for d>=16, marginally slower at
-        # d=8. Not measured on real cone workloads.
+        # LP feasibility via HiGHS
         n = ambient_dim
-        starts, index, value = [], [], []
-        grading = np.zeros(n)
-        for v in hyperplanes:
-            starts.append(len(index))
-            for ind, val in hp_iter(v):
-                index.append(int(ind))
-                value.append(float(val))
-                grading[int(ind)] += float(val)
-        grading /= len(starts)
+        if isinstance(hyperplanes, np.ndarray):
+            # dense: assemble the CSR structure with numpy instead of a Python
+            # double loop over every (row, column) entry
+            m = len(hyperplanes)
+            grading = hyperplanes.sum(axis=0) / m
+            starts  = np.arange(m, dtype=np.int32) * n
+            index   = np.tile(np.arange(n, dtype=np.int32), m)
+            value   = hyperplanes.ravel().astype(float)
+        else:
+            # sparse rows (e.g. LIL): iterate only the stored entries
+            starts, index, value = [], [], []
+            grading = np.zeros(n)
+            for v in hyperplanes:
+                starts.append(len(index))
+                for ind, val in hp_iter(v):
+                    index.append(int(ind))
+                    value.append(float(val))
+                    grading[int(ind)] += float(val)
+
+            grading /= len(starts)
+            starts = np.asarray(starts, dtype=np.int32)
+            index  = np.asarray(index, dtype=np.int32)
+            value  = np.asarray(value, dtype=float)
 
         inf = highspy.kHighsInf
         lb = -inf if lower_bound is None else float(lower_bound)
@@ -2381,9 +2392,7 @@ def feasibility(
         h.changeColsCost(n, np.arange(n, dtype=np.int32), grading)
         h.addRows(len(starts), np.full(len(starts), float(c)),
                   np.full(len(starts), inf), len(index),
-                  np.asarray(starts, dtype=np.int32),
-                  np.asarray(index, dtype=np.int32),
-                  np.asarray(value, dtype=float))
+                  starts, index, value)
         h.run()
         status = h.getModelStatus()
         if status == highspy.HighsModelStatus.kOptimal:
