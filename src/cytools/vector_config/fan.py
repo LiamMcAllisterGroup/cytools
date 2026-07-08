@@ -917,17 +917,14 @@ class Fan(regfans.fan.Fan):
 
     def h21_cy(self):
         """
-        Makes assumption that for CYs in Gorenstein Fano four-folds, h21(CY) = h11(CY) for dual polytope.
+        h21 of the anticanonical CY hypersurface. The Hodge numbers are
+        determined by the polytope alone (a birational invariant), so they are
+        the same for every FRST/vex fan of it; this returns the polytope's h21.
         """
         if not self.is_gorenstein_fano():
             raise NotImplementedError()
 
-        if self.conv().labels_not_facet[1:] != self.used_labels:
-            print(
-                f"This function may not hold! Polytope labels are {self.conv().labels_not_facet} and VC labels are {self.used_labels}"
-            )
-
-        return len(self.newton_polytope([1] * len(self.used_labels)).labels_not_facet)
+        return self.vc.conv().h21()
 
     # generalize flip_linear
     # ----------------------
@@ -1185,7 +1182,15 @@ def fan(self, include_points_interior_to_facets=None):
     # get the vc
     vc = self.polytope().vc(include_points_interior_to_facets=include_points_interior_to_facets)
 
-    # get/return the fan
-    fan = vc.subdivide(cells=self.simplices()[:,1:])
+    # build the star fan: keep only simplices containing the origin and drop
+    # the origin label from each. the vc above already carries these same
+    # labels (minus the origin), so the cells index it directly (no remap).
+    origin = self.polytope().label_origin
+    cells = [
+        sorted(x for x in simp if x != origin)
+        for simp in self.simplices().tolist()
+        if origin in simp
+    ]
+    fan = vc.subdivide(cells=cells)
     return fan
 Triangulation.fan = fan

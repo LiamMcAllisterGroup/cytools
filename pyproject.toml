@@ -2,9 +2,13 @@
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.version]
+path = "src/cytools/__init__.py"
+pattern = 'version = "(?P<version>[^"]+)"'
+
 [project]
 name = "cytools"
-version = "1.4.11"
+dynamic = ["version"]
 description = "A software package for analyzing Calabi-Yau hypersurfaces in toric varieties."
 readme = "README.md"
 license = {file = "LICENSE"}
