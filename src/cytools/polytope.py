@@ -509,6 +509,7 @@ class Polytope:
 
         # symmetries
         self._autos = [None] * 4
+        self._Z2_actions = None
 
         # hodge
         self._chi = None
@@ -1808,6 +1809,50 @@ class Polytope:
             return np.array([a.T for a in self._autos[args_id]])
         else:
             return np.array(self._autos[args_id])
+
+    def inequivalent_Z2_actions(self) -> "np.ndarray":
+        """
+        **Description:**
+        Enumerates inequivalent toric `Z_2` actions. I.e., the half-integer
+        lattice points defining `Z_2` torus actions modulo the polytope's
+        lattice automorphisms.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        - `numpy.ndarray`: Inequivalent integer representatives `q` such that
+          `q/2` defines a `Z_2` action.
+
+        **Example:**
+        ```python {2}
+        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        p.inequivalent_Z2_actions()
+        # array([[0, 0, 0, 1],
+        #        [0, 0, 1, 1]])
+        ```
+        """
+        if self._Z2_actions is not None:
+            return copy.deepcopy(self._Z2_actions)
+
+        autos = self.automorphisms(action="left")
+        d = self.ambient_dim()
+
+        # all q in {0,1}^d except the trivial q = 0
+        candidates = [q for q in itertools.product((0, 1), repeat=d) if any(q)]
+
+        # group candidates into orbits under q -> (s @ q) mod 2, keeping one
+        # canonical (lexicographically smallest) representative per orbit
+        seen, reps = set(), []
+        for q in candidates:
+            if q in seen:
+                continue
+            orbit = {tuple(np.mod(s @ q, 2)) for s in autos}
+            seen |= orbit
+            reps.append(min(orbit))
+
+        self._Z2_actions = np.array(sorted(reps), dtype=int)
+        return copy.deepcopy(self._Z2_actions)
 
     def normal_form(
         self, affine_transform: bool = False, backend: str = "palp"
