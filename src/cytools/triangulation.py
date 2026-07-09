@@ -2209,6 +2209,7 @@ class Triangulation:
         make_star: bool = None,
         only_regular: bool = False,
         backend: str = None,
+        n_jobs: int = 1,
         verbosity: int = 0,
     ) -> list["Triangulation"]:
         """
@@ -2228,6 +2229,9 @@ class Triangulation:
             it when non-regular flips are common. Defaults to False.
         - `backend`: The backend used when extending. If not specified, it is
             picked automatically.
+        - `n_jobs`: Number of parallel worker processes (passed to
+            `joblib.Parallel`). 1 (default) runs serially; -1 uses all cores.
+            The (face, flip) tasks are chunked, one chunk per worker.
         - `verbosity`: The verbosity level.
 
         **Returns:**
@@ -2268,45 +2272,62 @@ class Triangulation:
         # a full triangulation.
         fixed = [ineqs(ft) for ft in face_triangs]
 
-        # each (face, flipped triangulation) pair is a distinct 2-face
-        # restriction, so it is its own dedup key -- no need to restrict the
-        # (large) extended triangulation just to deduplicate
-        seen = set()
-        neighbors = []
-        for i, face_triang in enumerate(face_triangs):
-            flips = face_triang.fine_neighbors_2d(only_regular=only_regular)
-            if not flips:
-                continue
-
-            other = [fixed[j] for j in range(n_faces)
-                     if j != i and len(fixed[j])]
-            base = np.vstack(other) if other else np.zeros((0, npts))
-            lp = _IncrementalLP(npts)
-            lp.push(base)
-
-            for flipped in flips:
+        # extend a chunk of (face index, flipped 2-face triangulation) pairs
+        # to full triangulations. Each (face, flip) is a distinct 2-face
+        # restriction, so it is its own dedup key.
+        def extend_chunk(chunk):
+            out = []
+            seen = set()
+            lp = None
+            cur = None
+            for i, flipped in chunk:
                 key = (i, tuple(sorted(
                     tuple(sorted(int(x) for x in s))
                     for s in flipped.simplices())))
                 if key in seen:
                     continue
-
+                if cur != i:
+                    other = [fixed[j] for j in range(n_faces)
+                             if j != i and len(fixed[j])]
+                    base = np.vstack(other) if other else np.zeros((0, npts))
+                    lp = _IncrementalLP(npts)
+                    lp.push(base)
+                    cur = i
                 # skip flips that cannot be extended (no full triangulation
                 # has that 2-face restriction); push() rolls back on its own
                 if not lp.push(ineqs(flipped)):
                     continue
                 heights = lp.witness()
                 lp.pop()
-
                 seen.add(key)
-                neighbors.append(poly.triangulate(
+                out.append(poly.triangulate(
                     heights=np.delete(heights, poly.labels_facet),
                     include_points_interior_to_facets=False,
                     make_star=make_star, check_heights=False,
                     **({} if backend is None else {"backend": backend}),
                 ))
+            return out
 
-        return neighbors
+        # the (face, flip) tasks, grouped by face so each chunk reuses its
+        # warm LP for a face's flips
+        tasks = [(i, flipped)
+                 for i, ft in enumerate(face_triangs)
+                 for flipped in ft.fine_neighbors_2d(only_regular=only_regular)]
+
+        if n_jobs == 1 or len(tasks) <= 1:
+            return extend_chunk(tasks)
+
+        # split the grouped tasks into contiguous chunks, one per worker
+        import joblib
+
+        n = joblib.effective_n_jobs(n_jobs)
+        size = -(-len(tasks) // n)
+        chunks = [tasks[k * size:(k + 1) * size] for k in range(n)]
+        chunks = [c for c in chunks if c]
+        batches = joblib.Parallel(n_jobs=n_jobs)(
+            joblib.delayed(extend_chunk)(c) for c in chunks
+        )
+        return [t for batch in batches for t in batch]
 
     # misc
     # ====
