@@ -2275,7 +2275,9 @@ class Triangulation:
         # extend a chunk of (face index, flipped 2-face triangulation) pairs
         # to full triangulations. Each (face, flip) is a distinct 2-face
         # restriction, so it is its own dedup key.
-        def extend_chunk(chunk):
+        # `fixed` is passed as an argument (not captured) so it is not
+        # re-cloudpickled with the closure into every worker
+        def extend_chunk(chunk, fixed):
             out = []
             seen = set()
             lp = None
@@ -2315,7 +2317,7 @@ class Triangulation:
                  for flipped in ft.fine_neighbors_2d(only_regular=only_regular)]
 
         if n_jobs == 1 or len(tasks) <= 1:
-            return extend_chunk(tasks)
+            return extend_chunk(tasks, fixed)
 
         # split the grouped tasks into contiguous chunks, one per worker
         import joblib
@@ -2325,7 +2327,7 @@ class Triangulation:
         chunks = [tasks[k * size:(k + 1) * size] for k in range(n)]
         chunks = [c for c in chunks if c]
         batches = joblib.Parallel(n_jobs=n_jobs)(
-            joblib.delayed(extend_chunk)(c) for c in chunks
+            joblib.delayed(extend_chunk)(c, fixed) for c in chunks
         )
         return [t for batch in batches for t in batch]
 
