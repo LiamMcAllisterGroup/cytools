@@ -2025,7 +2025,7 @@ class Triangulation:
 
         # optimized method for 2D fine neighbors
         if self.is_fine() and (self.dim() == 2) and only_fine:
-            return self.fine_neighbors_2d(
+            return self._fine_neighbors_2d(
                 only_regular=only_regular, backend=backend
             )
 
@@ -2139,7 +2139,7 @@ class Triangulation:
 
         return curr_triang
 
-    def fine_neighbors_2d(
+    def _fine_neighbors_2d(
         self,
         only_regular: bool = False,
         backend: str = None,
@@ -2151,7 +2151,7 @@ class Triangulation:
             1) 2D (in dimension... ambient dimension doesn't matter)
             2) fine
             3) fine neighbors are desired
-        In this case, fine_neighbors_2d runs much quicker than the
+        In this case, _fine_neighbors_2d runs much quicker than the
         corresponding TOPCOM calculation
 
         **Arguments:**
@@ -2314,7 +2314,7 @@ class Triangulation:
         # warm LP for a face's flips
         tasks = [(i, flipped)
                  for i, ft in enumerate(face_triangs)
-                 for flipped in ft.fine_neighbors_2d(only_regular=only_regular)]
+                 for flipped in ft._fine_neighbors_2d(only_regular=only_regular)]
 
         if n_jobs == 1 or len(tasks) <= 1:
             return extend_chunk(tasks, fixed)

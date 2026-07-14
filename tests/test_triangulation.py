@@ -138,7 +138,7 @@ def test_neighbor_triangulations():
 def test_fine_neighbors_2d():
     p = Polytope([[1, 1], [1, -1], [-1, 1], [-1, -1]])
     t = p.triangulate(include_points_interior_to_facets=True)
-    triangs = t.fine_neighbors_2d()
+    triangs = t._fine_neighbors_2d()
     assert len(triangs) == 4
     # each neighbor differs by exactly one diagonal (two simplices swapped)
     base = {tuple(sorted(s)) for s in t.simplices().tolist()}
@@ -176,7 +176,7 @@ def test_two_neighbors_skips_unextendable_flips():
     )
     t = p.triangulate()
     total_flips = sum(
-        len(ft.fine_neighbors_2d()) for ft in t.restrict(as_poly=True)
+        len(ft._fine_neighbors_2d()) for ft in t.restrict(as_poly=True)
     )
     neighbors = t.two_neighbors()
     assert total_flips == 8
