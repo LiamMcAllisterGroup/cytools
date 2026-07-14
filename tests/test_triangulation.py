@@ -155,7 +155,7 @@ def test_two_neighbors():
          [1, 2, -2, -1], [-1, 0, 0, -1], [0, 1, 0, 0], [1, 0, 0, 0]]
     )
     t = p.triangulate()
-    triangs = t.two_neighbors()
+    triangs = t.neighbor_triangulations(two_neighbors=True)
     assert len(triangs) == 2
     base = t.restrict()
     for n in triangs:
@@ -178,7 +178,7 @@ def test_two_neighbors_skips_unextendable_flips():
     total_flips = sum(
         len(ft._fine_neighbors_2d()) for ft in t.restrict(as_poly=True)
     )
-    neighbors = t.two_neighbors()
+    neighbors = t.neighbor_triangulations(two_neighbors=True)
     assert total_flips == 8
     assert len(neighbors) == 7  # one flip is not realizable and is skipped
     base = t.restrict()

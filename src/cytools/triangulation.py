@@ -1978,6 +1978,7 @@ class Triangulation:
         only_fine: bool = False,
         only_regular: bool = False,
         only_star: bool = False,
+        two_neighbors: bool = False,
         backend: str = None,
         verbose: bool = False,
     ) -> list["Triangulation"]:
@@ -1994,6 +1995,11 @@ class Triangulation:
         - `only_fine`: Restricts to fine triangulations.
         - `only_regular`: Restricts the to regular triangulations.
         - `only_star`: Restricts to star triangulations.
+        - `two_neighbors`: Return the 2-neighbors. FRSTs with the same 2-face
+            restriction give equivalent CYs. An FRST is a representative of an
+            equivalence class. The 2-neighbors are the equivalence classes
+            differing by a single flip of a 2-face. Just return a representative
+            from each class. This gives the neighboring CYs more directly.
         - `backend`: The backend used to check regularity. The options are any
             backend available for the [`is_solid`](./cone#is_solid) function of
             the [`Cone`](./cone) class. If not specified, it will be picked
@@ -2022,6 +2028,11 @@ class Triangulation:
                 + "Returning []! Fix TOPCOM!"
             )
             return []
+
+        # the 2-neighbors are fine, regular, and star FRSTs by construction
+        if two_neighbors:
+            only_fine = only_regular = only_star = True
+            return self._two_neighbors(make_star=only_star, backend=backend)
 
         # optimized method for 2D fine neighbors
         if self.is_fine() and (self.dim() == 2) and only_fine:
@@ -2204,35 +2215,23 @@ class Triangulation:
 
         return triangs
 
-    def two_neighbors(
+    def _two_neighbors(
         self,
         make_star: bool = None,
-        only_regular: bool = False,
         backend: str = None,
-        n_jobs: int = 1,
-        verbosity: int = 0,
     ) -> list["Triangulation"]:
         """
         **Description:**
-        Returns the "2-neighbors" of this triangulation: the FRSTs reachable
-        by a single 2D diagonal flip of one 2-face, extended back to a full
-        triangulation. Flips that cannot be extended are skipped. See
-        arXiv:2309.10855.
+        Returns the "2-neighbors": the FRSTs reachable by a single 2D diagonal
+        flip of one 2-face, extended back to a full triangulation via NTFE
+        (arXiv:2309.10855). Flips that cannot be extended are skipped. Private
+        helper for `neighbor_triangulations(two_neighbors=True)`.
 
         **Arguments:**
         - `make_star`: Whether to produce star triangulations. If not specified,
             it is set to whether the current triangulation is star.
-        - `only_regular`: Whether to pre-filter each 2-face's diagonal flips to
-            regular triangulations before extending. This does not change the
-            output (a non-regular 2-face never extends), but trades a cheap
-            per-face regularity check for skipping a failed extend; only worth
-            it when non-regular flips are common. Defaults to False.
         - `backend`: The backend used when extending. If not specified, it is
             picked automatically.
-        - `n_jobs`: Number of parallel worker processes (passed to
-            `joblib.Parallel`). 1 (default) runs serially; -1 uses all cores.
-            The (face, flip) tasks are chunked, one chunk per worker.
-        - `verbosity`: The verbosity level.
 
         **Returns:**
         The list of 2-neighbor triangulations. Each differs from the current one
@@ -2245,7 +2244,7 @@ class Triangulation:
         p = Polytope([[0,0,1,0],[-2,-2,-1,-2],[0,0,1,2],[-1,0,1,0],
                       [1,2,-2,-1],[-1,0,0,-1],[0,1,0,0],[1,0,0,0]])
         t = p.triangulate()
-        neighbors = t.two_neighbors()
+        neighbors = t.neighbor_triangulations(two_neighbors=True)
         len(neighbors) # Print how many 2-neighbors it found
         # 2
         ```
@@ -2314,19 +2313,28 @@ class Triangulation:
         # warm LP for a face's flips
         tasks = [(i, flipped)
                  for i, ft in enumerate(face_triangs)
-                 for flipped in ft._fine_neighbors_2d(only_regular=only_regular)]
+                 for flipped in ft._fine_neighbors_2d()]
 
-        if n_jobs == 1 or len(tasks) <= 1:
+        # parallelization follows CYTools' global config.n_threads
+        from multiprocessing import cpu_count
+
+        from cytools import config
+
+        n_threads = config.n_threads
+        if n_threads is None:
+            n_threads = 1 if len(tasks) < 32 else cpu_count()
+
+        if n_threads == 1 or len(tasks) <= 1:
             return extend_chunk(tasks, fixed)
 
         # split the grouped tasks into contiguous chunks, one per worker
         import joblib
 
-        n = joblib.effective_n_jobs(n_jobs)
+        n = joblib.effective_n_jobs(n_threads)
         size = -(-len(tasks) // n)
         chunks = [tasks[k * size:(k + 1) * size] for k in range(n)]
         chunks = [c for c in chunks if c]
-        batches = joblib.Parallel(n_jobs=n_jobs)(
+        batches = joblib.Parallel(n_jobs=n_threads)(
             joblib.delayed(extend_chunk)(c, fixed) for c in chunks
         )
         return [t for batch in batches for t in batch]
