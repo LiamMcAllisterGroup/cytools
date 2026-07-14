@@ -80,6 +80,7 @@ class Fan(regfans.fan.Fan):
     # cones/simplices
     # ---------------
     def cones(self,
+        dim: int = None,
         formal: bool = False,
         as_hyps: bool = False,
         as_inds: bool = False,
@@ -91,19 +92,27 @@ class Fan(regfans.fan.Fan):
             - (formal=True) as a formal Cone object.
             - (as_inds=True) as a tuple of indices
 
+        By default the maximal cones are returned. If `dim` is set, then return
+        the `dim`-dimensional cones (faces of the maximal ones). Only
+        implemented for simplicial fans currently.
+
         **Arguments:**
+        - `dim`:        If set, return the `dim`-dimensional sub-cones (faces of
+                        the maximal cones). Only implemented for simplicial fans
+                        currently.
         - `formal`:     Whether to return the cones as formal Cone objects.
         - `as_hyps`:    Whether to return the cones as their hyperplanes.
         - `as_inds`:    Whether to return the cones as indices (not labels).
         - `ind_offset`: Additive offset to the indices
 
         **Returns:**
-        The full-dimensional cones in the fan.
+        The cones in the fan (maximal, or `dim`-dimensional if `dim` is set).
         """
         if formal:
-            return tuple([self.vc.cone(c) for c in self._cones])
+            return tuple([self.vc.cone(c) for c in super(Fan, self).cones(dim=dim)])
         else:
             return super(Fan, self).cones(
+                dim=dim,
                 as_hyps=as_hyps,
                 as_inds=as_inds,
                 ind_offset=ind_offset)

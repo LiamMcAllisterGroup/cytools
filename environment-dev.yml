@@ -29,7 +29,7 @@ dependencies:
     - pypalp
     - qpsolvers
     - cygv
-    - regfans
+    - regfans>=0.2.1
     - latticepts
     - fanroots
     # Editable CYTools installation

@@ -2207,7 +2207,9 @@ class Triangulation:
     def two_neighbors(
         self,
         make_star: bool = None,
+        only_regular: bool = False,
         backend: str = None,
+        n_jobs: int = 1,
         verbosity: int = 0,
     ) -> list["Triangulation"]:
         """
@@ -2220,8 +2222,16 @@ class Triangulation:
         **Arguments:**
         - `make_star`: Whether to produce star triangulations. If not specified,
             it is set to whether the current triangulation is star.
+        - `only_regular`: Whether to pre-filter each 2-face's diagonal flips to
+            regular triangulations before extending. This does not change the
+            output (a non-regular 2-face never extends), but trades a cheap
+            per-face regularity check for skipping a failed extend; only worth
+            it when non-regular flips are common. Defaults to False.
         - `backend`: The backend used when extending. If not specified, it is
             picked automatically.
+        - `n_jobs`: Number of parallel worker processes (passed to
+            `joblib.Parallel`). 1 (default) runs serially; -1 uses all cores.
+            The (face, flip) tasks are chunked, one chunk per worker.
         - `verbosity`: The verbosity level.
 
         **Returns:**
@@ -2240,47 +2250,86 @@ class Triangulation:
         # 2
         ```
         """
+        from cytools.ntfe.ntfe import _2d_frt_cone_ineqs, _IncrementalLP
+
         if make_star is None:
             make_star = self.is_star()
 
         poly = self.polytope()
+        npts = len(poly.labels)
         # the per-2-face triangulations, aligned to poly.faces(2)
         face_triangs = self.restrict(as_poly=True)
+        n_faces = len(face_triangs)
 
-        def restriction_key(triang):
-            return tuple(tuple(map(tuple, f)) for f in triang.restrict())
+        def ineqs(ft):
+            return np.asarray(_2d_frt_cone_ineqs(ft, npts).dense(),
+                              dtype=np.float64)
 
-        seen = {restriction_key(self)}
-        neighbors = []
+        # A single 2-face flip changes only that one face's inequalities, so
+        # the other faces' blocks are stacked once into a warm incremental LP
+        # and reused across all of a face's flips; only the flipped block is
+        # pushed/popped per neighbor. The feasible heights are then extended to
+        # a full triangulation.
+        fixed = [ineqs(ft) for ft in face_triangs]
 
-        # flip each 2-face in turn, then extend back to a full triangulation
-        for i, face_triang in enumerate(face_triangs):
-            for flipped in face_triang.fine_neighbors_2d():
-                spliced = list(face_triangs)
-                spliced[i] = flipped
-
-                if make_star:
-                    extended = poly.triangfaces_to_frst(
-                        spliced, backend=backend, verbosity=verbosity - 1
-                    )
-                else:
-                    extended = poly.triangfaces_to_frt(
-                        spliced, make_star=False, backend=backend,
-                        verbosity=verbosity - 1,
-                    )
-
-                # skip flips that cannot be extended (no FRST has that
-                # 2-face restriction)
-                if extended is None:
-                    continue
-
-                key = restriction_key(extended)
+        # extend a chunk of (face index, flipped 2-face triangulation) pairs
+        # to full triangulations. Each (face, flip) is a distinct 2-face
+        # restriction, so it is its own dedup key.
+        # `fixed` is passed as an argument (not captured) so it is not
+        # re-cloudpickled with the closure into every worker
+        def extend_chunk(chunk, fixed):
+            out = []
+            seen = set()
+            lp = None
+            cur = None
+            for i, flipped in chunk:
+                key = (i, tuple(sorted(
+                    tuple(sorted(int(x) for x in s))
+                    for s in flipped.simplices())))
                 if key in seen:
                     continue
+                if cur != i:
+                    other = [fixed[j] for j in range(n_faces)
+                             if j != i and len(fixed[j])]
+                    base = np.vstack(other) if other else np.zeros((0, npts))
+                    lp = _IncrementalLP(npts)
+                    lp.push(base)
+                    cur = i
+                # skip flips that cannot be extended (no full triangulation
+                # has that 2-face restriction); push() rolls back on its own
+                if not lp.push(ineqs(flipped)):
+                    continue
+                heights = lp.witness()
+                lp.pop()
                 seen.add(key)
-                neighbors.append(extended)
+                out.append(poly.triangulate(
+                    heights=np.delete(heights, poly.labels_facet),
+                    include_points_interior_to_facets=False,
+                    make_star=make_star, check_heights=False,
+                    **({} if backend is None else {"backend": backend}),
+                ))
+            return out
 
-        return neighbors
+        # the (face, flip) tasks, grouped by face so each chunk reuses its
+        # warm LP for a face's flips
+        tasks = [(i, flipped)
+                 for i, ft in enumerate(face_triangs)
+                 for flipped in ft.fine_neighbors_2d(only_regular=only_regular)]
+
+        if n_jobs == 1 or len(tasks) <= 1:
+            return extend_chunk(tasks, fixed)
+
+        # split the grouped tasks into contiguous chunks, one per worker
+        import joblib
+
+        n = joblib.effective_n_jobs(n_jobs)
+        size = -(-len(tasks) // n)
+        chunks = [tasks[k * size:(k + 1) * size] for k in range(n)]
+        chunks = [c for c in chunks if c]
+        batches = joblib.Parallel(n_jobs=n_jobs)(
+            joblib.delayed(extend_chunk)(c, fixed) for c in chunks
+        )
+        return [t for batch in batches for t in batch]
 
     # misc
     # ====
