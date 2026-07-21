@@ -1431,7 +1431,7 @@ class Cone:
         max_deg=None,
         grading_vector=None,
         c=0,
-        max_coord=1000,
+        max_coord=None,
         deg_window=0,
         filter_function=None,
         process_function=None,
@@ -1458,8 +1458,9 @@ class Cone:
         - `c` *(numeric or array_like, optional)*: The minimum allowed
             stretching. Can be a single number or a stretching per each
             hyperplane (applied in the order of self.hyperplanes()).
-        - `max_coord` *(int, optional, default=1000)*: The maximum magnitude of
-            the coordinates of the points.
+        - `max_coord` *(int, optional)*: The maximum magnitude of the
+            coordinates of the points. When not specified, the CP-SAT search
+            uses its largest supported integer bound.
         - `deg_window` *(int, optional)*: If using min_points, search for
             lattice points with degrees in range [n*(deg_window+1),
             n*(deg_window+1)+deg_window] for 0<=n
@@ -1543,6 +1544,7 @@ class Cone:
             )
         if grading_vector is None:
             grading_vector = self.find_grading_vector()
+        finite_max_coord = max_coord is not None
         if max_coord is None:
             max_coord = cp_model.INT32_MAX - 1
 
@@ -1624,33 +1626,53 @@ class Cone:
         else:
             SolutionStorage.on_solution_callback = on_soln_callback_default
 
+        if not isinstance(c, Iterable):
+            c_vals = [c]*len(hp)
+        else:
+            c_vals = list(c)
+
+        def make_lattice_model():
+            # define the model
+            solver = cp_model.CpSolver()
+            model = cp_model.CpModel()
+
+            # define variables
+            var = [
+                model.NewIntVar(-max_coord, max_coord, f"x_{i}")
+                for i in range(hp.shape[1])
+            ]
+
+            # define constraints
+            for h,cc in zip(hp,c_vals):
+                # clear the denominator
+                cc_rat = Fraction(cc).limit_denominator()
+                denom = cc_rat.denominator
+                numer = cc_rat.numerator
+
+                # add the constraint
+                model.Add(
+                    sum(ii * var[i] * denom for i, ii in enumerate(h)) >= numer
+                )
+
+            soln_deg = sum(ii * var[i] for i, ii in enumerate(grading_vector))
+            return solver, model, var, soln_deg
+
+        solver, model, var, soln_deg = make_lattice_model()
         solution_storage = SolutionStorage(var, filter_function, process_function)
 
-        # define the model
-        solver = cp_model.CpSolver()
-        model = cp_model.CpModel()
-
-        # define variables
-        var = [
-            model.NewIntVar(-max_coord, max_coord, f"x_{i}") for i in range(hp.shape[1])
-        ]
-
-        # define constraints
-        if not isinstance(c, Iterable):
-            c = [c]*len(hp)
-
-        for h,cc in zip(hp,c):
-            # clear the denominator
-            cc_rat = Fraction(cc).limit_denominator()
-            denom = cc_rat.denominator
-            numer = cc_rat.numerator
-
-            # add the constraint
-            model.Add(
-                sum(ii * var[i] * denom for i, ii in enumerate(h)) >= numer
-            )
-
-        soln_deg = sum(ii * var[i] for i, ii in enumerate(grading_vector))
+        finite_coord_degree_cap = None
+        if finite_max_coord and max_deg is None:
+            cap_solver, cap_model, _, cap_soln_deg = make_lattice_model()
+            cap_model.Maximize(cap_soln_deg)
+            cap_status = cap_solver.Solve(cap_model)
+            if cap_status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+                finite_coord_degree_cap = int(cap_solver.ObjectiveValue())
+            else:
+                raise ValueError(
+                    f"Could not find lattice points within the finite "
+                    f"max_coord={max_coord} search box. Increase max_coord "
+                    "or leave it unset to use the automatic CP-SAT bound."
+                )
 
         # solve according to whether max_deg or min_points was specified
         if max_deg is not None:
@@ -1669,6 +1691,17 @@ class Cone:
             # Else, add points until the minimum number is reached
             deg = 0
             while solution_storage._n_sol < min_points:
+                if (
+                    finite_coord_degree_cap is not None
+                    and deg > finite_coord_degree_cap
+                ):
+                    raise ValueError(
+                        f"Could not find {min_points} lattice points within "
+                        f"the finite max_coord={max_coord} search box; found "
+                        f"{solution_storage._n_sol}. Increase max_coord or "
+                        "leave it unset to use the automatic CP-SAT bound."
+                    )
+
                 # define model with windowed degree constraints
                 window_model   = deepcopy(model)
                 deg_constr_low = window_model.Add(deg <= soln_deg)
