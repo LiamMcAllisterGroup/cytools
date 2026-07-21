@@ -1,0 +1,7 @@
+# map duplicate author name/email spellings to one canonical identity per person
+# display-only (read by git shortlog/blame/log); commit history is unchanged
+Nate MacFadden <natemacfadden@gmail.com> nate <natemacfadden@gmail.com>
+Nate MacFadden <natemacfadden@gmail.com> Nate (N8) MacFadden <natemacfadden@gmail.com>
+Mehmet Demirtas <md775@cornell.edu> md775 <md775@cornell.edu>
+Mehmet Demirtas <md775@cornell.edu> <md775@pop-os.localdomain>
+SebastianVPF <sjvpf1@gmail.com> <88735073+SebastianVPF@users.noreply.github.com>
