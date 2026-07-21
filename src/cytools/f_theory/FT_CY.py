@@ -47,25 +47,13 @@ __all__ = [
 
 class CY_orientifold():
     """
-
-    Returns the toric fan of the orbifold ambient space.
-
-    **Description:**
-
-    Constructs the toric fan associated with the orbifold vector configuration if it has not already been cached. If a nef decomposition was constructed, the fan is obtained from the corresponding normal fan refinement. Otherwise, it uses the cone structure inherited from the Calabi-Yau ambient toric fan.
-
-    **Returns:**
-
-    - `Fan`: The toric fan of the orbifold ambient variety.
-
+    This class describes an O3/O7 orientifold of a Calabi-Yau hypersurface in
+    a toric ambient variety.
     """
 
     
     def __init__(self, fan_polytope_or_points=None, xi=None, resolve_A1_singularities=True, construct_nef_decomposition=True):
         """
-    
-        Initializes a Calabi-Yau orientifold from toric data.
-    
         **Description:**
     
         Constructs a `CY_orientifold` object describing an O3/O7 orientifold of a Calabi-Yau hypersurface in a toric ambient variety. The input toric data are converted into a vector configuration, orbifolded by the `Z_2` action `xi`, and used to determine the associated orientifold line bundle. Optionally, the construction resolves A1 singularities and attempts to refine the toric data so that the relevant divisors become Cartier and nef.
@@ -176,9 +164,6 @@ class CY_orientifold():
 
     def __repr__(self):
         """
-    
-        Returns a string representation of the Calabi-Yau orientifold.
-    
         **Description:**
     
         Produces a short human-readable representation of the object.
@@ -193,9 +178,6 @@ class CY_orientifold():
     def __resolve_A1_singularities(self):
 
         """
-
-        Resolves A1 singularities of the toric orbifold.
-    
         **Description:**
     
         Finds codimension-two `Z_2` fixed loci in the Calabi-Yau ambient toric fan and refines the orbifold fan by adding the corresponding blowup rays. The orbifold line bundle is updated by adding the induced weights of the exceptional divisors.
@@ -223,9 +205,6 @@ class CY_orientifold():
 
     def orbifold_toric_fan(self):
         """
-    
-        Returns the toric fan of the orbifold ambient space.
-    
         **Description:**
     
         Constructs the toric fan associated with the orbifold vector configuration if it has not already been cached. If a nef decomposition was constructed, the fan is obtained from the corresponding normal fan refinement. Otherwise, it uses the cone structure inherited from the Calabi-Yau ambient toric fan.
@@ -255,9 +234,6 @@ class CY_orientifold():
 
     def CY_ambient_toric_fan(self):
         """
-    
-        Returns the toric fan of the original Calabi-Yau ambient space.
-    
         **Description:**
     
         Returns the toric fan before orbifolding. If no fan was provided at initialization, one is constructed by triangulating the ambient vector configuration.
@@ -273,9 +249,6 @@ class CY_orientifold():
 
     def vectors_orbifold(self, c=None):
         """
-
-        Returns vectors of the orbifold toric fan.
-    
         **Description:**
     
         Returns all orbifold rays, or only those with labels specified by `c`. Labels are one-indexed, following the CYTools convention for toric rays.
@@ -296,9 +269,6 @@ class CY_orientifold():
 
     def vectors_CY_ambient(self, c=None):
         """
-
-        Returns vectors of the original Calabi-Yau ambient fan.
-    
         **Description:**
     
         Returns all rays of the toric ambient space before orbifolding, or only those with labels specified by `c`. Labels are one-indexed.
@@ -319,9 +289,6 @@ class CY_orientifold():
 
     def xi(self):
         """
-
-        Returns the orientifold action/vector.
-    
         **Description:**
     
         Returns the vector `xi` specifying the toric `Z_2` orientifold action.
@@ -335,9 +302,6 @@ class CY_orientifold():
 
     def is_regular(self):
         """
-
-        Checks whether the orientifold is regular.
-    
         **Description:**
     
         Returns whether the generic invariant Calabi-Yau hypersurface descends regularly to the toric orbifold, i.e. whether the corresponding generic section does not factorize in the orbifold description.
@@ -351,9 +315,6 @@ class CY_orientifold():
 
     def line_bundle(self):
         """
-
-        Returns the orientifold line bundle.
-    
         **Description:**
     
         Returns the toric divisor coefficients of the O3/O7 line bundle on the orbifold ambient space.
@@ -367,9 +328,6 @@ class CY_orientifold():
 
     def dim(self):
         """
-
-        Returns the dimension of the toric ambient space.
-    
         **Description:**
     
         Computes the rank of the ambient vector configuration used to define the Calabi-Yau orientifold.
@@ -383,9 +341,6 @@ class CY_orientifold():
 
     def normal_fan(self):
         """
-
-        Returns the normal fan used in the nef-decomposition construction.
-    
         **Description:**
     
         Computes and caches the normal fan associated with the relevant Newton polytopes if it has not already been constructed. This fan is used to test or implement the Cartier/nef refinement of the orientifold data.
@@ -401,9 +356,6 @@ class CY_orientifold():
 
     def ambient_dim(self):
         """
-
-        Returns the lattice dimension of the orbifold rays.
-    
         **Description:**
     
         Returns the number of coordinates of the orbifold vectors.
@@ -417,9 +369,6 @@ class CY_orientifold():
 
     def Newton_Polytope(self):
         """
-
-        Returns the Newton polytope of the orientifold line bundle.
-    
         **Description:**
     
         Computes and caches the Newton polytope associated with the orbifold vector configuration and orientifold line bundle.
@@ -435,9 +384,6 @@ class CY_orientifold():
 
     def yields_nef_decomposition(self):
         """
-
-        Checks whether the orientifold yields a nef decomposition.
-    
         **Description:**
     
         Determines whether the relevant line bundles define a Cartier and nef decomposition. If an ambient triangulation was provided, this is tested directly on the orbifold toric fan. Otherwise, it is checked through the normal-fan refinement data.
@@ -460,9 +406,6 @@ class CY_orientifold():
 
     def polytope(self):
         """
-
-        Returns the original polytope, if available.
-    
         **Description:**
     
         Returns the `Polytope` object used to initialize the orientifold. If the orientifold was initialized from a fan, vector configuration, array, or list of points, this returns `None`.
@@ -476,9 +419,6 @@ class CY_orientifold():
 
     def intersection_numbers_orbifold(self):
         """
-
-        Returns intersection numbers of the orbifold ambient toric variety.
-    
         **Description:**
     
         Computes and caches the intersection numbers of the orbifold toric fan.
@@ -494,9 +434,6 @@ class CY_orientifold():
 
     def NHC(self,as_labels=False):
         """
-
-        Returns the non-Higgsable-cluster divisors.
-    
         **Description:**
     
         Determines the toric divisors supporting non-Higgsable clusters by checking the sections of the appropriate line bundle. The result may be returned either as one-indexed ray labels or as lattice vectors.
@@ -525,9 +462,6 @@ class CY_orientifold():
 
     def o_planes(self):
         """
-
-        Returns the O-plane strata.
-    
         **Description:**
     
         Computes and caches the fixed loci of the `Z_2` orientifold action in the Calabi-Yau ambient toric fan.
@@ -544,9 +478,6 @@ class CY_orientifold():
 
 class F_Theory_Uplift():
     """
-
-    This class handles F-theory uplifts of Calabi-Yau orientifolds.
-
     **Description:**
 
     Constructs and stores the toric data associated with an F-theory uplift of a `CY_orientifold`. The uplift is described as a toric complete intersection with base and Weierstrass line bundles, together with optional blowups over non-Higgsable-cluster loci. The class provides access to the associated singular and resolved ambient fans, Cayley polytopes, nef-partition data, intersection numbers, homology bases, and Hodge numbers when available.
@@ -566,9 +497,6 @@ class F_Theory_Uplift():
     
     def __init__(self, orientifold_or_points=None, xi=None, resolve_A1_singularities=False, construct_nef_decomposition=True):
         """
-
-        Initializes an F-theory uplift of a Calabi-Yau orientifold.
-    
         **Description:**
     
         Constructs an `F_Theory_Uplift` object from either an existing `CY_orientifold` or from raw toric input data. The object stores the underlying orientifold and initializes caches for the singular uplift, resolved uplift, nef-partition data, divisor representations, Hodge numbers, and intersection-theoretic data.
@@ -638,9 +566,6 @@ class F_Theory_Uplift():
 
     def __set_divisor_representations(self):
         """
-
-        Sets the base and Weierstrass divisor representations.
-    
         **Description:**
     
         Constructs the toric divisor coefficient vectors representing the base and Weierstrass line bundles on the resolved uplift ambient space. The method also checks whether these divisors define a valid partition of the anticanonical class and stores the resulting line bundle data.
@@ -677,9 +602,6 @@ class F_Theory_Uplift():
     def __repr__(self):
 
         """
-
-        Returns a string representation of the F-theory uplift.
-    
         **Description:**
     
         Produces a short human-readable representation of the object.
@@ -695,9 +617,6 @@ class F_Theory_Uplift():
     def orientifold(self):
 
         """
-
-        Returns the underlying Calabi-Yau orientifold.
-    
         **Description:**
     
         Returns the `CY_orientifold` object from which the F-theory uplift is constructed.
@@ -712,9 +631,6 @@ class F_Theory_Uplift():
 
     def is_nef_partition(self):
         """
-
-        Checks whether the uplift defines a nef partition.
-    
         **Description:**
     
         Returns whether the resolved F-theory uplift defines both a valid partition and a nef decomposition. The value is computed once and then cached.
@@ -734,9 +650,6 @@ class F_Theory_Uplift():
         
     def is_partition(self):
         """
-
-        Checks whether the uplift defines a partition.
-    
         **Description:**
     
         Returns whether the base and Weierstrass divisor representatives sum to the anticanonical class of the resolved uplift ambient space.
@@ -752,9 +665,6 @@ class F_Theory_Uplift():
 
     def smooth_uplift_ambient_toric_fan(self):
         """
-
-        Returns the toric fan of the resolved uplift ambient space.
-    
         **Description:**
     
         Constructs and caches the toric fan of the resolved F-theory uplift ambient space. Starting from the singular uplift fan, the method inserts the blowup rays associated with non-Higgsable-cluster divisors and performs the corresponding local cone refinements.
@@ -789,9 +699,6 @@ class F_Theory_Uplift():
 
     def singular_uplift_ambient_toric_fan(self):            
         """
-
-        Returns the toric fan of the singular uplift ambient space.
-    
         **Description:**
     
         Constructs and caches the toric fan obtained by adding the toric `P^2_[2,3,1]` fiber rays to the orbifold base fan, before resolving non-Higgsable-cluster singularities.
@@ -816,9 +723,6 @@ class F_Theory_Uplift():
         
     def Cayley_M(self):
         """
-
-        Returns the Cayley polytope in the M-lattice.
-    
         **Description:**
     
         Constructs and caches the Cayley polytope associated with the base and Weierstrass Newton polytopes in the M-lattice. If the uplift is not a nef partition, a warning is raised.
@@ -839,9 +743,6 @@ class F_Theory_Uplift():
         
     def Cayley_N(self):
         """
-
-        Returns the Cayley polytope in the N-lattice.
-    
         **Description:**
     
         Constructs and caches the Cayley polytope associated with the dual N-lattice nef partition. This is only defined when the uplift gives a valid partition. If the uplift is not a nef partition, a warning is raised.
@@ -870,9 +771,6 @@ class F_Theory_Uplift():
 
     def pol_W_M(self):
         """
-
-        Returns the M-lattice Weierstrass Newton polytope.
-    
         **Description:**
     
         Computes and caches the Newton polytope associated with the Weierstrass line bundle on the resolved uplift ambient space.
@@ -888,9 +786,6 @@ class F_Theory_Uplift():
         
     def pol_B_M(self):
         """
-
-        Returns the M-lattice base Newton polytope.
-    
         **Description:**
     
         Computes and caches the Newton polytope associated with the base divisor line bundle on the resolved uplift ambient space.
@@ -906,9 +801,6 @@ class F_Theory_Uplift():
 
     def pol_M_conv(self):
         """
-
-        Returns the convex hull of the M-lattice Newton polytopes.
-    
         **Description:**
     
         Constructs and caches the convex hull of the union of the base and Weierstrass Newton polytopes in the M-lattice.
@@ -924,9 +816,6 @@ class F_Theory_Uplift():
         
     def pol_M_sum(self):
         """
-
-        Returns the M-lattice Minkowski-sum polytope.
-    
         **Description:**
     
         Computes and caches the Minkowski sum of the base and Weierstrass Newton polytopes in the M-lattice.
@@ -942,9 +831,6 @@ class F_Theory_Uplift():
 
     def pol_W_N(self):
         """
-
-        Returns the N-lattice Weierstrass polytope.
-    
         **Description:**
     
         Constructs and caches the N-lattice polytope corresponding to the Weierstrass part of the dual nef partition. This is only defined when the uplift gives a valid partition. If the uplift is not a nef partition, a warning is raised.
@@ -969,9 +855,6 @@ class F_Theory_Uplift():
 
     def pol_B_N(self):
         """
-
-        Returns the N-lattice base polytope.
-    
         **Description:**
     
         Constructs and caches the N-lattice polytope corresponding to the base part of the dual nef partition. This is only defined when the uplift gives a valid partition. If the uplift is not a nef partition, a warning is raised.
@@ -996,9 +879,6 @@ class F_Theory_Uplift():
     
     def pol_N_conv(self):
         """
-
-        Returns the convex N-lattice uplift polytope.
-    
         **Description:**
     
         Constructs and caches the convex hull of the lattice points defining the resolved uplift ambient space.
@@ -1014,9 +894,6 @@ class F_Theory_Uplift():
         
     def pol_N_sum(self):
         """
-
-        Returns the N-lattice Minkowski-sum polytope.
-    
         **Description:**
     
         Computes and caches the Minkowski sum of the base and Weierstrass N-lattice polytopes. This is only defined when the uplift gives a valid partition. If the uplift is not a nef partition, a warning is raised.
@@ -1041,9 +918,6 @@ class F_Theory_Uplift():
         
     def vectors_singular_uplift_ambient(self, labels=None):
         """
-
-        Returns vectors of the singular uplift ambient fan.
-    
         **Description:**
     
         Constructs and caches the rays of the singular F-theory uplift ambient fan. These consist of the orbifold base rays together with the three toric `P^2_[2,3,1]` fiber rays. If `labels` are provided, only the corresponding one-indexed rays are returned.
@@ -1071,9 +945,6 @@ class F_Theory_Uplift():
 
     def blowups(self, as_labels=False):
         """
-
-        Returns blowup rays resolving non-Higgsable-cluster singularities.
-    
         **Description:**
     
         Constructs and caches the blowup rays inserted over the non-Higgsable clusters of the singular uplift. The result can be returned either as lattice vectors or as one-indexed ray labels in the resolved uplift fan.
@@ -1101,9 +972,6 @@ class F_Theory_Uplift():
         
     def points_not_interior_to_codim_1_and_2_face_M(self):
         """
-
-        Returns relevant M-lattice points for divisor computations.
-    
         **Description:**
     
         Returns the points of the M-lattice convex hull polytope that are not interior to facets or codimension-two faces. These are the points retained for the corresponding toric ambient fan construction.
@@ -1119,9 +987,6 @@ class F_Theory_Uplift():
 
     def points_not_interior_to_codim_1_and_2_face_N(self):
         """
-
-        Returns relevant N-lattice points for divisor computations.
-    
         **Description:**
     
         Returns the points of the N-lattice convex hull polytope that are not interior to facets or codimension-two faces.
@@ -1137,9 +1002,6 @@ class F_Theory_Uplift():
         
     def polytope(self):
         """
-
-        Returns the original orientifold polytope, if available.
-    
         **Description:**
     
         Returns the polytope underlying the associated `CY_orientifold`. If the orientifold was not initialized from a polytope, this returns `None`.
@@ -1153,9 +1015,6 @@ class F_Theory_Uplift():
 
     def intersection_numbers_M_conv(self, check=True):
         """
-
-        Returns intersection numbers of the M-lattice convex-hull toric fan.
-    
         **Description:**
     
         Computes and caches the intersection numbers of the toric fan associated with the M-lattice convex hull polytope.
@@ -1175,9 +1034,6 @@ class F_Theory_Uplift():
         
     def intersection_numbers_smooth_uplift_ambient(self):
         """
-
-        Returns intersection numbers of the resolved uplift ambient fan.
-    
         **Description:**
     
         Computes and caches the intersection numbers of the resolved F-theory uplift ambient toric fan.
@@ -1193,9 +1049,6 @@ class F_Theory_Uplift():
         
     def intersection_numbers_singular_uplift_ambient(self, check=True):
         """
-
-        Returns intersection numbers of the singular uplift ambient fan.
-    
         **Description:**
     
         Computes and caches the intersection numbers of the singular F-theory uplift ambient toric fan.
@@ -1215,9 +1068,6 @@ class F_Theory_Uplift():
         
     def h11(self):
         """
-
-        Returns the Hodge number h11 of the F-theory uplift.
-    
         **Description:**
     
         Computes and caches `h^{1,1}` using the Batyrev-Borisov formulas for two-part nef partitions. This is only available when the uplift defines a nef partition.
@@ -1240,9 +1090,6 @@ class F_Theory_Uplift():
         
     def h31(self):
         """
-
-        Returns the Hodge number h31 of the F-theory uplift.
-    
         **Description:**
     
         Computes and caches `h^{3,1}` using the Batyrev-Borisov formulas for two-part nef partitions. This is only available when the uplift defines a nef partition.
@@ -1265,9 +1112,6 @@ class F_Theory_Uplift():
             
     def h31_trivial(self):
         """
-
-        Returns a simple combinatorial estimate of h31.
-    
         **Description:**
     
         Computes a fast point-counting expression based on the M-lattice Cayley polytope. This is not the full Batyrev-Borisov Hodge-number formula.
@@ -1281,9 +1125,6 @@ class F_Theory_Uplift():
 
     def line_bundle_weierstrass_M(self):
         """
-
-        Returns the M-lattice Weierstrass line bundle.
-    
         **Description:**
     
         Computes and caches the divisor coefficient vector corresponding to the Weierstrass component of the dual nef partition in the M-lattice.
@@ -1308,9 +1149,6 @@ class F_Theory_Uplift():
 
     def line_bundle_base_M(self):
         """
-
-        Returns the M-lattice base line bundle.
-    
         **Description:**
     
         Computes and caches the divisor coefficient vector corresponding to the base component of the dual nef partition in the M-lattice.
@@ -1335,9 +1173,6 @@ class F_Theory_Uplift():
 
     def line_bundle_weierstrass_N(self):
         """
-
-        Returns the N-lattice Weierstrass line bundle.
-    
         **Description:**
     
         Returns the divisor coefficient vector representing the Weierstrass component of the partition on the resolved uplift ambient space.
@@ -1353,9 +1188,6 @@ class F_Theory_Uplift():
 
     def line_bundle_base_N(self):
         """
-
-        Returns the N-lattice base line bundle.
-    
         **Description:**
     
         Returns the divisor coefficient vector representing the base component of the partition on the resolved uplift ambient space.
@@ -1371,9 +1203,6 @@ class F_Theory_Uplift():
 
     def line_bundle_orbifold(self):
         """
-
-        Returns the orientifold line bundle.
-    
         **Description:**
     
         Returns the line bundle of the underlying Calabi-Yau orientifold.
@@ -1387,9 +1216,6 @@ class F_Theory_Uplift():
         
     def M_conv_toric_fan(self):
         """
-
-        Returns the toric fan associated with the M-lattice convex hull.
-    
         **Description:**
     
         Constructs and caches a triangulation of the relevant primitive rays of the M-lattice convex-hull polytope. This fan is only defined when the uplift is a partition.
@@ -1413,9 +1239,6 @@ class F_Theory_Uplift():
 
     def divisor_intersection_M(self, as_LLL=True):
         """
-
-        Returns divisor intersections in the M-lattice homology basis.
-    
         **Description:**
     
         Computes the curve classes obtained by intersecting the base and Weierstrass divisors in the M-lattice toric fan.
@@ -1439,9 +1262,6 @@ class F_Theory_Uplift():
 
     def divisor_intersection_N(self, as_LLL=True):
         """
-
-        Returns divisor intersections in the N-lattice homology basis.
-    
         **Description:**
     
         Computes the curve classes obtained by intersecting the base and Weierstrass divisors in the resolved uplift ambient toric fan.
@@ -1459,9 +1279,6 @@ class F_Theory_Uplift():
     
     def NHC(self, as_labels=False):
         """
-
-        Returns the non-Higgsable-cluster divisors of the base.
-    
         **Description:**
     
         Delegates to the underlying orientifold and returns the divisors supporting non-Higgsable clusters, either as one-indexed labels or as lattice vectors.
@@ -1479,9 +1296,6 @@ class F_Theory_Uplift():
 
     def NHC_singular_uplift(self, as_labels=False):
         """
-
-        Returns the non-Higgsable-cluster loci in the singular uplift.
-    
         **Description:**
     
         Returns the rays of the singular uplift ambient fan corresponding to the base non-Higgsable-cluster divisors. The result may be returned as one-indexed labels or as vectors.
@@ -1504,9 +1318,6 @@ class F_Theory_Uplift():
         
     def vectors_orbifold(self, labels=None):
         """
-
-        Returns vectors of the orbifold base fan.
-    
         **Description:**
     
         Delegates to the underlying orientifold and returns either all orbifold base rays or the one-indexed rays specified by `labels`.
@@ -1524,9 +1335,6 @@ class F_Theory_Uplift():
     
     def vectors_CY_ambient(self, labels=None):
         """
-
-        Returns vectors of the original Calabi-Yau ambient fan.
-    
         **Description:**
     
         Delegates to the underlying orientifold and returns either all original ambient rays or the one-indexed rays specified by `labels`.
@@ -1544,9 +1352,6 @@ class F_Theory_Uplift():
     
     def dim_base(self):
         """
-
-        Returns the dimension of the orientifold base.
-    
         **Description:**
     
         Returns the dimension of the toric ambient space of the underlying orientifold.
@@ -1560,9 +1365,6 @@ class F_Theory_Uplift():
         
     def ambient_dim_base(self):
         """
-
-        Returns the lattice dimension of the orientifold base.
-    
         **Description:**
     
         Returns the number of coordinates of the base orbifold rays.
@@ -1576,9 +1378,6 @@ class F_Theory_Uplift():
 
     def CY_ambient_toric_fan(self):
         """
-
-        Returns the original Calabi-Yau ambient toric fan.
-    
         **Description:**
     
         Delegates to the underlying orientifold and returns the toric fan before orbifolding.
@@ -1592,9 +1391,6 @@ class F_Theory_Uplift():
 
     def orbifold_toric_fan(self):
         """
-
-        Returns the orbifold base toric fan.
-    
         **Description:**
     
         Delegates to the underlying orientifold and returns the toric fan of the orbifold base.
@@ -1608,9 +1404,6 @@ class F_Theory_Uplift():
 
     def vectors_smooth_uplift_ambient(self, labels=None):
         """
-
-        Returns vectors of the resolved uplift ambient fan.
-    
         **Description:**
     
         Constructs and caches the rays of the resolved F-theory uplift ambient fan. These consist of the singular uplift rays together with the blowup rays over non-Higgsable clusters. If `labels` are provided, only the corresponding one-indexed rays are returned.
@@ -1635,9 +1428,6 @@ class F_Theory_Uplift():
 
     def xi(self):
         """
-
-        Returns the orientifold action/vector.
-    
         **Description:**
     
         Delegates to the underlying orientifold and returns the vector `xi` specifying the toric `Z_2` action.
@@ -1651,9 +1441,6 @@ class F_Theory_Uplift():
 
     def h21(self):
         """
-
-        Returns the Hodge number h21 of the F-theory uplift.
-    
         **Description:**
     
         Computes and caches `h^{2,1}` using the Batyrev-Borisov formulas for two-part nef partitions. This is only available when the uplift defines a nef partition.
@@ -1676,9 +1463,6 @@ class F_Theory_Uplift():
 
     def chi(self):
         """
-
-        Returns the Euler characteristic of the F-theory uplift.
-    
         **Description:**
     
         Computes and caches the Euler characteristic using the fourfold relation `chi = 48 + 6*(h11 + h31 - h21)`.
@@ -1694,9 +1478,6 @@ class F_Theory_Uplift():
         
     def is_regular(self):
         """
-
-        Checks whether the underlying orientifold is regular.
-    
         **Description:**
     
         Delegates to the underlying orientifold and returns whether the orientifold construction is regular.
@@ -1710,9 +1491,6 @@ class F_Theory_Uplift():
 
     def normal_fan(self):
         """
-
-        Returns the normal fan of the underlying orientifold.
-    
         **Description:**
     
         Delegates to the underlying orientifold and returns the normal fan used in the nef-decomposition construction.
@@ -1726,9 +1504,6 @@ class F_Theory_Uplift():
     
     def basis_homology_M(self, as_LLL=True):
         """
-
-        Returns a curve-homology basis for the M-lattice toric fan.
-    
         **Description:**
     
         Computes and caches a basis of `H_2` for the toric fan associated with the M-lattice convex hull.
@@ -1748,9 +1523,6 @@ class F_Theory_Uplift():
     
     def basis_homology_N(self, as_LLL=True):
         """
-
-        Returns a curve-homology basis for the resolved uplift fan.
-    
         **Description:**
     
         Computes and caches a basis of `H_2` for the resolved F-theory uplift ambient toric fan.
@@ -1770,9 +1542,6 @@ class F_Theory_Uplift():
     
     def nef_partition_N(self):
         """
-
-        Returns the N-lattice nef partition.
-    
         **Description:**
     
         Returns the one-indexed labels of the base and Weierstrass components of the N-lattice nef partition. If the uplift is not a nef partition, returns empty tuples.
@@ -1789,9 +1558,6 @@ class F_Theory_Uplift():
 
     def nef_partition_M(self):
         """
-
-        Returns the M-lattice nef partition.
-    
         **Description:**
     
         Returns the one-indexed labels of the base and Weierstrass components of the M-lattice nef partition. If the uplift is not a nef partition, returns empty tuples.
@@ -1809,9 +1575,6 @@ class F_Theory_Uplift():
             
     def is_nef_decomposition(self):
         """
-
-        Checks whether the uplift defines a nef decomposition.
-    
         **Description:**
     
         Determines whether the base and Weierstrass line bundles define Cartier and nef divisors on the resolved uplift ambient fan. If the underlying orientifold was not constructed from an ambient triangulation, this delegates to the orientifold nef-decomposition check.
@@ -1830,9 +1593,6 @@ class F_Theory_Uplift():
             
     def intersection_numbers_orbifold(self):
         """
-
-        Returns intersection numbers of the orbifold base.
-    
         **Description:**
     
         Delegates to the underlying orientifold and returns the intersection numbers of the orbifold toric fan.
@@ -1857,9 +1617,6 @@ def fetch_orientifolds(only_regular: bool=True, only_nef_decomposition: bool=Fal
 
     
     """
-
-    Fetches Calabi-Yau orientifolds from the Kreuzer-Skarke database.
-
     **Description:**
 
     Iterates over polytopes returned by `fetch_polytopes`, computes inequivalent toric `Z_2` actions, and yields the corresponding `CY_orientifold` objects. The output may optionally be restricted to regular orientifolds or to orientifolds yielding a nef decomposition.
@@ -1921,9 +1678,6 @@ def fetch_F_Theory_uplifts(only_regular: bool = True, only_nef_partition:bool=Fa
 
     
     """
-
-    Fetches F-theory uplifts of Calabi-Yau orientifolds.
-
     **Description:**
 
     Iterates over Calabi-Yau orientifolds obtained from `fetch_orientifolds` and yields the associated `F_Theory_Uplift` objects. The output may optionally be restricted to regular orientifolds, orientifolds yielding a nef decomposition, or uplifts defining a nef partition.
@@ -1981,9 +1735,6 @@ def fetch_nef_partition_uplifts(
     as_pandas=True,
 ):
     """
-
-    Fetches rows from the F-theory uplift dataset by Hodge numbers.
-
     **Description:**
 
     Reads an indexed parquet dataset of F-theory uplifts and returns rows matching the specified Hodge-number filters. Data may be read either from the Hugging Face Hub or from a local dataset directory.

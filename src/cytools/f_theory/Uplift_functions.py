@@ -43,9 +43,6 @@ from cytools.vector_config import VectorConfiguration
 def compute_partition(divisors,rays):
 
     """
-
-    Attempts to represent divisors as a partition of the anticanonical class.
-
     **Description:**
 
     Uses linear equivalence to shift a collection of toric divisors into a representation whose coefficients form a partition of the anticanonical divisor, if such a representation exists.
@@ -95,9 +92,6 @@ def compute_partition(divisors,rays):
     
 def contains_row(arr: np.array, target: np.array):
     """
-
-    Checks whether an array contains a given row.
-
     **Description:**
 
     Determines whether the one-dimensional array `target` occurs as a row of the two-dimensional array `arr`.
@@ -116,9 +110,6 @@ def contains_row(arr: np.array, target: np.array):
 
 def contains_rows(arr: np.array,targets: np.array):
     """
-
-    Checks whether an array contains all target rows.
-
     **Description:**
 
     Determines whether every row of `targets` occurs as a row of `arr`.
@@ -137,9 +128,6 @@ def contains_rows(arr: np.array,targets: np.array):
 
 def get_same_rows(A: np.array, B: np.array):
     """
-
-    Returns rows shared by two arrays.
-
     **Description:**
 
     Computes the rows of `A` that also occur as rows of `B`.
@@ -158,9 +146,6 @@ def get_same_rows(A: np.array, B: np.array):
 
 def same_rows(A, B):
     """
-
-    Checks whether two arrays have the same rows.
-
     **Description:**
 
     Determines whether `A` and `B` contain the same rows with the same multiplicities, independent of row order.
@@ -181,9 +166,6 @@ def same_rows(A, B):
 
 def dual_face_Cayley_polytope(Cdvert: np.array,f):
     """
-
-    Returns the dual face of a face of a Cayley polytope.
-
     **Description:**
 
     Computes the face of the dual Cayley polytope whose vertices pair trivially with all vertices of the input face `f`.
@@ -202,9 +184,6 @@ def dual_face_Cayley_polytope(Cdvert: np.array,f):
     
 def h11_2_part(Cay: Polytope,Cayd: Polytope,det=False):
     """
-
-    Computes h11 for a two-part nef partition.
-
     **Description:**
 
     Computes the Hodge number `h^{1,1}` of a complete intersection Calabi-Yau described by a two-part nef partition using the associated Cayley polytope and its dual.
@@ -268,9 +247,6 @@ def h11_2_part(Cay: Polytope,Cayd: Polytope,det=False):
 
 def h21_2_part(Cay: Polytope,Cayd: Polytope,det=False):
     """
-
-    Computes h21 for a two-part nef partition.
-
     **Description:**
 
     Computes the Hodge number `h^{2,1}` of a complete intersection Calabi-Yau described by a two-part nef partition in a six-dimensional ambient variety.
@@ -313,9 +289,6 @@ def h21_2_part(Cay: Polytope,Cayd: Polytope,det=False):
 
 def get_indices(arr: np.array,targets: np.array):
     """
-
-    Returns indices of target rows.
-
     **Description:**
 
     Finds the indices of rows of `arr` that also occur among the rows of `targets`.
@@ -334,9 +307,6 @@ def get_indices(arr: np.array,targets: np.array):
 
 def get_index(arr: np.array,target: np.array):
     """
-
-    Returns the index of a target row.
-
     **Description:**
 
     Finds the indices of rows of `arr` equal to the one-dimensional array `target`.
@@ -355,9 +325,6 @@ def get_index(arr: np.array,target: np.array):
 
 def glsm_from_points(pts):
     """
-
-    Computes a GLSM charge matrix from toric points.
-
     **Description:**
 
     Computes an integral basis of linear relations among the input toric points using Smith normal form.
@@ -380,9 +347,6 @@ def glsm_from_points(pts):
 
 def points_from_glsm(glsm):
     """
-
-    Computes toric points from a GLSM charge matrix.
-
     **Description:**
 
     Computes an integral point configuration whose relations are described by the input GLSM charge matrix.
@@ -405,9 +369,6 @@ def points_from_glsm(glsm):
 
 def find_trilayer_vertex_polytope(p,as_index=False):
     """
-
-    Finds the distinguished vertex of a trilayer polytope.
-
     **Description:**
 
     Uses the GLSM charge matrix of the vertices to identify the vertex corresponding to half the anticanonical class.
@@ -434,9 +395,6 @@ def find_trilayer_vertex_polytope(p,as_index=False):
 def find_trilayer_vertex_vertices(V,as_vertex_index=False):
 
     """
-
-    Finds the distinguished vertex of a trilayer vertex set.
-
     **Description:**
 
     Uses the GLSM charge matrix of the vertex set to identify the vertex corresponding to half the anticanonical class.
@@ -465,9 +423,6 @@ def find_trilayer_vertex_vertices(V,as_vertex_index=False):
         
 def trilayer_normal_form(p):
     """
-
-    Computes a normal form for a trilayer polytope.
-
     **Description:**
 
     Applies an integral change of basis that moves the distinguished trilayer vertex into a standard position.
@@ -508,9 +463,6 @@ def trilayer_normal_form(p):
 
 def Newton_Polytope(pts,weights):
     """
-
-    Computes the Newton polytope of a toric divisor.
-
     **Description:**
 
     Constructs the Newton polytope associated with a toric divisor with coefficient vector `weights` on the fan with rays `pts`.
@@ -529,9 +481,6 @@ def Newton_Polytope(pts,weights):
 
 def row_difference(A: np.array, B: np.array):
     """
-
-    Returns rows of one array not contained in another.
-
     **Description:**
 
     Computes all rows of `A` that do not occur as rows of `B`.
@@ -550,9 +499,6 @@ def row_difference(A: np.array, B: np.array):
 
 def points_not_interior_to_facets_and_codim2_faces(p: Polytope):
     """
-
-    Returns points not interior to facets or codimension-two faces.
-
     **Description:**
 
     Computes the lattice points of a polytope after removing points interior to facets and codimension-two faces.
@@ -576,9 +522,6 @@ def points_not_interior_to_facets_and_codim2_faces(p: Polytope):
 
 def get_lower_dimensional_cones(cones,d):
     """
-
-    Returns lower-dimensional cones of a fan.
-
     **Description:**
 
     Computes all `d`-element faces of the given maximal cones.
@@ -598,9 +541,6 @@ def get_lower_dimensional_cones(cones,d):
 def lattice_refinement(q, denominator = 2):
 
     """
-
-    Computes a lattice refinement map.
-
     **Description:**
 
     Returns the smallest integral embedding of the unit lattice into a refined lattice in which `q/denominator` becomes integral.
@@ -630,9 +570,6 @@ def lattice_refinement(q, denominator = 2):
 def toric_orbifold(pts_CY_ambient,q,denominator=2):
 
     """
-
-    Constructs the toric data of a lattice orbifold.
-
     **Description:**
 
     Applies the lattice refinement defined by `q/denominator` to the ambient toric rays and returns the primitive orbifold rays together with the ray rescalings.
@@ -658,9 +595,6 @@ def toric_orbifold(pts_CY_ambient,q,denominator=2):
 def O3O7_line_bundle(pts_CY_ambient,q,rescalings):
 
     """
-
-    Computes the O3/O7 line bundle on the toric orbifold.
-
     **Description:**
 
     Determines the divisor coefficients of the orientifold line bundle by selecting a projected-in monomial of the Calabi-Yau hypersurface Newton polytope and rescaling divisor classes under the orbifold map.
@@ -691,9 +625,6 @@ def O3O7_line_bundle(pts_CY_ambient,q,rescalings):
 def Z2_fixed_locus(vc_triangulation,q,cone_dimension=None,denominator=2):
 
     """
-
-    Computes fixed toric strata of a `Z_2` orbifold action.
-
     **Description:**
 
     Finds cones whose associated toric strata are fixed by the lattice refinement defined by `q/denominator`. Optionally restricts to cones of a specified dimension.
@@ -724,9 +655,6 @@ def Z2_fixed_locus(vc_triangulation,q,cone_dimension=None,denominator=2):
 def inequivalent_Z2_actions(lattice_symmetries):
 
     """
-
-    Enumerates inequivalent toric `Z_2` actions.
-
     **Description:**
 
     Enumerates half-integer lattice points defining `Z_2` torus actions modulo the action of the supplied lattice symmetry group.
@@ -758,9 +686,6 @@ def inequivalent_Z2_actions(lattice_symmetries):
 
 def linebundle_weights_from_Newton_Polytope(vectors,Newton_polytope: Polytope):
     """
-
-    Computes divisor coefficients from a Newton polytope.
-
     **Description:**
 
     Recovers the toric divisor coefficients whose Newton polytope is `Newton_polytope` by maximizing the corresponding inequalities over its lattice points.
@@ -779,9 +704,6 @@ def linebundle_weights_from_Newton_Polytope(vectors,Newton_polytope: Polytope):
 
 def is_Gorenstein(cone):
     """
-
-    Checks whether a cone is Gorenstein.
-
     **Description:**
 
     Determines whether there exists an integral linear functional taking value one on all extremal rays of the cone, and returns that functional when it exists.
@@ -814,9 +736,6 @@ def is_Gorenstein(cone):
 
 def is_reflexive_Gorenstein(cone):
     """
-
-    Checks whether a cone is reflexive Gorenstein.
-
     **Description:**
 
     Determines whether both the cone and its dual are Gorenstein.
@@ -838,9 +757,6 @@ def is_reflexive_Gorenstein(cone):
 
 def Gorenstein_index(cone):
     """
-
-    Computes the Gorenstein index of a reflexive Gorenstein cone.
-
     **Description:**
 
     Computes the pairing of the Gorenstein generators of a reflexive Gorenstein cone and its dual.
@@ -867,9 +783,6 @@ def Gorenstein_index(cone):
 def Cartier_index(toric_fan,weights):
     
     """
-
-    Computes the Cartier index of a toric Weil divisor.
-
     **Description:**
 
     Computes the smallest positive integer multiple of a Q-Cartier toric Weil divisor that is Cartier. Returns `None` if the divisor is not Q-Cartier.
@@ -904,9 +817,6 @@ def Cartier_index(toric_fan,weights):
 
 def is_Cartier(toric_fan,weights,return_Q_Cartier_data=False,decimals=10):
     """
-
-    Checks whether a toric Weil divisor is Cartier.
-
     **Description:**
 
     Solves for local Cartier data on each maximal cone and determines whether all local data are integral. Optionally returns rational approximations to Q-Cartier data.
@@ -949,9 +859,6 @@ def is_Cartier(toric_fan,weights,return_Q_Cartier_data=False,decimals=10):
 
 def is_nef(toric_fan,weights):
     """
-
-    Checks whether a toric divisor is nef.
-
     **Description:**
 
     Tests whether the divisor coefficient vector lies in the nef cone by pairing with the secondary-cone hyperplanes.
@@ -970,9 +877,6 @@ def is_nef(toric_fan,weights):
 
 def is_ample(toric_fan,weights):
     """
-
-    Checks whether a toric divisor is ample.
-
     **Description:**
 
     Tests whether the divisor coefficient vector lies in the interior of the nef cone by strict pairing with the secondary-cone hyperplanes.
@@ -992,9 +896,6 @@ def is_ample(toric_fan,weights):
 def is_effective(points,weights):
 
     """
-
-    Checks whether a toric divisor is effective.
-
     **Description:**
 
     Determines whether the Newton polytope of a divisor has at least one lattice point.
@@ -1022,9 +923,6 @@ def is_effective(points,weights):
 
 def moving_cone(toric_variety):
     """
-
-    Computes the moving cone of a toric variety.
-
     **Description:**
 
     Computes the moving cone from the GLSM charges by intersecting the cones obtained after deleting each toric ray.
@@ -1048,9 +946,6 @@ def moving_cone(toric_variety):
 
 def generic_section_factorizes(points,linebundle_weights):
     """
-
-    Checks whether a generic section factorizes.
-
     **Description:**
 
     Determines whether the generic section of a toric divisor factorizes by testing whether every toric coordinate appears nontrivially in some section.
@@ -1076,9 +971,6 @@ def generic_section_factorizes(points,linebundle_weights):
 def attempt_to_make_nef(toric_variety,line_bundle,epsilon=1e-5):
 
     """
-
-    Attempts to find a triangulation where a divisor is nef.
-
     **Description:**
 
     Perturbs the triangulation heights in the direction of the given line bundle in order to find a triangulation for which the line bundle is nef.
@@ -1104,9 +996,6 @@ def attempt_to_make_nef(toric_variety,line_bundle,epsilon=1e-5):
 def basis(points):
 
     """
-
-    Finds a linearly independent row basis.
-
     **Description:**
 
     Returns indices of rows of `points` forming a basis for the row span.
@@ -1139,9 +1028,6 @@ def basis(points):
 
 def sums_to_anticanonical(pts,L1,L2):
     """
-
-    Checks whether two divisors sum to the anticanonical class.
-
     **Description:**
 
     Determines whether `L1 + L2` is linearly equivalent to the anticanonical divisor and, if so, returns the character implementing the equivalence.
@@ -1178,9 +1064,6 @@ def sums_to_anticanonical(pts,L1,L2):
 
 def is_partition(points, L1,L2):
     """
-
-    Checks whether two divisors define a partition.
-
     **Description:**
 
     Determines whether two toric divisors can be shifted by principal divisors so that their coefficients are in `{0,1}` and their sum is the anticanonical divisor.
@@ -1246,9 +1129,6 @@ def is_partition(points, L1,L2):
     
 def attempt_to_make_Cartier(tri,D):
     """
-
-    Attempts to make a divisor Cartier by refining the fan.
-
     **Description:**
 
     If the divisor is not Cartier on the given fan, this function adds rays from the Newton-polytope inequalities and attempts to triangulate the refined configuration so that the divisor becomes Cartier and nef.
@@ -1279,9 +1159,6 @@ def attempt_to_make_Cartier(tri,D):
 
 def BL(fan,lb):
     """
-
-    Computes the base locus of a toric divisor.
-
     **Description:**
 
     Computes sections of the divisor with weights `lb` and returns the corresponding base locus in the given fan.
@@ -1300,9 +1177,6 @@ def BL(fan,lb):
         
 def base_locus(sections,cones=None,dim=4):
     """
-
-    Computes the base locus from section exponents.
-
     **Description:**
 
     Computes minimal coordinate strata on which all sections vanish. If cones are provided, the search is restricted to strata of the corresponding toric fan.
@@ -1343,9 +1217,6 @@ def base_locus(sections,cones=None,dim=4):
 def normal_fan(polytopes,inequalities=None,maximal_refinement=False,triangulate_refinement=False,return_unrefined_fan=False):
 
     """
-
-    Computes the normal fan of a polytope or Minkowski sum.
-
     **Description:**
 
     Constructs the normal fan of a lattice polytope, or of the Minkowski sum of a list of lattice polytopes. Optionally constructs a maximal refinement subject to the specified inequalities.
@@ -1441,9 +1312,6 @@ def normal_fan(polytopes,inequalities=None,maximal_refinement=False,triangulate_
 def nested_sum(lists, depth=0, acc=0):
 
     """
-
-    Computes nested sums of entries from several lists.
-
     **Description:**
 
     Recursively forms all sums obtained by choosing one element from each list in `lists`.
@@ -1469,9 +1337,6 @@ def nested_sum(lists, depth=0, acc=0):
 def flatten(lst, depth):
 
     """
-
-    Flattens a nested list to a specified depth.
-
     **Description:**
 
     Recursively flattens a nested list by the specified number of levels.
@@ -1499,9 +1364,6 @@ def flatten(lst, depth):
 
 def O7_cones(vc_orbifold,O7_labels,d):
     """
-
-    Returns cones supported on O7 divisors.
-
     **Description:**
 
     Computes the `d`-ray cones of a toric fan whose rays are all contained in the set of O7-plane labels.
@@ -1524,9 +1386,6 @@ def O7_cones(vc_orbifold,O7_labels,d):
 
 def basis_H2_toric_fan(toric_fan):
     """
-
-    Computes a toric curve-homology basis.
-
     **Description:**
 
     Finds a smooth maximal cone and returns the complementary ray labels, giving a convenient GLSM or curve-homology basis.
@@ -1555,9 +1414,6 @@ def basis_H2_toric_fan(toric_fan):
 def trilayer_5d_Ftheory_uplift(p,verbosity=1):
 
     """
-
-    Computes a five-dimensional F-theory uplift polytope from a trilayer polytope.
-
     **Description:**
 
     Constructs the five-dimensional polytope associated with the F-theory uplift of a trilayer orientifold in the limit where all mid-layer divisors are blown down.
@@ -1620,9 +1476,6 @@ def trilayer_5d_Ftheory_uplift(p,verbosity=1):
 
 def sections(points,weights):
     """
-
-    Computes the sections of a toric divisor.
-
     **Description:**
 
     Computes the exponent vectors of all monomial sections of the divisor with coefficient vector `weights` on the fan with rays `points`.
@@ -1645,9 +1498,6 @@ def sections(points,weights):
 
 def solve_over_integers(M,b):
     """
-
-    Solves a linear system over the integers.
-
     **Description:**
 
     Uses Smith normal form to determine whether the equation `Mx=b` has an integral solution, and returns one if it exists.
@@ -1682,9 +1532,6 @@ def solve_over_integers(M,b):
 def make_simplicial(fan):
 
     """
-
-    Refines non-simplicial cones of a fan.
-
     **Description:**
 
     Replaces non-simplicial cones by cones obtained from a fine triangulation of the corresponding vector configuration, leaving simplicial cones unchanged.
@@ -1713,9 +1560,6 @@ def make_simplicial(fan):
 def refine_fan(fan,blowups_or_all_vectors=None):
 
     """
-
-    Refines a toric fan by inserting rays.
-
     **Description:**
 
     Adds new rays to a fan and star-subdivides the cones containing them. If no new vectors are given, the vector configuration of the fan is used to detect rays not already present in the fan.
@@ -1765,9 +1609,6 @@ def refine_fan(fan,blowups_or_all_vectors=None):
 
 def find_cone_general(new_ray, current_cones, all_vectors):
     """
-
-    Finds the carrier face of a new ray by nonnegative least squares.
-
     **Description:**
 
     Searches the current cones for a minimal set of one-indexed ray labels whose strictly positive linear combination gives `new_ray`.
@@ -1801,9 +1642,6 @@ def find_cone_general(new_ray, current_cones, all_vectors):
 
 def array_to_latex(arr):
     """
-
-    Converts a NumPy array to LaTeX matrix form.
-
     **Description:**
 
     Converts a two-dimensional NumPy array into a LaTeX `pmatrix` string.
@@ -1832,9 +1670,6 @@ def array_to_latex(arr):
 
 def integral_gale_transform(points):
     """
-
-    Computes the integral Gale transform of a point configuration.
-
     **Description:**
 
     Lifts the input points by appending a column of ones, computes the rational nullspace exactly using SymPy, and clears denominators to obtain an integral Gale transform.
@@ -1879,9 +1714,6 @@ def integral_gale_transform(points):
 
 def find_cone(new_ray, current_cones, all_vectors, tol=1e-10):
     """
-
-    Computes the integral Gale transform of a point configuration.
-
     **Description:**
 
     Lifts the input points by appending a column of ones, computes the rational nullspace exactly using SymPy, and clears denominators to obtain an integral Gale transform.
@@ -1918,9 +1750,6 @@ def find_cone(new_ray, current_cones, all_vectors, tol=1e-10):
 def divisor_intersections(fan, intersection_dict,divisors, basis_set,as_LLL=True):
 
     """
-
-    Computes divisor-intersection curve classes.
-
     **Description:**
 
     Computes the curve classes obtained by intersecting a list of divisors with toric strata, expressed in a chosen basis of curve homology.
