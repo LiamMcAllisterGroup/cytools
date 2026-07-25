@@ -1096,18 +1096,6 @@ def curve_to_gv(fan, kappa, circ, verbosity=0):
             if set(c).issubset(fan.vc.divisor_basis):
                 c_inds = fan.vc.labels_to_inds(c, ambient_labels=fan.vc.divisor_basis)
                 kappa_c = kappa[tuple(c_inds)]
-                if False:
-                    A = kappa_c
-
-                    c_inds = fan.vc.labels_to_inds(c)
-                    divisors = fan.vc.gale()[c_inds,:].T
-                    B = ((kappa@divisors[:,0])@divisors[:,1])@divisors[:,2]
-                    if abs(A-B)>1e-4:
-                        print(A,B)
-                        print(c, fan.vc.labels_to_inds(c, ambient_labels=fan.vc.divisor_basis), fan.vc.labels_to_inds(c), fan.vc.labels_to_inds(c, ambient_labels=fan.labels))
-                        print(fan.vc.divisor_basis)
-                        print(divisors)
-                        adsasa()
             else:
                 c_inds = fan.vc.labels_to_inds(c)
                 divisors = fan.vc.gale()[c_inds,:].T
