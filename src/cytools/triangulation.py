@@ -1979,6 +1979,7 @@ class Triangulation:
         only_regular: bool = False,
         only_star: bool = False,
         two_neighbors: bool = False,
+        two_neighbors_track_flips: bool = False,
         backend: str = None,
         verbose: bool = False,
     ) -> list["Triangulation"]:
@@ -2000,6 +2001,11 @@ class Triangulation:
             equivalence class. The 2-neighbors are the equivalence classes
             differing by a single flip of a 2-face. Just return a representative
             from each class. This gives the neighboring CYs more directly.
+        - `two_neighbors_track_flips`: Only valid with `two_neighbors`. If True,
+            return `(triangulation, face_index, circuit)` triples instead of bare
+            (triangulation,). `face_index` indexes `polytope.faces(2)` and
+            `circuit` is the sorted tuple of the four point labels spanning the
+            flipped quadrilateral.
         - `backend`: The backend used to check regularity. The options are any
             backend available for the [`is_solid`](./cone#is_solid) function of
             the [`Cone`](./cone) class. If not specified, it will be picked
@@ -2008,7 +2014,8 @@ class Triangulation:
 
         **Returns:**
         The list of triangulations that differ by one bistellar flip from the
-        current triangulation.
+        current triangulation, or `(triangulation, face_index, circuit)` triples
+        if `two_neighbors & two_neighbors_track_flips`.
 
         **Example:**
         We construct a triangulation and find its neighbor triangulations.
@@ -2032,7 +2039,16 @@ class Triangulation:
         # the 2-neighbors are fine, regular, and star FRSTs by construction
         if two_neighbors:
             only_fine = only_regular = only_star = True
-            return self._two_neighbors(make_star=only_star, backend=backend)
+            return self._two_neighbors(
+                make_star=only_star,
+                backend=backend,
+                two_neighbors_track_flips=two_neighbors_track_flips,
+            )
+
+        if two_neighbors_track_flips:
+            raise ValueError(
+                "two_neighbors_track_flips is only supported with two_neighbors=True."
+            )
 
         # optimized method for 2D fine neighbors
         if self.is_fine() and (self.dim() == 2) and only_fine:
@@ -2219,6 +2235,7 @@ class Triangulation:
         self,
         make_star: bool = None,
         backend: str = None,
+        two_neighbors_track_flips: bool = False,
     ) -> list["Triangulation"]:
         """
         **Description:**
@@ -2281,7 +2298,7 @@ class Triangulation:
             seen = set()
             lp = None
             cur = None
-            for i, flipped in chunk:
+            for i, flipped, circuit in chunk:
                 key = (i, tuple(sorted(
                     tuple(sorted(int(x) for x in s))
                     for s in flipped.simplices())))
@@ -2301,17 +2318,26 @@ class Triangulation:
                 heights = lp.witness()
                 lp.pop()
                 seen.add(key)
-                out.append(poly.triangulate(
+                tri = poly.triangulate(
                     heights=np.delete(heights, poly.labels_facet),
                     include_points_interior_to_facets=False,
                     make_star=make_star, check_heights=False,
                     **({} if backend is None else {"backend": backend}),
-                ))
+                )
+                out.append((tri, i, circuit) if two_neighbors_track_flips else tri)
             return out
+
+        def _flip_circuit(pre, post):
+            # the diagonal swap rewrites the 2-face's triangulation; the
+            # symmetric difference of the two spans exactly the quadrilateral
+            before = {tuple(sorted(int(v) for v in s)) for s in pre.simplices()}
+            after  = {tuple(sorted(int(v) for v in s)) for s in post.simplices()}
+            return tuple(sorted({v for s in before ^ after for v in s}))
 
         # the (face, flip) tasks, grouped by face so each chunk reuses its
         # warm LP for a face's flips
-        tasks = [(i, flipped)
+        tasks = [(i, flipped, _flip_circuit(ft, flipped) if two_neighbors_track_flips
+                  else None)
                  for i, ft in enumerate(face_triangs)
                  for flipped in ft._fine_neighbors_2d()]
 
