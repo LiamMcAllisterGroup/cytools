@@ -37,7 +37,6 @@ from cytools.utils import (
     gcd_list,
     solve_linear_system,
     array_float_to_fmpq,
-    array_fmpq_to_float,
     filter_tensor_indices,
     symmetric_sparse_to_dense,
     float_to_fmpq,

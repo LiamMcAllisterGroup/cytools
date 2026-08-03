@@ -80,6 +80,7 @@ class Fan(regfans.fan.Fan):
     # cones/simplices
     # ---------------
     def cones(self,
+        dim: int = None,
         formal: bool = False,
         as_hyps: bool = False,
         as_inds: bool = False,
@@ -91,19 +92,27 @@ class Fan(regfans.fan.Fan):
             - (formal=True) as a formal Cone object.
             - (as_inds=True) as a tuple of indices
 
+        By default the maximal cones are returned. If `dim` is set, then return
+        the `dim`-dimensional cones (faces of the maximal ones). Only
+        implemented for simplicial fans currently.
+
         **Arguments:**
+        - `dim`:        If set, return the `dim`-dimensional sub-cones (faces of
+                        the maximal cones). Only implemented for simplicial fans
+                        currently.
         - `formal`:     Whether to return the cones as formal Cone objects.
         - `as_hyps`:    Whether to return the cones as their hyperplanes.
         - `as_inds`:    Whether to return the cones as indices (not labels).
         - `ind_offset`: Additive offset to the indices
 
         **Returns:**
-        The full-dimensional cones in the fan.
+        The cones in the fan (maximal, or `dim`-dimensional if `dim` is set).
         """
         if formal:
-            return tuple([self.vc.cone(c) for c in self._cones])
+            return tuple([self.vc.cone(c) for c in super(Fan, self).cones(dim=dim)])
         else:
             return super(Fan, self).cones(
+                dim=dim,
                 as_hyps=as_hyps,
                 as_inds=as_inds,
                 ind_offset=ind_offset)
@@ -917,17 +926,14 @@ class Fan(regfans.fan.Fan):
 
     def h21_cy(self):
         """
-        Makes assumption that for CYs in Gorenstein Fano four-folds, h21(CY) = h11(CY) for dual polytope.
+        h21 of the anticanonical CY hypersurface. The Hodge numbers are
+        determined by the polytope alone (a birational invariant), so they are
+        the same for every FRST/vex fan of it; this returns the polytope's h21.
         """
         if not self.is_gorenstein_fano():
             raise NotImplementedError()
 
-        if self.conv().labels_not_facet[1:] != self.used_labels:
-            print(
-                f"This function may not hold! Polytope labels are {self.conv().labels_not_facet} and VC labels are {self.used_labels}"
-            )
-
-        return len(self.newton_polytope([1] * len(self.used_labels)).labels_not_facet)
+        return self.vc.conv().h21()
 
     # generalize flip_linear
     # ----------------------
@@ -1090,18 +1096,6 @@ def curve_to_gv(fan, kappa, circ, verbosity=0):
             if set(c).issubset(fan.vc.divisor_basis):
                 c_inds = fan.vc.labels_to_inds(c, ambient_labels=fan.vc.divisor_basis)
                 kappa_c = kappa[tuple(c_inds)]
-                if False:
-                    A = kappa_c
-
-                    c_inds = fan.vc.labels_to_inds(c)
-                    divisors = fan.vc.gale()[c_inds,:].T
-                    B = ((kappa@divisors[:,0])@divisors[:,1])@divisors[:,2]
-                    if abs(A-B)>1e-4:
-                        print(A,B)
-                        print(c, fan.vc.labels_to_inds(c, ambient_labels=fan.vc.divisor_basis), fan.vc.labels_to_inds(c), fan.vc.labels_to_inds(c, ambient_labels=fan.labels))
-                        print(fan.vc.divisor_basis)
-                        print(divisors)
-                        adsasa()
             else:
                 c_inds = fan.vc.labels_to_inds(c)
                 divisors = fan.vc.gale()[c_inds,:].T
@@ -1185,7 +1179,15 @@ def fan(self, include_points_interior_to_facets=None):
     # get the vc
     vc = self.polytope().vc(include_points_interior_to_facets=include_points_interior_to_facets)
 
-    # get/return the fan
-    fan = vc.subdivide(cells=self.simplices()[:,1:])
+    # build the star fan: keep only simplices containing the origin and drop
+    # the origin label from each. the vc above already carries these same
+    # labels (minus the origin), so the cells index it directly (no remap).
+    origin = self.polytope().label_origin
+    cells = [
+        sorted(x for x in simp if x != origin)
+        for simp in self.simplices().tolist()
+        if origin in simp
+    ]
+    fan = vc.subdivide(cells=cells)
     return fan
 Triangulation.fan = fan

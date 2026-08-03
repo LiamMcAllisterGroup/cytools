@@ -20,29 +20,24 @@
 # -----------------------------------------------------------------------------
 
 # 'standard' imports
-from collections import Counter, defaultdict
+from collections import defaultdict
 import copy
-from itertools import combinations
-from math import factorial
 import warnings
 
 # 3rd party imports
 import cygv
-from flint import fmpz_mat, fmpq_mat, fmpz, fmpq
 import numpy as np
 from scipy.linalg import null_space
-from scipy.sparse import csr_matrix, dok_matrix
+from scipy.sparse import dok_matrix
 
 # CYTools imports
 from cytools import config
 from cytools.cone import Cone
 from cytools.utils import (
     gcd_list,
-    array_fmpz_to_int,
     filter_tensor_indices,
     symmetric_sparse_to_dense,
     symmetric_dense_to_sparse,
-    fmpq_to_float,
     set_divisor_basis,
     set_curve_basis,
 )

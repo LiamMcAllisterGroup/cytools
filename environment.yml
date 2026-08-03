@@ -14,17 +14,21 @@ dependencies:
   - joblib
   - tqdm
   - requests
-  - osqp
+  - osqp>=1.0
   - pip
   - pip:
-    - ortools
+    - pandas
+    - pyarrow
+    - sympy
+    - ortools==9.15.*      # bundles HiGHS 1.12; keep matched to highspy below
+    - highspy==1.12.*      # must match ortools' bundled HiGHS (SONAME clash)
     - mosek
     - triangulumancer
     - pplpy
     - pypalp
     - qpsolvers
     - cygv
-    - regfans
+    - regfans>=0.2.1
     - latticepts
     - fanroots
     # The actual cytools package (taken from pypi)

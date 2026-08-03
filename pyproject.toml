@@ -2,9 +2,13 @@
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.version]
+path = "src/cytools/__init__.py"
+pattern = 'version = "(?P<version>[^"]+)"'
+
 [project]
 name = "cytools"
-version = "1.4.11"
+dynamic = ["version"]
 description = "A software package for analyzing Calabi-Yau hypersurfaces in toric varieties."
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -20,18 +24,21 @@ dependencies = [
     "cvxopt",
     "python-flint",
     "pplpy",
-    "ortools",
+    "ortools==9.15.*",      # bundles HiGHS 1.12; keep matched to highspy below
     "triangulumancer>=0.3",
     "pypalp",
     "cygv>=0.2.3",
-    "regfans>=0.1.0",
+    "regfans>=0.2.1",
     "tqdm",
     "qpsolvers",
     "requests",
-    "osqp",
+    "osqp>=1.0",
     "latticepts",
     "platformdirs",
-    "highspy"
+    "highspy==1.12.*",      # must match ortools' bundled HiGHS (SONAME clash)
+    "pandas",
+    "pyarrow",
+    "sympy"
 ]
 classifiers = [
   "Development Status :: 5 - Production/Stable",

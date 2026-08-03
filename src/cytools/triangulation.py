@@ -19,13 +19,10 @@
 # -----------------------------------------------------------------------------
 
 # 'standard' imports
-import ast
 from collections.abc import Iterable
 import copy
 import itertools
 import math
-import re
-import subprocess
 import warnings
 
 # 3rd party imports
@@ -36,7 +33,6 @@ from scipy.spatial import ConvexHull
 import triangulumancer
 
 # CYTools imports
-from cytools import config
 from cytools.cone import Cone
 from cytools.toricvariety import ToricVariety
 from cytools.utils import gcd_list, lll_reduce
@@ -1567,52 +1563,70 @@ class Triangulation:
 
                 m[:-1, -1] = self.points(which=self.poly._label_origin, optimal=True)
 
+            # find adjacent simplices (those sharing a facet) via a
+            # facet->simplices incidence map, rather than scanning all O(n^2)
+            # pairs of simplices
+            facet_to_simps = {}
+            for idx, s in enumerate(simps):
+                for pt in s:
+                    facet = frozenset(s - {pt})
+                    facet_to_simps.setdefault(facet, []).append(idx)
+
+            # cache the optimal coordinates of every point once, rather than
+            # re-fetching them for each adjacent pair
+            all_labels = list(set().union(*simps))
+            all_opt = self.points(which=all_labels, optimal=True)
+            opt_pts = {lbl: all_opt[i] for i, lbl in enumerate(all_labels)}
+
             # calculate the hyperplanes
             null_vecs = set()
-            for i, s1 in enumerate(simps):
-                for s2 in simps[i + 1 :]:
-                    # ensure that the simps have a large enough intersection
-                    comm_pts = s1 & s2
-                    if len(comm_pts) != dim:
-                        continue
+            for idxs in facet_to_simps.values():
+                # an interior facet joins exactly two simplices; a boundary
+                # facet joins one (and is not flippable)
+                if len(idxs) != 2:
+                    continue
+                s1 = simps[idxs[0]]
+                s2 = simps[idxs[1]]
 
-                    # organize the diff
-                    diff_pts = list(s1 ^ s2)
-                    comm_pts = list(comm_pts)
+                # the two opposite vertices and the shared facet
+                diff_pts = list(s1 ^ s2)
+                comm_pts = list(s1 & s2)
 
-                    m[:-1, :2] = self.points(which=diff_pts, optimal=True).T
-                    m[:-1, 2 : (2 + dim)] = self.points(which=comm_pts, optimal=True).T
+                for c, pt in enumerate(diff_pts):
+                    m[:-1, c] = opt_pts[pt]
+                for c, pt in enumerate(comm_pts):
+                    m[:-1, 2 + c] = opt_pts[pt]
 
-                    # calculate nullspace/hyperplane ineq
-                    v = flint.fmpz_mat(m.tolist()).nullspace()[0]
-                    v = np.array(v.transpose().tolist()[0], dtype=int)
+                # calculate nullspace/hyperplane ineq
+                # (quicker than the determinant method)
+                v = flint.fmpz_mat(m.tolist()).nullspace()[0]
+                v = np.array(v.transpose().tolist()[0], dtype=int)
 
-                    # ensure the sign is correct
-                    if v[0] < 0:
-                        v *= -1
+                # ensure the sign is correct
+                if v[0] < 0:
+                    v *= -1
 
-                    # Reduce the vector
-                    g = gcd_list(v)
-                    if g != 1:
-                        v //= g
+                # Reduce the vector
+                g = math.gcd(*v.tolist())
+                if g != 1:
+                    v //= g
 
-                    # Construct the full vector (including all points)
-                    # (could get some more performance by allowing sparse vectors as Cone argument...)
-                    for i, pt in enumerate(diff_pts):
-                        full_v[labels2inds[pt]] = v[i]
-                    for i, pt in enumerate(comm_pts):
-                        full_v[labels2inds[pt]] = v[i + 2]
+                # Construct the full vector (including all points)
+                for k, pt in enumerate(diff_pts):
+                    full_v[labels2inds[pt]] = v[k]
+                for k, pt in enumerate(comm_pts):
+                    full_v[labels2inds[pt]] = v[k + 2]
 
-                    if self.is_star():
-                        full_v[labels2inds[self.poly._label_origin]] = v[-1]
+                if self.is_star():
+                    full_v[labels2inds[self.poly._label_origin]] = v[-1]
 
-                    null_vecs.add(tuple(full_v))
+                null_vecs.add(tuple(full_v))
 
-                    # clear full_v
-                    for i, pt in enumerate(diff_pts):
-                        full_v[labels2inds[pt]] = 0
-                    for i, pt in enumerate(comm_pts):
-                        full_v[labels2inds[pt]] = 0
+                # clear full_v
+                for pt in diff_pts:
+                    full_v[labels2inds[pt]] = 0
+                for pt in comm_pts:
+                    full_v[labels2inds[pt]] = 0
 
             # organize the hyperplanes
             hyps = list(null_vecs)
@@ -1964,6 +1978,8 @@ class Triangulation:
         only_fine: bool = False,
         only_regular: bool = False,
         only_star: bool = False,
+        two_neighbors: bool = False,
+        two_neighbors_track_flips: bool = False,
         backend: str = None,
         verbose: bool = False,
     ) -> list["Triangulation"]:
@@ -1980,6 +1996,16 @@ class Triangulation:
         - `only_fine`: Restricts to fine triangulations.
         - `only_regular`: Restricts the to regular triangulations.
         - `only_star`: Restricts to star triangulations.
+        - `two_neighbors`: Return the 2-neighbors. FRSTs with the same 2-face
+            restriction give equivalent CYs. An FRST is a representative of an
+            equivalence class. The 2-neighbors are the equivalence classes
+            differing by a single flip of a 2-face. Just return a representative
+            from each class. This gives the neighboring CYs more directly.
+        - `two_neighbors_track_flips`: Only valid with `two_neighbors`. If True,
+            return `(triangulation, face_index, circuit)` triples instead of bare
+            (triangulation,). `face_index` indexes `polytope.faces(2)` and
+            `circuit` is the sorted tuple of the four point labels spanning the
+            flipped quadrilateral.
         - `backend`: The backend used to check regularity. The options are any
             backend available for the [`is_solid`](./cone#is_solid) function of
             the [`Cone`](./cone) class. If not specified, it will be picked
@@ -1988,7 +2014,8 @@ class Triangulation:
 
         **Returns:**
         The list of triangulations that differ by one bistellar flip from the
-        current triangulation.
+        current triangulation, or `(triangulation, face_index, circuit)` triples
+        if `two_neighbors & two_neighbors_track_flips`.
 
         **Example:**
         We construct a triangulation and find its neighbor triangulations.
@@ -2009,9 +2036,25 @@ class Triangulation:
             )
             return []
 
+        # the 2-neighbors are fine, regular, and star FRSTs by construction
+        if two_neighbors:
+            only_fine = only_regular = only_star = True
+            return self._two_neighbors(
+                make_star=only_star,
+                backend=backend,
+                two_neighbors_track_flips=two_neighbors_track_flips,
+            )
+
+        if two_neighbors_track_flips:
+            raise ValueError(
+                "two_neighbors_track_flips is only supported with two_neighbors=True."
+            )
+
         # optimized method for 2D fine neighbors
         if self.is_fine() and (self.dim() == 2) and only_fine:
-            return self._fine_neighbors_2d()
+            return self._fine_neighbors_2d(
+                only_regular=only_regular, backend=backend
+            )
 
         pc = triangulumancer.PointConfiguration(self.points(optimal=True))
         t = triangulumancer.Triangulation(pc, self._simplices) # TODO: Need to implement this
@@ -2126,7 +2169,6 @@ class Triangulation:
     def _fine_neighbors_2d(
         self,
         only_regular: bool = False,
-        only_star: bool = False,
         backend: str = None,
     ) -> list["Triangulation"]:
         """
@@ -2141,7 +2183,6 @@ class Triangulation:
 
         **Arguments:**
         - `only_regular`: Restricts the to regular triangulations.
-        - `only_star`: Restricts to star triangulations.
         - `backend`: The backend used to check regularity. The options are any
             backend available for the [`is_solid`](./cone#is_solid) function of
             the [`Cone`](./cone) class. If not specified, it will be picked
@@ -2152,22 +2193,20 @@ class Triangulation:
         current triangulation.
         """
         simps_set = [set(s) for s in self._simplices]
-        triangs = []
 
-        # for each pair of simplices
+        triangs = []
         for i, s1 in enumerate(simps_set):
             for _j, s2 in enumerate(simps_set[i + 1 :]):
                 j = i + 1 + _j
 
-                # check if they form a quadrilateral
-                # (i.e., if they intersect along an edge)
+                # the two simplices must share an edge (form a quadrilateral)
                 inter = s1 & s2
                 if len(inter) != 2:
                     continue
 
-                # (and if the edge is 'internal')
+                # ...and the quadrilateral must be a parallelogram, so that
+                # swapping the diagonal gives a fine triangulation
                 other = s1.union(s2) - inter
-
                 pts_inter = self.points(inter, check_labels=False)
                 pts_other = self.points(other, check_labels=False)
                 if (sum(pts_inter) != sum(pts_other)).any():
@@ -2179,23 +2218,152 @@ class Triangulation:
                 new_simps[i] = flipped[0]
                 new_simps[j] = flipped[1]
 
-                # construct the triangulation
                 tri = Triangulation(
                     self.poly,
                     self.labels,
                     simplices=new_simps,
                     check_input_simplices=False,
                 )
-
-                # check the triangulation
-                if only_star and (not tri.is_star()):
-                    continue
                 if only_regular and (not tri.is_regular(backend=backend)):
                     continue
 
-                # keep it :)
                 triangs.append(tri)
+
         return triangs
+
+    def _two_neighbors(
+        self,
+        make_star: bool = None,
+        backend: str = None,
+        two_neighbors_track_flips: bool = False,
+    ) -> list["Triangulation"]:
+        """
+        **Description:**
+        Returns the "2-neighbors": the FRSTs reachable by a single 2D diagonal
+        flip of one 2-face, extended back to a full triangulation via NTFE
+        (arXiv:2309.10855). Flips that cannot be extended are skipped. Private
+        helper for `neighbor_triangulations(two_neighbors=True)`.
+
+        **Arguments:**
+        - `make_star`: Whether to produce star triangulations. If not specified,
+            it is set to whether the current triangulation is star.
+        - `backend`: The backend used when extending. If not specified, it is
+            picked automatically.
+
+        **Returns:**
+        The list of 2-neighbor triangulations. Each differs from the current one
+        by a single 2-face diagonal flip and is fine and regular (and star if
+        `make_star`); they are the neighboring Calabi-Yaus.
+
+        **Example:**
+        We construct an FRST and find its 2-neighbors.
+        ```python {3}
+        p = Polytope([[0,0,1,0],[-2,-2,-1,-2],[0,0,1,2],[-1,0,1,0],
+                      [1,2,-2,-1],[-1,0,0,-1],[0,1,0,0],[1,0,0,0]])
+        t = p.triangulate()
+        neighbors = t.neighbor_triangulations(two_neighbors=True)
+        len(neighbors) # Print how many 2-neighbors it found
+        # 2
+        ```
+        """
+        from cytools.ntfe.ntfe import _2d_frt_cone_ineqs, _IncrementalLP
+
+        if make_star is None:
+            make_star = self.is_star()
+
+        poly = self.polytope()
+        npts = len(poly.labels)
+        # the per-2-face triangulations, aligned to poly.faces(2)
+        face_triangs = self.restrict(as_poly=True)
+        n_faces = len(face_triangs)
+
+        def ineqs(ft):
+            return np.asarray(_2d_frt_cone_ineqs(ft, npts).dense(),
+                              dtype=np.float64)
+
+        # A single 2-face flip changes only that one face's inequalities, so
+        # the other faces' blocks are stacked once into a warm incremental LP
+        # and reused across all of a face's flips; only the flipped block is
+        # pushed/popped per neighbor. The feasible heights are then extended to
+        # a full triangulation.
+        fixed = [ineqs(ft) for ft in face_triangs]
+
+        # extend a chunk of (face index, flipped 2-face triangulation) pairs
+        # to full triangulations. Each (face, flip) is a distinct 2-face
+        # restriction, so it is its own dedup key.
+        # `fixed` is passed as an argument (not captured) so it is not
+        # re-cloudpickled with the closure into every worker
+        def extend_chunk(chunk, fixed):
+            out = []
+            seen = set()
+            lp = None
+            cur = None
+            for i, flipped, circuit in chunk:
+                key = (i, tuple(sorted(
+                    tuple(sorted(int(x) for x in s))
+                    for s in flipped.simplices())))
+                if key in seen:
+                    continue
+                if cur != i:
+                    other = [fixed[j] for j in range(n_faces)
+                             if j != i and len(fixed[j])]
+                    base = np.vstack(other) if other else np.zeros((0, npts))
+                    lp = _IncrementalLP(npts)
+                    lp.push(base)
+                    cur = i
+                # skip flips that cannot be extended (no full triangulation
+                # has that 2-face restriction); push() rolls back on its own
+                if not lp.push(ineqs(flipped)):
+                    continue
+                heights = lp.witness()
+                lp.pop()
+                seen.add(key)
+                tri = poly.triangulate(
+                    heights=np.delete(heights, poly.labels_facet),
+                    include_points_interior_to_facets=False,
+                    make_star=make_star, check_heights=False,
+                    **({} if backend is None else {"backend": backend}),
+                )
+                out.append((tri, i, circuit) if two_neighbors_track_flips else tri)
+            return out
+
+        def _flip_circuit(pre, post):
+            # the diagonal swap rewrites the 2-face's triangulation; the
+            # symmetric difference of the two spans exactly the quadrilateral
+            before = {tuple(sorted(int(v) for v in s)) for s in pre.simplices()}
+            after  = {tuple(sorted(int(v) for v in s)) for s in post.simplices()}
+            return tuple(sorted({v for s in before ^ after for v in s}))
+
+        # the (face, flip) tasks, grouped by face so each chunk reuses its
+        # warm LP for a face's flips
+        tasks = [(i, flipped, _flip_circuit(ft, flipped) if two_neighbors_track_flips
+                  else None)
+                 for i, ft in enumerate(face_triangs)
+                 for flipped in ft._fine_neighbors_2d()]
+
+        # parallelization follows CYTools' global config.n_threads
+        from multiprocessing import cpu_count
+
+        from cytools import config
+
+        n_threads = config.n_threads
+        if n_threads is None:
+            n_threads = 1 if len(tasks) < 32 else cpu_count()
+
+        if n_threads == 1 or len(tasks) <= 1:
+            return extend_chunk(tasks, fixed)
+
+        # split the grouped tasks into contiguous chunks, one per worker
+        import joblib
+
+        n = joblib.effective_n_jobs(n_threads)
+        size = -(-len(tasks) // n)
+        chunks = [tasks[k * size:(k + 1) * size] for k in range(n)]
+        chunks = [c for c in chunks if c]
+        batches = joblib.Parallel(n_jobs=n_threads)(
+            joblib.delayed(extend_chunk)(c, fixed) for c in chunks
+        )
+        return [t for batch in batches for t in batch]
 
     # misc
     # ====
