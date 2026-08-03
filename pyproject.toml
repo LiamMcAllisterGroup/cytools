@@ -71,6 +71,14 @@ gnn = [
   "dualgnn"
 ]
 
+[dependency-groups]
+dev = [
+  "pytest",
+]
+
+[tool.uv]
+default-groups = ["dev"]
+
 [project.urls]
 Homepage = "https://cy.tools"
 Documentation = "https://cy.tools/docs/documentation/"
