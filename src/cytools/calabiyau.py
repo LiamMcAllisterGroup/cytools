@@ -2097,6 +2097,7 @@ class CalabiYau:
         grading_vec: "ArrayLike" = None,
         max_deg: int = None,
         min_points: int = None,
+        target_points: "ArrayLike" = None,
         basis: "ArrayLike" = None,
         format: str = None,
     ):
@@ -2117,6 +2118,7 @@ class CalabiYau:
             is chosen if none is provided.
         - `max_deg`: The maximum degree to compute GVs/GWs to.
         - `min_points`: The minimum number of GVs/GWs to compute.
+        - `target_points`: A list of target points to compute GVs/GWs for.
         - 'basis': An array specifying a new basis to represent the charges in.
         - 'format': A string to request 'dok' or 'coo' formats.
 
@@ -2126,11 +2128,17 @@ class CalabiYau:
         # input checking
         if (max_deg is not None) and (min_points is not None):
             raise ValueError("Either max_deg or min_points can be set, not both")
-        
-        if (max_deg is None) and (min_points is None):
+
+        if (max_deg is not None) and (target_points is not None):
+            raise ValueError("Either max_deg or target_points can be set, not both")
+
+        if (min_points is not None) and (target_points is not None):
+            raise ValueError("Either min_points or target_points can be set, not both")
+
+        if (max_deg is None) and (min_points is None) and (target_points is None):
             # computing GVs by input points
             if mcap_generators is None:
-                raise ValueError("If neither max_deg nor min_points is set, you must set mcap_generators")
+                raise ValueError("If neither max_deg, min_points, nor target_points is set, you must set mcap_generators")
 
             # (in this case, we definitely still need the origin to be input)
             if not np.any(np.all(np.array(mcap_generators) == 0, axis=1)):
@@ -2164,6 +2172,7 @@ class CalabiYau:
             intnums=self.intersection_numbers(in_basis=True, format="dok"),
             max_deg=max_deg,
             min_points=min_points,
+            target_points=target_points,
         )
 
         # format/return the GVs
@@ -2194,6 +2203,7 @@ class CalabiYau:
         grading_vec: "ArrayLike" = None,
         max_deg: int = None,
         min_points: int = None,
+        target_points: "ArrayLike" = None,
         basis: "ArrayLike" = None,
         format: str = None,
     ):
@@ -2209,7 +2219,8 @@ class CalabiYau:
         - `grading_vec`: The grading vector to use in the computations. A default
             is chosen if none is provided.
         - `max_deg`: The maximum degree to compute GVs to.
-        - `min_points`: The minimum number of GVs/GWs to compute.
+        - `min_points`: The minimum number of GVs to compute.
+        - `target_points`: A list of target points to compute GVs for.
         - 'basis': An array specifying a new basis to represent the charges in.
         - 'format': A string to request 'dok' or 'coo' formats.
 
@@ -2222,6 +2233,7 @@ class CalabiYau:
             grading_vec=grading_vec,
             max_deg=max_deg,
             min_points=min_points,
+            target_points=target_points,
             basis=basis,
             format=format
         )
@@ -2234,6 +2246,7 @@ class CalabiYau:
         grading_vec: "ArrayLike" = None,
         max_deg: int = None,
         min_points: int = None,
+        target_points: "ArrayLike" = None,
         basis: "ArrayLike" = None,
         format: str = None,
     ):
@@ -2250,6 +2263,7 @@ class CalabiYau:
             is chosen if none is provided.
         - `max_deg`: The maximum degree to compute GWs to.
         - `min_points`: The minimum number of GWs to compute.
+        - `target_points`: A list of target points to compute GWs for.
         - 'basis': An array specifying a new basis to represent the charges in.
         - 'format': A string to request 'dok' or 'coo' formats.
 
@@ -2262,11 +2276,13 @@ class CalabiYau:
             grading_vec=grading_vec,
             max_deg=max_deg,
             min_points=min_points,
+            target_points=target_points,
             basis=basis,
             format=format
         )
 
     compute_gw = compute_gws
+
 
     # =================
     # TEMPORARY METHODS
