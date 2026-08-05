@@ -173,7 +173,7 @@ class CY_orientifold():
         - `str`: A description of the object.
     
         """ 
-        return f"A Calabi-Yau orientifold"
+        return "A Calabi-Yau orientifold"
 
     def __resolve_A1_singularities(self):
 
@@ -612,7 +612,7 @@ class F_Theory_Uplift():
     
         """
         
-        return f"An F-theory uplift of a Calabi-Yau orientifold"
+        return "An F-theory uplift of a Calabi-Yau orientifold"
         
     def orientifold(self):
 

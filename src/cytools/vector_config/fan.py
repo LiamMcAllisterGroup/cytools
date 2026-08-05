@@ -1080,11 +1080,11 @@ def curve_to_gv(fan, kappa, circ, verbosity=0):
     if max(circ.signature) == 3:
         if dim == 4:
             if verbosity >= 1:
-                print(f"(3,2), minface dim=4 -> gv=1")
+                print("(3,2), minface dim=4 -> gv=1")
             return 1
         else:
             if verbosity >= 1:
-                print(f"(3,2), minface dim<4 -> gv=0")
+                print("(3,2), minface dim<4 -> gv=0")
             return 0
     elif max(circ.signature) == 2:
         if dim == 4:

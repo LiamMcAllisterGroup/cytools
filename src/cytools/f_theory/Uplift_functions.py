@@ -29,7 +29,6 @@ import math
 from flint import fmpz_mat
 from sympy import Matrix, ZZ, lcm, fraction
 from sympy.matrices.normalforms import smith_normal_decomp
-from sympy.matrices.normalforms import smith_normal_form
 from scipy.optimize import nnls
 from scipy.optimize import milp, LinearConstraint
 
@@ -964,7 +963,7 @@ def generic_section_factorizes(points,linebundle_weights):
     
     try:
         NP=Newton_Polytope(points,linebundle_weights)
-    except ValueError as e:
+    except ValueError:
         return True
     return ~np.all(np.any(points@NP.points().T+linebundle_weights[:,None]!=0,axis=1))
 

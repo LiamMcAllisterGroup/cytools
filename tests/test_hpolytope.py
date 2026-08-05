@@ -1,7 +1,6 @@
 import pytest
 import re
 
-import numpy as np
 
 from cytools import Polytope
 from cytools.h_polytope import HPolytope

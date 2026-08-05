@@ -899,7 +899,7 @@ class Triangulation:
                             "subset of triangulation labels "
                             f"({self.labels})..."
                         )
-                except Exception as e:
+                except Exception:
                     # print(f"Specified labels, {which}, likely aren't hashable.")
                     raise
 
