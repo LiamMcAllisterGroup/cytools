@@ -101,3 +101,15 @@ def test_generator():
 def test_make_star():
     frsts = p_h11_8.ntfe_frts(make_star=True)
     assert all(t.is_star() for t in frsts)
+
+
+# face_triangulations attaches these to Polytope on import
+def test_ntfe_import_attaches_polytope_methods():
+    for name in (
+        "face_triangs",
+        "n_2face_triangs",
+        "num_2face_triangs",
+        "grow_ft",
+        "grow_frt",
+    ):
+        assert hasattr(Polytope, name), f"cytools.ntfe did not attach Polytope.{name}"
