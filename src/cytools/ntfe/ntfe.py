@@ -32,6 +32,7 @@ import time
 
 # 3rd party imports
 import flint
+import numba
 import numpy as np
 from scipy.optimize import linprog
 from tqdm import tqdm
@@ -41,7 +42,7 @@ from cytools.cone import Cone
 from cytools.polytope import Polytope
 from cytools.polytopeface import PolytopeFace
 from cytools.triangulation import Triangulation
-from cytools.helpers import basic_geometry, matrix, misc
+from cytools.helpers import matrix, misc
 
 # typing
 from numpy.typing import ArrayLike
@@ -483,6 +484,88 @@ def _2d_s_cone_ineqs(self,
 Triangulation._2d_s_cone_ineqs = _2d_s_cone_ineqs
 
 
+@numba.njit(cache=True)
+def _2d_frt_subfan_search(xs, ys, grid, xmin, ymin, out):
+    """
+    **Description:**
+    Find the point-tuples generating the CPL inequalities of a 2-face. This is
+    the search half of `_2d_frt_subfan_ineqs`; see there for the mathematics.
+
+    This is JIT-compiled because the case B) loop is O(N_pts^3) and, for the
+    largest 2-faces in the KS database, dominates the whole calculation.
+
+    **Arguments:**
+    - `xs`, `ys`: The (optimal) coordinates of the points of the face.
+    - `grid`: A dense lookup, `grid[x-xmin,y-ymin]` being the index of that
+        point in `xs`/`ys` (or -1 if it isn't a point of the face).
+    - `xmin`, `ymin`: The offsets of `grid`.
+    - `out`: The output buffer. Row r is filled with (i,j,k,m), the indices of
+        the points involved, `k` being -1 in case A).
+
+    **Returns:**
+    The number of tuples found. This is returned even if it exceeds the
+    capacity of `out` (in which case only the leading rows were written), so
+    that the caller can resize and try again.
+    """
+    N_pts = len(xs)
+    capacity = len(out)
+    count = 0
+
+    # case A) three consecutive collinear points
+    for i in range(N_pts):
+        x0, y0 = xs[i], ys[i]
+        for j in range(i + 1, N_pts):
+            x2, y2 = xs[j], ys[j]
+
+            if np.gcd(abs(x2 - x0), abs(y2 - y0)) != 2:
+                continue  # not exactly one interior point on the segment
+
+            if count < capacity:
+                # the face is convex, so the midpoint is necessarily one of its
+                # lattice points
+                out[count, 0] = i
+                out[count, 1] = j
+                out[count, 2] = -1
+                out[count, 3] = grid[(x0 + x2) // 2 - xmin, (y0 + y2) // 2 - ymin]
+            count += 1
+
+    # case B) simplex with a single interior point, no 'extra' boundary points
+    for i in range(N_pts):
+        x0, y0 = xs[i], ys[i]
+        for j in range(i + 1, N_pts):
+            x1, y1 = xs[j], ys[j]
+            dx01, dy01 = x1 - x0, y1 - y0
+
+            # every edge must be primitive, so a non-primitive (p0,p1) rules
+            # out the whole inner loop
+            if np.gcd(abs(dx01), abs(dy01)) != 1:
+                continue
+
+            for k in range(j + 1, N_pts):
+                x2, y2 = xs[k], ys[k]
+
+                # inlined 2x the triangle area
+                if abs(dx01 * (y2 - y0) - dy01 * (x2 - x0)) != 3:
+                    continue  # not the (N_bdry,N_int)=(3,1) case
+
+                if (np.gcd(abs(x2 - x0), abs(y2 - y0)) != 1) or (
+                    np.gcd(abs(x2 - x1), abs(y2 - y1)) != 1
+                ):
+                    continue  # bad case, (N_bdry,N_int)=(5,0)
+
+                if count < capacity:
+                    # good case, (N_bdry,N_int)=(3,1)
+                    # centroid is interior lattice pt (math stackexchange 124553)
+                    sum_x, sum_y = x0 + x1 + x2, y0 + y1 + y2
+                    out[count, 0] = i
+                    out[count, 1] = j
+                    out[count, 2] = k
+                    out[count, 3] = grid[sum_x // 3 - xmin, sum_y // 3 - ymin]
+                count += 1
+
+    return count
+
+
 def _2d_frt_subfan_ineqs(self, ambient_dim: int) -> matrix.LIL:
     """
     **Description:**
@@ -508,16 +591,14 @@ def _2d_frt_subfan_ineqs(self, ambient_dim: int) -> matrix.LIL:
         boundary points (i.e., only boundary points are vertices)...
 
     In practice, this is calculated by:
-        1) iterating over all subsets of three distinct points (p0,p1,p2),
-        2) calculating the area of the triangle defined by them,
-        3) match area
-            -) case 0: check that the points are consecutive. If so, add
-            restriction 2*p1<=p0+p2 (denoting end points as p0, p2)
-            -) case 3/2: either (N_bdry,N_int)=(3,1) or (5,0). We want (3,1)
-            case, so check for (5,0) case and skip if so. Now that we have
-            (3,1) case, calculate interior point, p3, as centroid and impose
-            restriction 3*p3<=p0+p1+p2
-            -) case other: skip
+        A) iterating over all pairs of distinct points (p0,p2) and keeping
+        those whose difference has GCD 2. Such a segment contains exactly one
+        further point, its midpoint p1, so impose 2*p1<=p0+p2
+        B) iterating over all subsets of three distinct points (p0,p1,p2) with
+        2x-area 3. This is either (N_bdry,N_int)=(3,1) or (5,0). We want the
+        (3,1) case, so check for the (5,0) case (i.e., a non-primitive edge)
+        and skip if so. Now that we have the (3,1) case, calculate the interior
+        point, p3, as the centroid and impose restriction 3*p3<=p0+p1+p2
 
     **Arguments:**
     - `secondary_dim`: The dimension of the secondary-cone space (i.e., the
@@ -530,58 +611,41 @@ def _2d_frt_subfan_ineqs(self, ambient_dim: int) -> matrix.LIL:
     # the output variable (doesn't need to be LIL object, but that is nice...)
     ineqs = matrix.LIL(dtype=np.int16, width=ambient_dim)
 
-    # iterate over triples
-    # This could be done more intelligently... some pairs of points will be
-    # disallowed... e.g., (1,0) and (4,0). Don't try any triple with said
-    # tuple...
-    # Maybe can check once you find area=0... maybe use sparse array for quick indexing...
-    pts = self.points(optimal=True)
-    pts_to_inds = {tuple(pt): i for i, pt in enumerate(pts)}
-    pts_inds = list(range(len(self.labels)))
+    pts = np.asarray(self.points(optimal=True), dtype=np.int64)
+    N_pts = len(pts)
+    if N_pts < 3:
+        return ineqs
 
-    for inds in itertools.combinations(pts_inds, 3):
-        pts_triple = pts[list(inds)]
-        area_2x = basic_geometry.triangle_area_2x(pts_triple)
+    # the search kernel wants contiguous coordinates and a dense point lookup
+    xs = np.ascontiguousarray(pts[:, 0])
+    ys = np.ascontiguousarray(pts[:, 1])
+    xmin, ymin = int(xs.min()), int(ys.min())
+    grid = np.full(
+        (int(xs.max()) - xmin + 1, int(ys.max()) - ymin + 1), -1, dtype=np.int64
+    )
+    grid[xs - xmin, ys - ymin] = np.arange(N_pts)
 
-        if area_2x == 0:
-            # collinear
-            seg = basic_geometry.check_3consecutive_sites(pts_triple)
+    # every face seen so far needs well under N_pts^2/2 rows, but grow-and-retry
+    # rather than trust that
+    capacity = max(64, N_pts**2 // 2)
+    while True:
+        out = np.empty((capacity, 4), dtype=np.int64)
+        count = _2d_frt_subfan_search(xs, ys, grid, xmin, ymin, out)
+        if count <= capacity:
+            break
+        capacity = count
 
-            if seg is not None:
-                # add associated inequalities
-                ineqs.new_row()
-                ineqs[-1, self.labels[inds[seg[0]]]] = 1
-                ineqs[-1, self.labels[inds[seg[1]]]] = -2
-                ineqs[-1, self.labels[inds[seg[2]]]] = 1
-        elif area_2x == 1:
-            continue  # unimodular triangle... skip!
-        elif area_2x == 3:
-            # either (N_bdry,N_int)=(3,1) or (N_bdry,N_int)=(5,0)
-            if (
-                (not basic_geometry.is_primitive(pts_triple[1] - pts_triple[0]))
-                or (
-                    not basic_geometry.is_primitive(
-                        pts_triple[2] - pts_triple[0]
-                    )
-                )
-                or (
-                    not basic_geometry.is_primitive(
-                        pts_triple[2] - pts_triple[1]
-                    )
-                )
-            ):
-                continue  # bad case, (N_bdry,N_int)=(5,0)
-
-            # good case, (N_bdry,N_int)=(3,1)
-            # centroid is interior lattice point (math stackexchange 124553)
-            centroid = np.sum(pts_triple, axis=0) // 3
-            i_centroid = pts_to_inds[tuple(centroid)]
-
-            ineqs.new_row()
-            ineqs[-1, self.labels[inds[0]]] = 1
-            ineqs[-1, self.labels[inds[1]]] = 1
-            ineqs[-1, self.labels[inds[2]]] = 1
-            ineqs[-1, self.labels[i_centroid]] = -3
+    # build the rows directly; going through new_row()/__setitem__ per entry
+    # costs more than the search itself
+    labels = self.labels
+    ineqs.arr = [
+        (
+            {labels[i]: 1, labels[j]: 1, labels[k]: 1, labels[m]: -3}
+            if k >= 0
+            else {labels[i]: 1, labels[j]: 1, labels[m]: -2}
+        )
+        for i, j, k, m in out[:count]
+    ]
 
     return ineqs
 

@@ -18,15 +18,11 @@
 # Description:  This module contains various basic geometry helpers
 # -----------------------------------------------------------------------------
 
-# 3rd party imports
-import numpy as np
-
 # CYTools imports
 from cytools import Polytope
 from cytools.helpers import matrix
 
 # typing
-import math
 from numpy.typing import ArrayLike
 
 
@@ -143,32 +139,6 @@ def intersect(A: list, B: list, C: list, D: list) -> bool:
     return (ccw(A, C, D) != ccw(B, C, D)) and (ccw(A, B, C) != ccw(A, B, D))
 
 
-def is_primitive(pt: list) -> bool:
-    """
-    **Description:**
-    Check if a (lattice) point is primitive. I.e.,
-        1) check if the components are relatively coprime (GCD=1);
-        equivalently,
-        2) check if the strict interior of the line segment (0,0)->pt contains
-        no lattice points.
-
-    **Arguments:**
-    - `pt`: The point.
-
-    **Returns:**
-    True iff the point has GCD=1
-
-    **Example:**
-    ```python {3}
-    is_primitive([1,3])
-    # True
-    is_primitive([2,2])
-    # False
-    ```
-    """
-    return math.gcd(*pt) == 1
-
-
 def triangle_area_2x(pts: "ArrayLike") -> float:
     """
     **Description:**
@@ -199,54 +169,3 @@ def triangle_area_2x(pts: "ArrayLike") -> float:
 
     return abs(x0 * (y1 - y2) + x1 * (y2 - y0) + x2 * (y0 - y1))
 
-
-def check_3consecutive_sites(pts: "ArrayLike") -> "list | None":
-    """
-    **Description:**
-    Check if a 3xdim integral array, pts, consists of '3 consecutive sites'.
-
-    Let pts = [a,b,c]. Then this is defined as (up to permutations of labels)
-        0) all points a, b, and c being distinct,
-        1) delta = b-a is primitive, and
-        1) b + delta = c.
-    This is equivalent to conv({a,b,c}) = 1D and one point (say, b) being the
-    unique interior lattice point.
-
-    If the above conditions hold, return a linear ordering of the points.
-    If not, return None.
-
-    **Arguments:**
-    - `pts`: The 3xdim integral array whose rows are points.
-
-    **Returns:**
-    An ordering of the points if the conditions hold. Else, None.
-
-    **Example:**
-    ```python {3}
-    check_3consecutive_sites([[1,0,0],[1,1,0],[1,2,0]])
-    # [0,1,2]
-    check_3consecutive_sites([[1,1,0],[1,2,0],[1,0,0]])
-    # [2,0,1]
-    check_3consecutive_sites([[1,0,0],[0,1,0],[1,1,0]])
-    # None
-    ```
-    """
-    pts_aff = pts[1:] - pts[0]
-    primitiveQ = [is_primitive(pt) for pt in pts_aff]
-
-    if primitiveQ[0]:
-        # 0->1 is primitive
-        if primitiveQ[1]:
-            return [1, 0, 2]  # line is 1->0->2
-        elif np.all(2 * pts_aff[0] == pts_aff[1]):
-            return [0, 1, 2]  # line is 0->1->2
-        else:
-            return
-    elif primitiveQ[1]:
-        # 0->2 is primitive
-        if np.all(2 * pts_aff[1] == pts_aff[0]):
-            return [0, 2, 1]  # line is 0->2->1
-        else:
-            return
-    else:
-        return
