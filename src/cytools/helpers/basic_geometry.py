@@ -18,6 +18,9 @@
 # Description:  This module contains various basic geometry helpers
 # -----------------------------------------------------------------------------
 
+# 'standard' imports
+from collections import Counter
+
 # CYTools imports
 from cytools import Polytope
 from cytools.helpers import matrix
@@ -59,15 +62,13 @@ def get_bdry(self) -> set:
     )
 
     # organize the edges
-    bdry = set()
-    while len(edges):
-        e = edges.pop()
-        try:
-            edges.pop(edges.index(e))
-        except ValueError:
-            bdry.add(frozenset(e))
+    #
+    # An edge is on the boundary iff it belongs to an odd number of simplices
+    # (i.e. exactly one, for a triangulation). Counting is O(E); the previous
+    # pop()/index() pairing was O(E^2).
+    counts = Counter(edges)
 
-    return bdry
+    return {frozenset(e) for e, n in counts.items() if n % 2}
 
 
 Polytope.get_bdry = get_bdry
