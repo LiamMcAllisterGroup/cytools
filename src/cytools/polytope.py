@@ -862,17 +862,27 @@ class Polytope:
         if labels is None:
             labels = []
 
+        # map each user-supplied point to its label, and keep the labels in a
+        # set. Doing this up-front keeps the loop below linear in the number of
+        # lattice points (rather than doing list scans per point).
+        # N.B.: setdefault reproduces list.index() semantics, i.e. in case of
+        # duplicated input points the first label wins.
+        pt_to_label = {}
+        for pt, label in zip(pts_optimal, labels):
+            pt_to_label.setdefault(pt, label)
+        labels_set = set(labels)
+
         last_default_label = -1
         for i in inds_sort:
             pt = tuple(pts_optimal_all[i])
 
             # find the label to use
-            if (labels != []) and (pt in pts_optimal):
-                label = labels[pts_optimal.index(pt)]
+            if pt in pt_to_label:
+                label = pt_to_label[pt]
             else:
                 label = last_default_label + 1
 
-                while (label in self._labels2optPts) or (label in labels):
+                while (label in self._labels2optPts) or (label in labels_set):
                     label += 1
                 last_default_label = label
 
@@ -882,7 +892,9 @@ class Polytope:
             nSat_to_labels[len(saturating[i])].append(label)
 
         # save order of labels
-        self._pts_order = sum(nSat_to_labels[1:][::-1], nSat_to_labels[0])
+        self._pts_order = list(
+            itertools.chain(nSat_to_labels[0], *nSat_to_labels[1:][::-1])
+        )
         # if hasattr(self._pts_order[0], 'item'):
         #    # convert numpy types to ordinary ones
         #    self._pts_order = tuple([i.item() for i in self._pts_order])
@@ -915,8 +927,8 @@ class Polytope:
         self._labels_int = nSat_to_labels[0]
         self._labels_facet = nSat_to_labels[1]
 
-        self._labels_bdry = sum(nSat_to_labels[1:][::-1], [])
-        self._labels_codim2 = sum(nSat_to_labels[2:][::-1], [])
+        self._labels_bdry = list(itertools.chain(*nSat_to_labels[1:][::-1]))
+        self._labels_codim2 = list(itertools.chain(*nSat_to_labels[2:][::-1]))
 
         self._labels_not_facet = self._labels_int + self._labels_codim2
 
@@ -1283,8 +1295,12 @@ class Polytope:
                 self._faces.append(tuple(f.dual() for f in dim_faces))
             # full-dim face
             self._faces.append(
-                (PolytopeFace(self, self._labels_vertices, frozenset(), dim=self._dim),)
+                (PolytopeFace(self, self.labels_vertices, frozenset(), dim=self._dim),)
             )
+
+            # sort each collection of faces lexicographically by their used labels
+            for i in range(len(self._faces)):
+                self._faces[i] = tuple(sorted(self._faces[i], key=lambda f: f.labels))
 
             # cast to tuple
             self._faces = tuple(self._faces)
@@ -1618,7 +1634,9 @@ class Polytope:
                     c == 1 for c in self._ineqs_input[:, -1]
                 )
             else:
-                codim = len(integral_nullspace(self.points()))
+                # integral_nullspace returns the null vectors as *columns*, so
+                # the codimension is the number of columns, not of rows.
+                codim = integral_nullspace(self.points()).shape[1]
                 dim = self.ambient_dim()-codim
                 if dim!=self.dim():
                     self._is_reflexive[allow_translations] = False
@@ -1789,16 +1807,19 @@ class Polytope:
             autos_dict = []
             autos2_dict = []
             pts_tup = [tuple(pt) for pt in self.points()]
+
+            def _auto_dict(a):
+                # index the image points by coordinate, so that the lookup
+                # below is O(n) rather than O(n^2)
+                new_inds = {}
+                for j, pt in enumerate(self.points().dot(a)):
+                    new_inds.setdefault(tuple(pt), j)
+                return {i: new_inds[ii] for i, ii in enumerate(pts_tup)}
+
             for a in self._autos[0]:
-                new_pts_tup = [tuple(pt) for pt in self.points().dot(a)]
-                autos_dict.append(
-                    {i: new_pts_tup.index(ii) for i, ii in enumerate(pts_tup)}
-                )
+                autos_dict.append(_auto_dict(a))
             for a in self._autos[1]:
-                new_pts_tup = [tuple(pt) for pt in self.points().dot(a)]
-                autos2_dict.append(
-                    {i: new_pts_tup.index(ii) for i, ii in enumerate(pts_tup)}
-                )
+                autos2_dict.append(_auto_dict(a))
             self._autos[2] = autos_dict
             self._autos[3] = autos2_dict
 
@@ -3003,7 +3024,9 @@ class Polytope:
             # simplex... trivial
             triangs = None
             if raw_output:
-                triangs = [self.points(as_indices=True)[None, :]]
+                # N.B.: points(as_indices=True) returns a list, so it must be
+                # cast before it can be indexed with a tuple.
+                triangs = [np.asarray(self.points(as_indices=True))[None, :]]
             else:
                 triangs = [Triangulation(self, self.labels)]
 
@@ -3322,7 +3345,7 @@ class Polytope:
         if points is not None:
             # We always add the origin, but remove it later if necessary
             pts_ind = set(list(points) + [0])
-            if (min(pts_ind) < 0) or (max(pts_ind) > self.points().shape[0]):
+            if (min(pts_ind) < 0) or (max(pts_ind) >= self.points().shape[0]):
                 raise ValueError("An index is out of the allowed range.")
 
             include_origin = 0 in points
@@ -3393,7 +3416,8 @@ class Polytope:
 
                 for ctr in range(np.prod(linrel.shape) + 1):
                     found_good_basis = True
-                    ctr += 1
+                    # the candidate order was carefully constructed above, so
+                    # try it as-is first and only start rolling afterwards
                     if ctr > 0:
                         st = max([good_exclusions, 1])
                         indices[st:] = np.roll(indices[st:], -1)
@@ -3401,7 +3425,8 @@ class Polytope:
                     linrel_rand = np.array(linrel[:, indices])
                     try:
                         linrel_hnf = fmpz_mat(linrel_rand.tolist()).hnf()
-                    except Exception:
+                    except ValueError:
+                        # flint rejected the matrix; try the next ordering
                         continue
                     linrel_rand = np.array(linrel_hnf.tolist(), dtype=int)
                     good_exclusions = 0
@@ -3467,11 +3492,8 @@ class Polytope:
                 if sublat_ind % tup[-1][1] != 0:
                     raise RuntimeError("Problem with linear relations")
                 i, ii = tup[-1]
-                if integral:
-                    glsm[:, nb] = -glsm.dot(linrel[i]) // ii
-                else:
-                    glsm[i, :] *= ii
-                    glsm[:, nb] = -glsm.dot(linrel[i])
+                # this whole block is inside the `integral` branch
+                glsm[:, nb] = -glsm.dot(linrel[i]) // ii
         else:  # Non-integral basis
             pts = self.points()[list(pts_ind)[1:]]  # Exclude the origin
             pts_norms = [np.linalg.norm(p, 1) for p in pts]
@@ -3614,7 +3636,7 @@ class Polytope:
         """
         if points is not None:
             pts_ind = tuple(set(list(points) + [0]))
-            if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
+            if min(pts_ind) < 0 or max(pts_ind) >= self.points().shape[0]:
                 raise ValueError("An index is out of the allowed range.")
             include_origin = 0 in points
         elif include_points_interior_to_facets:
@@ -3683,7 +3705,7 @@ class Polytope:
         """
         if points is not None:
             pts_ind = tuple(set(list(points) + [0]))
-            if min(pts_ind) < 0 or max(pts_ind) > self.points().shape[0]:
+            if min(pts_ind) < 0 or max(pts_ind) >= self.points().shape[0]:
                 raise ValueError("An index is out of the allowed range.")
             include_origin = 0 in points
         elif include_points_interior_to_facets:
@@ -3765,9 +3787,10 @@ class Polytope:
             if self.dim() == 0:
                 self._volume = 0
             elif self.dim() == 1:
-                self._volume = max(self.points(optimal=True)) - min(
-                    self.points(optimal=True)
-                )
+                # points(optimal=True) is (n,1)-shaped here, so flatten it to
+                # get an int rather than a length-1 array
+                pts_1d = self.points(optimal=True).flatten()
+                self._volume = int(max(pts_1d) - min(pts_1d))
             else:
                 self._volume = ConvexHull(self.points(optimal=True)).volume
                 self._volume *= math.factorial(self.dim())
@@ -3775,6 +3798,30 @@ class Polytope:
 
         # return
         return self._volume
+
+    def _huang_taylor_sets(self) -> list[list[tuple]]:
+        """
+        **Description:**
+        Constructs the three sets $S_1$, $S_2$, $S_3$ used by the Huang-Taylor
+        algorithm (see [1907.09482](https://arxiv.org/abs/1907.09482)). $S_i$
+        holds the lattice points whose maximum dot product with the vertices of
+        the dual polytope equals $i$. These sets are disjoint by construction.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        A list of the three sets, as lists of point tuples.
+        """
+        dual_vert = self.dual().vertices()
+
+        S_i = [[], [], []]
+        for p in self.points():
+            m = max(p.dot(v) for v in dual_vert)
+            if m in (1, 2, 3):
+                S_i[m - 1].append(tuple(p))
+
+        return S_i
 
     def find_2d_reflexive_subpolytopes(self) -> list["Polytope"]:
         """
@@ -3800,14 +3847,7 @@ class Polytope:
         if not self.is_reflexive() or self.dim() != 4:
             raise NotImplementedError("Only 4D reflexive polytopes are supported.")
         pts = self.points()
-        dual_vert = self.dual().vertices()
-        # Construct the sets S_i by finding the maximum dot product with dual
-        # vertices
-        S_i = [[]] * 3
-        for p in pts:
-            m = max(p.dot(v) for v in dual_vert)
-            if m in (1, 2, 3):
-                S_i[m - 1].append(tuple(p))
+        S_i = self._huang_taylor_sets()
         # Check each of the three conditions
         gen_pts = []
         for i in range(len(S_i[0])):
@@ -4068,6 +4108,19 @@ def saturating_lattice_pts(
         ineqs, _ = poly_v_to_h(pts, backend)
 
     ineqs = np.array(ineqs)
+
+    # the lattice-point kernel operates on int32 data, so check that the H-rep
+    # actually fits before casting (otherwise the values wrap silently)
+    int32_info = np.iinfo(np.int32)
+    if ineqs.size and (
+        (ineqs.min() < int32_info.min) or (ineqs.max() > int32_info.max)
+    ):
+        raise ValueError(
+            "The H-representation of the polytope has coefficients that do "
+            "not fit in a 32-bit integer, which the lattice point enumerator "
+            "requires."
+        )
+
     H     = np.ascontiguousarray(ineqs[:,:-1]).astype(np.int32)
     rhs   = -np.ascontiguousarray(ineqs[:,-1]).astype(np.int32)
 
@@ -4087,8 +4140,8 @@ def saturating_lattice_pts(
             break
     pts = np.array(pts)
 
-    # compute the saturation
-    satd = (pts@H.T == rhs.reshape(1,-1))
+    # compute the saturation (in int64, so that the products can't overflow)
+    satd = (pts.astype(np.int64) @ H.T.astype(np.int64)) == rhs.reshape(1, -1)
     satd = [
         frozenset([int(x) for x in np.where(satd_i)[0]])
         for satd_i in satd

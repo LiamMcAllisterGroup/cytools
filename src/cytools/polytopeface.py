@@ -569,9 +569,13 @@ class PolytopeFace:
         dual_poly = self.ambient_poly.dual()
 
         dual_vert = self.ambient_poly.inequalities()[list(self._saturated_ineqs), :-1]
-        dual_ineqs = dual_poly.inequalities()[:, :-1].tolist()
+        # index the dual inequalities by their coefficients, so that the
+        # lookup below is O(V+F) rather than O(V*F)
+        dual_ineq_inds = {}
+        for i, v in enumerate(dual_poly.inequalities()[:, :-1].tolist()):
+            dual_ineq_inds.setdefault(tuple(v), i)
         dual_saturated_ineqs = frozenset(
-            [dual_ineqs.index(v) for v in self.vertices().tolist()]
+            [dual_ineq_inds[tuple(v)] for v in self.vertices().tolist()]
         )
         dual_face_dim = self.ambient_poly._dim - self._dim - 1
         self._dual_face = PolytopeFace(

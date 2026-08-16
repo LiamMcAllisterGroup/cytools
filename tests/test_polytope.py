@@ -1,3 +1,4 @@
+import pytest
 import numpy as np
 
 from cytools import Polytope
@@ -355,3 +356,165 @@ def test_equality():
     )
     assert p1 == p1
     assert p1 != p2
+
+
+def test_faces_from_dual_uses_vertices():
+    # regression: the top-dimensional face built from the dual's faces used
+    # the raw `_labels_vertices` attribute, which is None until `vertices()`
+    # is called, so the face ended up treating every lattice point as a vertex
+    quintic = [
+        [-1, -1, -1, -1],
+        [1, 0, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, 1, 0],
+        [0, 0, 0, 1],
+    ]
+
+    # force the dual's faces to be computed first
+    p = Polytope(quintic)
+    p.dual().faces()
+    from_dual = p.faces()[4][0].vertices()
+
+    # ... and compare against computing them from scratch
+    p2 = Polytope(quintic)
+    from_scratch = p2.faces()[4][0].vertices()
+
+    assert len(from_dual) == 5
+    assert sorted(map(tuple, from_dual)) == sorted(map(tuple, from_scratch))
+    assert (0, 0, 0, 0) not in [tuple(pt) for pt in from_dual]
+
+
+def test_faces_ordering_is_deterministic():
+    # regression: the dual-derived branch of `faces()` did not sort the faces
+    # by label, so the ordering depended on whether the dual's faces had been
+    # computed first
+    quintic = [
+        [-1, -1, -1, -1],
+        [1, 0, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, 1, 0],
+        [0, 0, 0, 1],
+    ]
+
+    p = Polytope(quintic)
+    p.dual().faces()
+    from_dual = [[f.labels for f in dim_faces] for dim_faces in p.faces()]
+
+    p2 = Polytope(quintic)
+    from_scratch = [[f.labels for f in dim_faces] for dim_faces in p2.faces()]
+
+    assert from_dual == from_scratch
+
+
+def test_is_reflexive_without_translations_nonsolid():
+    # regression: the codimension was computed as the number of *rows* of the
+    # integral nullspace (= the ambient dimension) rather than the number of
+    # null vectors, so this always returned False for non-solid polytopes
+    assert Polytope([[-1, 0], [1, 0]]).is_reflexive(allow_translations=False)
+    assert Polytope([[-1, 0, 0], [1, 0, 0]]).is_reflexive(allow_translations=False)
+    assert Polytope(
+        [[-1, 0, 0], [1, 0, 0], [0, -1, 0], [0, 1, 0]]
+    ).is_reflexive(allow_translations=False)
+
+    # a non-reflexive, non-solid polytope must still come out False
+    assert not Polytope([[-2, 0], [1, 0]]).is_reflexive(allow_translations=False)
+
+    # solid polytopes are unaffected
+    assert Polytope([[-1, -1], [1, 0], [0, 1]]).is_reflexive(allow_translations=False)
+    assert not Polytope([[-2, -2], [1, 0], [0, 1]]).is_reflexive(
+        allow_translations=False
+    )
+
+
+def test_huang_taylor_sets_are_disjoint():
+    # regression: the three Huang-Taylor sets were built as `[[]] * 3`, i.e.
+    # three references to the *same* list, so every membership test was really
+    # done against the union of all three
+    p = Polytope(
+        [
+            [1, 0, 0, 0],
+            [0, 1, 0, 0],
+            [0, 0, 1, 0],
+            [0, 0, 0, 1],
+            [-1, -1, -6, -9],
+        ]
+    )
+    S_1, S_2, S_3 = p._huang_taylor_sets()
+
+    # the three sets must be distinct objects
+    assert S_1 is not S_2 and S_2 is not S_3 and S_1 is not S_3
+
+    # ... and must be a genuine partition by max dot product with dual vertices
+    dual_vert = p.dual().vertices()
+    for i, S in enumerate([S_1, S_2, S_3]):
+        for pt in S:
+            assert max(np.dot(pt, v) for v in dual_vert) == i + 1
+
+    assert set(S_1).isdisjoint(S_2)
+    assert set(S_1).isdisjoint(S_3)
+    assert set(S_2).isdisjoint(S_3)
+
+    # for this polytope each set is non-empty and strictly smaller than the
+    # union, so the aliased version really did behave differently
+    assert len(S_1) and len(S_2) and len(S_3)
+    assert len(S_1) < len(S_1) + len(S_2) + len(S_3)
+
+    # the public method still works
+    assert len(p.find_2d_reflexive_subpolytopes()) == 1
+
+
+def test_all_triangulations_simplex():
+    # regression: the simplex shortcut indexed the *list* returned by
+    # points(as_indices=True) with a tuple, raising a TypeError
+    p = Polytope([[0, 0], [1, 0], [0, 1]])
+
+    raw = p.all_triangulations(raw_output=True, as_list=True)
+    assert len(raw) == 1
+    assert np.array(raw[0]).shape == (1, 3)
+    assert sorted(np.array(raw[0])[0].tolist()) == [0, 1, 2]
+
+    # the non-raw output keeps working too
+    triangs = p.all_triangulations(as_list=True)
+    assert len(triangs) == 1
+
+    # and the generator form
+    assert len(list(p.all_triangulations(raw_output=True))) == 1
+
+
+def test_glsm_index_validation_off_by_one():
+    # regression: the validation used `>` instead of `>=`, so an index equal to
+    # the number of points slipped through and surfaced as a raw IndexError
+    p = Polytope(
+        [
+            [1, 0, 0, 0],
+            [0, 1, 0, 0],
+            [0, 0, 1, 0],
+            [0, 0, 0, 1],
+            [-1, -1, -6, -9],
+        ]
+    )
+    n = p.points().shape[0]
+
+    for fct in (p.glsm_charge_matrix, p.glsm_linear_relations, p.glsm_basis):
+        with pytest.raises(ValueError, match="out of the allowed range"):
+            fct(points=[0, n])
+        with pytest.raises(ValueError, match="out of the allowed range"):
+            fct(points=[0, -1])
+
+    # the largest valid index must still be accepted
+    p.glsm_charge_matrix(points=list(range(n)))
+
+
+def test_volume_1d():
+    # regression: the 1D branch took max/min over an (n,1)-shaped array, so it
+    # returned a length-1 array instead of an int
+    p = Polytope([[-2], [2]])
+    assert p.volume() == 4
+    assert isinstance(p.volume(), int)
+
+    p2 = Polytope([[0], [3]])
+    assert p2.volume() == 3
+    assert isinstance(p2.volume(), int)
+
+    # 0-dimensional polytopes are unaffected
+    assert Polytope([[0]]).volume() == 0
