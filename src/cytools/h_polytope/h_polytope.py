@@ -95,7 +95,14 @@ class HPolytope(polytope.Polytope):
         Nothing.
         """
         # save inputs
+        if ineqs is None:
+            raise ValueError("The defining inequalities, `ineqs`, are required.")
         ineqs = np.array(ineqs)
+        if ineqs.ndim != 2:
+            raise ValueError(
+                "`ineqs` must be a 2D matrix of inequalities, but the input "
+                f"has {ineqs.ndim} dimension(s)."
+            )
         self._ineqs = ineqs.copy()
 
         # compute the vertices
@@ -109,9 +116,16 @@ class HPolytope(polytope.Polytope):
             if 0 in dual[:,-1]:
                 raise ValueError("Dual was a polyhedron, not a polytope.")
 
-            # map the ineqs into points
-            self._real_vertices = [row[:-1]/row[-1] for row in dual]
-            self._real_vertices = np.array(self._real_vertices)
+            # map the ineqs into points. Divide integrally when we can, so
+            # that a genuinely lattice polytope keeps an integer dtype (a
+            # plain `/` would always give float64, and would then force the
+            # slow lattice-point path below)
+            dual = np.asarray(dual)
+            nums, dens = dual[:, :-1], dual[:, -1:]
+            if (dual.dtype.kind in "iu") and np.all(nums % dens == 0):
+                self._real_vertices = nums // dens
+            else:
+                self._real_vertices = nums / dens
         else:
             # more complicated hyperplanes were input. Use dedicated function
             # (could likely be mapped to poly_v_to_h. Worry about rational inputs)
