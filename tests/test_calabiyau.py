@@ -1,5 +1,8 @@
+import contextlib
+
 import numpy as np
 
+import cytools.config
 from cytools import Polytope
 
 
@@ -358,3 +361,115 @@ def test_gv_invariants_without_cutoff():
     gvs = cy.compute_gvs(max_deg=10)
     assert gvs.cutoff == 10
     assert gvs.gv([10**6, 10**6]) is None
+
+
+def _reference_kappa(cy):
+    """
+    Intersection numbers in the current basis, taken straight from
+    `intersection_numbers` (the source of truth for the basis).
+    """
+    return np.asarray(cy.intersection_numbers(in_basis=True, format="dense"))
+
+
+@contextlib.contextmanager
+def _experimental_features():
+    prev = cytools.config._exp_features_enabled
+    cytools.config._exp_features_enabled = True
+    try:
+        yield
+    finally:
+        cytools.config._exp_features_enabled = prev
+
+
+def test_volume_and_kahler_methods_honor_matrix_divisor_basis():
+    # regression test: the volume/Kahler methods used to read the intersection
+    # numbers off the fan of the defining triangulation, which only knows the
+    # polytope's default (Gale) basis. A basis set with set_divisor_basis was
+    # silently ignored, giving wrong volumes and metrics.
+    p = Polytope(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -6, -9]]
+    )
+    cy = p.triangulate().get_cy()
+
+    with _experimental_features():
+        # a unimodular change of the default basis [5, 6]
+        cy.set_divisor_basis([[0, 0, 0, 0, 0, 1, 1], [0, 0, 0, 0, 0, 0, 1]])
+
+        tip = cy.toric_kahler_cone().tip_of_stretched_cone(1)
+        kappa = _reference_kappa(cy)
+
+        K = np.tensordot(kappa, tip, axes=([-1], [0]))
+        assert np.isclose(cy.compute_cy_volume(tip), (K @ tip) @ tip / 6)
+        assert np.isclose(cy.compute_kappa_matrix(tip), K).all()
+        assert np.isclose(cy.compute_kappa_vector(tip), K @ tip).all()
+        assert np.isclose(
+            cy.compute_divisor_volumes(tip, in_basis=True), (K @ tip) / 2
+        ).all()
+
+        xvol = (K @ tip) @ tip / 6
+        tau = (K @ tip) / 2
+        kinv = 4 * (np.outer(tau, tau) - K * xvol)
+        assert np.isclose(cy.compute_inverse_kahler_metric(tip), kinv).all()
+        assert np.isclose(cy.compute_kahler_metric(tip), np.linalg.inv(kinv)).all()
+
+        # the total volume is basis independent
+        assert np.isclose(cy.compute_cy_volume(tip), 3.5)
+
+
+def test_volume_methods_honor_index_divisor_basis():
+    # same bug as above, but with a basis given as a vector of indices
+    p = Polytope(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -6, -9]]
+    )
+    cy = p.triangulate().get_cy()
+    cy.set_divisor_basis([1, 6])
+
+    tip = cy.toric_kahler_cone().tip_of_stretched_cone(1)
+    K = np.tensordot(_reference_kappa(cy), tip, axes=([-1], [0]))
+
+    assert np.isclose(cy.compute_cy_volume(tip), (K @ tip) @ tip / 6)
+    assert np.isclose(cy.compute_kappa_matrix(tip), K).all()
+
+
+def test_compute_divisor_volumes_out_of_basis_honors_basis():
+    # the conversion of the basis divisor volumes to the volumes of the prime
+    # toric divisors used the polytope's GLSM charge matrix, which is only the
+    # right transformation for the default basis
+    p = Polytope(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -6, -9]]
+    )
+    cy_default = p.triangulate().get_cy()
+    tip_default = cy_default.toric_kahler_cone().tip_of_stretched_cone(1)
+    expected = cy_default.compute_divisor_volumes(tip_default)
+    assert np.isclose(expected, [2.5, 24, 16, 2.5, 2.5, 0.5]).all()
+
+    p2 = Polytope(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -6, -9]]
+    )
+    cy = p2.triangulate().get_cy()
+    with _experimental_features():
+        cy.set_divisor_basis([[0, 0, 0, 0, 0, 1, 1], [0, 0, 0, 0, 0, 0, 1]])
+        tip = cy.toric_kahler_cone().tip_of_stretched_cone(1)
+        # the tip is the same point of the Kahler cone, written in a new basis
+        assert np.isclose(
+            tip.dot(cy.divisor_basis(as_matrix=True, include_origin=False)),
+            tip_default.dot(
+                cy_default.divisor_basis(as_matrix=True, include_origin=False)
+            ),
+        ).all()
+        # ... so the volumes of the prime toric divisors must be unchanged
+        assert np.isclose(cy.compute_divisor_volumes(tip), expected).all()
+
+
+def test_curve_basis_with_all_points_triangulation():
+    # regression test: curve_basis picked its default basis using the
+    # triangulation point set while divisor_basis (and glsm_charge_matrix) use
+    # the origin plus the prime toric divisors. For a CY built from a
+    # triangulation of all the points of the polytope these differ, and
+    # curve_basis raised "Indices are not in appropriate range."
+    p = Polytope(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -6, -9]]
+    )
+    cy = p.triangulate(points=p.labels).get_cy()
+    assert (cy.curve_basis() == [5, 6]).all()
+    assert (cy.curve_basis() == cy.divisor_basis()).all()
