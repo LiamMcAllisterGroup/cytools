@@ -53,6 +53,12 @@ from cytools import config
 from cytools import utils
 
 
+# The number of times an extremality check is retried before giving up. Retries
+# only help for transient failures, so this must be finite to avoid spinning
+# forever on a deterministic error.
+MAX_EXTREMALITY_RETRIES = 3
+
+
 class Cone:
     """
     This class handles all computations relating to rational polyhedral cones,
@@ -153,6 +159,9 @@ class Cone:
 
         # parse empty hyperplanes
         if (rays is None) and (len(hyperplanes) == 0):
+            # the input may be a plain (empty) list, so promote it to an array
+            # before inspecting its shape
+            hyperplanes = np.asarray(hyperplanes)
 
             # check if ambient dim is inferrable from hyperplanes
             if (len(hyperplanes.shape)>1) and (hyperplanes.shape[1]!=0):
@@ -256,11 +265,17 @@ class Cone:
                     data = utils.array_fmpz_to_int(data)
                 else:
                     data = utils.array_fmpq_to_float(data)
-            elif t == np.int8:
+            elif np.issubdtype(t, np.integer):
                 # rest of calculations assume ints are 64-bit? convert...
-                data = data.astype(np.int64)
+                if t != np.int64:
+                    data = data.astype(np.int64)
                 t = np.int64
-            elif t not in (np.int64, np.float64):
+            elif np.issubdtype(t, np.floating):
+                # rest of calculations assume floats are 64-bit? convert...
+                if t != np.float64:
+                    data = data.astype(np.float64)
+                t = np.float64
+            else:
                 raise NotImplementedError("Unsupported data type.")
 
             # reduce by GCD
@@ -625,6 +640,8 @@ class Cone:
         if verbosity >= 1:
             print("Saving the rays & computing dimension...", flush=True)
         self._rays = np.asarray(rays, dtype=int)
+        if len(self._rays) == 0:
+            self._rays = np.zeros((0, self._ambient_dim), dtype=int)
         self._dim = np.linalg.matrix_rank(self._rays)
         return np.array(self._rays)
 
@@ -823,7 +840,7 @@ class Cone:
                 self.pointed_space().extremal_rays()
             ])
 
-            return self._ext_rays[minimal]
+            return np.array(self._ext_rays[minimal])
 
         # It is important to delete duplicates
         rays = np.array(list({tuple(r) for r in self.rays()}))
@@ -832,9 +849,9 @@ class Cone:
         if rays.shape[0] == 1:
             self._ext_rays[minimal] = rays
             if self._rays is None:
-                self._rays = self._ext_rays[minimal]
+                self._rays = np.array(self._ext_rays[minimal])
 
-            return self._ext_rays[minimal]
+            return np.array(self._ext_rays[minimal])
 
         # configure threads
         n_threads = config.n_threads
@@ -855,6 +872,11 @@ class Cone:
         ext_rays = [True for _ in range(len(rays))]
         to_check = list(range(len(rays)))
 
+        # a ray-check can fail for transient reasons (e.g. a flaky solver), in
+        # which case retrying is worthwhile. A deterministic failure, however,
+        # would loop forever, so only retry a bounded number of times.
+        n_failures = dict()
+
         if verbose:
             print(f"Computing extremal rays for a cone with {len(rays)} using {n_threads} threads...")
 
@@ -873,19 +895,27 @@ class Cone:
             for i, extremalQ, err in results:
                 if err is None:
                     ext_rays[i] = extremalQ
-                else:
-                    to_check.append(i)
-                    if verbose:
-                        print(f"Failed to check whether ray #{i} was extremal")
-                        print(f"(Error was: {err})")
-                        print( "(Putting it at the end and retrying later...)")
+                    continue
+
+                n_failures[i] = n_failures.get(i, 0) + 1
+                if n_failures[i] > MAX_EXTREMALITY_RETRIES:
+                    raise RuntimeError(
+                        f"Failed to check whether ray #{i} (= {rays[i].tolist()}"
+                        f") was extremal, after {n_failures[i]} attempts."
+                    ) from err
+
+                to_check.append(i)
+                if verbose:
+                    print(f"Failed to check whether ray #{i} was extremal")
+                    print(f"(Error was: {err})")
+                    print( "(Putting it at the end and retrying later...)")
 
         # save the answer
         self._ext_rays[minimal] = rays[list(ext_rays)]
         if self._rays is None:
-            self._rays = self._ext_rays[minimal]
+            self._rays = np.array(self._ext_rays[minimal])
 
-        return self._ext_rays[minimal]
+        return np.array(self._ext_rays[minimal])
 
     def extremal_hyperplanes(self,
         tol: float=1e-4,
@@ -1140,7 +1170,7 @@ class Cone:
         - `check` *(bool, optional, default=True)*: Flag that specifies whether
             to check if the output of the optimizer is consistent and satisfies
             `constraint_error_tol`.
-        - `constraint_error_tol` *(float, optional, default=1e-2)*: Error
+        - `constraint_error_tol` *(float, optional, default=5e-2)*: Error
             tolerance for the linear constraints.
         - `max_iter` *(int, optional, default=10**6)*: The maximum number of
             iterations allowed for the non-LP backends. If this function is
@@ -1472,7 +1502,10 @@ class Cone:
             a large list of points and then processing it.
         - `fast_mode` *(bool, optional)*: Allow quicker lattice point
             computations for small cones. Doesn't use degree-based methods.
-            Instead uses Linf norm.
+            Instead uses Linf norm. This shortcut is only taken when
+            `min_points` is set and none of `max_deg`, `grading_vector`,
+            `filter_function`, or `process_function` are used, since it cannot
+            honor them.
         - `max_B`: *(int, optional)*: Max Linf norm allowed in fast_mode.
         - `verbose` *(boolean, optional)*: Whether to print extra diagnostic
             information (True) or not (False).
@@ -1525,8 +1558,28 @@ class Cone:
                 "Either the maximum degree or the minimum number of points must be specified."
             )
 
-        # shortcut if min_points is set and dim is low
-        if fast_mode and (min_points is not None) and (self.ambient_dim() <= 10):
+        if process_function is not None and filter_function is not None:
+            raise Exception(
+                "Only one of filter_function or process_function " "can be specified."
+            )
+
+        # Shortcut if min_points is set and dim is low.
+        #
+        # The shortcut enumerates by Linf norm rather than by degree, and it
+        # returns the points in bulk, so it cannot honor max_deg,
+        # grading_vector, filter_function, or process_function. Rather than
+        # silently ignoring them, we simply fall back to the general algorithm
+        # whenever any of them is given.
+        can_use_fast_mode = all(
+            arg is None
+            for arg in (max_deg, grading_vector, filter_function, process_function)
+        )
+        if (
+            fast_mode
+            and (min_points is not None)
+            and (self.ambient_dim() <= 10)
+            and can_use_fast_mode
+        ):
             return np.array(latticepts.enum_lattice_points(
                 H = self.hyperplanes(),
                 rhs = c,
@@ -1537,10 +1590,6 @@ class Cone:
         if not self.is_pointed():
             raise Exception("Only pointed cones are currently supported.")
 
-        if process_function is not None and filter_function is not None:
-            raise Exception(
-                "Only one of filter_function or process_function " "can be specified."
-            )
         if grading_vector is None:
             grading_vector = self.find_grading_vector()
         if max_coord is None:
@@ -1624,8 +1673,6 @@ class Cone:
         else:
             SolutionStorage.on_solution_callback = on_soln_callback_default
 
-        solution_storage = SolutionStorage(var, filter_function, process_function)
-
         # define the model
         solver = cp_model.CpSolver()
         model = cp_model.CpModel()
@@ -1634,6 +1681,12 @@ class Cone:
         var = [
             model.NewIntVar(-max_coord, max_coord, f"x_{i}") for i in range(hp.shape[1])
         ]
+
+        # the storage must be built from *this* model's variables (previously it
+        # was built from the grading-check model's variables, which only worked
+        # by accident since both models declare identical variables in the same
+        # order)
+        solution_storage = SolutionStorage(var, filter_function, process_function)
 
         # define constraints
         if not isinstance(c, Iterable):
@@ -1666,9 +1719,29 @@ class Cone:
                 )
                 return
         else:
-            # Else, add points until the minimum number is reached
+            # Else, add points until the minimum number is reached.
+            #
+            # The coordinates are bounded by max_coord, so no point in the
+            # search region can have a degree larger than the bound below. Once
+            # that degree is passed, every remaining window is empty and the
+            # requested number of points simply doesn't exist in the region, so
+            # we must stop instead of looping forever.
+            max_possible_deg = int(max_coord) * int(
+                sum(abs(int(g)) for g in grading_vector)
+            )
+
             deg = 0
             while solution_storage._n_sol < min_points:
+                if deg > max_possible_deg:
+                    raise RuntimeError(
+                        f"Only found {solution_storage._n_sol} point(s), but "
+                        f"min_points={min_points} were requested. There are no "
+                        f"points of degree > {max_possible_deg} with "
+                        f"coordinates bounded by max_coord={max_coord}, so the "
+                        "search cannot be extended further. Try increasing "
+                        "max_coord."
+                    )
+
                 # define model with windowed degree constraints
                 window_model   = deepcopy(model)
                 deg_constr_low = window_model.Add(deg <= soln_deg)
@@ -1744,7 +1817,10 @@ class Cone:
         if self._is_solid is not None:
             return self._is_solid
         if self._rays is not None:
-            return bool(np.linalg.matrix_rank(self._rays) == self._ambient_dim)
+            self._is_solid = bool(
+                np.linalg.matrix_rank(self._rays) == self._ambient_dim
+            )
+            return self._is_solid
 
         # we just have hyperplanes... a bit harder
         backends = (
@@ -1849,7 +1925,8 @@ class Cone:
                 self._is_pointed = nnls(R, b)[1] > tol
             elif backend.lower() == "lp":
                 res = linprog(
-                    c=np.zeros(R.shape[0], dtype=int),  # no objective
+                    # no objective (one variable per ray, i.e. per column of R)
+                    c=np.zeros(R.shape[1], dtype=int),
                     A_eq=R, b_eq=b,                     # [R; 1] lmbda = [0;1]
                     bounds=[(0, None)],                 # lmbda >= 0
                     method="highs"
@@ -2260,6 +2337,10 @@ def dualize(M, verbosity=0):
             rays.append(tuple(-int(c) for c in gen.coefficients()))
 
     # return
+    # (np.array([]) would have shape (0,), which breaks downstream matrix
+    #  operations, so build the empty answer with the correct 2nd dimension)
+    if len(rays) == 0:
+        return np.zeros((0, M.shape[1]), dtype=int)
     return np.array(rays, dtype=int)
 
 def is_extremal(
@@ -2341,6 +2422,7 @@ def feasibility(
     - `ambient_dim`: The ambient dimension... A.shape[1].
     - `backend`: The backend to use. Options are "highs" (LP, on HiGHS),
         "glop" (LP, on ORTools), "scip", or "cpsat".
+    - `lower_bound`: An optional lower bound on each of the variables.
     - `verbose`: Whether to print extra diagnostic info.
 
     **Returns:**
@@ -2355,6 +2437,17 @@ def feasibility(
     # accommodate trivial hyperplanes
     if len(hyperplanes) == 0:
         return np.ones(ambient_dim)
+
+    def col_sums():
+        """Column sums of the hyperplanes. Works for dense and sparse rows."""
+        if isinstance(hyperplanes, np.ndarray):
+            return hyperplanes.sum(axis=0)
+
+        out = np.zeros(ambient_dim)
+        for v in hyperplanes:
+            for ind, val in hp_iter(v):
+                out[int(ind)] += float(val)
+        return out
 
     if backend == "highs":
         # LP feasibility via HiGHS
@@ -2428,9 +2521,9 @@ def feasibility(
         obj = solver.Objective()
         obj.SetMinimization()
 
-        obj_vec = hyperplanes.sum(axis=0) / len(hyperplanes)
+        obj_vec = col_sums() / len(hyperplanes)
         for i in range(ambient_dim):
-            obj.SetCoefficient(var[i], obj_vec[i])
+            obj.SetCoefficient(var[i], float(obj_vec[i]))
 
         # solve and parse solution
         status = solver.Solve()
@@ -2462,19 +2555,20 @@ def feasibility(
         if lower_bound is None:
             lower = cp_model.INT32_MIN
         else:
-            lower = lower_bound
+            # the variables are integral, so x >= lower_bound <=> x >= ceil(..)
+            lower = int(np.ceil(lower_bound))
         for i in range(ambient_dim):
-            var.append(
-                model.NewIntVar(cp_model.INT32_MIN, cp_model.INT32_MAX, f"x_{i}")
-            )
+            var.append(model.NewIntVar(lower, cp_model.INT32_MAX, f"x_{i}"))
 
         # define constraints
         for v in hyperplanes:
-            model.Add(sum(ii * var[i] for i, ii in enumerate(v)) >= c)
+            model.Add(sum(val * var[int(ind)] for ind, val in hp_iter(v)) >= c)
 
         # define objective
-        obj_vec = hyperplanes.sum(axis=0)
-        obj_vec //= utils.gcd_list(obj_vec)
+        obj_vec = np.rint(col_sums()).astype(np.int64)
+        obj_gcd = utils.gcd_list(obj_vec)
+        if obj_gcd:
+            obj_vec //= obj_gcd
 
         obj = 0
         for i in range(ambient_dim):
@@ -2487,9 +2581,12 @@ def feasibility(
         if status in (cp_model.FEASIBLE, cp_model.OPTIMAL):
             solution = np.array([solver.Value(x) for x in var])
         elif status == cp_model.INFEASIBLE:
+            if verbose:
+                warnings.warn("Solver returned status INFEASIBLE.")
             return None
         else:
             warnings.warn("Solver returned status " f"{solver.StatusName(status)}.")
+            return None
 
     return solution
 
