@@ -97,7 +97,6 @@ class LIL:
         self.dtype = dtype
 
         # data shape
-        self._len = None
         self.width = width
 
         # default value for unspecified indices
@@ -136,6 +135,9 @@ class LIL:
 
         self.arr[idx[0]][idx[1]] = value
 
+        # the contents changed, so any derived quantity is now stale
+        self._reset_caches()
+
     def __getitem__(self, idx: tuple) -> numeric:
         # indexing
         if isinstance(idx, tuple):
@@ -156,12 +158,19 @@ class LIL:
         # length
         return len(self.arr)
 
-    def __array__(self, copy=False, dtype: Union[np.dtype, str] = None) -> np.array:
-        # What is called upon running np.array on this object
-        return np.array(self.dense(), copy=copy, dtype=dtype)
+    def __array__(
+        self, dtype: Union[np.dtype, str] = None, copy: bool = None
+    ) -> np.array:
+        # What is called upon running np.array on this object.
+        # NOTE: the argument order/defaults are fixed by the numpy __array__
+        # protocol, which calls this as __array__(dtype, copy).
+        return np.array(self.dense(), dtype=dtype, copy=copy)
 
     @property
     def shape(self) -> tuple[int]:
+        if self.width is None:
+            self.width = self.infer_width()
+
         return (len(self), self.width)
 
     def __add__(self, other: "LIL") -> "LIL":
@@ -173,6 +182,25 @@ class LIL:
 
     # basic methods
     # --------------
+    def _reset_caches(self) -> None:
+        """
+        **Description:**
+        Invalidate every quantity derived from `self.arr`. Must be called by
+        anything that mutates the contents of the matrix.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        Nothing
+        """
+        self.arr_dense = None
+
+        self._sum_all = None
+        self._sum_0 = None
+        self._sum_0_dense = None
+        self._sum_1 = None
+
     def infer_width(self) -> int:
         """
         **Description:**
@@ -182,9 +210,12 @@ class LIL:
         None.
 
         **Returns:**
-        Nothing
+        The minimum width. This is 0 for an empty matrix, or for one whose rows
+        are all entirely default-valued.
         """
-        return 1 + max([max(row.keys()) for row in self.arr])
+        return 1 + max(
+            (max(row.keys()) for row in self.arr if len(row)), default=-1
+        )
 
     def new_row(self) -> None:
         """
@@ -199,6 +230,9 @@ class LIL:
         """
         self.arr.append(dict())
 
+        # the shape changed, so any derived quantity is now stale
+        self._reset_caches()
+
     def append(self, toadd: "dict or LIL", tocopy: bool = True) -> "LIL":
         """
         **Description:**
@@ -206,7 +240,9 @@ class LIL:
 
         **Arguments:**
         - `toadd`: Row(s) to add.
-        - `tocopy`: Whether to append a copy of toadd.
+        - `tocopy`: Whether to append a copy of toadd. This copies the rows
+            themselves, so that later mutation of this matrix cannot be seen by
+            the caller (and vice-versa).
 
         **Returns:**
         Itself.
@@ -221,12 +257,14 @@ class LIL:
             toadd = flatten_top(toadd)
 
         if tocopy:
-            self.arr += copy.copy(toadd)
+            # copy.copy(toadd) would only duplicate the outer list, leaving the
+            # row dicts shared with the caller
+            self.arr += [copy.copy(row) for row in toadd]
         else:
             self.arr += toadd
 
-        # reset length
-        self._len = None
+        # the shape/contents changed, so any derived quantity is now stale
+        self._reset_caches()
 
         return self
 
@@ -244,7 +282,7 @@ class LIL:
         **Returns:**
         Nothing
         """
-        self.arr_dense = None
+        self._reset_caches()
 
         # default map is contiguous from 0 to N_cols-1
         if f is None:
@@ -264,7 +302,7 @@ class LIL:
         **Returns:**
         Nothing
         """
-        self.arr_dense = None
+        self._reset_caches()
         self.arr = [dict(t) for t in {tuple(sorted(d.items())) for d in self.arr}]
 
     def dense(self, tocopy: bool = False) -> np.array:
@@ -323,7 +361,7 @@ class LIL:
                     self._sum_0_dense = np.asarray(
                         [
                             sum(r.get(i, 0) for r in self.arr)
-                            for i in range(self.width)
+                            for i in range(self.shape[1])
                         ]
                     )
                 return self._sum_0_dense
@@ -365,9 +403,9 @@ class LIL_stack:
 
     def __init__(
         self,
-        options: [[ArrayLike]],
-        choices: [int],
-        choice_bounds: [int],
+        options: list[list["LIL"]],
+        choices: Union[list[int], int],
+        choice_bounds: list[int],
         iter_densely: bool = False,
     ) -> None:
         self._options = options
@@ -422,15 +460,25 @@ class LIL_stack:
 
     def __len__(self) -> int:
         # length
-        return len(self.arr)
+        #
+        # If the rows have already been materialized (or replaced, e.g. by
+        # unique_rows) then defer to them. Otherwise just add up the block
+        # lengths, which keeps `shape`/`__getitem__`/`is_empty` from having to
+        # build the full row list.
+        if "_arr" in self.__dict__:
+            return len(self._arr)
+
+        return sum(len(block) for block in self._blocks())
 
     def __iter__(self) -> Iterator:
         # iterator
         return self._rows(self.iter_densely)
 
-    def __array__(self, copy=False, dtype: np.dtype = None) -> np.array:
-        # What is called upon running np.array on this object
-        return np.array(self.dense(), copy=copy, dtype=dtype)
+    def __array__(self, dtype: np.dtype = None, copy: bool = None) -> np.array:
+        # What is called upon running np.array on this object.
+        # NOTE: the argument order/defaults are fixed by the numpy __array__
+        # protocol, which calls this as __array__(dtype, copy).
+        return np.array(self.dense(), dtype=dtype, copy=copy)
 
     # properties
     @property
@@ -448,7 +496,6 @@ class LIL_stack:
     @property
     def shape(self) -> "LazyTuple":
         if not hasattr(self, "_shape"):
-            # self._shape = (len(self),self.width) # slow
             self._shape = LazyTuple(self.__len__, self.width)
         return self._shape
 
@@ -508,7 +555,7 @@ class LIL_stack:
         if not hasattr(self, "_arr_dense"):
             # delete duplicated rows
             self.unique_rows()
-            
+
             # build empty dense array
             self._arr_dense = np.zeros(self.shape, dtype=self.dtype)
 
@@ -523,6 +570,29 @@ class LIL_stack:
         else:
             return self._arr_dense
 
+    def _reset_caches(self) -> None:
+        """
+        **Description:**
+        Invalidate every quantity derived from the rows. Must be called by
+        anything that mutates the contents of the stack.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        Nothing
+        """
+        for attr in (
+            "_arr_dense",
+            "_shape",
+            "_is_empty",
+            "_sum_all",
+            "_sum_0",
+            "_sum_0_dense",
+            "_sum_1",
+        ):
+            self.__dict__.pop(attr, None)
+
     def unique_rows(self) -> None:
         """
         **Description:**
@@ -534,7 +604,9 @@ class LIL_stack:
         **Returns:**
         Nothing
         """
-        self.arr_dense = None
+        # NOTE: the dense cache lives in _arr_dense (this used to clear a
+        # non-existent `arr_dense`, so the cache was never invalidated)
+        self._reset_caches()
         self.arr = [dict(t) for t in {tuple(sorted(d.items())) for d in self.arr}]
 
     def tolist(self) -> list:
@@ -557,8 +629,11 @@ class LIL_stack:
         elif axis == 0:
             if dense:
                 if not hasattr(self, "_sum_0_dense"):
+                    # NOTE: axis=0 is essential; without it the per-column sums
+                    # of the blocks collapse to a single scalar
                     self._sum_0_dense = np.sum(
-                        [M.sum(axis=0, dense=True) for M in self._blocks()]
+                        [M.sum(axis=0, dense=True) for M in self._blocks()],
+                        axis=0,
                     )
                 return self._sum_0_dense
             else:
