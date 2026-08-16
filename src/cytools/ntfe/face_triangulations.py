@@ -24,6 +24,7 @@ import math
 import subprocess
 import sys
 import time
+import warnings
 
 # 3rd party imports
 import numpy as np
@@ -313,6 +314,34 @@ Polytope.n_2face_triangs = n_2face_triangs
 Polytope.num_2face_triangs = n_2face_triangs
 
 
+def _as_2d_poly(poly: "Polytope", verbosity: int = 0) -> "Polytope":
+    """
+    **Description:**
+    Return a 2D-ambient representation of a 2D polytope, *preserving the point
+    labels*. This matters because the labels of 2-face triangulations are used
+    as column indices into the height space of the ambient (4D) polytope; see
+    `cytools.ntfe.ntfe._2d_frt_cone_ineqs`.
+
+    **Arguments:**
+    - `poly`: The polytope of interest. Assumed 2D.
+    - `verbosity`: Verbosity level.
+
+    **Returns:**
+    `poly` itself if it already lives in a 2D ambient space, else an
+    equivalent polytope in ZZ^2 carrying the same labels.
+    """
+    if poly.ambient_dim() == 2:
+        return poly
+
+    if verbosity >= 1:
+        print("Finding a 2D representation!")
+
+    # NOTE: labels=poly.labels is essential. Without it the new Polytope gets
+    # fresh 0..n-1 labels of a re-sorted point list, which silently breaks
+    # every downstream consumer that treats labels as ambient-polytope indices.
+    return Polytope(poly.points(optimal=True), labels=poly.labels)
+
+
 def grow_ft(
     self,
     bdry: Iterable[Iterable[int]] = None,
@@ -324,12 +353,14 @@ def grow_ft(
     Grow a fine triangulation (FT) of a polygon
 
     **Arguments:**
-    - `bdry`: The collection of boundary edges. Calculated if not provided
+    - `bdry`: The collection of boundary edges, each given as an iterable of
+        point *labels* (as returned by `Polytope.get_bdry`). Calculated if not
+        provided.
     - `seed`: The seed for the random number generator
     - `verbosity`: Verbosity level.
 
     **Returns:**
-    The fine triangulation of poly.
+    The fine triangulation of poly, or None if the growth got stuck.
     """
     if seed is None:
         seed = time.time_ns() % (2**32)
@@ -342,19 +373,18 @@ def grow_ft(
     if self.dim() != 2:
         raise NotImplementedError
 
-    if self.ambient_dim() != 2:
-        # find a 2D representation
-        if verbosity >= 1:
-            print("grow_frt: Finding a 2D representation!")
-        poly = Polytope(self.points(optimal=True))
-    else:
-        poly = self
+    poly = _as_2d_poly(self, verbosity=verbosity)
 
     # basic point info...
     if verbosity >= 1:
         print(time.perf_counter() - t0, ": Grabbing basic point info...")
 
-    pts, pts_i = poly.points(), poly.points(as_indices=True)
+    # work with point *indices* internally (they index `pts` directly), then
+    # translate back to labels at the very end
+    pts = poly.points()
+    labels = list(poly.labels)
+    label2ind = {label: i for i, label in enumerate(labels)}
+    pts_i = list(range(len(pts)))
 
     # choose starting simplex
     if verbosity >= 1:
@@ -383,6 +413,9 @@ def grow_ft(
         if verbosity >= 1:
             print(time.perf_counter() - t0, ": Calculating boundary points...")
         bdry = basic_geometry.get_bdry(poly)
+
+    # `bdry` is expressed in labels; the loop below works in point indices
+    bdry = {frozenset(label2ind[label] for label in edge) for edge in bdry}
 
     choosable = edges - bdry
 
@@ -423,8 +456,13 @@ def grow_ft(
             if len(to_try):
                 i = to_try.pop()
             else:
-                print("Failed! Returning known simplices...")
-                return simps
+                # growth got stuck; the partial set of simplices is not a
+                # triangulation, so there is nothing meaningful to return
+                warnings.warn(
+                    "grow_ft: growth got stuck (no valid vertex to build off "
+                    f"of edge {sorted(edge)}). Returning None."
+                )
+                return None
 
             if verbosity >= 3:
                 print(
@@ -531,8 +569,13 @@ def grow_ft(
     if verbosity >= 1:
         print(time.perf_counter() - t0, ": Done!")
 
+    # map point indices back to labels
+    simps_labeled = [[labels[i] for i in s] for s in sorted(simps)]
+
     return poly.triangulate(
-        simplices=np.asarray(sorted(simps)), check_input_simplices=False
+        simplices=simps_labeled,
+        include_points_interior_to_facets=True,
+        check_input_simplices=False,
     )
 
 
@@ -553,9 +596,14 @@ def grow_frt(
     Grow a fine, regular triangulation of a polygon
 
     **Arguments:**
-    - `poly`: The polygon of interest. Assumed 2d.
-    - `bdry`: The collection of boundary edges. Calculated if not provided
+    - `N`: The number of distinct FRTs to grow.
+    - `max_N_tries`: The maximum number of growth attempts. Defaults to 100*N.
+    - `bdry`: The collection of boundary edges, each given as an iterable of
+        point *labels* (as returned by `Polytope.get_bdry`). Calculated once
+        (and reused across attempts) if not provided.
     - `seed`: The seed for the random number generator
+    - `backend`: The backend used to check regularity. See
+        `Triangulation.is_regular`.
     - `verbosity`: Verbosity level.
 
     **Returns:**
@@ -565,13 +613,7 @@ def grow_frt(
     if self.dim() != 2:
         raise NotImplementedError
 
-    if self.ambient_dim() != 2:
-        # find a 2D representation
-        if verbosity >= 1:
-            print("grow_frt: Finding a 2D representation!")
-        poly = Polytope(self.points(optimal=True))
-    else:
-        poly = self
+    poly = _as_2d_poly(self, verbosity=verbosity)
 
     if max_N_tries is None:
         max_N_tries = 100 * N
@@ -579,18 +621,23 @@ def grow_frt(
     if seed is None:
         seed = time.time_ns() % (2**32)
 
+    # compute the boundary once, rather than once per grow_ft attempt:
+    # get_bdry triangulates the polygon and then pairs up its edges in
+    # O(E^2), and grow_ft can be called up to 100*N times
+    if bdry is None:
+        bdry = basic_geometry.get_bdry(poly)
+
     frts = set()
 
     for N_attempt in range(max_N_tries):
         if verbosity >= 1:
             print(f"Attempt #{N_attempt}. Have #{len(frts)} FRTs")
-        while True:
-            t = poly.grow_ft(bdry=bdry, seed=seed, verbosity=verbosity)
-            seed += 1  # update the seed for next time
 
-            if t.is_regular(backend=backend):
-                frts.add(t)
-                break
+        t = poly.grow_ft(bdry=bdry, seed=seed, verbosity=verbosity)
+        seed += 1  # update the seed for next time
+
+        if (t is not None) and t.is_regular(backend=backend):
+            frts.add(t)
 
         if len(frts) == N:
             break
