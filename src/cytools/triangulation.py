@@ -217,6 +217,11 @@ class Triangulation:
         # simplices
         if simplices is not None:
             self._simplices = sorted([sorted(s) for s in simplices])
+            if len(self._simplices) == 0:
+                raise ValueError(
+                    "The list of simplices is empty. A triangulation must "
+                    + "contain at least one simplex."
+                )
             self._simplices = np.asarray(self._simplices)
         else:
             self._simplices = None
@@ -325,7 +330,14 @@ class Triangulation:
 
                 # convert to star
                 if make_star:
+                    pre_star = {frozenset(s) for s in self._simplices}
                     _to_star(self)
+                    if pre_star != {frozenset(s) for s in self._simplices}:
+                        # the star-ification changed the triangulation, so the
+                        # heights no longer generate what we store in
+                        # self._simplices. Drop them (they get recomputed via
+                        # an LP whenever heights() is called).
+                        self._heights = None
             elif backend == "cgal":
                 self._simplices = _cgal_triangulate(triang_pts, self._heights)
 
@@ -338,9 +350,14 @@ class Triangulation:
                     origin_mask[self._origin_index] = True
                     heights_masked = np.ma.array(self._heights, mask=origin_mask)
 
-                    origin_step = max(
-                        10, (max(heights_masked[1:]) - min(heights_masked[1:]))
-                    )
+                    # (don't assume that the origin sits at index 0!)
+                    other_heights = heights_masked.compressed()
+                    if len(other_heights):
+                        origin_step = max(
+                            10, other_heights.max() - other_heights.min()
+                        )
+                    else:
+                        origin_step = 10
 
                     # reduce height of origin until it's in all simplices
                     while any(self._origin_index not in s for s in self._simplices):
@@ -389,20 +406,7 @@ class Triangulation:
 
         # also set the heights data structure
         if self._heights is not None:
-            if not np.all(self._heights == 0):
-                self._heights = self._heights / gcd_list(self._heights)
-            self._heights -= min(self._heights)
-
-            max_h = max(abs(self._heights))
-            if max_h < 2**8:
-                dtype = np.uint8
-            elif max_h < 2**16:
-                dtype = np.uint16
-            elif max_h < 2**32:
-                dtype = np.uint32
-            else:
-                dtype = np.uint64
-            self._heights = self._heights.round().astype(dtype)
+            self._heights = _normalize_heights(self._heights)
 
     # defaults
     # ========
@@ -1298,6 +1302,9 @@ class Triangulation:
         if split_by_face:
             if as_np_array:
                 out = [np.array(sorted(sorted(s) for s in face)) for face in out]
+            elif out is self._restricted_simplices[faces_dim]:
+                # don't hand out the cached (mutable) sets themselves
+                out = [set(face) for face in out]
         else:
             out = set().union(*out)
             if as_np_array:
@@ -1699,7 +1706,11 @@ class Triangulation:
             automatically.
 
         **Returns:**
-        A height vector giving rise to the triangulation.
+        A height vector giving rise to the triangulation. The heights are
+        normalized to be non-negative with minimum 0. Integral heights are
+        returned as a *signed* integer array (so that differences of heights
+        behave correctly), while non-integral heights are returned as
+        `float64`.
 
         **Example:**
         We construct a triangulation and find a height vector that generates it.
@@ -1707,7 +1718,7 @@ class Triangulation:
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
         t = p.triangulate()
         t.heights()
-        # array([0., 0., 0., 0., 0., 1.])
+        # array([0, 4, 1, 1, 1, 1], dtype=int8)
         ```
         """
         # check if we already know the heights...
@@ -1892,6 +1903,10 @@ class Triangulation:
 
                 for simps in orbit:
                     for i in orbit_id[0]:
+                        if autos[i] is None:
+                            # 'bad' automorphism (doesn't preserve the point
+                            # configuration), so it was filtered out above
+                            continue
                         new_triang = apply_auto(autos[i])
 
                         if new_triang not in orbit:
@@ -2036,11 +2051,13 @@ class Triangulation:
             )
             return []
 
-        # the 2-neighbors are fine, regular, and star FRSTs by construction
+        # the 2-neighbors are fine and regular FRSTs by construction, so
+        # only_fine/only_regular need no handling here. only_star=False (the
+        # default) is passed on as None so that _two_neighbors falls back to
+        # its documented default of self.is_star().
         if two_neighbors:
-            only_fine = only_regular = only_star = True
             return self._two_neighbors(
-                make_star=only_star,
+                make_star=(True if only_star else None),
                 backend=backend,
                 two_neighbors_track_flips=two_neighbors_track_flips,
             )
@@ -2140,6 +2157,15 @@ class Triangulation:
         # parse inputs
         if seed is not None:
             np.random.seed(seed)
+
+        # unspecified restrictions default to the properties of this
+        # triangulation (as documented above)
+        if only_fine is None:
+            only_fine = self.is_fine()
+        if only_star is None:
+            only_star = self.is_star()
+        if only_regular is None:
+            only_regular = self.is_regular(backend=backend)
 
         # take random flips
         curr_triang = self
@@ -2513,6 +2539,75 @@ class Triangulation:
         self._sr_ideal = [tuple(sorted(s)) for s in SR_ideal]
         self._sr_ideal = tuple(sorted(self._sr_ideal, key=lambda x: (len(x), x)))
         return self._sr_ideal
+
+
+def _normalize_heights(heights: ArrayLike) -> np.ndarray:
+    """
+    **Description:**
+    Normalizes a height vector for storage in a
+    [`Triangulation`](./triangulation) object.
+
+    Heights are only defined up to an overall positive rescaling and an overall
+    constant shift (both leave the induced regular subdivision unchanged), so
+    we normalize them to be non-negative with minimum 0. The normalization is
+    *lossless*: the returned heights always generate the same triangulation as
+    the input ones.
+
+    :::note
+    This function is not intended to be called by the end user. Instead, it is
+    used by the [`Triangulation`](./triangulation) class when needed.
+    :::
+
+    **Arguments:**
+    - `heights`: The height vector to normalize.
+
+    **Returns:**
+    The normalized heights. Integral input is returned as a *signed* integer
+    array (using the smallest dtype that fits the normalized values), while
+    non-integral input is returned as `float64`.
+    """
+    heights = np.asarray(heights)
+
+    is_integral = np.issubdtype(heights.dtype, np.integer) or (
+        np.issubdtype(heights.dtype, np.floating)
+        and bool(np.all(heights == np.rint(heights)))
+    )
+
+    if not is_integral:
+        # Non-integral heights (e.g. the perturbed Delaunay heights used by
+        # QHull). Dividing by a float "gcd" and rounding to integers is lossy
+        # and can silently produce heights that generate a *different*
+        # triangulation, so we keep the full float precision instead.
+        heights = np.asarray(heights, dtype=np.float64)
+        if heights.size:
+            heights = heights - heights.min()
+        return heights
+
+    # integral heights: divide out the gcd and shift so the minimum is 0
+    if np.issubdtype(heights.dtype, np.integer):
+        heights = heights.astype(np.int64)
+    else:
+        heights = np.rint(heights).astype(np.int64)
+    gcd = np.gcd.reduce(np.abs(heights)) if heights.size else 0
+    if gcd > 1:
+        heights = heights // gcd
+    if heights.size:
+        heights = heights - heights.min()
+
+    # Pick the smallest dtype that fits. This *must* be done after the values
+    # are final (rounding first, then choosing the dtype), and the dtype must
+    # be signed -- callers routinely take differences of heights, and unsigned
+    # arithmetic wraps around silently.
+    max_h = int(np.abs(heights).max()) if heights.size else 0
+    if max_h < 2**7:
+        dtype = np.int8
+    elif max_h < 2**15:
+        dtype = np.int16
+    elif max_h < 2**31:
+        dtype = np.int32
+    else:
+        dtype = np.int64
+    return heights.astype(dtype)
 
 
 def _to_star(triang: Triangulation) -> None:
@@ -3043,7 +3138,7 @@ def random_triangulations_fair_generator(
         # check if we're done
         if n_retries >= max_retries:
             break
-        if (N is not None) and (len(triang_hashes) > N):
+        if (N is not None) and (len(triang_hashes) >= N):
             break
 
         # find a wall
