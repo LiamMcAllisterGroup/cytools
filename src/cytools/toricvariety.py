@@ -818,17 +818,26 @@ class ToricVariety:
         if self._mori_cone[args_id] is not None:
             return self._mori_cone[args_id]
         rays = self._mori_cone[0].rays()
-        basis = self.divisor_basis()
+        # NOTE: the basis is only needed on the in_basis branch, and fetching
+        # it eagerly would trigger the (potentially expensive) computation of a
+        # default basis just to throw it away. A basis that has not been set
+        # yet is always a vector of indices, so this preserves the `check`
+        # value that the eager fetch would have produced.
+        basis_is_matrix = (
+            self._divisor_basis is not None and len(self._divisor_basis.shape) == 2
+        )
         if include_origin and not in_basis:
             new_rays = rays
         elif not include_origin and not in_basis:
             new_rays = rays[:, 1:]
         else:
-            if len(basis.shape) == 2:  # If basis is matrix
+            basis = self.divisor_basis()
+            basis_is_matrix = len(basis.shape) == 2
+            if basis_is_matrix:  # If basis is matrix
                 new_rays = rays.dot(basis.T)
             else:
                 new_rays = rays[:, basis]
-        c = Cone(new_rays, check=len(basis.shape) == 2)
+        c = Cone(new_rays, check=basis_is_matrix)
         self._mori_cone[args_id] = c
         return self._mori_cone[args_id]
 
@@ -1848,20 +1857,32 @@ class ToricVariety:
             raise ValueError("Only cones of dimension 1 through d are " "supported.")
         if (d, face_dim) in self._fan_cones:
             return self._fan_cones[(d, face_dim)]
-        pts = self.triangulation().points()
+        triang = self.triangulation()
+        pts = triang.points()
         cones = set()
-        triang_pts_tup = [tuple(pt) for pt in self.triangulation().points()]
+        # NOTE: the point/index containers below are sets since they are only
+        # ever used for membership tests, which happen once per point of every
+        # face and once per element of every candidate cone, respectively
+        triang_pts_tup = {tuple(pt) for pt in pts}
         faces = (
             [
-                self.triangulation().points_to_indices(
-                    [tuple(pt) for pt in f.points() if tuple(pt) in triang_pts_tup]
+                frozenset(
+                    np.atleast_1d(
+                        triang.points_to_indices(
+                            [
+                                tuple(pt)
+                                for pt in f.points()
+                                if tuple(pt) in triang_pts_tup
+                            ]
+                        )
+                    ).tolist()
                 )
-                for f in self.triangulation()._poly.faces(face_dim)
+                for f in triang._poly.faces(face_dim)
             ]
             if face_dim is not None
             else None
         )
-        for s in self.triangulation().simplices(as_indices=True):
+        for s in triang.simplices(as_indices=True):
             for c in combinations(s, d):
                 if 0 not in c and (
                     faces is None or any(all(cc in f for cc in c) for f in faces)
