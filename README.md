@@ -9,9 +9,17 @@
 
 -------------------------------------------------------------------------------
 
-CYTools is an open-source software package developed by [Liam McAllister's group](https://liammcallistergroup.com/) with the purpose of studying Calabi-Yau manifolds arising from the Kreuzer-Skarke database. The founding authors are [Mehmet Demirtas](https://inspirehep.net/authors/1765325) and [Andres Rios-Tascon](https://ariostas.com); the current [BDFL](https://en.wikipedia.org/wiki/Benevolent_dictator_for_life) is [Nate MacFadden](https://inspirehep.net/authors/1590972). It emerged from several years of effort towards exploring previously uncharted parts of the string landscape. It offers vastly superior computational performance compared to other software that are typically used in the field. Installation instructions and detailed documentation can be found in the [CYTools website](https://cy.tools).
+CYTools is an open-source software package developed by [Liam McAllister's group](https://liammcallistergroup.com/) with the purpose of studying Calabi-Yau manifolds arising from the Kreuzer-Skarke database. The founding authors are [Mehmet Demirtas](https://inspirehep.net/authors/1765325) and [Andres Rios-Tascon](https://ariostas.com); the current [BDFL](https://en.wikipedia.org/wiki/Benevolent_dictator_for_life) is [Nate MacFadden](https://inspirehep.net/authors/1590972). It emerged from several years of effort towards exploring previously uncharted parts of the string landscape. It offers vastly superior computational performance compared to other software that are typically used in the field, as discussed in the CYTools paper [arXiv:2211.03823](https://arxiv.org/abs/2211.03823). Installation instructions and detailed documentation can be found in the [CYTools website](https://cy.tools).
 
 Most of the code is written in Python, with wrappers to interface with various other open-source software. It is distributed as a Python package that can be installed with pip or conda, which pull in the necessary dependencies so that it is easy to install and use on most operating systems.
+
+## Features
+
+* **Polytopes and triangulations.** Lattice point enumeration, face lattices, cone computations, and fine regular star triangulations, along with utilities to fetch reflexive polytopes from the Kreuzer-Skarke database (`cytools.fetch_polytopes`).
+* **Calabi-Yau hypersurfaces.** Hodge numbers, intersection numbers, Mori and Kähler cones, divisor and Calabi-Yau volumes, second Chern class, and Gopakumar-Vafa invariants.
+* **NTFE enumeration.** Enumeration and sampling of the expanded secondary cones and the corresponding FR(S)Ts of a polytope, following [arXiv:2309.10855](https://arxiv.org/abs/2309.10855) (`cytools.ntfe`).
+* **GNN triangulation sampling.** Near-uniform sampling of NTFE FR(S)Ts using the dualGNN graph neural network ([arXiv:2605.27770](https://arxiv.org/abs/2605.27770)) to sample the 2-face triangulations (`Polytope.random_triangulations_gnn`). This requires the optional `dualgnn` package: `pip install cytools[gnn]`, or see `environment-gnn.yml`.
+* **F-theory tooling.** Orientifolds and F-theory uplifts of Calabi-Yau hypersurfaces (`cytools.f_theory`).
 
 ## Quick example
 
@@ -24,6 +32,10 @@ p = Polytope([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -
 cy = p.triangulate().get_cy()
 print(cy.h11(), cy.h21())   # 1 101
 ```
+
+## Citation
+
+If you use CYTools in your work, please cite the CYTools paper, *CYTools: A Software Package for Analyzing Calabi-Yau Manifolds* ([arXiv:2211.03823](https://arxiv.org/abs/2211.03823)). Machine-readable citation metadata is available in [CITATION.cff](CITATION.cff).
 
 ## Acknowledgements
 
