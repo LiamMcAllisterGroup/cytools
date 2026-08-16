@@ -240,6 +240,43 @@ def test_neighbor_triangulations():
     assert len(triangs) == 2
 
 
+def test_neighbor_triangulations_nontrivial_labels():
+    # regression: the simplices (which are point *labels*) were handed to
+    # triangulumancer as point *indices*, while the results were mapped back
+    # with labels[i]. That only works when the labels happen to be 0..n-1;
+    # otherwise it gave wrong neighbors or crashed the interpreter.
+    p = Polytope(
+        [
+            [1, -1, -2, 1], [1, -1, 0, -1], [-1, 0, 1, 1], [-1, 2, 1, -1],
+            [1, 0, 0, 0], [-1, 0, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0],
+            [0, 1, 0, 0], [0, 1, 1, -1],
+        ]
+    )
+    face = p.faces(2)[19]  # a 5-point polygon with labels (3, 4, 7, 9, 12)
+    face_poly = face.as_poly()
+    assert set(face_poly.labels) != set(range(len(face_poly.labels)))
+
+    t = face_poly.triangulate(include_points_interior_to_facets=True)
+    neighbors = t.neighbor_triangulations()
+
+    # every neighbor must live on the same labeled point configuration...
+    for n in neighbors:
+        assert set(n.labels) == set(face_poly.labels)
+
+    # ...and {t} + its neighbors must be exactly the 3 FRTs of the face
+    def key(triang):
+        return frozenset(frozenset(s) for s in triang.simplices().tolist())
+
+    all_frts = face_poly.all_triangulations(
+        only_fine=True,
+        only_star=False,
+        only_regular=True,
+        include_points_interior_to_facets=True,
+        as_list=True,
+    )
+    assert {key(x) for x in [t, *neighbors]} == {key(x) for x in all_frts}
+
+
 def test_random_flips_defaults():
     # only_fine/only_regular/only_star default to None, which is documented as
     # "match the current triangulation". They used to be treated as False, so
