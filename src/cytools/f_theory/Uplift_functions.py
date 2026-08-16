@@ -57,10 +57,10 @@ def compute_partition(divisors,rays):
 
     """
 
-    null = np.zeros([rays.shape[0],rays.shape[1]],dtype=int)
-    linear1 = np.tensordot(np.identity(2,dtype=int),rays,axes=0)
-    linear1 = linear1.transpose(0, 2, 1, 3).reshape(len(divisors)*rays.shape[0], len(divisors)*rays.shape[1])
-    linear2 = np.hstack([rays]*len(divisors))
+    n_divisors = len(divisors)
+    linear1 = np.tensordot(np.identity(n_divisors,dtype=int),rays,axes=0)
+    linear1 = linear1.transpose(0, 2, 1, 3).reshape(n_divisors*rays.shape[0], n_divisors*rays.shape[1])
+    linear2 = np.hstack([rays]*n_divisors)
 
     affine1 = np.concatenate(divisors)
     affine2 = sum(divisors)-1
@@ -78,15 +78,15 @@ def compute_partition(divisors,rays):
     integrality = np.ones_like(c)
 
     constraints = LinearConstraint(linear, lower, upper)
-    res = milp(c=np.zeros(linear.shape[1]),
+    res = milp(c=c,
                constraints=constraints,
-               integrality=np.ones(linear.shape[1]),
+               integrality=integrality,
                bounds=(-np.inf, np.inf))
-    
+
     if not res.success or res.x is None:
         return (False, None)
 
-    sol = np.rint(res.x.reshape(len(divisors),len(rays[0]))@(rays.T)+np.array(divisors)).astype(int)
+    sol = np.rint(res.x.reshape(n_divisors,len(rays[0]))@(rays.T)+np.array(divisors)).astype(int)
     return (True,sol)
     
 def contains_row(arr: np.array, target: np.array):
@@ -234,14 +234,14 @@ def h11_2_part(Cay: Polytope,Cayd: Polytope,det=False):
         print("After 2*(2-face)/codim-3 dual face: ",h11_ret)
         
     for f in Cay.faces(3):
+        n_dual_int_pts=len(dual_face_Cayley_polytope(Cdvert,f).interior_points())
         k=len(Polytope(2*(f.vertices())).interior_points())
         if k>0:
-            h11_ret=h11_ret+(k*len(dual_face_Cayley_polytope(Cdvert,f).interior_points()))
-        k=len(dual_face_Cayley_polytope(Cdvert,f).interior_points())
-        if k>0:
+            h11_ret=h11_ret+(k*n_dual_int_pts)
+        if n_dual_int_pts>0:
             for g in f.faces(2):
-                h11_ret=h11_ret-(len(g.interior_points())*k)
-        
+                h11_ret=h11_ret-(len(g.interior_points())*n_dual_int_pts)
+
     return h11_ret
 
 def h21_2_part(Cay: Polytope,Cayd: Polytope,det=False):
@@ -268,8 +268,10 @@ def h21_2_part(Cay: Polytope,Cayd: Polytope,det=False):
         h21_ret=h21_ret+len(Polytope(2*(dual_face_Cayley_polytope(Cdvert,f).vertices())).interior_points())*len(f.interior_points())
     if det:
         print(h21_ret)
-    for f in Cay.faces(4):
-        h21_ret=h21_ret+len(Polytope(2*(f.vertices())).interior_points())*len(dual_face_Cayley_polytope(Cdvert,f).interior_points())
+    faces_4=Cay.faces(4)
+    dual_int_pts_4=[len(dual_face_Cayley_polytope(Cdvert,f).interior_points()) for f in faces_4]
+    for f,k in zip(faces_4,dual_int_pts_4):
+        h21_ret=h21_ret+len(Polytope(2*(f.vertices())).interior_points())*k
     if det:
         print(h21_ret)
     for f in Cay.faces(3):
@@ -277,10 +279,9 @@ def h21_2_part(Cay: Polytope,Cayd: Polytope,det=False):
         if k>0:
             for g in f.faces(2):
                 h21_ret=h21_ret-len(g.interior_points())*k
-    if det: 
+    if det:
         print(h21_ret)
-    for f in Cay.faces(4):
-        k=len(dual_face_Cayley_polytope(Cdvert,f).interior_points())
+    for f,k in zip(faces_4,dual_int_pts_4):
         if k>0:
             for g in f.faces(3):
                 h21_ret=h21_ret-len(g.interior_points())*k
@@ -430,6 +431,10 @@ def trilayer_normal_form(p):
 
     - `p (Polytope)`: The trilayer polytope.
 
+    **Raises:**
+
+    - `ValueError`: Raised if the defining linear system has no integral solution.
+
     **Returns:**
 
     - `Polytope`: The polytope in trilayer normal form.
@@ -446,9 +451,12 @@ def trilayer_normal_form(p):
     b[0]=-1
     c=s@b
     y=np.zeros(a.shape[1],dtype=int)
-    for ii in range(len(y)):
+    for ii in range(min(len(y),a.shape[0])):
         if a[ii][ii]!=0:
-            y[ii]=c[ii]/a[ii][ii]
+            if c[ii]%a[ii][ii]!=0:
+                raise ValueError("The trilayer normal form does not exist: the "
+                                 "defining linear system has no integral solution.")
+            y[ii]=c[ii]//a[ii][ii]
     r=t@y
     aa2,ss2,tt2=smith_normal_decomp(Matrix(r[:,None]),domain=ZZ)
     a2=np.array(aa2,dtype=int)
@@ -727,10 +735,19 @@ def is_Gorenstein(cone):
     y=np.zeros(s.shape[1],dtype=int)
     for ii in range(np.min(s.shape)):
         if s[ii][ii]!=0:
-            y[ii]=c[ii]/s[ii][ii]
-        else:
+            # An integral solution requires the diagonal entry to divide c[ii].
+            if c[ii]%s[ii][ii]!=0:
+                return (False,None)
+            y[ii]=c[ii]//s[ii][ii]
+        elif c[ii]!=0:
             return (False,None)
+    # Rows of the Smith normal form beyond the square block must be consistent.
+    if np.any(c[np.min(s.shape):]!=0):
+        return (False,None)
     n=v@y
+    # Guard against any remaining inconsistency of the linear system.
+    if not np.array_equal(M@n,ones):
+        return (False,None)
     return (True,n)
 
 def is_reflexive_Gorenstein(cone):
@@ -779,8 +796,51 @@ def Gorenstein_index(cone):
     raise ValueError("Cone is not reflexive Gorenstein")
 
 
-def Cartier_index(toric_fan,weights):
-    
+def _local_Cartier_solution(arr,cone_gen_weights):
+    """
+    **Description:**
+
+    Solves the local Cartier equation `arr @ y = -cone_gen_weights` on a single cone. The consistency of the system is verified explicitly instead of being read off from the (possibly empty) residual array returned by `numpy.linalg.lstsq`, which is unreliable for underdetermined or rank-deficient systems.
+
+    **Arguments:**
+
+    - `arr (numpy.ndarray)`: The rays of the cone, as rows.
+    - `cone_gen_weights (numpy.ndarray)`: Divisor coefficients of the rays of the cone.
+
+    **Returns:**
+
+    - `tuple`: A triple `(is_consistent, is_integral, y)`. If the system is inconsistent, `y` is `None`. Otherwise `y` is a rational solution, which is exactly integral when `is_integral` is `True`.
+
+    """
+    arr = np.asarray(arr)
+    cone_gen_weights = np.asarray(cone_gen_weights)
+
+    sol, _, rank, _ = np.linalg.lstsq(arr.astype(float),
+                                      cone_gen_weights.astype(float),
+                                      rcond=None)
+    scale = max(1.0,
+                float(np.max(np.abs(cone_gen_weights), initial=0)),
+                float(np.max(np.abs(arr), initial=0)))
+    if not np.allclose(arr@sol, cone_gen_weights, rtol=0, atol=1e-8*scale):
+        return (False, False, None)
+
+    y = -sol
+    y_int = np.rint(y).astype(int)
+    if np.array_equal(arr@y_int, -cone_gen_weights):
+        return (True, True, y_int)
+
+    if rank < arr.shape[1]:
+        # The least-squares solution is the minimum-norm one, which need not be
+        # the integral solution even when one exists. Solve exactly instead.
+        has_sol, y_exact = solve_over_integers(arr, cone_gen_weights)
+        if has_sol:
+            return (True, True, np.asarray(y_exact, dtype=int))
+
+    return (True, False, y)
+
+
+def Cartier_index(toric_fan,weights,max_index=10**6):
+
     """
     **Description:**
 
@@ -790,29 +850,38 @@ def Cartier_index(toric_fan,weights):
 
     - `toric_fan (Fan)`: The toric fan.
     - `weights (array-like)`: Divisor coefficients in the toric prime divisor basis.
+    - `max_index (int)`: Largest local index that is searched for before giving up. Defaults to `10**6`.
+
+    **Raises:**
+
+    - `ValueError`: Raised if no local index below `max_index` is found.
 
     **Returns:**
 
     - `int` or `None`: The Cartier index, or `None` if the divisor is not Q-Cartier.
 
     """
-    
+
     weights = np.array(weights)
     index_data=[]
     for c in toric_fan.cones():
         arr = toric_fan.vectors(c)
         cone_gen_weights= weights[np.array(c)-1]
-        least_sq = np.linalg.lstsq(arr,cone_gen_weights)
-        y=-least_sq[0]
-        res = sum(least_sq[1])
-        if res>1e-10:
+        consistent, is_integral, y = _local_Cartier_solution(arr,cone_gen_weights)
+        if not consistent:
             return None
+        if is_integral:
+            index_data.append(1)
+            continue
         cone_index = 1
-        while np.all(np.isclose(cone_index*y, np.round(cone_index*y)))==False:
+        while not np.all(np.isclose(cone_index*y, np.round(cone_index*y))):
             cone_index+=1
+            if cone_index>max_index:
+                raise ValueError("Could not determine the local Cartier index "
+                                 f"of the cone {c} below max_index={max_index}.")
         index_data.append(cone_index)
     return np.lcm.reduce(np.array(index_data))
-    
+
 
 def is_Cartier(toric_fan,weights,return_Q_Cartier_data=False,decimals=10):
     """
@@ -839,21 +908,19 @@ def is_Cartier(toric_fan,weights,return_Q_Cartier_data=False,decimals=10):
     for c in toric_fan.cones():
         arr = toric_fan.vectors(c)
         cone_gen_weights= weights[np.array(c)-1]
-        least_sq = np.linalg.lstsq(arr,cone_gen_weights)
-        y=-least_sq[0]
-        res = sum(least_sq[1])
-        if np.all(np.isclose(y, np.round(y))) and res<1e-10:
-            cartier_data.append(np.round(y).astype(int))
+        consistent, is_integral, y = _local_Cartier_solution(arr,cone_gen_weights)
+        if is_integral:
+            cartier_data.append(y)
         else:
             is_cartier = False
             if return_Q_Cartier_data:
-                if res<1e-10:
+                if consistent:
                     cartier_data.append(np.round(y,decimals=decimals))
                 else:
                     cartier_data.append(None)
             else:
                 return (False,None)
-                
+
     return (is_cartier,cartier_data)
 
 def is_nef(toric_fan,weights):
@@ -1241,7 +1308,8 @@ def normal_fan(polytopes,inequalities=None,maximal_refinement=False,triangulate_
     if type(polytopes)==type([]):
         msum_vertices = nested_sum([p.vertices() for p in polytopes])
         p = Polytope(np.unique(flatten(msum_vertices,len(polytopes)-1),axis=0))
-        vertex_split = np.array([np.array(np.where(np.all(np.array(msum_vertices)-v==0,axis=-1))).T[0] for v in p.vertices()])
+        msum_arr = np.array(msum_vertices)
+        vertex_split = np.array([np.array(np.where(np.all(msum_arr-v==0,axis=-1))).T[0] for v in p.vertices()])
     else:
         p = polytopes
         weights = p.inequalities().T[-1]
@@ -1285,8 +1353,16 @@ def normal_fan(polytopes,inequalities=None,maximal_refinement=False,triangulate_
                             for b in maximal_blow_ups]
 
     all_vectors = np.unique(np.array([y for x in maximal_blow_ups for y in x]),axis=0)
-    all_weights = np.array([-np.array([(pol.vertices()[vertex_split[np.where([np.any(np.all(y-x==0,axis=-1)) for y in maximal_blow_ups])[0][0]][j]])@x for x in all_vectors]) 
-                        for j,pol in enumerate(polytopes)])
+    # Map each vector to the first blow-up set containing it, avoiding a
+    # quadratic rescan of maximal_blow_ups for every vector.
+    blow_up_owner = {}
+    for i in reversed(range(len(maximal_blow_ups))):
+        for v in maximal_blow_ups[i]:
+            blow_up_owner[tuple(v)] = i
+    vector_owner = [blow_up_owner[tuple(x)] for x in all_vectors]
+    all_weights = np.array([[-(pol.vertices()[vertex_split[owner][j]])@x
+                             for owner,x in zip(vector_owner,all_vectors)]
+                            for j,pol in enumerate(polytopes)])
 
     old_indices = np.where([type(n_fan.vc.vectors_to_labels(v))!=type(None) for v in all_vectors])[0]
     blow_up_weights = np.delete(all_weights.T,old_indices,0)
@@ -1519,10 +1595,12 @@ def solve_over_integers(M,b):
     y=np.zeros(a.shape[1],dtype=int)
     for ii in range(np.min(a.shape)):
         if a[ii,ii]!=0:
-            y[ii]=c[ii]/a[ii,ii]
-        else:
-            if c[ii]!=0:
-                print("PROBLEM")
+            # An integral solution requires the diagonal entry to divide c[ii].
+            if c[ii]%a[ii,ii]!=0:
+                return (False,None)
+            y[ii]=c[ii]//a[ii,ii]
+        elif c[ii]!=0:
+            return (False,None)
     if np.all(a@y==c):
         return (True,t@y)
     else:
@@ -1597,7 +1675,7 @@ def refine_fan(fan,blowups_or_all_vectors=None):
     else:
         for label in to_be_refined:
             all_cones=set(new_fan.cones())
-            link_base=tuple(find_cone_general(new_fan.vc.vectors(label),all_cones,all_vectors))
+            link_base=tuple(find_cone_general(new_fan.vc.vectors(label),all_cones,new_fan.vc.vectors()))
             link_base_len=len(link_base)
             for c in new_fan.link(link_base):
                 all_cones.discard(tuple(sorted(link_base + c)))
@@ -1715,19 +1793,18 @@ def find_cone(new_ray, current_cones, all_vectors, tol=1e-10):
     """
     **Description:**
 
-    Lifts the input points by appending a column of ones, computes the rational nullspace exactly using SymPy, and clears denominators to obtain an integral Gale transform.
+    Searches the given full-dimensional simplicial cones for the one containing `new_ray`, and returns the labels of the rays of its carrier face. Cones whose ray matrix is not square or is singular are skipped.
 
     **Arguments:**
 
-    - `points (array-like)`: Point configuration with shape `(n, d)`.
-
-    **Raises:**
-
-    - `ValueError`: Raised if the number of points is not greater than `d+1`.
+    - `new_ray (numpy.ndarray)`: The ray to locate.
+    - `current_cones (iterable)`: Current cones, represented by tuples of one-indexed ray labels.
+    - `all_vectors (numpy.ndarray)`: Full ray matrix.
+    - `tol (float)`: Tolerance used when testing the sign of the expansion coefficients. Defaults to `1e-10`.
 
     **Returns:**
 
-    - `numpy.ndarray`: The integral Gale transform.
+    - `frozenset` or `None`: The carrier face labels, or `None` if no carrier cone is found.
 
     """
     for cone in current_cones:
@@ -1735,7 +1812,11 @@ def find_cone(new_ray, current_cones, all_vectors, tol=1e-10):
 
         A = all_vectors[numpy_indices].T
 
-        coeffs = np.linalg.solve(A, new_ray)
+        try:
+            coeffs = np.linalg.solve(A, new_ray)
+        except np.linalg.LinAlgError:
+            # Non-square or singular cone matrix; this cone cannot be a carrier.
+            continue
 
         if np.all(coeffs >= -tol):
             return frozenset(
@@ -1758,7 +1839,7 @@ def divisor_intersections(fan, intersection_dict,divisors, basis_set,as_LLL=True
     - `fan (Fan)`: The toric fan.
     - `intersection_dict (dict)`: Dictionary of toric intersection numbers.
     - `divisors (list)`: List of divisor coefficient vectors.
-    - `basis_set (set)`: Set of one-indexed ray labels used as the homology basis.
+    - `basis_set (set)`: Collection of one-indexed ray labels used as the homology basis. The columns of the output are ordered by increasing label, independently of the iteration order of the input collection.
     - `as_LLL (bool)`: Whether to LLL-reduce the resulting lattice basis. Defaults to `True`.
 
     **Returns:**
@@ -1766,16 +1847,21 @@ def divisor_intersections(fan, intersection_dict,divisors, basis_set,as_LLL=True
     - `numpy.ndarray`: The divisor-intersection curve classes, optionally LLL-reduced.
 
     """
-            
+
+    # Sort the basis labels so that the column ordering is deterministic even
+    # when an unordered collection (such as a set) is passed in.
+    basis_labels = sorted(basis_set)
+    basis_set = set(basis_labels)
+
     codim_cicy=len(divisors)
     simplices = get_lower_dimensional_cones(fan.cones(), fan.dim - codim_cicy-1)
     divisor_nonvanishing_sets = []
     for div in divisors:
         divisor_nonvanishing_sets.append(set(np.where(div != 0)[0] + 1))
     
-    curves_homology_in_basis = np.zeros((len(simplices), len(basis_set)), dtype=int)
-    
-    basis_idx_map = {b: idx for idx, b in enumerate(basis_set)}
+    curves_homology_in_basis = np.zeros((len(simplices), len(basis_labels)), dtype=int)
+
+    basis_idx_map = {b: idx for idx, b in enumerate(basis_labels)}
 
     for s_idx, s in enumerate(simplices):
         star_s=fan.star(s)

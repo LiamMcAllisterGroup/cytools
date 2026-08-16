@@ -452,12 +452,12 @@ class CY_orientifold():
             if len(sections_NP2) > 0:
                 self.__NHC_labels = np.where(np.min(sections_NP2, axis=1) == 1)[0] + 1
             else:
-                self.__NHC_labels = np.array([])
+                self.__NHC_labels = np.array([], dtype=int)
         if as_labels:
             return self.__NHC_labels
         else:
             if len(self.__NHC_labels)==0:
-                return np.array([])
+                return np.array([], dtype=int)
             return self.vectors_orbifold(self.__NHC_labels)
 
     def o_planes(self):
@@ -596,7 +596,12 @@ class F_Theory_Uplift():
         else:
             sta=UF.sums_to_anticanonical(self.vectors_smooth_uplift_ambient(),LBB_N,LBW_N)
             self.__LBB_N = LBB_N
-            self.__LBW_N = self.vectors_smooth_uplift_ambient()@sta[1]+LBW_N
+            if sta[0]:
+                self.__LBW_N = self.vectors_smooth_uplift_ambient()@sta[1]+LBW_N
+            else:
+                # The two line bundles do not sum to the anticanonical class, so
+                # there is no shift to apply.
+                self.__LBW_N = LBW_N
         self.__is_partition = is_part[0]
 
     def __repr__(self):
@@ -1315,7 +1320,9 @@ class F_Theory_Uplift():
             labels = self.NHC(as_labels=True)
             if len(labels) > 0:
                 return self.vectors_singular_uplift_ambient(labels)
-        
+            return np.array([], dtype=int)
+
+
     def vectors_orbifold(self, labels=None):
         """
         **Description:**
