@@ -25,6 +25,8 @@ from ast import literal_eval
 from collections.abc import Iterable
 from copy import deepcopy
 from fractions import Fraction
+import functools
+import importlib
 import itertools
 import joblib
 from multiprocessing import cpu_count
@@ -38,14 +40,13 @@ import warnings
 # 3rd party imports
 from flint import fmpz_mat, fmpz, fmpq
 import numpy as np
-from ortools.linear_solver import pywraplp
-from ortools.sat.python import cp_model
 import highspy
 import ppl
 import ctypes; ctypes.CDLL(None).fesetround(0)  # ppl changes FPU rounding mode; reset to FE_TONEAREST
 import qpsolvers
 from scipy import sparse
 from scipy.optimize import linprog, nnls
+from tqdm import tqdm
 import latticepts
 
 # CYTools imports
@@ -57,6 +58,47 @@ from cytools import utils
 # only help for transient failures, so this must be finite to avoid spinning
 # forever on a deterministic error.
 MAX_EXTREMALITY_RETRIES = 3
+
+
+class ExtremalityTimeLimit(RuntimeError):
+    """
+    **Description:**
+    Signals that an extremality check hit the per-ray time limit set with the
+    `time_limit` argument of
+    [`extremal_rays`](#extremal_rays). It is returned (not raised) by
+    [`is_extremal`](#is_extremal), so that it can be told apart from a genuine
+    solver failure, which is worth retrying.
+    """
+
+
+class _LazyModule:
+    """
+    **Description:**
+    A stand-in for a module that is only imported when it is first used. It
+    forwards every attribute access to the real module, so `mod.attr` works
+    exactly as it would after a plain `import`.
+
+    This is used for the OR-Tools solvers, which are only needed by a handful
+    of methods but which are expensive to import (`ortools.sat` alone pulls in
+    pandas, costing ~1 s of `import cytools` time).
+    """
+
+    def __init__(self, name: str):
+        self._name = name
+        self._module = None
+
+    def __getattr__(self, attr: str):
+        if self._module is None:
+            self._module = importlib.import_module(self._name)
+        return getattr(self._module, attr)
+
+    def __repr__(self) -> str:
+        state = "loaded" if self._module is not None else "not loaded"
+        return f"<lazy module {self._name!r} ({state})>"
+
+
+cp_model = _LazyModule("ortools.sat.python.cp_model")
+pywraplp = _LazyModule("ortools.linear_solver.pywraplp")
 
 
 class Cone:
@@ -781,7 +823,8 @@ class Cone:
         tol: float=1e-4,
         minimal: bool=True,
         method: str="lp",
-        verbose: bool=False) -> "ArrayLike":
+        verbose: bool=False,
+        time_limit: float=None) -> "ArrayLike":
         """
         **Description:**
         Returns the extremal rays of the cone.
@@ -804,6 +847,13 @@ class Cone:
             extremality checking. Can be "lp" or "nnls". Recommendation is "lp".
         - verbose: When set to True it show the progress while finding the
             extremal rays.
+        - `time_limit`: An optional limit, in seconds, on the time spent
+            checking any *single* ray. Only used if method=="lp". If a check
+            hits the limit, the ray is conservatively kept (i.e. treated as
+            extremal) and a warning is issued: the returned rays then still
+            generate the cone, but they are not guaranteed to be a minimal
+            generating set. If it is `None` (the default) there is no limit and
+            the answer is always exact.
 
         **Returns:**
         The list of extremal rays of the cone.
@@ -880,35 +930,82 @@ class Cone:
         if verbose:
             print(f"Computing extremal rays for a cone with {len(rays)} using {n_threads} threads...")
 
-        while len(to_check):
-            # pull off n_threads rays to check
-            checking = to_check[:n_threads]
-            to_check = to_check[n_threads:]
+        pbar = tqdm(total=len(rays), desc="Extremal rays") if verbose else None
 
-            # check the selected rays
-            results = joblib.Parallel(n_jobs=n_threads)(
-                joblib.delayed(is_extremal)(rays, i, ext_rays, method=method, tol=tol)
-                for i in checking
-            )
+        # NOTE: the per-ray LPs have wildly different costs (on large Mori
+        # cones they range from a fraction of a second to a minute), so the
+        # rays are streamed through a single, persistent pool of workers rather
+        # than being dispatched in barrier-synchronized batches of n_threads.
+        # Each worker picks up the next ray as soon as it frees up, so a slow
+        # LP no longer idles every other worker.
+        #
+        # Streaming has a second benefit: `ext_rays` is pickled when a task is
+        # dispatched, so tasks that start later see the rays that have already
+        # been ruled out and solve correspondingly smaller LPs. Dropping known
+        # non-extremal rays never changes an extremality verdict (such a ray is
+        # itself a non-negative combination of the others), so the answer is
+        # independent of the order in which the checks complete.
+        try:
+            with joblib.Parallel(
+                n_jobs=n_threads, return_as="generator_unordered"
+            ) as parallel:
+                # each pass streams the outstanding rays; the (rare) transient
+                # failures are collected and re-streamed in the next pass
+                while to_check:
+                    retry = []
 
-            # learn from the results
-            for i, extremalQ, err in results:
-                if err is None:
-                    ext_rays[i] = extremalQ
-                    continue
+                    results = parallel(
+                        joblib.delayed(is_extremal)(
+                            rays,
+                            i,
+                            ext_rays,
+                            method=method,
+                            tol=tol,
+                            time_limit=time_limit,
+                        )
+                        for i in to_check
+                    )
 
-                n_failures[i] = n_failures.get(i, 0) + 1
-                if n_failures[i] > MAX_EXTREMALITY_RETRIES:
-                    raise RuntimeError(
-                        f"Failed to check whether ray #{i} (= {rays[i].tolist()}"
-                        f") was extremal, after {n_failures[i]} attempts."
-                    ) from err
+                    # learn from the results, as they come in
+                    for i, extremalQ, err in results:
+                        if err is None:
+                            ext_rays[i] = extremalQ
+                            if pbar is not None:
+                                pbar.update(1)
+                            continue
 
-                to_check.append(i)
-                if verbose:
-                    print(f"Failed to check whether ray #{i} was extremal")
-                    print(f"(Error was: {err})")
-                    print( "(Putting it at the end and retrying later...)")
+                        if isinstance(err, ExtremalityTimeLimit):
+                            # keep the ray (the conservative choice: the answer
+                            # remains a generating set, just maybe not minimal)
+                            warnings.warn(
+                                f"The extremality check for ray #{i} (= "
+                                f"{rays[i].tolist()}) exceeded the time limit "
+                                f"of {time_limit} s. Keeping the ray; the "
+                                "returned rays may not be a minimal generating "
+                                "set."
+                            )
+                            if pbar is not None:
+                                pbar.update(1)
+                            continue
+
+                        n_failures[i] = n_failures.get(i, 0) + 1
+                        if n_failures[i] > MAX_EXTREMALITY_RETRIES:
+                            raise RuntimeError(
+                                f"Failed to check whether ray #{i} (= "
+                                f"{rays[i].tolist()}) was extremal, after "
+                                f"{n_failures[i]} attempts."
+                            ) from err
+
+                        retry.append(i)
+                        if verbose:
+                            print(f"Failed to check whether ray #{i} was extremal")
+                            print(f"(Error was: {err})")
+                            print( "(Putting it at the end and retrying later...)")
+
+                    to_check = retry
+        finally:
+            if pbar is not None:
+                pbar.close()
 
         # save the answer
         self._ext_rays[minimal] = rays[list(ext_rays)]
@@ -921,7 +1018,8 @@ class Cone:
         tol: float=1e-4,
         minimal=True,
         method="lp",
-        verbose: bool=False) -> "ArrayLike":
+        verbose: bool=False,
+        time_limit: float=None) -> "ArrayLike":
         """
         **Description:**
         Returns the extremal hyperplanes of the cone.
@@ -938,6 +1036,9 @@ class Cone:
             extremality checking. Can be "lp" or "nnls". Recommendation is "lp".
         - verbose: When set to True it show the progress while finding the
             extremal hyperplanes.
+        - `time_limit`: An optional limit, in seconds, on the time spent
+            checking any *single* hyperplane. See
+            [`extremal_rays`](#extremal_rays) for the behavior when it is hit.
 
         **Returns:**
         The list of extremal hyperplanes of the cone.
@@ -946,7 +1047,8 @@ class Cone:
             tol=tol,
             minimal=minimal,
             method=method,
-            verbose=verbose
+            verbose=verbose,
+            time_limit=time_limit
         )
 
     def face_lattice(
@@ -2328,7 +2430,8 @@ def is_extremal(
     i: int,
     extFlags: list[bool] = None,
     method: str = "lp",
-    tol: float=1e-4) -> (int, bool, "Exception"):
+    tol: float=1e-4,
+    time_limit: float=None) -> (int, bool, "Exception"):
     """
     **Description:**
     Auxiliary function that is used to find the extremal rays of cones. Returns
@@ -2343,9 +2446,15 @@ def is_extremal(
     - `method`: The method to check extremality. Can be "lp" or "nnls".
         Reccomendation is "lp".
     - `tol`: The tolerance for determining whether a ray is extremal.
+    - `time_limit`: An optional limit, in seconds, on the LP solve. Only used
+        if method=="lp". If it is hit, the returned error is an
+        `ExtremalityTimeLimit`, so that the caller can tell it apart from a
+        transient solver failure.
 
     **Returns:**
-    *(bool or None)* The truth value of the ray being extremal.
+    *(tuple)* The index of the ray, the truth value of the ray being extremal
+        (`None` if it could not be determined), and the error that prevented
+        the check (`None` if there was none).
 
     **Example:**
     This function is not meant to be directly used by the end user. Instead it
@@ -2374,8 +2483,19 @@ def is_extremal(
                 c=np.zeros(R.shape[0], dtype=int),  # no objective
                 A_eq=R.T, b_eq=r,                   # (R\r) lmbda = r
                 bounds=[(0, None)],                 # lmbda >= 0
-                method="highs"
+                method="highs",
+                options=None if time_limit is None else {"time_limit": time_limit}
             )
+
+            # status 1 means the solver gave up (iteration/time limit), so the
+            # LP is *undecided*. Reporting it as infeasible here would wrongly
+            # mark the ray as extremal.
+            if res.status == 1:
+                return (i, None, ExtremalityTimeLimit(
+                    f"The extremality LP for ray #{i} was stopped early "
+                    f"({res.message})"
+                ))
+
             return (i, not res.success, None)
 
         elif method.lower() == "nnls":
@@ -2572,16 +2692,40 @@ def feasibility(
 
 # cone degeneracy
 # ---------------
-class EarlyStopCallback(cp_model.CpSolverSolutionCallback):
-    def __init__(self, threshold, solver):
-        cp_model.CpSolverSolutionCallback.__init__(self)
-        self._threshold = threshold
-        self._solver = solver
+@functools.cache
+def _early_stop_callback_cls():
+    """
+    **Description:**
+    Builds (and caches) the CP-SAT callback that stops the search once the
+    objective reaches a given threshold.
 
-    def on_solution_callback(self):
-        current_value = int(self.ObjectiveValue())
-        if current_value >= self._threshold:
-            self.StopSearch()
+    It is defined in a function rather than at module scope because its base
+    class lives in `ortools.sat`, which is imported lazily.
+
+    **Returns:**
+    The `EarlyStopCallback` class.
+    """
+
+    class EarlyStopCallback(cp_model.CpSolverSolutionCallback):
+        def __init__(self, threshold, solver):
+            cp_model.CpSolverSolutionCallback.__init__(self)
+            self._threshold = threshold
+            self._solver = solver
+
+        def on_solution_callback(self):
+            current_value = int(self.ObjectiveValue())
+            if current_value >= self._threshold:
+                self.StopSearch()
+
+    return EarlyStopCallback
+
+
+def __getattr__(name):
+    # keeps `cytools.cone.EarlyStopCallback` working now that the class is
+    # only built on demand (see PEP 562)
+    if name == "EarlyStopCallback":
+        return _early_stop_callback_cls()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 def _is_degenerate(
     H: "ArrayLike",
@@ -2685,7 +2829,7 @@ def _is_degenerate(
 
     # implement early-stop callback
     # -----------------------------
-    cb = EarlyStopCallback(H.shape[1]+1, solver)
+    cb = _early_stop_callback_cls()(H.shape[1]+1, solver)
 
     # solve and parse solution
     status = solver.Solve(model, cb)
