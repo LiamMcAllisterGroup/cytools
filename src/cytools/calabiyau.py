@@ -162,7 +162,9 @@ class CalabiYau:
                 )
                 for pp in polys
             ]
-            self._nef_part = parts
+            # NOTE: this is stored as a tuple (of tuples) so that the CY
+            # remains hashable
+            self._nef_part = tuple(parts)
         else:
             self._nef_part = None
             if not triang.is_fine():
@@ -191,6 +193,7 @@ class CalabiYau:
 
         self._ambient_var = toric_var
         self._optimal_ambient_var = None
+        self._fan = None
         self._is_hypersurface = nef_partition is None or len(nef_partition) == 1
 
         # Initialize remaining hidden attributes
@@ -263,6 +266,8 @@ class CalabiYau:
             self._is_smooth = None
             self._hodge_nums = None
             self._eff_cone = None
+            self._optimal_ambient_var = None
+            self._fan = None
             if recursive:
                 self.ambient_variety().clear_cache(recursive=True)
 
@@ -1562,8 +1567,14 @@ class CalabiYau:
         if self.dim() != 3:
             raise NotImplementedError("This function currently only supports 3-folds.")
         if self._second_chern_class is None:
-            c2 = np.zeros(len(self.prime_toric_divisors()) + 1, dtype=int)
             intnums = self.intersection_numbers(in_basis=False)
+            # NOTE: for non-smooth CYs the intersection numbers are not
+            # integral. Accumulating them into an integer array would silently
+            # truncate them, so the dtype is chosen based on the actual values.
+            dtype = (
+                int if all(float(v).is_integer() for v in intnums.values()) else float
+            )
+            c2 = np.zeros(len(self.prime_toric_divisors()) + 1, dtype=dtype)
             for ii in intnums:
                 if ii[0] == 0:
                     continue
@@ -1753,7 +1764,7 @@ class CalabiYau:
             raise NotImplementedError(
                 "This function only supports Calabi-Yau 3-folds."
             )
-        if not hasattr(self, "_fan"):
+        if self._fan is None:
             self._fan = self.triangulation().fan()
         intnums = self._fan.intersection_numbers(
             pushed_down=True, in_basis=True, as_np_array=True, copy=False,
@@ -1799,7 +1810,7 @@ class CalabiYau:
             raise NotImplementedError(
                 "This function only supports Calabi-Yau 3-folds."
             )
-        if not hasattr(self, "_fan"):
+        if self._fan is None:
             self._fan = self.triangulation().fan()
         intnums = self._fan.intersection_numbers(
             pushed_down=True, in_basis=True, as_np_array=True, copy=False,
@@ -1888,7 +1899,7 @@ class CalabiYau:
             raise NotImplementedError(
                 "This function only supports Calabi-Yau 3-folds."
             )
-        if not hasattr(self, "_fan"):
+        if self._fan is None:
             self._fan = self.triangulation().fan()
         intnums = self._fan.intersection_numbers(
             pushed_down=True, in_basis=True, as_np_array=True, copy=False,
@@ -2146,15 +2157,11 @@ class CalabiYau:
                                  "m_cap.find_lattice_points(min_points=100)...")
 
         # get basics
-        kappa = self.intersection_numbers(in_basis=True, format="coo")
-        glsm = self.curve_basis(include_origin=False, as_matrix=True)
         mori = self.mori_cone_cap(in_basis=True)
         if mcap_generators is None:
             R = mori.rays()
             lattice_pts = mori.find_lattice_points(min_points=100*self.h11())
             mcap_generators = np.vstack([R,lattice_pts])
-        else:
-            mcap_generators = mcap_generators
 
         # compute a grading vector if none is provided
         if grading_vec is None:
@@ -2604,9 +2611,18 @@ class Invariants:
         """
         out = self._charge2invariant.get(tuple(charge), None)
 
-        if check_deg and (out is None):
-            if np.dot(charge, self._grading_vec) <= self._cutoff:
-                out = 0  # deg<=cutoff but not in dict -> 0 GV
+        # NOTE: the degree check is only meaningful when a degree cutoff (and a
+        # grading vector) is known. This is not the case when the invariants
+        # were computed via min_points/target_points/mcap_generators, in which
+        # case we simply cannot tell whether the invariant vanishes.
+        if (
+            check_deg
+            and (out is None)
+            and (self._cutoff is not None)
+            and (self._grading_vec is not None)
+            and np.dot(charge, self._grading_vec) <= self._cutoff
+        ):
+            out = 0  # deg<=cutoff but not in dict -> 0 GV
 
         return out
 

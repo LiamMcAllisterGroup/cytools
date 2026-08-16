@@ -1634,7 +1634,12 @@ class ToricVariety:
             base_intnums = self._intersection_numbers[
                 (False, False, exact_arithmetic, "dok")
             ]
-            self._intersection_numbers[args_id] = {
+            # NOTE: this must be stored under the "dok" key rather than under
+            # args_id. The format conversion below looks the value up as
+            # (zero_as_anticanonical, in_basis, exact_arithmetic, "dok"), so
+            # storing it under a format-carrying args_id raises a KeyError when
+            # a non-default format is requested first.
+            self._intersection_numbers[(True, False, exact_arithmetic, "dok")] = {
                 ii: (
                     val * (-1 if sum(jj == 0 for jj in ii) % 2 == 1 else 1)
                     if 0 in ii

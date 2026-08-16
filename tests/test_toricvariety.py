@@ -86,6 +86,34 @@ def test_intersection_numbers_zero_as_anticanonical():
     assert v.intersection_numbers() == canonical
 
 
+def test_intersection_numbers_zero_as_anticanonical_formats():
+    # regression test: this used to crash outright (`sum(ii == 0)` on a tuple)
+    # and, once that was fixed, to corrupt the cached plain intersection numbers
+    # by sign-flipping them in place
+    p = Polytope(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -6, -9]]
+    )
+    t = p.triangulate()
+    v = t.get_toric_variety()
+
+    intnums = dict(v.intersection_numbers())
+    intnums_anticanon = v.intersection_numbers(zero_as_anticanonical=True)
+
+    # the plain intersection numbers must be untouched
+    assert dict(v.intersection_numbers()) == intnums
+
+    # ... also after repeated calls in other formats
+    v.intersection_numbers(zero_as_anticanonical=True, format="coo")
+    v.intersection_numbers(zero_as_anticanonical=True, format="dense")
+    assert dict(v.intersection_numbers()) == intnums
+
+    # the sign of an entry is flipped iff it contains an odd number of zeros
+    assert set(intnums_anticanon) == set(intnums)
+    for ii, val in intnums.items():
+        sign = -1 if sum(jj == 0 for jj in ii) % 2 else 1
+        assert intnums_anticanon[ii] == sign * val
+
+
 def test_is_compact():
     p = Polytope(
         [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -1, -1]]
