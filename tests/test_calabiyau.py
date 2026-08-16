@@ -237,3 +237,107 @@ def test_gv_invariants():
     m_cap_pts = m_cap.find_lattice_points(min_points=100, fast_mode=False)
     gvs = cy.compute_gvs(m_cap_pts)
     assert gvs.size == len(m_cap_pts) - 1
+
+
+# Genus-zero GV invariants of the degree-18 hypersurface in P(1,1,1,6,9), an
+# elliptic fibration over P^2, indexed by (d_B, d_F) with d_B the degree along
+# the base and d_F the degree along the fiber.
+#
+# Values from Chiang, Klemm, Yau, Zaslow, "Local Mirror Symmetry: Calculations
+# and Interpretations" (hep-th/9903053): Table 2, column A gives the d_F = 0, 1,
+# 2 entries, and Table 1 (local invariants of K_{P^2}) gives the whole d_F = 0
+# column, i.e. the local P^2 invariants 3, -6, 27, ..., -360012150. These also
+# appear in Candelas, Font, Katz, Morrison, hep-th/9403187.
+P11169_GVS = {
+    # d_F = 0: the local P^2 sequence
+    (1, 0): 3,
+    (2, 0): -6,
+    (3, 0): 27,
+    (4, 0): -192,
+    (5, 0): 1695,
+    (6, 0): -17064,
+    (7, 0): 188454,
+    (8, 0): -2228160,
+    (9, 0): 27748899,
+    (10, 0): -360012150,
+    # d_B = 0: pure fiber classes
+    (0, 1): 540,
+    (0, 2): 540,
+    (0, 3): 540,
+    (0, 4): 540,
+    (0, 5): 540,
+    (0, 6): 540,
+    # d_F = 1
+    (1, 1): -1080,
+    (2, 1): 2700,
+    (3, 1): -17280,
+    (4, 1): 154440,
+    # d_F = 2
+    (1, 2): 143370,
+    (2, 2): -574560,
+    (3, 2): 5051970,
+    (4, 2): -57879900,
+}
+
+
+def test_gv_invariants_p11169_literature_values():
+    p = Polytope(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -6, -9]]
+    )
+    cy = p.triangulate().get_cy()
+    assert (cy.h11(), cy.h21()) == (2, 272)
+
+    gvs = cy.compute_gvs(max_deg=10)
+
+    # identify the base and fiber curve classes without assuming a particular
+    # divisor basis: the base class B is the unique class with GV 3 (the local
+    # P^2 degree-1 invariant), and the fiber class F is the lowest-degree class
+    # with GV 540
+    base_candidates = [c for c, gv in gvs.dok.items() if gv == 3]
+    fiber_candidates = [c for c, gv in gvs.dok.items() if gv == 540]
+    assert len(base_candidates) == 1
+    assert len(fiber_candidates) == 10
+    base = np.array(base_candidates[0], dtype=int)
+    fiber = np.array(
+        min(fiber_candidates, key=lambda c: np.dot(c, gvs.grading_vec)),
+        dtype=int,
+    )
+
+    for (d_b, d_f), expected in P11169_GVS.items():
+        charge = d_b * base + d_f * fiber
+        assert gvs.gv(charge) == expected, f"(d_B, d_F) = {(d_b, d_f)}"
+
+    # every class with a nonzero invariant is an effective combination of the
+    # base and fiber classes
+    lattice = np.array([base, fiber]).T
+    for charge in gvs.dok:
+        degs = np.linalg.solve(lattice, np.array(charge, dtype=float))
+        assert np.allclose(degs, np.rint(degs))
+        assert (np.rint(degs) >= 0).all()
+
+
+def test_gv_invariants_quintic_literature_values():
+    p = Polytope(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -1, -1]]
+    )
+    cy = p.triangulate().get_cy()
+    assert (cy.h11(), cy.h21()) == (1, 101)
+
+    gvs = cy.compute_gvs(max_deg=6)
+
+    # genus-zero GV (instanton) numbers of the quintic threefold, from
+    # Candelas, de la Ossa, Green, Parkes, Nucl. Phys. B359 (1991) 21.  n_1 is
+    # Schubert's 2875 lines, n_2 = 609250 is Katz's count of conics, and
+    # n_3 = 317206375 is the Ellingsrud-Stromme count of twisted cubics.
+    expected = [
+        2875,
+        609250,
+        317206375,
+        242467530000,
+        229305888887625,
+        248249742118022000,
+    ]
+
+    assert gvs.size == len(expected)
+    for deg, val in enumerate(expected, start=1):
+        assert gvs.gv([deg]) == val, f"degree {deg}"
