@@ -1242,7 +1242,7 @@ def fetch_polytopes(
     **Description:**
     Fetches reflexive polytopes from the Kreuzer-Skarke database or from the
     Schöller-Skarke database. The data is fetched from the websites
-    http://hep.itp.tuwien.ac.at/~kreuzer/CY/ and
+    https://hep.itp.tuwien.ac.at/~kreuzer/CY/ and
     http://rgc.itp.tuwien.ac.at/fourfolds/ respectively.
 
     :::note

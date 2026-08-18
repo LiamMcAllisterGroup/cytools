@@ -32,6 +32,12 @@ def check_for_updates():
     Checks for updates of CYTools. It prints a message if a new version is
     available, and displays a warning if the current version has a serious bug.
 
+    This performs a network request, so it blocks until the request completes
+    or times out. On import CYTools instead runs it in a background daemon
+    thread (see `start_update_check`), so that `import cytools` never waits on
+    the network. Any failure (no network, DNS failure, timeout, ...) is
+    silently ignored.
+
     **Arguments:**
     None.
 
@@ -103,9 +109,52 @@ def check_for_updates():
         pass
 
 
-# Automatically check for updates on import, unless disabled via the
-# CYTOOLS_NO_UPDATE_CHECK environment variable (e.g. for HPC/air-gapped use).
 import os
+import threading
 
-if not os.environ.get("CYTOOLS_NO_UPDATE_CHECK"):
-    check_for_updates()
+
+def start_update_check():
+    """
+    **Description:**
+    Starts [`check_for_updates`](#check_for_updates) in a background daemon
+    thread and returns immediately. This is what runs on import, so that
+    `import cytools` never blocks on the network. The thread is a daemon, so it
+    never keeps the interpreter alive, and any error it encounters is silently
+    ignored.
+
+    The check is skipped entirely (returning `None`) if the
+    `CYTOOLS_NO_UPDATE_CHECK` environment variable is set to a non-empty value,
+    which is useful on clusters and air-gapped machines.
+
+    **Arguments:**
+    None.
+
+    **Returns:**
+    *(threading.Thread or None)* The thread performing the check, or `None` if
+    the check is disabled.
+
+    **Example:**
+    We start a background update check. This is done automatically on import,
+    so there is usually no need to do this.
+    ```python {2}
+    import cytools
+    cytools.start_update_check()
+    ```
+    """
+    if os.environ.get("CYTOOLS_NO_UPDATE_CHECK"):
+        return None
+
+    thread = threading.Thread(
+        target=check_for_updates,
+        name="cytools-update-check",
+        daemon=True,
+    )
+    thread.start()
+    return thread
+
+
+# Automatically check for updates on import. This runs in a background daemon
+# thread so that it can never block or slow down the import, and it can be
+# disabled altogether via the CYTOOLS_NO_UPDATE_CHECK environment variable
+# (e.g. for HPC/air-gapped use).
+_update_check_thread = start_update_check()
