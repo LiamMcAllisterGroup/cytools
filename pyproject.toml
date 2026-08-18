@@ -20,7 +20,7 @@ dependencies = [
     "numpy",
     "scipy",
     "numba",
-    "joblib",
+    "joblib>=1.4",          # `Parallel(return_as="generator_unordered")`
     "cvxopt",
     "python-flint",
     "pplpy",

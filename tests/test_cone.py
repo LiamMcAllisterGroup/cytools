@@ -1,10 +1,20 @@
 import shutil
+import threading
+import time
 
 import numpy as np
 import pytest
 
-from cytools import Cone
-from cytools.cone import feasibility
+from cytools import config, Cone
+from cytools import cone as cone_module
+from cytools.cone import ExtremalityTimeLimit, feasibility, is_extremal
+
+
+def _lagging_is_extremal(R, i, extFlags=None, method="lp", tol=1e-4, time_limit=None):
+    """`is_extremal`, but every third ray takes much longer to check."""
+    if i % 3 == 0:
+        time.sleep(0.05)
+    return is_extremal(R, i, extFlags, method=method, tol=tol, time_limit=time_limit)
 
 
 def _canonical_face_rays(face):
@@ -215,6 +225,96 @@ def test_extremal_rays_single_ray_does_not_alias_rays():
 
     assert c.extremal_rays().tolist() == expected
     assert c.rays().tolist() == expected
+
+
+def _serial_extremal_rays(rays):
+    """
+    Straightforward, single-threaded reference implementation of the
+    extremal-ray computation, checking one ray at a time in index order. It
+    mirrors what `Cone.extremal_rays` does, minus the parallel scheduling.
+    """
+    flags = [True] * len(rays)
+    for i in range(len(rays)):
+        idx, extremalQ, err = is_extremal(rays, i, flags)
+        assert err is None
+        flags[idx] = extremalQ
+    return rays[flags]
+
+
+def _deduped_rays(cone):
+    # `Cone.extremal_rays` deduplicates its rays this way, and the resulting
+    # order is what fixes the order of the returned extremal rays
+    return np.array(list({tuple(r) for r in cone.rays()}))
+
+
+@pytest.mark.parametrize("n_threads", [1, 2, 4])
+def test_extremal_rays_match_serial_reference(n_threads):
+    """The parallel scheduling must not affect which rays come back, nor
+    their order, no matter how the work is distributed."""
+    rng = np.random.default_rng(20240607)
+    cones = [
+        Cone([[0, 1], [1, 1], [1, 0]]),
+        Cone(np.eye(4, dtype=int)),
+        Cone([[1, 0], [2, 0], [0, 1], [1, 1], [3, 0]]),
+        Cone(np.vstack([np.eye(8, dtype=int), rng.integers(0, 4, size=(60, 8))])),
+    ]
+
+    old_n_threads = config.n_threads
+    try:
+        for c in cones:
+            expected = _serial_extremal_rays(_deduped_rays(c))
+            config.n_threads = n_threads
+            found = Cone(c.rays()).extremal_rays()
+            assert np.array_equal(found, expected)
+    finally:
+        config.n_threads = old_n_threads
+
+
+def test_extremal_rays_unaffected_by_uneven_check_times(monkeypatch):
+    """The per-ray checks of a real Mori cone take wildly different amounts of
+    time. Since the checks are streamed to the workers, the results then come
+    back in an order that has nothing to do with the ray order, which must not
+    change the answer."""
+    rng = np.random.default_rng(451)
+    rays = np.vstack([np.eye(6, dtype=int), rng.integers(0, 3, size=(24, 6))])
+    c = Cone(rays)
+
+    expected = _serial_extremal_rays(_deduped_rays(c))
+
+    old_n_threads = config.n_threads
+    try:
+        config.n_threads = 4
+        monkeypatch.setattr(cone_module, "is_extremal", _lagging_is_extremal)
+        found = Cone(rays).extremal_rays()
+    finally:
+        config.n_threads = old_n_threads
+
+    assert np.array_equal(found, expected)
+
+
+def test_extremal_rays_time_limit_keeps_undecided_rays():
+    """A check that runs out of time is undecided, so the ray is kept (the
+    answer stays a generating set) and the user is warned about it."""
+    c = Cone([[1, 0], [0, 1], [1, 1]])
+    assert len(c.extremal_rays()) == 2
+
+    with pytest.warns(UserWarning, match="time limit"):
+        found = Cone([[1, 0], [0, 1], [1, 1]]).extremal_rays(time_limit=1e-9)
+
+    # no LP could be decided, so every ray is conservatively kept
+    assert sorted(map(tuple, found.tolist())) == [(0, 1), (1, 0), (1, 1)]
+
+
+def test_is_extremal_time_limit_reports_dedicated_error():
+    rays = np.array([[1, 0], [0, 1], [1, 1]])
+
+    idx, extremalQ, err = is_extremal(rays, 2, [True] * 3, time_limit=1e-9)
+    assert idx == 2
+    assert extremalQ is None
+    assert isinstance(err, ExtremalityTimeLimit)
+
+    # a limit that is not restrictive must not change anything
+    assert is_extremal(rays, 2, [True] * 3, time_limit=60) == (2, False, None)
 
 
 def test_feasibility_cpsat_honors_lower_bound():

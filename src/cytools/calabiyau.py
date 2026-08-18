@@ -1659,17 +1659,26 @@ class CalabiYau:
         if self._mori_cone[args_id] is not None:
             return self._mori_cone[args_id]
         rays = self._mori_cone[0].rays()
-        basis = self.divisor_basis()
+        # NOTE: the basis is only needed on the in_basis branch, and fetching
+        # it eagerly would trigger the (potentially expensive) computation of a
+        # default basis just to throw it away. A basis that has not been set
+        # yet is always a vector of indices, so this preserves the `check`
+        # value that the eager fetch would have produced.
+        basis_is_matrix = (
+            self._divisor_basis is not None and len(self._divisor_basis.shape) == 2
+        )
         if include_origin and not in_basis:
             new_rays = rays
         elif not include_origin and not in_basis:
             new_rays = rays[:, 1:]
         else:
-            if len(basis.shape) == 2:  # If basis is matrix
+            basis = self.divisor_basis()
+            basis_is_matrix = len(basis.shape) == 2
+            if basis_is_matrix:  # If basis is matrix
                 new_rays = rays.dot(basis.T)
             else:
                 new_rays = rays[:, basis]
-        c = Cone(new_rays, check=len(basis.shape) == 2)
+        c = Cone(new_rays, check=basis_is_matrix)
         self._mori_cone[args_id] = c
         return self._mori_cone[args_id]
 
