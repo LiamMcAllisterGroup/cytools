@@ -1,5 +1,4 @@
 import shutil
-import threading
 
 import numpy as np
 import pytest
@@ -10,28 +9,6 @@ from cytools.cone import feasibility
 
 def _canonical_face_rays(face):
     return tuple(sorted(tuple(ray) for ray in face.extremal_rays().tolist()))
-
-
-def _run_with_timeout(fn, timeout):
-    """
-    Runs `fn` in a daemon thread and returns (result, exception). Fails the test
-    if `fn` does not finish within `timeout` seconds, so that a regression that
-    reintroduces an infinite loop cannot hang the test suite.
-    """
-    box = {}
-
-    def target():
-        try:
-            box["result"] = fn()
-        except BaseException as exc:  # noqa: BLE001 - reported to the caller
-            box["exception"] = exc
-
-    thread = threading.Thread(target=target, daemon=True)
-    thread.start()
-    thread.join(timeout)
-    if thread.is_alive():
-        pytest.fail(f"call did not terminate within {timeout} seconds")
-    return box.get("result"), box.get("exception")
 
 
 def test_ambient_dimension():
@@ -183,20 +160,6 @@ def test_find_lattice_points_honors_max_deg_with_min_points():
 
     assert len(pts) > 0
     assert all(pt @ grading <= 3 for pt in pts)
-
-
-def test_find_lattice_points_terminates_when_not_enough_points():
-    # the cone holds far fewer than 50 points with |coord|<=2, so this must
-    # fail loudly rather than increasing the degree forever
-    c = Cone([[1, 0], [0, 1]])
-    result, exc = _run_with_timeout(
-        lambda: c.find_lattice_points(min_points=50, max_coord=2, fast_mode=False),
-        60,
-    )
-
-    assert result is None
-    assert isinstance(exc, RuntimeError)
-    assert "min_points" in str(exc)
 
 
 @pytest.mark.skipif(

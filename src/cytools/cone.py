@@ -1719,29 +1719,9 @@ class Cone:
                 )
                 return
         else:
-            # Else, add points until the minimum number is reached.
-            #
-            # The coordinates are bounded by max_coord, so no point in the
-            # search region can have a degree larger than the bound below. Once
-            # that degree is passed, every remaining window is empty and the
-            # requested number of points simply doesn't exist in the region, so
-            # we must stop instead of looping forever.
-            max_possible_deg = int(max_coord) * int(
-                sum(abs(int(g)) for g in grading_vector)
-            )
-
+            # Else, add points until the minimum number is reached
             deg = 0
             while solution_storage._n_sol < min_points:
-                if deg > max_possible_deg:
-                    raise RuntimeError(
-                        f"Only found {solution_storage._n_sol} point(s), but "
-                        f"min_points={min_points} were requested. There are no "
-                        f"points of degree > {max_possible_deg} with "
-                        f"coordinates bounded by max_coord={max_coord}, so the "
-                        "search cannot be extended further. Try increasing "
-                        "max_coord."
-                    )
-
                 # define model with windowed degree constraints
                 window_model   = deepcopy(model)
                 deg_constr_low = window_model.Add(deg <= soln_deg)
