@@ -138,6 +138,85 @@ def test_intersection_numbers_zero_as_anticanonical():
     assert cy.intersection_numbers() == canonical
 
 
+def test_intersection_numbers_zero_as_anticanonical_formats():
+    # regression test: computing the intersection numbers with
+    # zero_as_anticanonical=True used to alias (and then sign-flip in place) the
+    # cached plain intersection numbers, corrupting every subsequent call
+    p = Polytope(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -6, -9]]
+    )
+    t = p.triangulate()
+    cy = t.get_cy()
+
+    intnums = dict(cy.intersection_numbers())
+    assert intnums[(0, 2, 3)] == -324
+    assert intnums[(0, 0, 0)] == -1944
+
+    intnums_anticanon = cy.intersection_numbers(zero_as_anticanonical=True)
+
+    # the plain intersection numbers must be untouched
+    assert dict(cy.intersection_numbers()) == intnums
+
+    # ... and repeated calls (also in other formats) must not toggle them back
+    cy.intersection_numbers(zero_as_anticanonical=True, format="coo")
+    cy.intersection_numbers(zero_as_anticanonical=True, format="dense")
+    assert dict(cy.intersection_numbers()) == intnums
+
+    # the anticanonical numbers themselves flip the sign of the entries with an
+    # odd number of zeros
+    assert intnums_anticanon[(0, 2, 3)] == 324
+    assert intnums_anticanon[(0, 0, 0)] == 1944
+    assert intnums_anticanon[(0, 0, 2)] == intnums[(0, 0, 2)]
+    assert intnums_anticanon[(1, 2, 3)] == intnums[(1, 2, 3)]
+    assert dict(cy.intersection_numbers(zero_as_anticanonical=True)) == dict(
+        intnums_anticanon
+    )
+
+
+def test_clear_cache_resets_fan():
+    # regression test: clear_cache used to leave self._fan (and hence the
+    # intersection numbers it caches) in place
+    p = Polytope(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -6, -9]]
+    )
+    t = p.triangulate()
+    cy = t.get_cy()
+    assert cy._fan is None
+    cy.compute_cy_volume([1] * cy.h11())
+    assert cy._fan is not None
+    cy.clear_cache(recursive=True)
+    assert cy._fan is None
+    assert cy._optimal_ambient_var is None
+
+
+def test_cicy_hash():
+    # regression test: _nef_part used to be stored as a list, which made CICYs
+    # unhashable
+    from cytools import config
+
+    exp_features_enabled = config._exp_features_enabled
+    config._exp_features_enabled = True
+    try:
+        p = Polytope(
+            [
+                [1, 0, 0, 0],
+                [0, 1, 0, 0],
+                [0, 0, 1, 0],
+                [0, 0, 0, 1],
+                [-1, 0, 0, 0],
+                [0, -1, 0, 0],
+                [0, 0, -1, 0],
+                [0, 0, 0, -1],
+            ]
+        )
+        cy = p.triangulate().get_cy(((1, 2, 3, 6), (4, 5, 7, 8)))
+        assert isinstance(cy._nef_part, tuple)
+        assert hash(cy) == hash(cy)
+        assert len({cy, cy}) == 1
+    finally:
+        config._exp_features_enabled = exp_features_enabled
+
+
 def test_is_smooth():
     p = Polytope(
         [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -6, -9]]
@@ -257,3 +336,25 @@ def test_gv_invariants():
     m_cap_pts = m_cap.find_lattice_points(min_points=100, fast_mode=False)
     gvs = cy.compute_gvs(m_cap_pts)
     assert gvs.size == len(m_cap_pts) - 1
+
+
+def test_gv_invariants_without_cutoff():
+    # regression test: querying a charge that was not computed used to raise a
+    # TypeError when no degree cutoff was known (i.e. whenever the GVs were
+    # computed via min_points/target_points/mcap_generators rather than max_deg)
+    p = Polytope(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -6, -9]]
+    )
+    cy = p.triangulate().get_cy()
+
+    gvs = cy.compute_gvs(min_points=20)
+    assert gvs.cutoff is None
+    # a computed charge still works ...
+    assert gvs.gv([0, 1]) == 540
+    # ... and an uncomputed one is simply unknown rather than a crash
+    assert gvs.gv([10**6, 10**6]) is None
+
+    # with a degree cutoff, uncomputed charges below the cutoff are still 0
+    gvs = cy.compute_gvs(max_deg=10)
+    assert gvs.cutoff == 10
+    assert gvs.gv([10**6, 10**6]) is None
