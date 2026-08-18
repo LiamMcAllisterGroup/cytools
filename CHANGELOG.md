@@ -44,8 +44,10 @@ are occasionally published a day or two later.
 ### Added
 
 - F-theory subpackage `cytools.f_theory` (`FT_CY.py`, `Uplift_functions.py`)
-  for F-theory uplifts, with a `demos/f_theory_uplifts.ipynb` notebook
-  ([#82](https://github.com/LiamMcAllisterGroup/cytools/pull/82)).
+  for F-theory uplifts
+  ([#82](https://github.com/LiamMcAllisterGroup/cytools/pull/82)), and a
+  `demos/` folder with an `f_theory_uplifts.ipynb` notebook
+  ([#87](https://github.com/LiamMcAllisterGroup/cytools/pull/87)).
 - HiGHS solver backend for cone operations, made the default; `highspy` is
   pinned to match the HiGHS version bundled by OR-Tools.
 - Parallel computation of 2-face neighbor triangulations, and a toggle for

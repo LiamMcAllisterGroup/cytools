@@ -75,6 +75,42 @@ Every source file carries the GPL header; please keep it when adding new files.
 - The version number lives in `src/cytools/__init__.py` and is read from there by
   the build backend; releases are tagged `vX.Y.Z`.
 
+## AI usage policy
+
+AI-generated contributions are allowed. **You are responsible for every line you
+submit, however it was produced.** A pull request is your work once you open it,
+and "the model wrote it" is not an explanation a reviewer can act on.
+
+If you use an AI assistant to produce code for a contribution, please:
+
+1. **Disclose how it was used** in the pull request, at least briefly (e.g.
+   which parts were AI-generated, and whether it was assisted editing or
+   wholesale generation).
+2. **Check for an existing pull request** covering the same change before
+   opening yours. If one exists, comment there and work with its author instead
+   of opening a duplicate. AI assistants are prone to rediscovering issues that
+   are already being addressed.
+3. **Review the result yourself before submitting.** Read the diff line by line
+   and satisfy yourself that it is correct, not merely that the tests pass.
+4. **Be able to explain any part of it** when a maintainer asks.
+5. **Verify claims about correctness and performance.** This is a scientific
+   package: numerical results end up in published work. Assertions that a change
+   is faster or that output is unchanged should come with a measurement or a
+   comparison, not a plausible-sounding summary.
+
+AI-generated prose — issue reports, pull request descriptions, review comments —
+is likewise allowed, but **must be clearly marked as such**. The convention in
+this repository is a leading line:
+
+```
+:robot: _AI text below_ :robot:
+```
+
+followed by a blank line. The same responsibility applies: you are accountable
+for the accuracy of text posted under your account, including any bug report or
+benchmark it contains. Where an AI assistant has generated a whole file, note it
+in the file itself — [CHANGELOG.md](CHANGELOG.md) carries such a disclaimer.
+
 ## Reporting issues
 
 Please open an issue at
