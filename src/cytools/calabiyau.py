@@ -208,6 +208,7 @@ class CalabiYau:
         self._curve_basis_mat = None
         self._mori_cone = [None] * 3
         self._intersection_numbers = dict()
+        self._basis_intnums = None
         self._prime_divs = None
         self._second_chern_class = None
         self._is_smooth = None
@@ -247,6 +248,7 @@ class CalabiYau:
         if only_in_basis:
             self._mori_cone[2] = None
             self._eff_cone = None
+            self._basis_intnums = None
             for k in list(self._intersection_numbers.keys()):
                 if k[1]:
                     self._intersection_numbers.pop(k)
@@ -261,6 +263,7 @@ class CalabiYau:
             self._curve_basis_mat = None
             self._mori_cone = [None] * 3
             self._intersection_numbers = dict()
+            self._basis_intnums = None
             self._prime_divs = None
             self._second_chern_class = None
             self._is_smooth = None
@@ -1130,13 +1133,15 @@ class CalabiYau:
         ```
         """
         if self._curve_basis is None:
+            # NOTE: the point set must match the one used by divisor_basis
+            # (and by glsm_charge_matrix), namely the origin together with the
+            # prime toric divisors. Using the triangulation point set instead
+            # gives indices in the wrong range whenever the CY is constructed
+            # from a triangulation of all the points of the polytope.
+            pts = [0] + list(self.prime_toric_divisors())
             self.set_divisor_basis(
                 self.polytope().glsm_basis(
-                    integral=True,
-                    include_origin=True,
-                    points=self.polytope().points_to_indices(
-                        self.triangulation().points()
-                    ),
+                    integral=True, include_origin=True, points=pts
                 )
             )
         if len(self._curve_basis.shape) == 1:
@@ -1396,12 +1401,18 @@ class CalabiYau:
                 # Now we find the prime toric divisors and reindex accordingly
                 intnum_ind = set.union(*[set(ii) for ii in intnums_cy])
                 triang_inds = sorted(intnum_ind)
+                nonzero_triang_inds = [i for i in triang_inds if i]
                 self._prime_divs = tuple(
                     self.triangulation().triangulation_to_polytope_indices(
-                        [i for i in triang_inds if i]
+                        nonzero_triang_inds
                     )
                 )
-                divs_dict = {ii: i for i, ii in enumerate(self._prime_divs, 1)}
+                # NOTE: the keys of intnums_cy are *triangulation* indices, so
+                # the relabeling map must be keyed by those. self._prime_divs
+                # holds the corresponding *polytope* indices, which in general
+                # are different (they only coincide when the triangulation uses
+                # every point of the polytope).
+                divs_dict = {ii: i for i, ii in enumerate(nonzero_triang_inds, 1)}
                 divs_dict[0] = 0
                 intnums_cy = {
                     tuple(divs_dict[i] for i in ii): intnums_cy[ii] for ii in intnums_cy
@@ -1736,6 +1747,62 @@ class CalabiYau:
         self._eff_cone = Cone(self.curve_basis(include_origin=False, as_matrix=True).T)
         return self._eff_cone
 
+    def _basis_intersection_numbers(self):
+        r"""
+        **Description:**
+        Returns the intersection numbers $\kappa_{ijk}$ of the Calabi-Yau in
+        the *current* basis of divisors, as a dense symmetric array.
+
+        :::note
+        This function should not be called by the user. It is a helper for the
+        volume and Kähler-metric functions. The returned array is cached and
+        must be treated as read-only.
+        :::
+
+        The fan of the defining triangulation can compute the in-basis
+        intersection numbers much faster than
+        [`intersection_numbers`](#intersection_numbers), but it only knows
+        about the polytope's own (Gale) basis. It is therefore only used when
+        that basis agrees with the basis currently set on this Calabi-Yau;
+        otherwise we fall back to
+        [`intersection_numbers`](#intersection_numbers), which honors bases set
+        with [`set_divisor_basis`](#set_divisor_basis) and
+        [`set_curve_basis`](#set_curve_basis).
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        *(numpy.ndarray)* The dense, symmetric array of intersection numbers in
+            the current basis of divisors.
+        """
+        if self._basis_intnums is not None:
+            return self._basis_intnums
+
+        basis = self.divisor_basis()
+        if len(basis.shape) == 1:
+            # An index basis may coincide with the one used by the fan
+            if self._fan is None:
+                self._fan = self.triangulation().fan()
+            fan_basis = self._fan.vc.divisor_basis
+            if fan_basis is not None and np.array_equal(
+                np.asarray(fan_basis), np.asarray(basis)
+            ):
+                self._basis_intnums = self._fan.intersection_numbers(
+                    pushed_down=True,
+                    in_basis=True,
+                    as_np_array=True,
+                    copy=False,
+                )
+                return self._basis_intnums
+
+        self._basis_intnums = np.asarray(
+            self.intersection_numbers(
+                in_basis=True, format="dense", exact_arithmetic=False
+            )
+        )
+        return self._basis_intnums
+
     def compute_cy_volume(self, tloc):
         """
         **Description:**
@@ -1764,11 +1831,7 @@ class CalabiYau:
             raise NotImplementedError(
                 "This function only supports Calabi-Yau 3-folds."
             )
-        if self._fan is None:
-            self._fan = self.triangulation().fan()
-        intnums = self._fan.intersection_numbers(
-            pushed_down=True, in_basis=True, as_np_array=True, copy=False,
-        )
+        intnums = self._basis_intersection_numbers()
         # the 3D x 1D first contraction goes via tensordot because `@`
         # dispatches it as a stack of 2D gemvs and is ~2x slower here
         K = np.tensordot(intnums, tloc, axes=([-1], [0]))
@@ -1810,20 +1873,19 @@ class CalabiYau:
             raise NotImplementedError(
                 "This function only supports Calabi-Yau 3-folds."
             )
-        if self._fan is None:
-            self._fan = self.triangulation().fan()
-        intnums = self._fan.intersection_numbers(
-            pushed_down=True, in_basis=True, as_np_array=True, copy=False,
-        )
+        intnums = self._basis_intersection_numbers()
         # the 3D x 1D first contraction goes via tensordot because `@`
         # dispatches it as a stack of 2D gemvs and is ~2x slower here
         K = np.tensordot(intnums, tloc, axes=([-1], [0]))
         tau_basis = (K @ tloc) / 2
         if in_basis:
             return np.asarray(tau_basis)
-        # convert basis-form volumes to out-of-basis form via the glsm matrix
-        glsm = self.polytope().glsm_charge_matrix(include_origin=False)
-        return np.asarray(glsm.T @ tau_basis)
+        # Convert the basis-form volumes to out-of-basis form. Each prime toric
+        # divisor is written in the current basis as D_a = sum_i N_{ia} D_i,
+        # where N is the (dual) curve basis matrix. For the default basis N is
+        # the GLSM charge matrix, but for a general basis it is not.
+        curve_basis = self.curve_basis(as_matrix=True, include_origin=False)
+        return np.asarray(curve_basis.T @ tau_basis)
 
     def compute_curve_volumes(self, tloc, only_extremal=False):
         """
@@ -1899,11 +1961,7 @@ class CalabiYau:
             raise NotImplementedError(
                 "This function only supports Calabi-Yau 3-folds."
             )
-        if self._fan is None:
-            self._fan = self.triangulation().fan()
-        intnums = self._fan.intersection_numbers(
-            pushed_down=True, in_basis=True, as_np_array=True, copy=False,
-        )
+        intnums = self._basis_intersection_numbers()
         return np.tensordot(intnums, tloc, axes=[[-1], [0]])
 
     # aliases
