@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from cytools import Cone
+from cytools.cone import feasibility
 
 
 def _canonical_face_rays(face):
@@ -128,6 +129,39 @@ def test_find_lattice_points():
     assert len(pts) >= 20
 
 
+def test_find_lattice_points_honors_filter_function_in_fast_mode():
+    # the fast_mode shortcut cannot apply a filter, so it must not be taken
+    def filter_function(pt):
+        return all(coord % 2 for coord in pt)
+
+    c = Cone([[3, 2], [5, 3]])
+    pts = c.find_lattice_points(min_points=20, filter_function=filter_function)
+
+    assert len(pts) == 6
+    assert all(all(coord % 2 for coord in pt) for pt in pts)
+
+
+def test_find_lattice_points_honors_process_function_in_fast_mode():
+    processed = []
+
+    c = Cone([[3, 2], [5, 3]])
+    out = c.find_lattice_points(min_points=20, process_function=processed.append)
+
+    assert out is None
+    assert len(processed) >= 20
+    assert (5, 3) in processed
+
+
+def test_find_lattice_points_honors_max_deg_with_min_points():
+    c = Cone([[3, 2], [5, 3]])
+    grading = c.find_grading_vector()
+
+    pts = c.find_lattice_points(min_points=100, max_deg=3)
+
+    assert len(pts) > 0
+    assert all(pt @ grading <= 3 for pt in pts)
+
+
 @pytest.mark.skipif(
     shutil.which("normaliz") is None,
     reason="requires the external normaliz executable",
@@ -150,6 +184,119 @@ def test_is_pointed():
     c2 = Cone([[1, 0], [0, 1], [-1, 0]])
     assert c1.is_pointed()
     assert not c2.is_pointed()
+
+
+def test_is_pointed_lp_backend():
+    # the LP has one variable per ray, which need not match the ambient dim + 1
+    c1 = Cone([[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0], [1, 1, 1]])
+    c2 = Cone([[1, 0, 0], [0, 1, 0], [0, 0, 1], [-1, 0, 0]])
+
+    assert c1.is_pointed(backend="lp")
+    assert not c2.is_pointed(backend="lp")
+
+
+def test_extremal_rays_does_not_alias_cache():
+    c = Cone([[0, 1], [1, 1], [1, 0]])
+
+    first = c.extremal_rays()
+    expected = first.tolist()
+    first[0, 0] = 999
+
+    assert c.extremal_rays().tolist() == expected
+    assert c.rays().tolist() != [[999, 1]]
+
+
+def test_extremal_rays_single_ray_does_not_alias_rays():
+    c = Cone(hyperplanes=[[1, 0], [-1, 0], [0, 1]])
+
+    ext = c.extremal_rays()
+    expected = ext.tolist()
+    ext[0, 0] = 999
+
+    assert c.extremal_rays().tolist() == expected
+    assert c.rays().tolist() == expected
+
+
+def test_feasibility_cpsat_honors_lower_bound():
+    hyperplanes = np.array([[1, 0], [0, 1]])
+
+    cpsat = feasibility(
+        hyperplanes=hyperplanes,
+        c=1,
+        ambient_dim=2,
+        backend="cpsat",
+        lower_bound=5,
+    )
+    highs = feasibility(
+        hyperplanes=hyperplanes,
+        c=1,
+        ambient_dim=2,
+        backend="highs",
+        lower_bound=5,
+    )
+
+    assert cpsat is not None
+    assert np.all(np.asarray(cpsat) >= 5)
+    assert np.all(np.asarray(highs) >= 5 - 1e-6)
+
+
+def test_feasibility_accepts_sparse_rows_on_every_backend():
+    # rows given as {column: value} maps, as the "highs" branch advertises
+    sparse_rows = ({0: 1}, {1: 1})
+
+    for backend in ("highs", "glop", "scip", "cpsat"):
+        solution = feasibility(
+            hyperplanes=sparse_rows,
+            c=1,
+            ambient_dim=2,
+            backend=backend,
+        )
+        assert solution is not None, backend
+        assert np.all(np.asarray(solution) >= 1 - 1e-6), backend
+
+
+def test_find_interior_point_cpsat_honors_lower_bound():
+    c = Cone(hyperplanes=[[1, 0], [0, 1]])
+    pt = c.find_interior_point(lower=5, backend="cpsat")
+
+    assert pt is not None
+    assert np.all(np.asarray(pt) >= 5)
+
+
+def test_empty_hyperplanes_accepts_plain_list():
+    c = Cone(hyperplanes=[], ambient_dim=3)
+
+    assert c.ambient_dim() == 3
+    assert c.rays().shape[1] == 3
+    assert not c.is_pointed()
+
+
+def test_integer_dtypes_are_accepted():
+    expected = [[1, 0], [0, 1]]
+    for dtype in (np.int8, np.int16, np.int32, np.int64):
+        c = Cone(np.array(expected, dtype=dtype))
+        assert sorted(c.rays().tolist()) == sorted(expected)
+
+    with pytest.raises(NotImplementedError):
+        Cone(np.array([[1, 0], [0, 1]], dtype=complex))
+
+
+def test_rays_of_empty_dual_have_correct_shape():
+    c = Cone(hyperplanes=[[1, 0], [-1, 0], [0, 1], [0, -1]])
+    rays = c.rays()
+
+    assert rays.shape == (0, 2)
+    assert c.dim() == 0
+    # the shape must be usable in downstream matrix operations
+    assert (c.hyperplanes() @ rays.T).shape == (4, 0)
+    assert np.vstack([rays, [[1, 1]]]).shape == (1, 2)
+
+
+def test_is_solid_caches_ray_based_answer():
+    c = Cone([[1, 0], [0, 1]])
+
+    assert c.is_solid()
+    assert c._is_solid is True
 
 
 def test_is_simplicial():
