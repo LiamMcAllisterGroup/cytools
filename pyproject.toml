@@ -35,6 +35,7 @@ dependencies = [
     "requests",
     "osqp>=1.0",
     "latticepts",
+    "extremalrays",
     "platformdirs",
     "highspy==1.12.*",      # must match ortools' bundled HiGHS (SONAME clash)
     "pandas",

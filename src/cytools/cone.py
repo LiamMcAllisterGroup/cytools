@@ -43,6 +43,15 @@ from ortools.sat.python import cp_model
 import highspy
 import ppl
 import ctypes; ctypes.CDLL(None).fesetround(0)  # ppl changes FPU rounding mode; reset to FE_TONEAREST
+
+# the default extremal-ray backend. Optional: extremal_rays falls back to the
+# legacy method, with a warning, when it is missing
+try:
+    import extremalrays as _extremalrays
+    _HAS_EXTREMALRAYS = True
+except ImportError:
+    _extremalrays = None
+    _HAS_EXTREMALRAYS = False
 import qpsolvers
 from scipy import sparse
 from scipy.optimize import linprog, nnls
@@ -763,7 +772,7 @@ class Cone:
     def extremal_rays(self,
         tol: float=1e-4,
         minimal: bool=True,
-        method: str="lp",
+        method: str="extremalrays",
         verbose: bool=False) -> "ArrayLike":
         """
         **Description:**
@@ -783,8 +792,10 @@ class Cone:
             extremal rays. For non-pointed cones, one can have a collection of
             extremal rays generating the cone that is not minimal with respect
             to ray count.
-        - `method`: If calling `is_extremal`, this sets the method used for
-            extremality checking. Can be "lp" or "nnls". Recommendation is "lp".
+        - `method`: The backend used to prune the rays. One of
+            "extremalrays" (default; needs a pointed cone and the extremalrays
+            package, else falls back to "legacy"), "legacy", or "nnls". "lp"
+            is a synonym for "legacy".
         - verbose: When set to True it show the progress while finding the
             extremal rays.
 
@@ -835,6 +846,45 @@ class Cone:
                 self._rays = self._ext_rays[minimal]
 
             return self._ext_rays[minimal]
+
+        # "lp" named the per-ray backend before extremalrays became default
+        if method == "lp":
+            method = "legacy"
+        if method not in ("extremalrays", "legacy", "nnls"):
+            raise ValueError(f"Unknown method '{method}'; expected "
+                             "'extremalrays', 'legacy' or 'nnls'.")
+
+        if method == "extremalrays":
+            if not _HAS_EXTREMALRAYS:
+                warnings.warn(
+                    "The extremalrays package is not installed, so the slower "
+                    "legacy backend is being used. Install it with "
+                    "'pip install extremalrays', or pass method='legacy' to "
+                    "silence this warning."
+                )
+                method = "legacy"
+            elif not self.is_pointed():
+                # the sweep needs a pointed cone; one only gets here with
+                # minimal=False, since minimal=True is decomposed above
+                method = "legacy"
+
+        if method == "extremalrays":
+            if verbose:
+                print(f"Computing extremal rays for a cone with {len(rays)} "
+                      "rays using extremalrays...")
+            # returns indices; sort to match the legacy output order. Its own
+            # tol is a separation tolerance, unrelated to the nnls tol above
+            keep = np.sort(np.asarray(
+                _extremalrays.exhaustive(rays, verbosity=1 if verbose else 0)
+            ))
+            self._ext_rays[minimal] = rays[keep]
+            if self._rays is None:
+                self._rays = self._ext_rays[minimal]
+
+            return self._ext_rays[minimal]
+
+        # the per-ray backend. is_extremal takes "lp" or "nnls"
+        check_method = "nnls" if method == "nnls" else "lp"
 
         # configure threads
         n_threads = config.n_threads
@@ -892,7 +942,8 @@ class Cone:
             while len(to_check):
                 checking = to_check[:batch_size]
                 to_check = to_check[batch_size:]
-                learn([is_extremal(rays, i, ext_rays, method=method, tol=tol)
+                learn([is_extremal(rays, i, ext_rays, method=check_method,
+                                   tol=tol)
                        for i in checking], checking)
         else:
             # one context for the whole loop: joblib auto-memmaps args
@@ -904,7 +955,7 @@ class Cone:
                     to_check = to_check[batch_size:]
                     learn(parallel(
                         joblib.delayed(is_extremal)(
-                            rays, i, ext_rays, method=method, tol=tol)
+                            rays, i, ext_rays, method=check_method, tol=tol)
                         for i in checking
                     ), checking)
 
@@ -918,7 +969,7 @@ class Cone:
     def extremal_hyperplanes(self,
         tol: float=1e-4,
         minimal=True,
-        method="lp",
+        method="extremalrays",
         verbose: bool=False) -> "ArrayLike":
         """
         **Description:**
@@ -932,8 +983,8 @@ class Cone:
             set -- the extremal hyperplanes. For non-pointed cones, one can
             have a collection of extremal hyperplanes defining the cone that is
             not minimal with respect to hyperplane count.
-        - `method`: If calling `is_extremal`, this sets the method used for
-            extremality checking. Can be "lp" or "nnls". Recommendation is "lp".
+        - `method`: The backend used to prune the hyperplanes; see
+            `extremal_rays`, to which this delegates on the dual cone.
         - verbose: When set to True it show the progress while finding the
             extremal hyperplanes.
 
