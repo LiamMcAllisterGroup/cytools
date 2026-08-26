@@ -858,27 +858,55 @@ class Cone:
         if verbose:
             print(f"Computing extremal rays for a cone with {len(rays)} using {n_threads} threads...")
 
-        while len(to_check):
-            # pull off n_threads rays to check
-            checking = to_check[:n_threads]
-            to_check = to_check[n_threads:]
+        # bound the retries; unbounded ones spin forever on a ray that
+        # deterministically fails
+        max_attempts = 3
+        attempts = {}
 
-            # check the selected rays
-            results = joblib.Parallel(n_jobs=n_threads)(
-                joblib.delayed(is_extremal)(rays, i, ext_rays, method=method, tol=tol)
-                for i in checking
-            )
+        # one ray per worker per round: ext_rays is only pruned between
+        # rounds, so bigger batches re-check known-redundant rays
+        # (4*n_threads took >10 min on a 908x125 cone, vs 7 s here)
+        batch_size = n_threads
 
-            # learn from the results
+        def learn(results, checking):
+            """Record verdicts; queue failures for a bounded retry."""
             for i, extremalQ, err in results:
                 if err is None:
                     ext_rays[i] = extremalQ
-                else:
-                    to_check.append(i)
-                    if verbose:
-                        print(f"Failed to check whether ray #{i} was extremal")
-                        print(f"(Error was: {err})")
-                        print( "(Putting it at the end and retrying later...)")
+                    continue
+                attempts[i] = attempts.get(i, 0) + 1
+                if attempts[i] >= max_attempts:
+                    raise RuntimeError(
+                        f"Failed to check whether ray #{i} was extremal after "
+                        f"{max_attempts} attempts. (Last error was: {err})"
+                    )
+                to_check.append(i)
+                if verbose:
+                    print(f"Failed to check whether ray #{i} was extremal")
+                    print(f"(Error was: {err})")
+                    print( "(Putting it at the end and retrying later...)")
+
+        if n_threads == 1:
+            # skip the pool; with one worker the serialization is pure
+            # overhead
+            while len(to_check):
+                checking = to_check[:batch_size]
+                to_check = to_check[batch_size:]
+                learn([is_extremal(rays, i, ext_rays, method=method, tol=tol)
+                       for i in checking], checking)
+        else:
+            # one context for the whole loop: joblib auto-memmaps args
+            # over 1 MB, so a new context per round re-dumped the rays each
+            # round; held open it dumps once and keeps the workers warm
+            with joblib.Parallel(n_jobs=n_threads) as parallel:
+                while len(to_check):
+                    checking = to_check[:batch_size]
+                    to_check = to_check[batch_size:]
+                    learn(parallel(
+                        joblib.delayed(is_extremal)(
+                            rays, i, ext_rays, method=method, tol=tol)
+                        for i in checking
+                    ), checking)
 
         # save the answer
         self._ext_rays[minimal] = rays[list(ext_rays)]
