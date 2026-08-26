@@ -128,6 +128,23 @@ def test_find_lattice_points():
     assert len(pts) >= 20
 
 
+def test_find_lattice_points_min_points_exceeds_old_default_coord_bound():
+    c = Cone([[1]])
+    pts = c.find_lattice_points(
+        min_points=1002, fast_mode=False, deg_window=1000
+    )
+    assert len(pts) >= 1002
+    assert pts[-1][0] >= 1001
+
+
+def test_find_lattice_points_finite_coord_bound_exhausted():
+    c = Cone([[1]])
+    with pytest.raises(ValueError, match="finite max_coord=1"):
+        c.find_lattice_points(
+            min_points=3, fast_mode=False, max_coord=1, deg_window=10
+        )
+
+
 @pytest.mark.skipif(
     shutil.which("normaliz") is None,
     reason="requires the external normaliz executable",
