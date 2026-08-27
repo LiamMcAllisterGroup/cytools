@@ -114,14 +114,33 @@ def integral_nullspace(M, reduce_by_gcd=True):
     """
     Returns the integral nullspace as column vectors
     """
+    # a row-less M gives flint a 0x0 matrix, losing the column count; its
+    # kernel is the whole ambient space
+    M = np.asarray(M)
+    if M.shape[0] == 0:
+        return np.eye(M.shape[1], dtype=int)
+
     null, nullity = flint.fmpz_mat(M.tolist()).nullspace()
+    nrows = null.nrows()
+    if not nullity:
+        return np.zeros((nrows, 0), dtype=int)
 
-    # trim extra columns
-    null = np.array(null.tolist(), dtype=int)[:, :nullity]
+    # read out the nullity real columns only; flint pads to ncols and
+    # converting the padding is wasted work
+    cols = [[int(null[i, j]) for j in range(nullity)] for i in range(nrows)]
 
-    # reduce by gcd
+    # kernel entries can exceed int64 (a 20x24 matrix of single-digit
+    # integers reached ~70 bits), so keep exact Python ints when they do
+    try:
+        null = np.array(cols, dtype=np.int64)
+    except OverflowError:
+        null = np.array(cols, dtype=object)
+
     if reduce_by_gcd:
-        gcds = np.array([math.gcd(*c) for c in null.T])
+        if null.dtype == object:
+            gcds = np.array([math.gcd(*c) for c in null.T], dtype=object)
+        else:
+            gcds = np.gcd.reduce(np.abs(null), axis=0)
         null = null // gcds
 
     return null
