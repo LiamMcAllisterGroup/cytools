@@ -146,6 +146,77 @@ def integral_nullspace(M, reduce_by_gcd=True):
     return null
 
 
+def adjugate(mat: ArrayLike) -> "tuple[np.ndarray, int]":
+    """
+    **Description:**
+    Computes the adjugate and determinant of a square integer matrix, exactly.
+    The adjugate is the transpose of the cofactor matrix, so it satisfies
+    mat @ adj = det * I, and is defined even when mat is singular.
+
+    Entries are exact Python ints throughout, so the result is correct at any
+    magnitude; the returned array uses int64 when it fits and object dtype
+    when it does not.
+
+    **Arguments:**
+    - `mat`: A square integer matrix.
+
+    **Returns:**
+    The adjugate and the determinant.
+    """
+    S = [[int(x) for x in row] for row in np.asarray(mat)]
+    n = len(S)
+    if any(len(row) != n for row in S):
+        raise ValueError(f"expected a square matrix, got shape "
+                         f"{np.shape(mat)}")
+
+    def minor(i, j):
+        return [[S[r][c] for c in range(n) if c != j]
+                for r in range(n) if r != i]
+
+    cof = [[(-1)**(i + j) * _det(minor(i, j)) for j in range(n)]
+           for i in range(n)]
+    det = sum(S[0][j] * cof[0][j] for j in range(n))
+
+    adj = [[cof[j][i] for j in range(n)] for i in range(n)]
+    try:
+        out = np.array(adj, dtype=np.int64)
+    except OverflowError:
+        out = np.array(adj, dtype=object)
+    return out, det
+
+
+def _det(m: list) -> int:
+    """
+    **Description:**
+    Exact determinant of a small integer matrix, given as a list of rows.
+    Expanded explicitly up to 3x3 and by cofactors above that; from 5x5 the
+    cofactor recursion costs more than building a flint matrix, so it hands
+    over.
+
+    **Arguments:**
+    - `m`: A square integer matrix, as a list of rows.
+
+    **Returns:**
+    The determinant.
+    """
+    n = len(m)
+    if n == 0:
+        return 1        # the empty product; makes adjugate of a 1x1 be [[1]]
+    if n == 1:
+        return m[0][0]
+    if n == 2:
+        return m[0][0]*m[1][1] - m[0][1]*m[1][0]
+    if n == 3:
+        return (m[0][0]*(m[1][1]*m[2][2] - m[1][2]*m[2][1])
+              - m[0][1]*(m[1][0]*m[2][2] - m[1][2]*m[2][0])
+              + m[0][2]*(m[1][0]*m[2][1] - m[1][1]*m[2][0]))
+    if n >= 5:
+        return int(flint.fmpz_mat(m).det())
+    return sum((-1)**j * m[0][j]
+               * _det([[r[c] for c in range(n) if c != j] for r in m[1:]])
+               for j in range(n) if m[0][j])
+
+
 def lattice_index(mat: ArrayLike) -> int:
     """
     **Description:**
