@@ -2073,8 +2073,16 @@ class Triangulation:
                 only_regular=only_regular, backend=backend
             )
 
+        # triangulumancer indexes points by their position in the point
+        # configuration (i.e., row of self.points(...)), while self._simplices
+        # is expressed in point *labels*. These agree only when the labels
+        # happen to be 0..n-1, so translate explicitly in both directions.
+        labels = list(self.labels)
+        label2ind = {label: i for i, label in enumerate(labels)}
+        simps_inds = [[label2ind[label] for label in s] for s in self._simplices]
+
         pc = triangulumancer.PointConfiguration(self.points(optimal=True))
-        t = triangulumancer.Triangulation(pc, self._simplices) # TODO: Need to implement this
+        t = triangulumancer.Triangulation(pc, simps_inds)
         triangs_list = t.neighbors()
 
         # parse the outputs
@@ -2088,7 +2096,7 @@ class Triangulation:
             tri = Triangulation(
                 self.poly,
                 self.labels,
-                simplices=[[self.labels[i] for i in s] for s in t.simplices],
+                simplices=[[labels[i] for i in s] for s in t.simplices],
                 check_input_simplices=False,
             )
             if only_fine and (not tri.is_fine()):

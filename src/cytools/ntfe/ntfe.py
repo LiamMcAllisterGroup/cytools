@@ -61,10 +61,15 @@ def _find_interior_point_highs(
     SciPy's HiGHS solver. Faster than CYTools `Cone` methods for this case.
 
     **Arguments:**
-    - `hyperplanes`: The defining hyperplanes $H$.
+    - `hyperplanes`: The defining hyperplanes $H$. A `Cone` is also accepted,
+        in which case its hyperplanes are used.
     - `ambient_dim`: The ambient dimension (number of columns of $H$).
     - `c`: The 'stretching'. Default 1.
     """
+    # accept a formal Cone (e.g. from Polytope.ntfe_cones)
+    if isinstance(hyperplanes, Cone):
+        hyperplanes = hyperplanes.hyperplanes()
+
     # convert hyperplanes to a dense numpy array
     if hasattr(hyperplanes, "tolist") and not isinstance(
             hyperplanes, (list, np.ndarray)):
@@ -783,7 +788,6 @@ def expanded_secondary_fan(
 
 
 Polytope.expanded_secondary_fan = expanded_secondary_fan
-Polytope.gerald = expanded_secondary_fan
 
 
 # extend face-triangulations to FR(S)T
@@ -793,7 +797,6 @@ def triangfaces_to_frt(
     triangs: [Triangulation],
     make_star: bool = False,
     check_heights: bool = False,
-    backend: str = None,
     verbosity: int = 0,
 ) -> Triangulation:
     """
@@ -813,9 +816,6 @@ def triangfaces_to_frt(
         case said 2-face is free.
     - `make_star`: Whether to convert the FRT to an FRST (i.e., make it star).
     - `check_heights`: Whether to check the heights used in the Triangulation.
-    - `backend`: The backend to use for cone calculations. Options are
-        enumerated in the Cone.find_interior_points docstring. Currently, they
-        are "highs", "glop", "scip", "cpsat", "mosek", "osqp", and "cvxopt".
     - `verbosity: Verbosity level. Higher means more verbose.
 
     **Returns:**
@@ -848,7 +848,6 @@ def triangfaces_to_frst(
     self,
     triangs: [Triangulation],
     check_heights: bool = False,
-    backend: str = None,
     verbosity: int = 0,
 ) -> Triangulation:
     """
@@ -867,9 +866,6 @@ def triangfaces_to_frst(
     - `triangs`: The 2-face triangulations. Elements can be None, in which
         case said 2-face is free.
     - `check_heights`: Whether to check the heights used in the Triangulation.
-    - `backend`: The backend to use for cone calculations. Options are
-        enumerated in the Cone.find_interior_points docstring. Currently, they
-        are "highs", "glop", "scip", "cpsat", "mosek", "osqp", and "cvxopt".
     - `verbosity: Verbosity level. Higher means more verbose.
 
     **Returns:**
@@ -879,7 +875,6 @@ def triangfaces_to_frst(
         triangs=triangs,
         make_star=True,
         check_heights=check_heights,
-        backend=backend,
         verbosity=verbosity,
     )
 
@@ -1217,13 +1212,27 @@ def ntfe_cones(
         )
         dim = len(self.labels)
     else:
+        # a caller-supplied `hypers` may be a generator or empty, so probing
+        # hypers[0] can raise. Materialize generators unless we're streaming.
+        if not as_generator:
+            try:
+                len(hypers)
+            except TypeError:
+                hypers = list(hypers)
+
         # set dim
         dim = None
-        if isinstance(hypers[0], matrix.LIL_stack):
-            if not hypers[0].is_empty:
-                dim = len(hypers[0][0])
-        elif len(hypers[0]):
-            dim = len(hypers[0][0])
+        try:
+            first = hypers[0]
+        except (TypeError, IndexError, KeyError):
+            first = None
+
+        if first is not None:
+            if isinstance(first, matrix.LIL_stack):
+                if not first.is_empty:
+                    dim = len(first[0])
+            elif len(first):
+                dim = len(first[0])
 
         if dim is None:
             dim = len(self.labels)
@@ -1286,7 +1295,7 @@ def ntfe_frts(
     N_face_triangs: int = 1000,
     triang_method: str = "grow2d",
     as_generator: bool = False,
-    backend: str = None,
+    n_jobs: int = None,
     heights_only: bool = False,
     verbosity: int = 0,
 ):
@@ -1334,7 +1343,10 @@ def ntfe_frts(
     - `as_generator`: Whether to return a generator which iterates over (the
         hyperplanes of) expanded secondary cones. If False, then a list of all
         such cones is returned. Use generators if memory is a concern.
-    - `backend`: The backend to use for cone calculations.
+    - `n_jobs`: The number of parallel workers used to find a height vector in
+        each cone. Defaults to 1 (sequential); -1 uses all cores. Only worth
+        raising when there are many cones, as each worker pays pickling
+        overhead.
     - `verbosity`: Verbosity level. Higher means more verbose.
 
     **Returns:**
@@ -1388,6 +1400,7 @@ def ntfe_frts(
     # randomly sampled cones, so no shuffling/slicing is needed)
     if (N is not None) and isinstance(data, list):
         random.seed(seed2)
+        data = list(data)  # don't shuffle the caller's list in place!
         random.shuffle(data)
         data = data[:N]
 
@@ -1403,11 +1416,7 @@ def ntfe_frts(
                     yield h
                     continue
 
-                frst = self.triangulate(heights=h, make_star=make_star)
-                if (frst is None) or (not frst):
-                    continue
-                else:
-                    yield frst
+                yield self.triangulate(heights=h, make_star=make_star)
 
         return gen()
 
@@ -1433,7 +1442,8 @@ def ntfe_frts(
         return self.triangulate(heights=h, make_star=make_star)
 
     # check the selected rays
-    results = joblib.Parallel()(
+    # (joblib.Parallel() with no n_jobs runs sequentially, so pass it through)
+    results = joblib.Parallel(n_jobs=(1 if n_jobs is None else n_jobs))(
         joblib.delayed(func)(datum)
         for datum in data
     )
@@ -1460,7 +1470,7 @@ def ntfe_frsts(
     N_face_triangs: int = 1000,
     triang_method: str = "grow2d",
     as_generator: bool = False,
-    backend: str = None,
+    n_jobs: int = None,
     heights_only: bool = False,
     verbosity: int = 0,
 ):
@@ -1504,7 +1514,8 @@ def ntfe_frsts(
     - `separate_boring`: Whether, when iterating over NTFEs, to group the
         inequalities associated to each 2-face with only 1 FRT. Only changes
         the ordering of outputs (may have effects on random sampling).
-    - `backend`: The backend to use for cone calculations.
+    - `n_jobs`: The number of parallel workers used to find a height vector in
+        each cone. Defaults to 1 (sequential); -1 uses all cores.
     - `verbosity: Verbosity level. Higher means more verbose.
 
     **Returns:**
@@ -1522,7 +1533,7 @@ def ntfe_frsts(
         N_face_triangs=N_face_triangs,
         triang_method=triang_method,
         as_generator=as_generator,
-        backend=backend,
+        n_jobs=n_jobs,
         heights_only=heights_only,
         verbosity=verbosity,
     )
