@@ -839,6 +839,12 @@ class Cone:
         # It is important to delete duplicates
         rays = np.array(list({tuple(r) for r in self.rays()}))
 
+        # a cone with no rays (e.g. the pointed part of a whole linear space)
+        # has none that are extremal; np.array([]) is 1d, so restore the shape
+        if rays.shape[0] == 0:
+            self._ext_rays[minimal] = rays.reshape(0, self.ambient_dim())
+            return self._ext_rays[minimal]
+
         # if only 1 ray, this is trivial
         if rays.shape[0] == 1:
             self._ext_rays[minimal] = rays
