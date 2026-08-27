@@ -2883,7 +2883,7 @@ class Polytope:
         )
         from cytools.ntfe.ntfe import _adjacency_order, _IncrementalLP
 
-        dense = [[np.asarray(t.dense(), dtype=np.float64) for t in f]
+        dense = [[np.asarray(t.toarray(), dtype=np.float64) for t in f]
                  for f in ineqs]
         # 2-faces conflict only through shared points, so checking
         # adjacent ones early aborts rejected draws at shallower depth

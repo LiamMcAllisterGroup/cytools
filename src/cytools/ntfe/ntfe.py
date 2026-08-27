@@ -34,6 +34,7 @@ import time
 import flint
 import numba
 import numpy as np
+import scipy.sparse as sp
 from scipy.optimize import linprog
 from tqdm import tqdm
 
@@ -43,6 +44,7 @@ from cytools.polytope import Polytope
 from cytools.polytopeface import PolytopeFace
 from cytools.triangulation import Triangulation
 from cytools.helpers import matrix, misc
+from cytools.utils import adjugate, integral_nullspace
 
 # typing
 from numpy.typing import ArrayLike
@@ -51,6 +53,11 @@ from typing import Generator, Union
 
 # fast HiGHS feasibility helper for NTFE cones
 # --------------------------------------------
+# cap on batched integer products, safely below 2**63. Above it the batched
+# circuit arithmetic could overflow, so those triangles solve pair by pair
+_INT64_HEADROOM = 2**61
+
+
 def _find_interior_point_highs(
     hyperplanes,
     ambient_dim: int,
@@ -70,8 +77,11 @@ def _find_interior_point_highs(
     if isinstance(hyperplanes, Cone):
         hyperplanes = hyperplanes.hyperplanes()
 
-    # convert hyperplanes to a dense numpy array
-    if hasattr(hyperplanes, "tolist") and not isinstance(
+    # convert hyperplanes to a dense numpy array. The 2-face machinery hands
+    # back bare CSR blocks, which have neither tolist nor __array__
+    if sp.issparse(hyperplanes):
+        H = hyperplanes.toarray().astype(np.float64)
+    elif hasattr(hyperplanes, "tolist") and not isinstance(
             hyperplanes, (list, np.ndarray)):
         H = np.asarray(hyperplanes.tolist(), dtype=np.float64)
     else:
@@ -183,9 +193,9 @@ def _adjacency_order(poly):
 def _enumerate_ntfes_dfs(poly, face_ineqs, make_star, heights_only,
                          verbosity):
     """Generate all NTFEs by DFS over the per-2-face FRT choices."""
-    # convert each FRT's matrix.LIL inequality block to the dense float
+    # convert each FRT's sparse inequality block to the dense float
     # rows highspy takes, once up front (each is pushed many times)
-    dense = [[np.asarray(t.dense(), dtype=np.float64) for t in f]
+    dense = [[np.asarray(t.toarray(), dtype=np.float64) for t in f]
              for f in face_ineqs]
     # 2-faces conflict only through shared points, so checking adjacent
     # ones early surfaces infeasibility at shallower depth
@@ -245,7 +255,8 @@ def _save_cache():
 atexit.register(_save_cache)
 
 
-def _2d_frt_cone_ineqs(self, ambient_dim: int, verbosity: int=0) -> matrix.LIL:
+def _2d_frt_cone_ineqs(self, ambient_dim: int,
+                       verbosity: int=0) -> "sp.csr_matrix":
     """
     (Very analogous to Triangulation.secondary_cone(on_faces_dim=2)...
     main difference is that this treats point labels as column indices, while
@@ -277,8 +288,7 @@ def _2d_frt_cone_ineqs(self, ambient_dim: int, verbosity: int=0) -> matrix.LIL:
     **Returns:**
     Each row is an inwards-facing hyperplane normal. I.e., a CPL inequality
     """
-    # the output variable (doesn't need to be LIL object, but that is nice...)
-    ineqs = matrix.LIL(dtype=np.int16, width=ambient_dim)
+    rows = []
 
     # relevant inputs
     simps = self.simplices()
@@ -335,17 +345,10 @@ def _2d_frt_cone_ineqs(self, ambient_dim: int, verbosity: int=0) -> matrix.LIL:
             _ineq_cached[M_tup] = ineq
 
         # define the associated hyperplane normal
-        ineqs.new_row()
-        if ineq[0] != 0:
-            ineqs[-1, n_s[0]] = ineq[0]
-        if ineq[1] != 0:
-            ineqs[-1, n_s[1]] = ineq[1]
-        if ineq[2] != 0:
-            ineqs[-1, s[0]] = ineq[2]
-        if ineq[3] != 0:
-            ineqs[-1, s[1]] = ineq[3]
+        rows.append({lab: c for lab, c in
+                     zip((n_s[0], n_s[1], s[0], s[1]), ineq) if c})
 
-    return ineqs
+    return matrix.csr_dicts(rows, ambient_dim)
 
 
 Triangulation._2d_frt_cone_ineqs = _2d_frt_cone_ineqs
@@ -354,7 +357,7 @@ Triangulation._2d_frt_cone_ineqs = _2d_frt_cone_ineqs
 def _2d_s_cone_ineqs(self,
     poly,
     ambient_dim: int,
-    verbosity: int=0) -> matrix.LIL:
+    verbosity: int=0) -> "sp.csr_matrix":
     """
     **Description:**
     Compute the CPL-inequalities necessary to enforce that each simplex in each
@@ -405,12 +408,17 @@ def _2d_s_cone_ineqs(self,
     **Returns:**
     Each row is an inwards-facing hyperplane normal enforcing starness.
     """
-    # the output variable (doesn't need to be LIL object, but that is nice...)
-    ineqs = matrix.LIL(dtype=np.int16, width=ambient_dim)
+    blocks = []
+    rows = []
 
-    # get the homogenized points (for later use)
-    npts = len(poly.points())
-    pts_homog = np.vstack([poly.points().T, np.ones(npts,dtype=int)])
+    o = poly.label_origin
+
+    # homogenized points, indexed by label
+    pts = np.asarray(poly.points(), dtype=np.int64)
+    pts_ext = np.zeros((max(poly.labels) + 1, pts.shape[1] + 1), dtype=np.int64)
+    pts_ext[list(poly.labels)] = np.hstack(
+        [pts, np.ones((len(pts), 1), dtype=np.int64)])
+    pmax = int(np.abs(pts_ext).max())
 
     # find each facet containing each 2d simplex
     containing_facets = collections.defaultdict(list)
@@ -419,71 +427,80 @@ def _2d_s_cone_ineqs(self,
             if set(s).issubset(set(f.labels)):
                 containing_facets[tuple(s)].append(f)
 
-    # For each 2d simplex s, enforce that it (with origin) appears for each
-    # 4d circuit
-    o = poly.label_origin
-    simps   = self.simplices(2)
-    N_simps = len(simps)
-    for i,s in enumerate(simps):
+    simps = self.simplices(2)
+    for i, s in enumerate(simps):
         if verbosity >= 1:
-            print(f"Constructing inequalities associated to 2-simplex {i+1}/{N_simps}")
-        s = s.tolist()
+            print(f"Constructing inequalities associated to 2-simplex "
+                  f"{i+1}/{len(simps)}")
+        s = sorted(s.tolist())
         for f1, f2 in itertools.combinations(containing_facets[tuple(s)], 2):
-            f1_only = set(f1.labels_bdry) - set(f2.labels_bdry) - set(s)
-            f2_only = set(f2.labels_bdry) - set(f1.labels_bdry) - set(s)
-            for p1, p2 in itertools.product(f1_only, f2_only):
-                # calculate the not-shared points
-                n_s = [p1, p2]
+            i1 = np.fromiter(sorted(set(f1.labels_bdry) - set(f2.labels_bdry)
+                                    - set(s)), dtype=np.int64)
+            i2 = np.fromiter(sorted(set(f2.labels_bdry) - set(f1.labels_bdry)
+                                    - set(s)), dtype=np.int64)
+            if not (len(i1) and len(i2)):
+                continue
 
-                # check if n_s + s contains any other points
-                # ------------------------------------------
-                # if so, it can't be flipped so we can ignore
-                pts_circ = np.vstack([poly.points(which=n_s + s).T, np.ones(5,dtype=int)])
+            # the points common to every circuit of this 2-simplex are fixed,
+            # so their kernel and a pre-inverted subsystem are found once and
+            # every apex pair below becomes a matrix multiply
+            comm = s + [o]
+            Q = pts_ext[comm]
+            kernel = integral_nullspace(Q)
+            if kernel.shape[1] != 1:
+                continue
+            u = kernel[:, 0]
+            for cols in itertools.combinations(range(Q.shape[1]), Q.shape[0]):
+                adj, det = adjugate(Q[:, cols])
+                if det != 0:
+                    break
+            else:
+                continue
+            cols = np.array(cols)
 
-                other_mask = np.ones(npts,dtype=bool)
-                other_mask[n_s+s] = False
-                other_mask[0]     = False
+            P1, P2 = pts_ext[i1], pts_ext[i2]
+            a1, a2 = P1 @ u, P2 @ u
+            if not ((a1 != 0).all() and (a2 != 0).all()):
+                continue
 
-                # check if any other point can be written as a convex combination of n_s+s
-                lambdas   = np.linalg.inv(pts_circ)@pts_homog[:,other_mask]
-                nonneg    = lambdas>-1e-4
-                contained = np.all(nonneg,axis=0)
-                bad       = np.any(contained)
-                if bad:
-                    continue
+            # fall back to one solve per pair where int64 could overflow
+            amax = max(int(np.abs(a1).max()), int(np.abs(a2).max()))
+            bound = max(amax * abs(det),
+                        8 * amax * pmax * int(np.abs(adj).max()))
+            if bound > _INT64_HEADROOM:
+                for p1, p2 in itertools.product(i1.tolist(), i2.tolist()):
+                    M = poly.points(which=[p1, p2] + comm, optimal=True).T
+                    null = flint.fmpz_mat(
+                        M.tolist() + [[1] * M.shape[1]]).nullspace()
+                    if null[1] != 1:
+                        continue
+                    lam = [int(x) for x in null[0].transpose().tolist()[0]]
+                    if lam[0] < 0:
+                        lam = [-x for x in lam]
+                    rows.append({lab: c for lab, c
+                                 in zip([p1, p2] + comm, lam) if c})
+                continue
 
-                # passes check!
+            # primitive circuit coefficients, all apex pairs at once
+            g = np.gcd.outer(np.abs(a1), np.abs(a2))
+            A = a2[None, :] // g
+            B = -a1[:, None] // g
+            combo = (A[:, :, None] * P1[:, None, :]
+                     + B[:, :, None] * P2[None, :, :])
+            c = -(combo[:, :, cols] @ adj)
+            V = np.concatenate([(A * det)[..., None], (B * det)[..., None], c],
+                               axis=2).reshape(-1, 2 + len(comm))
+            V //= np.gcd.reduce(np.abs(V), axis=1)[:, None]
+            V *= np.sign(V[:, [0]])          # orient coeff(p1) > 0
 
-                # find the dependency
-                # -------------------
-                M = poly.points(which=n_s + s + [o], optimal=True).T
+            labs = np.empty(V.shape, dtype=np.int64)
+            labs[:, 0] = np.repeat(i1, len(i2))
+            labs[:, 1] = np.tile(i2, len(i1))
+            labs[:, 2:] = comm
+            blocks.append(matrix.csr_rows(labs, V, ambient_dim))
 
-                # Grab/calculate the nullspace
-                null = flint.fmpz_mat(M.tolist() + [[1]*M.shape[1]]).nullspace()
-                null = null[0].transpose().tolist()[0]
-
-                # ensure the not-shared points have positive coordinates
-                if null[0] < 0:
-                    ineq = [-int(x) for x in null]
-                else:
-                    ineq = [int(x) for x in null]
-
-                # define the associated hyperplane normal
-                ineqs.new_row()
-                if ineq[0] != 0:
-                    ineqs[-1, p1] = ineq[0]
-                if ineq[1] != 0:
-                    ineqs[-1, p2] = ineq[1]
-                if ineq[2] != 0:
-                    ineqs[-1, s[0]] = ineq[2]
-                if ineq[3] != 0:
-                    ineqs[-1, s[1]] = ineq[3]
-                if ineq[4] != 0:
-                    ineqs[-1, s[2]] = ineq[4]
-                if ineq[5] != 0:
-                    ineqs[-1, o] = ineq[5]
-
-    return ineqs
+    blocks.append(matrix.csr_dicts(rows, ambient_dim))
+    return matrix.csr_stack(blocks, ambient_dim)
 
 
 Triangulation._2d_s_cone_ineqs = _2d_s_cone_ineqs
@@ -571,7 +588,7 @@ def _2d_frt_subfan_search(xs, ys, grid, xmin, ymin, out):
     return count
 
 
-def _2d_frt_subfan_ineqs(self, ambient_dim: int) -> matrix.LIL:
+def _2d_frt_subfan_ineqs(self, ambient_dim: int) -> "sp.csr_matrix":
     """
     **Description:**
     See https://arxiv.org/abs/2309.10855 for proof
@@ -613,13 +630,10 @@ def _2d_frt_subfan_ineqs(self, ambient_dim: int) -> matrix.LIL:
     Each row is an inwards-facing hyperplane normal... represents a CPL
     inequality.
     """
-    # the output variable (doesn't need to be LIL object, but that is nice...)
-    ineqs = matrix.LIL(dtype=np.int16, width=ambient_dim)
-
     pts = np.asarray(self.points(optimal=True), dtype=np.int64)
     N_pts = len(pts)
     if N_pts < 3:
-        return ineqs
+        return matrix.csr_dicts([], ambient_dim)
 
     # the search kernel wants contiguous coordinates and a dense point lookup
     xs = np.ascontiguousarray(pts[:, 0])
@@ -640,10 +654,8 @@ def _2d_frt_subfan_ineqs(self, ambient_dim: int) -> matrix.LIL:
             break
         capacity = count
 
-    # build the rows directly; going through new_row()/__setitem__ per entry
-    # costs more than the search itself
     labels = self.labels
-    ineqs.arr = [
+    rows = [
         (
             {labels[i]: 1, labels[j]: 1, labels[k]: 1, labels[m]: -3}
             if k >= 0
@@ -652,7 +664,7 @@ def _2d_frt_subfan_ineqs(self, ambient_dim: int) -> matrix.LIL:
         for i, j, k, m in out[:count]
     ]
 
-    return ineqs
+    return matrix.csr_dicts(rows, ambient_dim)
 
 
 PolytopeFace._2d_frt_subfan_ineqs = _2d_frt_subfan_ineqs
@@ -669,7 +681,7 @@ def cone_of_permissible_heights(
     big_ints: bool = False,
     as_cone: bool = True,
     verbosity: int = 0,
-) -> "matrix.LIL | Cone":
+) -> "sp.csr_matrix | Cone":
     """
     **Description:**
     For an input set of 2-face triangulations, generate the cone whose strict
@@ -702,8 +714,7 @@ def cone_of_permissible_heights(
     if require_star and (poly is None):
         raise ValueError("If `require_star=True`, then `poly` must be specified")
 
-    # the output variable (doesn't need to be LIL object, but that is nice...)
-    ineqs = matrix.LIL(dtype=np.int16, width=npts)
+    blocks = []
 
     # iterate over face triangulations
     for i,face_triang in enumerate(triangs):
@@ -718,33 +729,34 @@ def cone_of_permissible_heights(
         # need to be... you can decide to pass a subset of faces)
         if (verbosity >= 2) and require_star:
             print("The 2-face inequalities...")
-        face_ineqs = _2d_frt_cone_ineqs(face_triang, npts, verbosity=verbosity-1)
+        blocks.append(_2d_frt_cone_ineqs(face_triang, npts,
+                                         verbosity=verbosity-1))
         if require_star:
             if (verbosity >= 2):
                 print("The star inequalities...")
-            face_ineqs.append(_2d_s_cone_ineqs(face_triang, poly, npts, verbosity=verbosity-1))
-
-        ineqs.append(face_ineqs, tocopy=False)
+            blocks.append(_2d_s_cone_ineqs(face_triang, poly, npts,
+                                           verbosity=verbosity-1))
 
     # delete duplicate rows
-    ineqs.unique_rows()
+    ineqs = matrix.csr_unique_rows(matrix.csr_stack(blocks, npts))
 
     # densify
-    if dense:
-        ineqs = ineqs.dense()
-        if big_ints:
+    if dense or as_cone:
+        ineqs = ineqs.toarray()
+        if big_ints or as_cone:
             ineqs = ineqs.astype(int)
 
     # return
     if as_cone:
-        return Cone(hyperplanes=ineqs, ambient_dim=npts, parse_inputs=(len(ineqs)==0))
+        return Cone(hyperplanes=ineqs, ambient_dim=npts,
+                    parse_inputs=(len(ineqs)==0))
     else:
         return ineqs
 
 
 def expanded_secondary_fan(
     self, dense: bool = False, big_ints: bool = False, as_cone: bool = True
-) -> "matrix.LIL | Cone":
+) -> "sp.csr_matrix | Cone":
     """
     **Description:**
     See https://arxiv.org/abs/2309.10855
@@ -770,16 +782,13 @@ def expanded_secondary_fan(
     """
     ambient_dim = len(self.labels)
 
-    # the output variable (doesn't need to be LIL object, but that is nice...)
-    ineqs = matrix.LIL(dtype=np.int16, width=ambient_dim)
-
     # iterate over face triangulations
-    for f in self.faces(2):
-        ineqs.append(f._2d_frt_subfan_ineqs(ambient_dim), tocopy=False)
+    ineqs = matrix.csr_stack([f._2d_frt_subfan_ineqs(ambient_dim)
+                        for f in self.faces(2)], ambient_dim)
 
-    if dense:
-        ineqs = ineqs.dense()
-        if big_ints:
+    if dense or as_cone:
+        ineqs = ineqs.toarray()
+        if big_ints or as_cone:
             ineqs = ineqs.astype(int)
     if as_cone:
         return Cone(hyperplanes=ineqs, ambient_dim=ambient_dim, parse_inputs=(len(ineqs)==0))
@@ -893,7 +902,7 @@ def triangface_ineqs(
     triang_method: str = "grow2d",
     return_triangs: bool = False,
     verbosity: int = 0,
-) -> [[matrix.LIL]]:
+) -> "[[sp.csr_matrix]]":
     """
     **Description:**
     Calculate the 2-face FRTs and their associated inequalities for this
@@ -974,7 +983,7 @@ def ntfe_hypers(
     as_generator: bool = False,
     separate_boring: bool = True,
     verbosity: int = 0,
-) -> Union[Generator["matrix.LIL_stack", None, None], list["matrix.LIL_stack"]]:
+) -> Union[Generator["matrix.CSR_stack", None, None], list["matrix.CSR_stack"]]:
     """
     **Description:**
     See https://arxiv.org/abs/2309.10855
@@ -1047,7 +1056,9 @@ def ntfe_hypers(
                 i += 1
 
         if len(ineqs_boring):
-            ineqs_boring = sum(ineqs_boring[1:], ineqs_boring[0])
+            # concatenation, not addition: LIL's __add__ stacked rows, which
+            # is what this relied on
+            ineqs_boring = matrix.csr_stack(ineqs_boring, ineqs_boring[0].shape[1])
             ineqs_array.append([ineqs_boring])
 
     # get number of triangulations per 2-face
@@ -1103,19 +1114,19 @@ def ntfe_hypers(
 
         def gen():
             for choice in chosen:
-                yield matrix.LIL_stack(ineqs_array, choice, choices_counts)
+                yield matrix.CSR_stack(ineqs_array, choice, choices_counts)
 
         return gen()
 
     else:
         if verbosity >= 1:
             hypers = [
-                matrix.LIL_stack(ineqs_array, choice, choices_counts)
+                matrix.CSR_stack(ineqs_array, choice, choices_counts)
                 for choice in tqdm(chosen)
             ]
         else:
             hypers = [
-                matrix.LIL_stack(ineqs_array, choice, choices_counts)
+                matrix.CSR_stack(ineqs_array, choice, choices_counts)
                 for choice in chosen
             ]
 
@@ -1228,7 +1239,7 @@ def ntfe_cones(
             first = None
 
         if first is not None:
-            if isinstance(first, matrix.LIL_stack):
+            if isinstance(first, matrix.CSR_stack):
                 if not first.is_empty:
                     dim = len(first[0])
             elif len(first):

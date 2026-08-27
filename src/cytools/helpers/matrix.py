@@ -15,556 +15,23 @@
 # =============================================================================
 #
 # -----------------------------------------------------------------------------
-# Description:  This module contains a basic LIL class along with some helpers.
+# Description:  This module contains a stack of sparse blocks along with
+#               some helpers.
 # -----------------------------------------------------------------------------
 
 # 'standard' imports
-import copy
-
 # 3rd party imports
 import numpy as np
+import scipy.sparse as sp
 
 # CYTools imports
 from cytools.helpers import misc
 
 # typing
 from numpy.typing import ArrayLike
-from typing import Callable, Iterator, Union
+from typing import Union
 
 numeric = Union[int, float, np.number]
-
-
-class LazyTuple:
-    """
-    A tuple class whose components are only lazily calculated
-
-    **Arguments:**
-    - `data`: Tuple elements (or functions to calculate them).
-    """
-
-    def __init__(self, *data: Union[object, Callable[[], object]]) -> None:
-        self._data = tuple(data)
-
-    def __repr__(self) -> str:
-        # piggy-back printing from tuple
-        return self._data.__repr__()
-
-    def __str__(self) -> str:
-        # piggy-back string conversion from tuple
-        return self._data.__str__()
-
-    def __len__(self) -> int:
-        return len(self._data)
-
-    def __getitem__(self, key: int) -> numeric:
-        item = self._data[key]
-
-        if callable(item):
-            self._data = list(self._data)
-            self._data[key] = item()
-            self._data = tuple(self._data)
-            item = self._data[key]
-
-        return item
-
-
-class LIL:
-    """
-    This class describes a 2D lists of lists (LIL) sparse matrix. This has the
-    same/less functionality as scipy.sparse.lil_array, but it is sometimes
-    (much) quicker.
-
-    **Arguments:**
-    - `dtype`: The data type to use for when converting to a dense matrix.
-    - `width`: The width of the matrix, used when converting to a dense matrix.
-        A minimum necessary width can be inferred if this is not provided.
-    - `iter_densely`: When iterating over the matrix, to iterate over the sparse
-        representation (rows are dictionaries mapping column index to value) or
-        over the dense representation.
-    """
-
-    def __init__(
-        self,
-        dtype: Union[np.dtype, str],
-        width: int = None,
-        iter_densely: bool = False,
-    ) -> None:
-        # data container
-        self.arr = []
-        self.arr_dense = None  # dense representation of `arr`
-
-        # data type
-        self.dtype = dtype
-
-        # data shape
-        self._len = None
-        self.width = width
-
-        # default value for unspecified indices
-        self.default_val = 0
-
-        # configuration on how to iterate over the matrix
-        self.iter_densely = iter_densely
-
-        # various sums
-        self._sum_all = None
-        self._sum_0 = None
-        self._sum_0_dense = None
-        self._sum_1 = None
-
-    # basic interface
-    # ---------------
-    def __repr__(self) -> str:
-        # piggy-back printing from list
-        return self.arr.__repr__()
-
-    def __str__(self) -> str:
-        # piggy-back string conversion from list
-        return self.arr.__str__()
-
-    def __iter__(self) -> Iterator:
-        # iterator
-        if self.iter_densely:
-            return iter(self.dense())
-        else:
-            return iter(self.arr)
-
-    def __setitem__(self, idx: tuple, value: numeric) -> None:
-        # item assignment
-        if not isinstance(idx, tuple):
-            raise ValueError(f"Index must be tuple but was {type(idx)}...")
-
-        self.arr[idx[0]][idx[1]] = value
-
-    def __getitem__(self, idx: tuple) -> numeric:
-        # indexing
-        if isinstance(idx, tuple):
-            # get element self.arr[i][j]
-            if self.width is None:
-                print("LIL: Width not set. Inferring from non-zero values...")
-                self.width = self.infer_width()
-
-            if idx[1] >= self.width:
-                raise IndexError("LIL: list index out of range")
-            else:
-                return self.arr[idx[0]].get(idx[1], 0)
-        else:
-            # get element self.arr[i]
-            return self.arr[idx]
-
-    def __len__(self) -> int:
-        # length
-        return len(self.arr)
-
-    def __array__(self, copy=False, dtype: Union[np.dtype, str] = None) -> np.array:
-        # What is called upon running np.array on this object
-        return np.array(self.dense(), copy=copy, dtype=dtype)
-
-    @property
-    def shape(self) -> tuple[int]:
-        return (len(self), self.width)
-
-    def __add__(self, other: "LIL") -> "LIL":
-        # NOTE: despite the name, this does row concatenation (like list +
-        # list), NOT element-wise addition.
-        out = LIL(dtype=self.dtype, width=self.width)
-        out.arr = self.arr + other.arr
-        return out
-
-    # basic methods
-    # --------------
-    def infer_width(self) -> int:
-        """
-        **Description:**
-        Find the minimum width necessary to hold array
-
-        **Arguments:**
-        None.
-
-        **Returns:**
-        Nothing
-        """
-        return 1 + max([max(row.keys()) for row in self.arr])
-
-    def new_row(self) -> None:
-        """
-        **Description:**
-        Append an empty row to the dict.
-
-        **Arguments:**
-        None.
-
-        **Returns:**
-        Nothing
-        """
-        self.arr.append(dict())
-
-    def append(self, toadd: "dict or LIL", tocopy: bool = True) -> "LIL":
-        """
-        **Description:**
-        Append (a) row(s) to the array.
-
-        **Arguments:**
-        - `toadd`: Row(s) to add.
-        - `tocopy`: Whether to append a copy of toadd.
-
-        **Returns:**
-        Itself.
-        """
-        if len(toadd) == 0:
-            return self
-
-        # convert to list of dicts
-        if isinstance(toadd, dict):
-            toadd = [toadd]
-        elif isinstance(toadd[0], type(self)):
-            toadd = flatten_top(toadd)
-
-        if tocopy:
-            self.arr += copy.copy(toadd)
-        else:
-            self.arr += toadd
-
-        # reset length
-        self._len = None
-
-        return self
-
-    def col_inds(self) -> set:
-        return set().union(*[r.keys() for r in self.arr])
-
-    def reindex(self, f: dict = None) -> None:
-        """
-        **Description:**
-        Reindex the ith column to be the f(i)-th one.
-
-        **Arguments:**
-        - `f`: Dictionary mapping old column indices to new ones.
-
-        **Returns:**
-        Nothing
-        """
-        self.arr_dense = None
-
-        # default map is contiguous from 0 to N_cols-1
-        if f is None:
-            f = {v: k for (k, v) in enumerate(self.col_inds())}
-
-        for i, row in enumerate(self.arr):
-            self.arr[i] = {(f[j] if j in f else j): v for j, v in row.items()}
-
-    def unique_rows(self) -> None:
-        """
-        **Description:**
-        Delete repeated rows. Maybe re-orders rows...
-
-        **Arguments:**
-        None.
-
-        **Returns:**
-        Nothing
-        """
-        self.arr_dense = None
-        self.arr = [dict(t) for t in {tuple(sorted(d.items())) for d in self.arr}]
-
-    def dense(self, tocopy: bool = False) -> np.array:
-        """
-        **Description:**
-        Return a dense version of the array
-
-        **Arguments:**
-        - `copy`: Whether to return a copy of self.arr_dense.
-
-        **Returns:**
-        The dense array
-        """
-        if self.arr_dense is None:
-            # delete duplicated rows
-            self.unique_rows()
-
-            # build empty dense array
-            if self.default_val == 0:
-                self.arr_dense = np.zeros(
-                    self.shape, dtype=self.dtype
-                )
-            else:
-                self.arr_dense = self.default_val * np.ones(
-                    self.shape, dtype=self.dtype
-                )
-
-            # fill in output
-            for i, row in enumerate(self.arr):
-                for j, v in row.items():
-                    self.arr_dense[i, j] = v
-
-        # return
-        if tocopy:
-            return self.arr_dense.copy()
-        else:
-            return self.arr_dense
-
-    def tolist(self) -> list:
-        return self.dense().tolist()
-
-    def sum(
-        self, axis: int = None, dense: bool = True
-    ) -> Union[numeric, ArrayLike]:
-        if axis is None:
-            if self._sum_all is None:
-                self._sum_all = np.sum(self.sum(axis=1))
-            return self._sum_all
-        elif axis == 1:
-            if self._sum_1 is None:
-                self._sum_1 = np.asarray([sum(r.values()) for r in self.arr])
-            return self._sum_1
-        elif axis == 0:
-            if dense:
-                if self._sum_0_dense is None:
-                    self._sum_0_dense = np.asarray(
-                        [
-                            sum(r.get(i, 0) for r in self.arr)
-                            for i in range(self.width)
-                        ]
-                    )
-                return self._sum_0_dense
-            else:
-                if self._sum_0 is None:
-                    self._sum_0 = {
-                        i: sum(r.get(i, 0) for r in self.arr)
-                        for i in self.col_inds()
-                    }
-                return self._sum_0
-
-
-class LIL_stack:
-    """
-    This class describes a stack of LIL objects. One could just manually stack
-    the rows but this implementation is quicker.
-
-    The stack is organized as a list of options,
-        options = [ [top_block_option1, top_block_option2, ...],
-                    [next_block_option1, next_block_option2, ...],
-                    ...
-                    [bot_block_option1, bot_block_option2, ...]]
-    and a list of choices
-        choices = [i_top_block, i_next_block, ..., i_bot_block]
-    E.g., if choices were [7,2,...,6], the stack would look like:
-        stack = [top_block_option7;
-                 next_block_option2;
-                 ...
-                 bot_block_option6]
-
-    **Arguments:**
-    - `options`: The possible arrays to stack. The entry options[i] is a list
-        of all possible blocks you can put in the ith entry
-    - `choices`: The selection of which blocks (from options) to stack.
-    - `choice_bounds`: The number of possible choices for each block. I.e.,
-        [len(opts) for opts in options]
-    - `iter_densely`: Whether to iterate densely over the array or sparsely.
-    """
-
-    def __init__(
-        self,
-        options: [[ArrayLike]],
-        choices: [int],
-        choice_bounds: [int],
-        iter_densely: bool = False,
-    ) -> None:
-        self._options = options
-        if isinstance(choices, int):
-            self._choices = choices
-        else:
-            self._choices = misc.to_base10(choices, choice_bounds)
-        self._choice_bounds = choice_bounds
-        self.iter_densely = iter_densely
-
-    # basic interfaces
-    def __repr__(self) -> str:
-        # piggy-back printing from list
-        return self.arr.__repr__()
-
-    def __str__(self) -> str:
-        # piggy-back string conversion from list
-        return self.arr.__str__()
-
-    def __getitem__(self, idx: tuple) -> numeric:
-        if isinstance(idx, tuple):
-            # get element self.arr[i][j]
-
-            if idx[0] >= len(self):
-                raise IndexError("LIL_stack: 0th list index out of range")
-            elif idx[0] < 0:
-                raise IndexError(
-                    "LIL_stack: negative indexing not currently allowed"
-                )
-
-            for block in self._blocks():
-                L = len(block)
-                if idx[0] < L:
-                    return block[idx]
-                else:
-                    idx = (idx[0] - L, idx[1])
-        else:
-            # get element self.arr[i]
-            if idx >= len(self):
-                raise IndexError("LIL_stack: list index out of range")
-            elif idx < 0:
-                raise IndexError(
-                    "LIL_stack: negative indexing not currently allowed"
-                )
-
-            for block in self._blocks():
-                L = len(block)
-                if idx < L:
-                    return block[idx]
-                else:
-                    idx -= L
-
-    def __len__(self) -> int:
-        # length
-        return len(self.arr)
-
-    def __iter__(self) -> Iterator:
-        # iterator
-        return self._rows(self.iter_densely)
-
-    def __array__(self, copy=False, dtype: np.dtype = None) -> np.array:
-        # What is called upon running np.array on this object
-        return np.array(self.dense(), copy=copy, dtype=dtype)
-
-    # properties
-    @property
-    def choices(self) -> list[int]:
-        return misc.from_base10(self._choices, self._choice_bounds)
-
-    @property
-    def dtype(self) -> np.dtype:
-        return self._options[0][0].dtype
-
-    @property
-    def width(self) -> int:
-        return self._options[0][0].width
-
-    @property
-    def shape(self) -> "LazyTuple":
-        if not hasattr(self, "_shape"):
-            # self._shape = (len(self),self.width) # slow
-            self._shape = LazyTuple(self.__len__, self.width)
-        return self._shape
-
-    @property
-    def is_empty(self) -> bool:
-        if not hasattr(self, "_is_empty"):
-            self._is_empty = True
-
-            for block in self._blocks():
-                if len(block) > 0:
-                    self._is_empty = False
-                    break
-
-        return self._is_empty
-
-    def _blocks(self) -> Iterator["LIL"]:
-        for i, opts in zip(self.choices, self._options):
-            yield opts[i]
-
-    def _rows(self, dense: bool = True) -> Iterator:
-        if dense:
-
-            def row_iter(r: "LIL") -> np.array:
-                return r.dense()
-
-        else:
-
-            def row_iter(r: "LIL") -> "LIL":
-                return r
-
-        for block in self._blocks():
-            yield from row_iter(block)
-
-    # getter
-    @property
-    def arr(self) -> ArrayLike:
-        if not hasattr(self, "_arr"):
-            self._arr = [row for row in self._rows(False)]
-
-        return self._arr
-
-    @arr.setter
-    def arr(self, value):
-        self._arr = value
-
-    def dense(self, tocopy: bool = False) -> ArrayLike:
-        """
-        **Description:**
-        Return a dense version of the array
-
-        **Arguments:**
-        - `copy`: Whether to return a copy of self.arr_dense.
-
-        **Returns:**
-        *(np.array)* The dense array
-        """
-        if not hasattr(self, "_arr_dense"):
-            # delete duplicated rows
-            self.unique_rows()
-            
-            # build empty dense array
-            self._arr_dense = np.zeros(self.shape, dtype=self.dtype)
-
-            # fill in output
-            for i, row in enumerate(self.arr):
-                for j, v in row.items():
-                    self._arr_dense[i, j] = v
-
-        # return
-        if tocopy:
-            return self._arr_dense.copy()
-        else:
-            return self._arr_dense
-
-    def unique_rows(self) -> None:
-        """
-        **Description:**
-        Delete repeated rows. Maybe re-orders rows...
-
-        **Arguments:**
-        None.
-
-        **Returns:**
-        Nothing
-        """
-        self.arr_dense = None
-        self.arr = [dict(t) for t in {tuple(sorted(d.items())) for d in self.arr}]
-
-    def tolist(self) -> list:
-        return self.dense().tolist()
-
-    # basic methods
-    def sum(
-        self, axis: int = None, dense: bool = True
-    ) -> Union[numeric, ArrayLike]:
-        if axis is None:
-            if not hasattr(self, "_sum_all"):
-                self._sum_all = np.sum(self.sum(axis=1))
-            return self._sum_all
-        elif axis == 1:
-            if not hasattr(self, "_sum_1"):
-                self._sum_1 = flatten_top(
-                    [M.sum(axis=1) for M in self._blocks()], as_list=False
-                )
-            return self._sum_1
-        elif axis == 0:
-            if dense:
-                if not hasattr(self, "_sum_0_dense"):
-                    self._sum_0_dense = np.sum(
-                        [M.sum(axis=0, dense=True) for M in self._blocks()]
-                    )
-                return self._sum_0_dense
-            else:
-                raise NotImplementedError("sparse sum not yet implemented")
-
-
 # helpers
 # -------
 def flatten_top(
@@ -611,3 +78,243 @@ def flatten_top(
             return flattened
         else:
             return np.asarray(flattened)
+
+
+# Secondary cone hyperplanes are sparse: a row has <= d+2 nonzeros over an
+# ambient dimension (# of lattice points) that can reach the hundreds, so
+# blocks are held as CSR. Dense does not fit at scale.
+def csr_rows(cols, vals, width, dtype=np.int16):
+    """
+    **Description:**
+    Build a CSR block from equal-shaped 2D arrays of column indices and
+    values, one row each. Zero values are dropped.
+
+    **Arguments:**
+    - `cols`: Column index of every entry.
+    - `vals`: The corresponding values.
+    - `width`: The ambient dimension.
+    - `dtype`: The stored value type.
+
+    **Returns:**
+    The block, as a CSR matrix.
+    """
+    cols = np.asarray(cols)
+    vals = np.asarray(vals)
+    # len, not size: a (k, 0) input is k rows that happen to have no entries,
+    # and dropping them would silently lose rows
+    if len(vals) == 0:
+        return sp.csr_matrix((0, width), dtype=dtype)
+
+    keep = vals != 0
+    indptr = np.zeros(len(vals) + 1, dtype=np.int64)
+    np.cumsum(keep.sum(axis=1), out=indptr[1:])
+    return sp.csr_matrix((vals[keep].astype(dtype), cols[keep], indptr),
+                         shape=(len(vals), width))
+
+
+def csr_dicts(rows, width, dtype=np.int16):
+    """
+    **Description:**
+    Build a CSR block from a list of {column: value} rows.
+
+    **Arguments:**
+    - `rows`: The rows.
+    - `width`: The ambient dimension.
+    - `dtype`: The stored value type.
+
+    **Returns:**
+    The block, as a CSR matrix.
+    """
+    if not len(rows):
+        return sp.csr_matrix((0, width), dtype=dtype)
+
+    indptr = np.zeros(len(rows) + 1, dtype=np.int64)
+    np.cumsum([len(r) for r in rows], out=indptr[1:])
+    cols = np.fromiter((c for r in rows for c in r), dtype=np.int64,
+                       count=int(indptr[-1]))
+    vals = np.fromiter((v for r in rows for v in r.values()), dtype=dtype,
+                       count=int(indptr[-1]))
+    return sp.csr_matrix((vals, cols, indptr), shape=(len(rows), width))
+
+
+def csr_stack(blocks, width, dtype=np.int16):
+    """
+    **Description:**
+    Concatenate CSR blocks, skipping empty ones.
+
+    **Arguments:**
+    - `blocks`: The blocks.
+    - `width`: The ambient dimension, used when nothing is left to stack.
+    - `dtype`: The stored value type.
+
+    **Returns:**
+    The stacked block.
+    """
+    blocks = [b for b in blocks if b.shape[0]]
+    if not blocks:
+        return sp.csr_matrix((0, width), dtype=dtype)
+    return sp.vstack(blocks, format="csr")
+
+
+def csr_unique_rows(mat):
+    """
+    **Description:**
+    Drop duplicate rows, keeping the first occurrence of each.
+
+    **Arguments:**
+    - `mat`: A CSR matrix.
+
+    **Returns:**
+    The matrix with duplicate rows removed.
+    """
+    if mat.shape[0] < 2:
+        return mat
+
+    mat.sum_duplicates()
+    keys = [(tuple(mat.indices[a:b]), tuple(mat.data[a:b]))
+            for a, b in zip(mat.indptr[:-1], mat.indptr[1:])]
+    seen, keep = set(), []
+    for i, k in enumerate(keys):
+        if k not in seen:
+            seen.add(k)
+            keep.append(i)
+    return mat[keep] if len(keep) < mat.shape[0] else mat
+
+
+class CSR_stack:
+    """
+    This class describes a stack of sparse blocks, organized as a list of
+    options together with a choice of one option per position:
+        options = [ [top_block_option1, top_block_option2, ...],
+                    ...
+                    [bot_block_option1, bot_block_option2, ...]]
+        choices = [i_top_block, ..., i_bot_block]
+    Nothing is concatenated until it has to be, which is the point: the
+    enumeration builds one stack per candidate and discards most of them.
+
+    **Arguments:**
+    - `options`: The possible blocks. options[i] lists every block that can
+        sit in the ith position.
+    - `choices`: Which block to take from each position.
+    - `choice_bounds`: The number of options at each position.
+    - `iter_densely`: Whether iteration yields dense rows or sparse ones.
+    """
+
+    def __init__(
+        self,
+        options: "[[sp.csr_matrix]]",
+        choices: "[int]",
+        choice_bounds: "[int]",
+        iter_densely: bool = False,
+    ) -> None:
+        self._options = options
+        if isinstance(choices, int):
+            self._choices = choices
+        else:
+            self._choices = misc.to_base10(choices, choice_bounds)
+        self._choice_bounds = choice_bounds
+        self.iter_densely = iter_densely
+
+    def __repr__(self) -> str:
+        return f"CSR_stack(shape={tuple(self.shape)})"
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
+    @property
+    def choices(self) -> "list[int]":
+        return misc.from_base10(self._choices, self._choice_bounds)
+
+    def _blocks(self):
+        for i, opts in zip(self.choices, self._options):
+            yield opts[i]
+
+    @property
+    def dtype(self) -> np.dtype:
+        return self._options[0][0].dtype
+
+    @property
+    def width(self) -> int:
+        return self._options[0][0].shape[1]
+
+    def __len__(self) -> int:
+        if not hasattr(self, "_len"):
+            self._len = sum(b.shape[0] for b in self._blocks())
+        return self._len
+
+    @property
+    def shape(self) -> tuple:
+        return (len(self), self.width)
+
+    @property
+    def is_empty(self) -> bool:
+        if not hasattr(self, "_is_empty"):
+            self._is_empty = not any(b.shape[0] for b in self._blocks())
+        return self._is_empty
+
+    def __getitem__(self, idx):
+        # a single row comes back as {column: value}, as the LIL stack did
+        if isinstance(idx, tuple):
+            row = self[idx[0]]
+            return row.get(idx[1], 0)
+
+        if idx < 0:
+            raise IndexError("CSR_stack: negative indexing not allowed")
+        for block in self._blocks():
+            n = block.shape[0]
+            if idx < n:
+                lo, hi = block.indptr[idx], block.indptr[idx + 1]
+                return dict(zip(block.indices[lo:hi].tolist(),
+                                block.data[lo:hi].tolist()))
+            idx -= n
+        raise IndexError("CSR_stack: list index out of range")
+
+    def __iter__(self):
+        if self.iter_densely:
+            return iter(self.dense())
+        return (self[i] for i in range(len(self)))
+
+    def __array__(self, dtype: np.dtype = None, copy: bool = None) -> np.array:
+        # the order and defaults are fixed by the numpy protocol, which calls
+        # this as __array__(dtype, copy)
+        return np.array(self.dense(), dtype=dtype, copy=copy)
+
+    def tocsr(self) -> "sp.csr_matrix":
+        """
+        **Description:**
+        Concatenate the chosen blocks into one CSR matrix.
+
+        **Arguments:**
+        None.
+
+        **Returns:**
+        The stacked block.
+        """
+        blocks = [b for b in self._blocks() if b.shape[0]]
+        if not blocks:
+            return sp.csr_matrix((0, self.width), dtype=self.dtype)
+        return sp.vstack(blocks, format="csr")
+
+    def dense(self, tocopy: bool = False) -> ArrayLike:
+        """
+        **Description:**
+        Return a dense version of the stack, with duplicate rows removed.
+
+        **Arguments:**
+        - `tocopy`: Whether to return a copy.
+
+        **Returns:**
+        The dense array.
+        """
+        if not hasattr(self, "_arr_dense"):
+            mat = self.tocsr()
+            mat.sum_duplicates()
+            keys, seen, keep = [], set(), []
+            for a, b in zip(mat.indptr[:-1], mat.indptr[1:]):
+                keys.append((tuple(mat.indices[a:b]), tuple(mat.data[a:b])))
+            for i, k in enumerate(keys):
+                if k not in seen:
+                    seen.add(k)
+                    keep.append(i)
+            self._arr_dense = mat[keep].toarray()
+        return self._arr_dense.copy() if tocopy else self._arr_dense

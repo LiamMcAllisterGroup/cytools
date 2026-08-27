@@ -2312,7 +2312,7 @@ class Triangulation:
         n_faces = len(face_triangs)
 
         def ineqs(ft):
-            return np.asarray(_2d_frt_cone_ineqs(ft, npts).dense(),
+            return np.asarray(_2d_frt_cone_ineqs(ft, npts).toarray(),
                               dtype=np.float64)
 
         # A single 2-face flip changes only that one face's inequalities, so
