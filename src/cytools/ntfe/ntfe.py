@@ -255,8 +255,7 @@ def _save_cache():
 atexit.register(_save_cache)
 
 
-def _2d_frt_cone_ineqs(self, ambient_dim: int,
-                       verbosity: int=0) -> "sp.csr_matrix":
+def _2d_frt_cone_ineq_rows(self, verbosity: int=0) -> list:
     """
     (Very analogous to Triangulation.secondary_cone(on_faces_dim=2)...
     main difference is that this treats point labels as column indices, while
@@ -281,12 +280,10 @@ def _2d_frt_cone_ineqs(self, ambient_dim: int,
     corresponds to the normal defined by the circuit (one has to set the sign).
 
     **Arguments:**
-    - `ambient_dim`: The ambient dimension of the secondary-cone space (i.e.,
-        the number of points in the polytope).
     - `verbosity`: The verbosity level.
 
     **Returns:**
-    Each row is an inwards-facing hyperplane normal. I.e., a CPL inequality
+    Each row is an inwards-facing hyperplane normal, as {label: coefficient}
     """
     rows = []
 
@@ -348,7 +345,18 @@ def _2d_frt_cone_ineqs(self, ambient_dim: int,
         rows.append({lab: c for lab, c in
                      zip((n_s[0], n_s[1], s[0], s[1]), ineq) if c})
 
-    return matrix.csr_dicts(rows, ambient_dim)
+    return rows
+
+
+def _2d_frt_cone_ineqs(self, ambient_dim: int,
+                       verbosity: int=0) -> "sp.csr_matrix":
+    """
+    The CPL inequalities of a 2-face triangulation as one CSR block, each row
+    an inwards-facing hyperplane normal. See _2d_frt_cone_ineq_rows for the
+    mathematics.
+    """
+    return matrix.csr_dicts(_2d_frt_cone_ineq_rows(self, verbosity),
+                            ambient_dim)
 
 
 Triangulation._2d_frt_cone_ineqs = _2d_frt_cone_ineqs
@@ -511,7 +519,8 @@ def _2d_frt_subfan_search(xs, ys, grid, xmin, ymin, out):
     """
     **Description:**
     Find the point-tuples generating the CPL inequalities of a 2-face. This is
-    the search half of `_2d_frt_subfan_ineqs`; see there for the mathematics.
+    the search half of `_2d_frt_subfan_ineq_rows`; see there for the
+    mathematics.
 
     This is JIT-compiled because the case B) loop is O(N_pts^3) and, for the
     largest 2-faces in the KS database, dominates the whole calculation.
@@ -588,7 +597,7 @@ def _2d_frt_subfan_search(xs, ys, grid, xmin, ymin, out):
     return count
 
 
-def _2d_frt_subfan_ineqs(self, ambient_dim: int) -> "sp.csr_matrix":
+def _2d_frt_subfan_ineq_rows(self) -> list:
     """
     **Description:**
     See https://arxiv.org/abs/2309.10855 for proof
@@ -633,7 +642,7 @@ def _2d_frt_subfan_ineqs(self, ambient_dim: int) -> "sp.csr_matrix":
     pts = np.asarray(self.points(optimal=True), dtype=np.int64)
     N_pts = len(pts)
     if N_pts < 3:
-        return matrix.csr_dicts([], ambient_dim)
+        return []
 
     # the search kernel wants contiguous coordinates and a dense point lookup
     xs = np.ascontiguousarray(pts[:, 0])
@@ -664,10 +673,10 @@ def _2d_frt_subfan_ineqs(self, ambient_dim: int) -> "sp.csr_matrix":
         for i, j, k, m in out[:count]
     ]
 
-    return matrix.csr_dicts(rows, ambient_dim)
+    return rows
 
 
-PolytopeFace._2d_frt_subfan_ineqs = _2d_frt_subfan_ineqs
+PolytopeFace._2d_frt_subfan_ineq_rows = _2d_frt_subfan_ineq_rows
 
 
 # generate secondary cone/fan
@@ -715,6 +724,7 @@ def cone_of_permissible_heights(
         raise ValueError("If `require_star=True`, then `poly` must be specified")
 
     blocks = []
+    frt_rows = []
 
     # iterate over face triangulations
     for i,face_triang in enumerate(triangs):
@@ -729,13 +739,17 @@ def cone_of_permissible_heights(
         # need to be... you can decide to pass a subset of faces)
         if (verbosity >= 2) and require_star:
             print("The 2-face inequalities...")
-        blocks.append(_2d_frt_cone_ineqs(face_triang, npts,
-                                         verbosity=verbosity-1))
+        # accumulate rows across faces: one CSR build at the end costs far
+        # less than one tiny block per face
+        frt_rows.extend(_2d_frt_cone_ineq_rows(face_triang,
+                                               verbosity=verbosity-1))
         if require_star:
             if (verbosity >= 2):
                 print("The star inequalities...")
             blocks.append(_2d_s_cone_ineqs(face_triang, poly, npts,
                                            verbosity=verbosity-1))
+
+    blocks.insert(0, matrix.csr_dicts(frt_rows, npts))
 
     # delete duplicate rows
     ineqs = matrix.csr_unique_rows(matrix.csr_stack(blocks, npts))
@@ -783,8 +797,11 @@ def expanded_secondary_fan(
     ambient_dim = len(self.labels)
 
     # iterate over face triangulations
-    ineqs = matrix.csr_stack([f._2d_frt_subfan_ineqs(ambient_dim)
-                        for f in self.faces(2)], ambient_dim)
+    # one CSR build over every face, rather than a tiny block each
+    rows = []
+    for f in self.faces(2):
+        rows.extend(_2d_frt_subfan_ineq_rows(f))
+    ineqs = matrix.csr_dicts(rows, ambient_dim)
 
     if dense or as_cone:
         ineqs = ineqs.toarray()
