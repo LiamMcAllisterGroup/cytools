@@ -2163,8 +2163,8 @@ class Triangulation:
         ```
         """
         # parse inputs
-        if seed is not None:
-            np.random.seed(seed)
+        # (use a local generator so that we don't perturb NumPy's global RNG)
+        rng = np.random.default_rng(seed)
 
         # unspecified restrictions default to the properties of this
         # triangulation (as documented above)
@@ -2181,7 +2181,7 @@ class Triangulation:
             neighbors = curr_triang.neighbor_triangulations(
                 only_fine=False, only_regular=False, only_star=False
             )
-            np.random.shuffle(neighbors)
+            rng.shuffle(neighbors)
 
             for t in neighbors:
                 # check that the triangulation meets the requirements
@@ -2969,8 +2969,8 @@ def random_triangulations_fast_generator(
     ```
     """
     # parse inputs
-    if seed is not None:
-        np.random.seed(seed)
+    # (use a local generator so that we don't perturb NumPy's global RNG)
+    rng = np.random.default_rng(seed)
 
     triang_hashes = set()
     n_retries = 0
@@ -2989,7 +2989,7 @@ def random_triangulations_fast_generator(
             return
 
         # generate random heights, make the triangulation
-        heights = [pt.dot(pt) + np.random.normal(0, c) for pt in poly.points(which=pts)]
+        heights = [pt.dot(pt) + rng.normal(0, c) for pt in poly.points(which=pts)]
         t = Triangulation(
             poly,
             pts,
@@ -3121,11 +3121,11 @@ def random_triangulations_fair_generator(
     if dim != triang_pts.shape[1]:
         raise Exception("Point configuration must be full-dimensional.")
 
-    if seed is not None:
-        np.random.seed(seed)
+    # (use a local generator so that we don't perturb NumPy's global RNG)
+    rng = np.random.default_rng(seed)
 
     # Obtain random Delaunay triangulation by picking random point as origin
-    rand_ind = np.random.randint(0, len(pts))
+    rand_ind = rng.integers(0, len(pts))
     points_shifted = [p - triang_pts[rand_ind] for p in triang_pts]
 
     delaunay_heights = [walk_step_size * (np.dot(p, p)) for p in points_shifted]
@@ -3156,7 +3156,7 @@ def random_triangulations_fair_generator(
             in_pt = old_pt
 
             # find random direction
-            random_dir = np.random.normal(size=num_points)
+            random_dir = rng.normal(size=num_points)
             random_dir = random_dir / np.linalg.norm(random_dir)
 
             # take steps
@@ -3212,7 +3212,7 @@ def random_triangulations_fair_generator(
 
         # Take a random walk step
         in_pt = in_pt / np.linalg.norm(in_pt)
-        random_coef = np.random.uniform(0, 1)
+        random_coef = rng.uniform(0, 1)
         new_pt = random_coef * np.array(old_pt) + (1 - random_coef) * np.array(in_pt)
 
         # after enough steps are taken, move on to random flips
@@ -3229,7 +3229,13 @@ def random_triangulations_fair_generator(
             # take flips
             if n_flip > 0:
                 temp_tri = flip_seed_tri.random_flips(
-                    n_flip, only_fine=True, only_regular=True, only_star=True
+                    n_flip,
+                    only_fine=True,
+                    only_regular=True,
+                    only_star=True,
+                    # derive the sub-seed from our local generator so that the
+                    # walk stays reproducible for a given `seed`
+                    seed=int(rng.integers(2**32)),
                 )
             else:
                 temp_tri = flip_seed_tri

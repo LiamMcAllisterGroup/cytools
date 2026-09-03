@@ -3410,8 +3410,10 @@ class Polytope:
                     indices[: linrel.shape[0]] = np.sort(indices[: linrel.shape[0]])
                 elif n_try > 3:
                     if n_try == 4:
-                        np.random.seed(1337)
-                    np.random.shuffle(indices[1:])
+                        # use a local generator so that this fallback stays
+                        # deterministic without touching NumPy's global RNG
+                        rng = np.random.default_rng(1337)
+                    rng.shuffle(indices[1:])
                     indices[: linrel.shape[0]] = np.sort(indices[: linrel.shape[0]])
 
                 for ctr in range(np.prod(linrel.shape) + 1):

@@ -84,6 +84,46 @@ Homepage = "https://cy.tools"
 Documentation = "https://cy.tools/docs/documentation/"
 Repository = "https://github.com/LiamMcAllisterGroup/cytools"
 
+[tool.ruff]
+# 88 is ruff/black's default and matches the files that have already been
+# run through `ruff format`.
+line-length = 88
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# Deliberately narrow starting selection: every rule enabled here is clean on
+# the current tree, so `ruff check` is a hard gate in CI from day one.
+select = [
+  "E4",   # pycodestyle: imports
+  "E7",   # pycodestyle: statement-level errors
+  "E9",   # pycodestyle: syntax/IO errors
+  "F",    # pyflakes
+  "PLE",  # pylint: errors
+  "ICN",  # import conventions (numpy as np, ...)
+  "TID",  # tidy imports
+  "NPY",  # numpy-specific rules
+]
+# Rules that belong in the selection above but that the tree does not satisfy
+# yet.  Fixing them requires a repo-wide sweep, which is deliberately deferred
+# until the currently open PRs have landed (see issue #90).  The counts are
+# from ruff 0.16.3 at the time this config was added.
+ignore = [
+  "E402",    # 17x  module-import-not-at-top-of-file
+  "E701",    #  3x  multiple-statements-on-one-line (colon)
+  "E702",    #  3x  multiple-statements-on-one-line (semicolon)
+  "E712",    #  3x  true-false-comparison
+  "E721",    #  6x  type-comparison
+  "E731",    # 20x  lambda-assignment
+  "E741",    # 32x  ambiguous-variable-name
+  "F401",    #  8x  unused-import
+  "F403",    #  3x  undefined-local-with-import-star
+  "F821",    # 63x  undefined-name (mostly bad annotations, some real bugs)
+  "F841",    # 19x  unused-variable
+  "NPY002",  #  3x  legacy global RNG; remaining sites are in utils.py and
+             #      Triangulation.__init__
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/cytools"]
 

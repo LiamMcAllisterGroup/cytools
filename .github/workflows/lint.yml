@@ -1,0 +1,31 @@
+name: Lint
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  RUFF_VERSION: 0.16.3
+
+jobs:
+  ruff:
+    name: Ruff
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v7
+      - name: Run ruff check
+        run: pipx run ruff==${{ env.RUFF_VERSION }} check --output-format=github .
+      # Advisory only. `ruff format` would rewrite ~24 files, which would
+      # conflict with every currently open PR, so the repo-wide reformat is
+      # deferred (see issue #90) and this step is not allowed to fail the run.
+      - name: Run ruff format --check (advisory)
+        continue-on-error: true
+        run: pipx run ruff==${{ env.RUFF_VERSION }} format --check --diff .

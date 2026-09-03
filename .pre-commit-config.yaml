@@ -1,0 +1,11 @@
+# Run with `pre-commit run -a` (or `prek -a`).
+#
+# Only `ruff check` is wired up here, and it uses the (deliberately narrow)
+# rule selection configured in pyproject.toml, so it matches CI exactly.
+# The `ruff-format` hook is intentionally *not* enabled yet: it would rewrite
+# ~24 files and conflict with every currently open PR.  See issue #90.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.3
+    hooks:
+      - id: ruff-check
