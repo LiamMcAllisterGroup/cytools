@@ -1179,10 +1179,10 @@ def polytope_generator(
 
     if input_type == "file":
         in_file = open(input)
-        l = in_file.readline()
+        line = in_file.readline()
     else:
         in_string = input.split("\n")
-        l = in_string.pop(0)
+        line = in_string.pop(0)
 
     if format == "ws":
         # read the polytopes as weight systems, one per line
@@ -1193,9 +1193,9 @@ def polytope_generator(
         # trips a C-level assertion that aborts the entire interpreter
         try:
             while (limit is None) or (n_yielded < limit):
-                if l.strip():
+                if line.strip():
                     # pass line to PALP
-                    p = pypalp.Polytope(l)
+                    p = pypalp.Polytope(line)
                     vert = p.vertices()
 
                     # ensure reasonable shape
@@ -1219,12 +1219,12 @@ def polytope_generator(
 
                 # get next line ("" signals EOF; blank lines are just "\n")
                 if input_type == "file":
-                    l = in_file.readline()
-                    if l == "":
+                    line = in_file.readline()
+                    if line == "":
                         break
                 else:
                     if len(in_string) > 0:
-                        l = in_string.pop(0)
+                        line = in_string.pop(0)
                     else:
                         break
         finally:
@@ -1239,8 +1239,8 @@ def polytope_generator(
     # exit path, including an abandoned generator
     try:
         while limit is None or n_yielded < limit:
-            if "M:" in l:
-                h = l.split()
+            if "M:" in line:
+                h = line.split()
                 n, m = int(h[0]), int(h[1])
 
                 # add vertices
@@ -1267,18 +1267,18 @@ def polytope_generator(
 
             # get next line
             if input_type == "file":
-                l = in_file.readline()
+                line = in_file.readline()
 
                 for i in range(5):
-                    if l != "":
+                    if line != "":
                         break
-                    l = in_file.readline()
+                    line = in_file.readline()
                 else:
                     in_file.close()
                     break
             else:
                 if len(in_string) > 0:
-                    l = in_string.pop(0)
+                    line = in_string.pop(0)
                 else:
                     break
     finally:
