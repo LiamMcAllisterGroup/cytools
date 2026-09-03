@@ -1,5 +1,8 @@
+import contextlib
+
 import numpy as np
 
+import cytools.config
 from cytools import Polytope
 
 
@@ -462,9 +465,7 @@ def test_gv_invariants_quintic_literature_values():
     assert gvs.size == len(expected)
     for deg, val in enumerate(expected, start=1):
         assert gvs.gv([deg]) == val, f"degree {deg}"
-import contextlib
 
-import cytools.config
 
 
 def _reference_kappa(cy):

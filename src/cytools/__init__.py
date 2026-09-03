@@ -15,6 +15,9 @@
 # =============================================================================
 
 # Make the main classes and function accessible from the root of CYTools.
+import os
+import threading
+
 from cytools.polytope import Polytope
 from cytools.h_polytope import HPolytope
 from cytools.cone import Cone
@@ -108,9 +111,6 @@ def check_for_updates():
     except Exception:
         pass
 
-
-import os
-import threading
 
 
 def start_update_check():

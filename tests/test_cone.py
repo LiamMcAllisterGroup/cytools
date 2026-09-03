@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from cytools import Cone
+from cytools.cone import feasibility
 
 
 def _canonical_face_rays(face):
@@ -201,7 +202,6 @@ def test_equality():
     c2 = Cone([[2, 0, 1], [0, 1, 0], [1, 0, 2]])
     assert c1 == c1
     assert c1 != c2
-from cytools.cone import feasibility
 def test_find_lattice_points_honors_filter_function_in_fast_mode():
     # the fast_mode shortcut cannot apply a filter, so it must not be taken
     def filter_function(pt):
