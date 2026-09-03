@@ -68,6 +68,17 @@ from cytools import utils
 MAX_EXTREMALITY_RETRIES = 3
 
 
+def _rank(arr) -> int:
+    """
+    Rank of a set of rays. numpy's matrix_rank raises on a (0, d) array, which
+    is how a cone with no rays is represented, and whose span is trivial.
+    """
+    arr = np.asarray(arr)
+    if arr.size == 0:
+        return 0
+    return int(np.linalg.matrix_rank(arr))
+
+
 class Cone:
     """
     This class handles all computations relating to rational polyhedral cones,
@@ -315,7 +326,7 @@ class Cone:
         # put data in correct variable
         if self._rays_were_input:
             self._rays = np.asarray(data)
-            self._dim = np.linalg.matrix_rank(self._rays)
+            self._dim = _rank(self._rays)
         else:
             self._hyperplanes = np.asarray(data)
             self._dim = None
@@ -589,14 +600,14 @@ class Cone:
 
         if self._rays is not None:
             # know the rays... semi simple computation
-            self._dim = np.linalg.matrix_rank(self._rays)
+            self._dim = _rank(self._rays)
         else:
             # don't know the rays... still simple if the cone is solid...
             if self.is_solid():
                 self._dim = self.ambient_dim()
             else:
                 # yikes need to compute the rays
-                self._dim = np.linalg.matrix_rank(self.rays())
+                self._dim = _rank(self.rays())
         return self._dim
 
     # aliases
@@ -650,8 +661,9 @@ class Cone:
             print("Saving the rays & computing dimension...", flush=True)
         self._rays = np.asarray(rays, dtype=int)
         if len(self._rays) == 0:
+            # matrix_rank raises on a (0, d) array, and the span is trivial
             self._rays = np.zeros((0, self._ambient_dim), dtype=int)
-        self._dim = np.linalg.matrix_rank(self._rays)
+        self._dim = _rank(self._rays)
         return np.array(self._rays)
 
     def hyperplanes(self, use_extremal_rays: bool=False, verbosity: int=0):
@@ -860,7 +872,7 @@ class Cone:
         # has none that are extremal; np.array([]) is 1d, so restore the shape
         if rays.shape[0] == 0:
             self._ext_rays[minimal] = rays.reshape(0, self.ambient_dim())
-            return self._ext_rays[minimal]
+            return np.array(self._ext_rays[minimal])
 
         # if only 1 ray, this is trivial
         if rays.shape[0] == 1:
@@ -902,9 +914,9 @@ class Cone:
             ))
             self._ext_rays[minimal] = rays[keep]
             if self._rays is None:
-                self._rays = self._ext_rays[minimal]
+                self._rays = np.array(self._ext_rays[minimal])
 
-            return self._ext_rays[minimal]
+            return np.array(self._ext_rays[minimal])
 
         # the per-ray backend. is_extremal takes "lp" or "nnls"
         check_method = "nnls" if method == "nnls" else "lp"
@@ -1457,7 +1469,7 @@ class Cone:
 
         # If the rays are already computed then this is a simple task
         if (self._rays is not None) and (backend is None) and (lower is None):
-            if np.linalg.matrix_rank(self._rays) != self._ambient_dim:
+            if _rank(self._rays) != self._ambient_dim:
                 return None
 
             point = self._rays.sum(axis=0)
@@ -1904,7 +1916,7 @@ class Cone:
             return self._is_solid
         if self._rays is not None:
             self._is_solid = bool(
-                np.linalg.matrix_rank(self._rays) == self._ambient_dim
+                _rank(self._rays) == self._ambient_dim
             )
             return self._is_solid
 
