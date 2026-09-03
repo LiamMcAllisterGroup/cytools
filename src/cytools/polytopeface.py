@@ -653,6 +653,7 @@ class PolytopeFace:
         check_input_simplices: bool = True,
         backend: str = "cgal",
         verbosity=0,
+        seed: int = None,
     ) -> "Triangulation":
         """
         **Description:**
@@ -679,6 +680,10 @@ class PolytopeFace:
             The available options are "qhull", "cgal", and "topcom". CGAL is
             the default one as it is very fast and robust.
         - `verbosity`: The verbosity level.
+        - `seed`: Seed for the height perturbation used by the QHull backend.
+            Only that backend perturbs its heights, so this has no effect for
+            CGAL or TOPCOM. Left unset, the perturbation is drawn afresh each
+            time and the triangulation is not reproducible.
 
         **Returns:**
         A [`Triangulation`](./triangulation) object describing a triangulation
@@ -693,4 +698,5 @@ class PolytopeFace:
             check_input_simplices=check_input_simplices,
             backend=backend,
             verbosity=verbosity,
+            seed=seed,
         )

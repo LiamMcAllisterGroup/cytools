@@ -2331,6 +2331,7 @@ class Polytope:
         check_heights: bool = True,
         backend: str = "cgal",
         verbosity: int = 1,
+        seed: int = None,
     ) -> Triangulation:
         """
         **Description:**
@@ -2373,6 +2374,10 @@ class Polytope:
             "qhull", "cgal", and "topcom". CGAL is the default as it is very
             fast and robust.
         - `verbosity`: The verbosity level.
+        - `seed`: Seed for the height perturbation used by the QHull backend.
+            Only that backend perturbs its heights, so this has no effect for
+            CGAL or TOPCOM. Left unset, the perturbation is drawn afresh each
+            time and the triangulation is not reproducible.
 
         **Returns:**
         A [`Triangulation`](./triangulation) object describing a triangulation
@@ -2465,6 +2470,7 @@ class Polytope:
             check_heights=check_heights,
             backend=backend,
             verbosity=verbosity,
+            seed=seed,
         )
 
     def random_triangulations_fast(

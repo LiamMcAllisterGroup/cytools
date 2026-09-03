@@ -133,6 +133,7 @@ class Triangulation:
         check_heights: bool = True,
         backend: str = "cgal",
         verbosity: int = 1,
+        seed: int = None,
     ) -> None:
         """
         **Description:**
@@ -164,6 +165,10 @@ class Triangulation:
             "qhull", "cgal", and "topcom". CGAL is the default as it is very
             fast and robust.
         - `verbosity`: The verbosity level.
+        - `seed`: Seed for the height perturbation used by the QHull backend.
+            Only that backend perturbs its heights, so this has no effect for
+            CGAL or TOPCOM. Left unset, the perturbation is drawn afresh each
+            time and the triangulation is not reproducible.
 
         **Returns:**
         Nothing.
@@ -312,8 +317,12 @@ class Triangulation:
                 # QHull or the triangulation might not be regular. If using
                 # CGAL then they are not perturbed.
                 if backend == "qhull":
+                    # a local generator: reading the global stream made this
+                    # reproducible only via a global seed, which is invisible
+                    # from here. Pass `seed` instead.
+                    rng = np.random.RandomState(seed)
                     heights = [
-                        np.dot(p, p) + np.random.normal(0, 0.05) for p in self.points()
+                        np.dot(p, p) + rng.normal(0, 0.05) for p in self.points()
                     ]
                 elif backend == "cgal":
                     heights = [np.dot(p, p) for p in self.points()]

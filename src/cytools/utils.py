@@ -1611,8 +1611,12 @@ def fetch_polytopes(
 
         # check if we actually need to sample (otherwise, just use full list)
         if len(items) > samples:
-            np.random.seed(sample_seed)
-            sampled = np.random.choice(items, size=samples, replace=False)
+            # a local generator: seeding the global one would reset the
+            # caller's stream, and with sample_seed=None it reseeded from
+            # entropy. RandomState (not default_rng) keeps the draws that
+            # existing sample_seed values already produce.
+            rng = np.random.RandomState(sample_seed)
+            sampled = rng.choice(items, size=samples, replace=False)
         else:
             sampled = items
 
