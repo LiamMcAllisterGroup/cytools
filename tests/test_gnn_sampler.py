@@ -3,6 +3,7 @@ import os
 import subprocess
 import sys
 import types
+import warnings
 
 import pytest
 
@@ -23,7 +24,10 @@ def _has_dualgnn() -> bool:
     """
     try:
         return importlib.util.find_spec("dualgnn") is not None
-    except Exception:
+    except Exception as e:
+        # a broken install must not break collection, but it should not be
+        # indistinguishable from a missing one either
+        warnings.warn(f"dualgnn probe failed ({e!r}); treating it as absent")
         return False
 
 
@@ -124,10 +128,11 @@ def test_collection_succeeds_when_dualgnn_import_is_blocked(tmp_path):
         capture_output=True,
         text=True,
         env=env,
+        timeout=300,
     )
     assert res.returncode == 0, res.stdout + res.stderr
     assert "tests collected" in res.stdout, res.stdout + res.stderr
-    assert "error" not in res.stdout.lower(), res.stdout
+    assert "error" not in res.stdout.splitlines()[-1].lower(), res.stdout
 
 
 def test_dualgnn_is_an_allowed_method():

@@ -115,6 +115,16 @@ def test_linear_equivalence_contracts_to_zero(verts):
         assert np.allclose(contracted, 0, atol=1e-6)
 
 
+def _as_float(val):
+    """
+    Coerce an intersection number to float. The exact backend returns
+    `flint.fmpq`, which `float()` does not accept, so go through p/q.
+    """
+    if hasattr(val, "p") and hasattr(val, "q"):
+        return int(val.p) / int(val.q)
+    return float(val)
+
+
 # float-vs-exact intersection numbers
 # -----------------------------------
 @pytest.mark.parametrize("verts", [P11169, H11_8])
@@ -135,7 +145,9 @@ def test_float_and_exact_intersection_numbers_agree(experimental_features, verts
     assert set(intnums_float) == set(intnums_exact)
     assert len(intnums_float) > 0
     for key, val in intnums_float.items():
-        assert intnums_exact[key] == val
+        # compare as floats: the exact values are fmpq, and fmpq == float is
+        # exact, so a fractional entry would never compare equal
+        assert _as_float(intnums_exact[key]) == pytest.approx(_as_float(val))
 
 
 def test_float_and_exact_intersection_numbers_agree_mirror(experimental_features):
@@ -156,4 +168,6 @@ def test_float_and_exact_intersection_numbers_agree_mirror(experimental_features
         assert set(intnums_float) == set(intnums_exact)
         assert len(intnums_float) > 0
         for key, val in intnums_float.items():
-            assert intnums_exact[key] == val
+            # compare as floats: the exact values are fmpq, and fmpq == float
+            # is exact, so a fractional entry would never compare equal
+            assert _as_float(intnums_exact[key]) == pytest.approx(_as_float(val))
