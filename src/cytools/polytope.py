@@ -2037,7 +2037,7 @@ class Polytope:
                 S[i] = i + 1
         # We determine the other rows of PM_max in turn by use of perms and
         # aut on previous rows.
-        for l in range(1, n_f - 1):
+        for row in range(1, n_f - 1):
             n_s = len(prm)
             n_s_bar = n_s
             cf = 0
@@ -2052,7 +2052,7 @@ class Polytope:
                 # We look for the line with the maximal entry in the first
                 # subsymmetry block, i.e. we are allowed to swap elements
                 # between 0 and S(0)
-                for s in range(l, n_f):
+                for s in range(row, n_f):
                     for j in range(1, S[0]):
                         v = PM[prmb[n_p][0].dot(range(n_f)), :][
                             :, prmb[n_p][1].dot(range(n_v))
@@ -2063,7 +2063,7 @@ class Polytope:
                         l_r[0] = PM[prmb[n_p][0].dot(range(n_f)), :][
                             :, prmb[n_p][1].dot(range(n_v))
                         ][s, 0]
-                        prmb[n_p][0] = PGE(n_f, l + 1, s + 1).dot(prmb[n_p][0])
+                        prmb[n_p][0] = PGE(n_f, row + 1, s + 1).dot(prmb[n_p][0])
                         n_p += 1
                         ccf = 1
                         prmb[n_p] = copy.copy(prm[k])
@@ -2077,14 +2077,14 @@ class Polytope:
                             continue
                         if d == 0:
                             # Maximal values agree, so possible symmetry
-                            prmb[n_p][0] = PGE(n_f, l + 1, s + 1).dot(prmb[n_p][0])
+                            prmb[n_p][0] = PGE(n_f, row + 1, s + 1).dot(prmb[n_p][0])
                             n_p += 1
                             prmb[n_p] = copy.copy(prm[k])
                         else:
                             # We found a greater maximal value for first entry.
                             # It becomes our new reference:
                             l_r[0] = d1
-                            prmb[n_p][0] = PGE(n_f, l + 1, s + 1).dot(prmb[n_p][0])
+                            prmb[n_p][0] = PGE(n_f, row + 1, s + 1).dot(prmb[n_p][0])
                             # Forget previous work done
                             cf = 0
                             prmb = {0: copy.copy(prmb[n_p])}
@@ -2108,19 +2108,19 @@ class Polytope:
                         for j in range(c + 1, h):
                             v = PM[prmb[s][0].dot(range(n_f)), :][
                                 :, prmb[s][1].dot(range(n_v))
-                            ][l]
+                            ][row]
                             if v[c] < v[j]:
                                 prmb[s][1] = PGE(n_v, c + 1, j + 1).dot(prmb[s][1])
                         if ccf == 0:
                             # Set reference and carry on to next permutation
                             l_r[c] = PM[prmb[s][0].dot(range(n_f)), :][
                                 :, prmb[s][1].dot(range(n_v))
-                            ][l, c]
+                            ][row, c]
                             ccf = 1
                         else:
                             d1 = PM[prmb[s][0].dot(range(n_f)), :][
                                 :, prmb[s][1].dot(range(n_v))
-                            ][l, c]
+                            ][row, c]
                             d = d1 - l_r[c]
                             if d < 0:
                                 n_p -= 1
@@ -2149,7 +2149,7 @@ class Polytope:
                 # the restrictions the last worked out
                 # row imposes.
                 c = 0
-                M = PM[prm[0][0].dot(range(n_f)), :][:, prm[0][1].dot(range(n_v))][l]
+                M = PM[prm[0][0].dot(range(n_f)), :][:, prm[0][1].dot(range(n_v))][row]
                 while c < n_v:
                     s = S[c] + 1
                     S[c] = c + 1
@@ -2184,7 +2184,7 @@ class Polytope:
                 S_max[i], S_max[k] = S_max[k], S_max[i]
                 p_c = PGE(n_v, 1 + i, 1 + k).dot(p_c)
         # Create array of possible NFs.
-        prm = [p_c.dot(l[1]) for l in prm.values()]
+        prm = [p_c.dot(perm[1]) for perm in prm.values()]
         Vs = [
             np.array(
                 fmpz_mat(V.T[:, sig.dot(range(n_v))].tolist()).hnf().tolist(),

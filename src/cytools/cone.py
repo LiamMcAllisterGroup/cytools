@@ -1113,8 +1113,8 @@ class Cone:
         if codim == dim:
             if self.is_pointed():
                 # return cone spanned by 0 rays
-                I = np.eye(self.ambient_dim(), dtype=int)
-                return ( Cone(hyperplanes=np.vstack([I,-I])), )
+                eye = np.eye(self.ambient_dim(), dtype=int)
+                return ( Cone(hyperplanes=np.vstack([eye,-eye])), )
             else:
                 # return empty list... no 0D faces here
                 return tuple()
@@ -1194,8 +1194,8 @@ class Cone:
 
         # add the 0D cone if this is pointed
         if self.is_pointed():
-            I = np.eye(self.ambient_dim(), dtype=int)
-            face_lattice.append( (Cone(hyperplanes=np.vstack([I,-I])),) )
+            eye = np.eye(self.ambient_dim(), dtype=int)
+            face_lattice.append( (Cone(hyperplanes=np.vstack([eye,-eye])),) )
 
         # cache and return
         self._face_lattice = tuple(face_lattice)
@@ -1229,8 +1229,8 @@ class Cone:
             dim = len(R)
 
             if dim == 1:
-                I = np.eye(self.ambient_dim(), dtype=int)
-                return [ Cone(hyperplanes=np.vstack([I,-I])), ]
+                eye = np.eye(self.ambient_dim(), dtype=int)
+                return [ Cone(hyperplanes=np.vstack([eye,-eye])), ]
             elif dim == 0:
                 return []
 
@@ -2368,22 +2368,22 @@ class Cone:
         while True:
             if l_n >= len(data):
                 break
-            l = data[l_n]
-            if "******" in l:
+            line = data[l_n]
+            if "******" in line:
                 found_stars = True
                 l_n += 1
                 continue
             if not found_stars:
                 l_n += 1
                 continue
-            if "lattice points in polytope" in l or "Hilbert basis elements" in l:
-                n_rays = literal_eval(l.split()[0])
+            if "lattice points in polytope" in line or "Hilbert basis elements" in line:
+                n_rays = literal_eval(line.split()[0])
                 for i in range(n_rays):
                     rays.append([literal_eval(c) for c in data[l_n + 1 + i].split()])
                 l_n += n_rays + 1
                 continue
-            if "further Hilbert basis elements" in l:
-                n_rays = literal_eval(l.split()[0])
+            if "further Hilbert basis elements" in line:
+                n_rays = literal_eval(line.split()[0])
                 for i in range(n_rays):
                     rays.append([literal_eval(c) for c in data[l_n + 1 + i].split()])
                 l_n += n_rays + 1
