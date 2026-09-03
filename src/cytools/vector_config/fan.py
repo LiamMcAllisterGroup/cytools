@@ -166,21 +166,28 @@ class Fan(regfans.fan.Fan):
                         face_simps_reduced.append(simp)
 
             # map to face indices
+            # (build the label->index map once per face; `.index` would be
+            #  O(#labels) per lookup)
             if as_face_inds:
+                label_to_ind = {lbl: i for i, lbl in enumerate(face.labels)}
                 face_simps_reduced = [
-                    [face.labels.index(i) for i in simp] for simp in\
+                    sorted(label_to_ind[i] for i in simp) for simp in\
                                                             face_simps_reduced
                 ]
+            else:
+                face_simps_reduced = [sorted(simp) for simp in\
+                                                            face_simps_reduced]
 
             # pad the simplices
+            # (the entries are sorted lists by now, so this works regardless of
+            #  `as_face_inds`)
             if padded:
                 for i, simp in enumerate(face_simps_reduced):
                     if len(simp) == 2:
                         face_simps_reduced[i] = simp + [simp[-1]]
 
             # save it!
-            face_simps_reduced = sorted([sorted(simp) for simp in\
-                                                            face_simps_reduced])
+            face_simps_reduced = sorted(face_simps_reduced)
             restricted.append(face_simps_reduced)
 
         return restricted
@@ -271,13 +278,19 @@ class Fan(regfans.fan.Fan):
         **Returns:**
         The secondary/chamber cone.
         """
+        # the circuits-based and the folding-based cones can differ (see the
+        # warning above), so they must be cached separately
         if not hasattr(self, '_secondary_cone'):
+            self._secondary_cone = dict()
+
+        cache_key = bool(via_circuits)
+        if cache_key not in self._secondary_cone:
             H = super().secondary_cone_hyperplanes(
                 via_circuits=via_circuits,
                 verbosity=verbosity)
-            self._secondary_cone = Cone(hyperplanes=H)
+            self._secondary_cone[cache_key] = Cone(hyperplanes=H)
 
-        cone = self._secondary_cone
+        cone = self._secondary_cone[cache_key]
 
         if project_lineality:
             return Cone(rays=cone.rays()@(self.vc.gale()))
@@ -328,7 +341,10 @@ class Fan(regfans.fan.Fan):
         The intersection numbers.
         """
         if not hasattr(self, '_kappa'):
-            self._kappa = collections.defaultdict(float)
+            # a plain dict (not a defaultdict) so that a missing key is an
+            # error rather than a silent 0.0; the few genuinely-optional
+            # lookups below use .get(..., 0.0) explicitly
+            self._kappa = dict()
             self._kappa_known_labels = set()
         if not hasattr(self, "_kappa_default"):
             self._kappa_default = None
@@ -386,19 +402,14 @@ class Fan(regfans.fan.Fan):
 
             return kappa
 
-        # get relevant labels
-        # -------------------
-        relevant_labels = self.used_labels
-
         # given a basis
         # -------------
         # push down the intersection numbers and represent them in said basis
         if pushed_down or in_basis:
             # view cache: these flag combos are pure functions of _kappa
-            can_use_view_cache = self._kappa_known_labels == set(self.labels)
-            if can_use_view_cache:
-                view_key = (bool(pushed_down), bool(in_basis),
-                            bool(symmetrize), bool(as_np_array))
+            view_key = (bool(pushed_down), bool(in_basis),
+                        bool(symmetrize), bool(as_np_array))
+            if self._kappa_known_labels == set(self.labels):
                 cached = self._kappa_view_cache.get(view_key)
                 if cached is not None:
                     if not copy:
@@ -481,7 +492,9 @@ class Fan(regfans.fan.Fan):
                 result = kappa
 
             # cache the freshly-built result; hand back canonical or a copy
-            if can_use_view_cache:
+            # (the check is redone here since `_kappa` may have just been
+            #  computed by the recursive call above)
+            if self._kappa_known_labels == set(self.labels):
                 self._kappa_view_cache[view_key] = result
             if not copy:
                 return result
@@ -511,6 +524,14 @@ class Fan(regfans.fan.Fan):
             )
 
         # don't know the answer... need to calculate it...
+        # (any previously cached values were computed for a different label
+        #  set, i.e. for a different fan. They must be purged rather than
+        #  updated, else stale keys leak into every subsequent output.)
+        self._kappa = dict()
+        self._kappa_known_labels = set()
+        self._kappa_view_cache = {}
+        self._kappa_default = None
+
         # setup
         # -----
         # helpers
@@ -545,7 +566,9 @@ class Fan(regfans.fan.Fan):
         # --------------------------------
         # for distinct indices, just 1/vol of the cone
         vals = 1/np.abs(np.linalg.det(vecs[simps_np])) # NumPy broadcasting
-        self._kappa.update(zip(simps, map(float,vals)))
+        kappa_dict = self._kappa # local aliases (the loop below is hot)
+        kappa_get  = kappa_dict.get
+        kappa_dict.update(zip(simps, map(float,vals)))
 
         if verbosity >= 1:
             msg =  "After computing the intersection numbers associated to "
@@ -588,10 +611,6 @@ class Fan(regfans.fan.Fan):
                 inds = list(face) + neighbs # analogous to the star of the face
                 pts  = vecs[inds].astype(float)
 
-                if len(set(inds)-self._kappa_known_labels) == 0:
-                    # already know intersection numbers to these labels... skip
-                    continue
-
                 if verbosity >= 1:
                     msg =   "Computing the intersection numbers associated to "
                     msg += f"face = {face}"
@@ -622,8 +641,12 @@ class Fan(regfans.fan.Fan):
                     prefactor = sorted(face + duplicates)
                     # the insert_sorted and the key lookup are the slowest bits
                     # of what follows
-                    known_vals = np.array([ 
-                        self._kappa[insert_sorted(prefactor, i)] for i in\
+                    #
+                    # a key can legitimately be absent (the corresponding
+                    # indices don't span a cone of the fan), in which case the
+                    # intersection number vanishes
+                    known_vals = np.array([
+                        kappa_get(insert_sorted(prefactor, i), 0.0) for i in\
                                                                         neighbs
                         ]).reshape(-1,1)
 
@@ -637,11 +660,11 @@ class Fan(regfans.fan.Fan):
 
                     # save it
                     for i, val in zip(face, sol):
-                        self._kappa[insert_sorted(prefactor, i)] = float(val)
+                        kappa_dict[insert_sorted(prefactor, i)] = float(val)
 
         # intersection numbers w/ 0
         # -------------------------
-        kappa_nzeros = [self._kappa]
+        kappa_nzeros = [kappa_dict]
 
         for num_zeros in range(1,dim+1):
             # make container for kappa w/ n zeros
@@ -675,6 +698,7 @@ class Fan(regfans.fan.Fan):
             as_np_array=as_np_array,
             eps=eps,
             digits=digits,
+            copy=copy,
             verbosity=0,
         )
 
@@ -713,8 +737,7 @@ class Fan(regfans.fan.Fan):
         # compute c2
         out = []
         for a in range(max_ind):
-            vals  = kappa[two_cones[:,0], two_cones[:,1], a]
-            total = vals.sum()
+            vals = kappa[two_cones[:,0], two_cones[:,1], a]
             out.append( round(vals.sum()) )
 
         return out
@@ -778,92 +801,21 @@ class Fan(regfans.fan.Fan):
         The Mori cone.
         """
         include_origin = (pushed_down==False)
-        
+
         rays = self.mori_rays()
+
+        # the divisor basis is only needed (and only defined) when the Mori
+        # cone is requested in a basis
+        if not in_basis:
+            new_rays = rays if include_origin else rays[:, 1:]
+            return Cone(new_rays, check=False)
+
         basis = self.vc.divisor_basis
-        if include_origin and not in_basis:
-            new_rays = rays
-        elif not include_origin and not in_basis:
-            new_rays = rays[:, 1:]
+        if len(basis.shape) == 2:  # If basis is matrix
+            new_rays = rays.dot(basis.T)
         else:
-            if len(basis.shape) == 2:  # If basis is matrix
-                new_rays = rays.dot(basis.T)
-            else:
-                new_rays = rays[:, basis]
-        c = Cone(new_rays, check=len(basis.shape) == 2)
-        return c
-        # (vvv OLD... MAYBE PREFERABLE BUT NOT WORKING??? vvv)
-        """
-        dim = self.dim
-        
-        
-
-        if in_basis:
-            basis = self.vc.divisor_basis_inds
-        else:
-            basis = None
-
-        # push down if basis provided
-        #if False:
-        #    if in_basis:
-        #        print("basis requested so push down!")
-        #        pushed_down = True
-
-        # compute the facets
-        if verbosity >= 1:
-            print("Computing the facets...")
-        facets = {
-            facet
-            for simp in self.cones()
-            for facet in itertools.combinations(simp, r=dim - 1)
-        }
-
-        # get intersection numbers
-        if verbosity >= 1:
-            print("Computing the intersection numbers...")
-        if False:
-            kappa = self.intersection_numbers(
-                pushed_down=pushed_down, in_basis=in_basis, verbosity=verbosity - 1
-            )
-        else:
-            kappa = self.intersection_numbers(
-                pushed_down = False,
-                in_basis = False,
-                verbosity=verbosity - 1
-            )
-
-        # get the rays of the Mori cone
-        if verbosity >= 1:
-            print("Computing the rays...")
-        ray_iter = (
-            basis
-            if basis is not None
-            else [i for i in range(0, self.vc.size + 1)]
-        )
-        rays = []
-        for facet in facets:
-            
-            for extra_zeros in range(0,1+0*len(facet)+1):
-                for fake_facet in itertools.combinations(facet, r=len(facet)-extra_zeros):
-                    fake_facet = extra_zeros*(0,) + fake_facet
-
-                    r = np.array([kappa.get(tuple(sorted(fake_facet + (i,))), 0) for i in ray_iter])
-                    r = float_to_int_vec(r)
-                    rays.append(r)
-        rays = np.array(rays)
-        if verbosity >= 1:
-            print(f"Found rays = {rays}")
-
-        # check for trivial cones
-        if (len(rays) == 0) or max(np.linalg.norm(rays, axis=1)) < eps:
-            size = dim if in_basis else len(self.vc.divisor_basis_inds)
-            H = np.vstack(
-                (+np.identity(size, dtype=int), -np.identity(size, dtype=int))
-            )
-            return Cone(hyperplanes=H)
-
-        return Cone(rays=rays)
-        """
+            new_rays = rays[:, basis]
+        return Cone(new_rays, check=len(basis.shape) == 2)
 
     def kahler_cone(self, pushed_down=False, in_basis=False, verbosity=0):
         """
@@ -939,14 +891,17 @@ class Fan(regfans.fan.Fan):
     # ----------------------
     def flop_linear(self, *args, **kwargs):
         # define the hooks
+        # (the intersection numbers are stashed as `_kappa_np`; using `kappa`
+        #  would shadow the `kappa`/`intersection_numbers` method on these
+        #  instances)
         def hook_init(fan):
-            fan.kappa =  fan.intersection_numbers(
+            fan._kappa_np = fan.intersection_numbers(
                 pushed_down=True,
                 in_basis=True,
                 as_np_array=True)
 
         def hook_flip(fanpre, fanpost, circ):
-            fanpost.kappa = flop(fanpre, fanpre.kappa, circ)
+            fanpost._kappa_np = flop(fanpre, fanpre._kappa_np, circ)
 
         # call flip_linear with the hooks
         return self.flip_linear(
@@ -1119,21 +1074,17 @@ def flop(fan, kappa, circ, verbosity=0):
 
     n = np.array(circ.normal)
     n = n[fan.vc.divisor_basis_inds]
-    
-    if False:
-        if False:
-            outer = np.einsum('i,j,k->ijk', n, n, n)
-        else:
-            outer = n[:, None, None] * n[None, :, None] * n[None, None, :]
-        return kappa - gv*outer
-    else:
-        kappa_flopped = kappa.copy()
-        n_nonzero = np.where(n)[0]
 
-        for i,j,k in itertools.product(n_nonzero,repeat=3):
-            kappa_flopped[i,j,k] = kappa_flopped[i,j,k] - gv*n[i]*n[j]*n[k]
+    # kappa -> kappa - gv*(n outer n outer n)
+    # (only the nonzero entries of n contribute, and n is typically very
+    #  sparse, so this beats forming the full outer product)
+    kappa_flopped = kappa.copy()
+    n_nonzero = np.where(n)[0]
 
-        return kappa_flopped
+    for i,j,k in itertools.product(n_nonzero,repeat=3):
+        kappa_flopped[i,j,k] = kappa_flopped[i,j,k] - gv*n[i]*n[j]*n[k]
+
+    return kappa_flopped
 
 # misc
 # ----
