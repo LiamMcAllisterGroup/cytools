@@ -1,11 +1,37 @@
 import importlib.util
+import os
+import subprocess
 import sys
+import types
+import warnings
 
 import pytest
 
 from cytools import Polytope
 
-HAS_DUALGNN = importlib.util.find_spec("dualgnn") is not None
+
+def _has_dualgnn() -> bool:
+    """
+    Whether the optional dualgnn package is importable.
+
+    This must never raise: it runs at import (i.e. collection) time, so any
+    exception here turns a missing optional dependency into a collection
+    error instead of a clean skip. `importlib.util.find_spec` is not
+    exception-free -- it raises ValueError if something has left a bare stub
+    module in `sys.modules` (a common way of blocking optional imports, since
+    such a module has `__spec__ = None`), and it propagates whatever a
+    third-party meta-path finder raises.
+    """
+    try:
+        return importlib.util.find_spec("dualgnn") is not None
+    except Exception as e:
+        # a broken install must not break collection, but it should not be
+        # indistinguishable from a missing one either
+        warnings.warn(f"dualgnn probe failed ({e!r}); treating it as absent")
+        return False
+
+
+HAS_DUALGNN = _has_dualgnn()
 
 # dual of the quintic simplex: its ten 21-point 2-faces exercise the GNN,
 # but random per-face FRTs rarely jointly extend (~0.4%), so it's only used
@@ -49,6 +75,64 @@ p_h11_8 = Polytope(
         [0, 1, 1, -1],
     ]
 )
+
+
+# the optional dependency must never break collection
+# ----------------------------------------------------
+def test_has_dualgnn_survives_a_broken_meta_path_finder(monkeypatch):
+    class ExplodingFinder:
+        def find_spec(self, fullname, path=None, target=None):
+            raise ImportError("boom")
+
+    monkeypatch.setattr(sys, "meta_path", [ExplodingFinder()])
+    monkeypatch.delitem(sys.modules, "dualgnn", raising=False)
+    assert _has_dualgnn() is False
+
+
+def test_has_dualgnn_survives_a_bare_stub_module(monkeypatch):
+    # a bare module object has `__spec__ = None`, which makes
+    # `importlib.util.find_spec` raise ValueError
+    monkeypatch.setitem(sys.modules, "dualgnn", types.ModuleType("dualgnn"))
+    assert _has_dualgnn() is False
+
+
+_STUB_SITECUSTOMIZE = """
+import sys
+import types
+
+sys.modules["dualgnn"] = types.ModuleType("dualgnn")
+"""
+
+
+def test_collection_succeeds_when_dualgnn_import_is_blocked(tmp_path):
+    # end-to-end check, in a subprocess, that this file still *collects* when
+    # dualgnn cannot be imported -- the failure mode reported in issue #90
+    (tmp_path / "sitecustomize.py").write_text(_STUB_SITECUSTOMIZE)
+
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join(
+        [str(tmp_path), env.get("PYTHONPATH", "")]
+    ).rstrip(os.pathsep)
+
+    res = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "--collect-only",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            os.path.abspath(__file__),
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=300,
+    )
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert "tests collected" in res.stdout, res.stdout + res.stderr
+    assert "error" not in res.stdout.splitlines()[-1].lower(), res.stdout
 
 
 def test_dualgnn_is_an_allowed_method():
