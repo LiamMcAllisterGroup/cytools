@@ -96,6 +96,7 @@ src = ["src", "tests"]
 # the current tree, so `ruff check` is a hard gate in CI from day one.
 select = [
   "E4",   # pycodestyle: imports
+  "E5",   # pycodestyle: line length
   "E7",   # pycodestyle: statement-level errors
   "E9",   # pycodestyle: syntax/IO errors
   "F",    # pyflakes
