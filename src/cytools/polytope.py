@@ -33,6 +33,13 @@ import numpy as np
 from numpy.typing import ArrayLike
 import ppl
 import ctypes; ctypes.CDLL(None).fesetround(0)  # ppl changes FPU rounding mode; reset to FE_TONEAREST
+
+# imported for annotations only
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
 from scipy.spatial import ConvexHull
 from tqdm import tqdm
 import pypalp
@@ -1357,7 +1364,7 @@ class Polytope:
                         ineq2pts[frozenset([f])].add(pt)
             else:
                 # codim>1 faces... take intersections of higher-dim faces
-                for f1, f2 in itertools.combinations(ineq2pts_prev.values(), 2):
+                for f1, f2 in itertools.combinations(ineq2pts_prev.values(), 2):  # noqa: F821  (bound below, on the previous iteration)
                     # check if their intersection has the right dimension
                     inter = f1 & f2
                     dim = np.linalg.matrix_rank([pt[0] + (1,) for pt in inter]) - 1
@@ -2472,7 +2479,7 @@ class Polytope:
         as_list: bool = False,
         progress_bar: bool = True,
         seed: int = None,
-    ) -> "generator | list":
+    ) -> "Iterator | list":
         """
         **Description:**
         Constructs pseudorandom regular (optionally fine and star)
@@ -2601,7 +2608,7 @@ class Polytope:
         as_list: bool = False,
         progress_bar: bool = True,
         seed: int = None,
-    ) -> "generator | list":
+    ) -> "Iterator | list":
         r"""
         **Description:**
         Constructs pseudorandom regular (optionally star) triangulations of a
@@ -2761,7 +2768,7 @@ class Polytope:
         as_generator: bool = False,
         seed: int = None,
         verbosity: int = 0,
-    ) -> "list | generator":
+    ) -> "list | Iterator":
         """
         **Description:**
         Constructs random NTFE FR(S)Ts of a reflexive 4D polytope, sampling
@@ -2960,7 +2967,7 @@ class Polytope:
         backend: str = None,
         as_list: bool = False,
         raw_output: bool = False,
-    ) -> "generator | list":
+    ) -> "Iterator | list":
         """
         **Description:**
         Computes all triangulations of the polytope using TOPCOM. There is the
@@ -3412,7 +3419,7 @@ class Polytope:
                     if n_try == 4:
                         # use a local generator so that this fallback stays
                         # deterministic without touching NumPy's global RNG
-                        rng = np.random.default_rng(1337)
+                        rng = np.random.RandomState(1337)
                     rng.shuffle(indices[1:])
                     indices[: linrel.shape[0]] = np.sort(indices[: linrel.shape[0]])
 

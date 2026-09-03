@@ -29,6 +29,14 @@ from numpy.typing import ArrayLike
 from cytools.triangulation import Triangulation
 from cytools.utils import lll_reduce
 
+# imported for annotations only; the signatures quote these, so they
+# are never needed at runtime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from cytools.polytope import Polytope
+
+
 
 class PolytopeFace:
     """

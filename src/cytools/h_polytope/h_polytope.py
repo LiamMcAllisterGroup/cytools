@@ -27,6 +27,14 @@ import numpy as np
 import ppl
 import ctypes; ctypes.CDLL(None).fesetround(0)  # ppl changes FPU rounding mode; reset to FE_TONEAREST
 
+# imported for annotations only; the signatures quote these, so they
+# are never needed at runtime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from numpy.typing import ArrayLike
+
+
 # CYTools imports
 from cytools import polytope
 from cytools.utils import gcd_list

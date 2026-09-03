@@ -44,6 +44,14 @@ import highspy
 import ppl
 import ctypes; ctypes.CDLL(None).fesetround(0)  # ppl changes FPU rounding mode; reset to FE_TONEAREST
 
+# imported for annotations only; the signatures quote these, so they
+# are never needed at runtime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from numpy.typing import ArrayLike
+
+
 # the default extremal-ray backend. Optional: extremal_rays falls back to the
 # legacy method, with a warning, when it is missing
 try:

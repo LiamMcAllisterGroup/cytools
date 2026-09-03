@@ -31,6 +31,14 @@ from .fan import Fan
 # core CYTools imports
 from cytools import Cone, Polytope
 
+# imported for annotations only; the signatures quote these, so they
+# are never needed at runtime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from numpy.typing import ArrayLike
+
+
 
 class VectorConfiguration(regfans.VectorConfiguration):
     """

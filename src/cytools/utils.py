@@ -42,6 +42,17 @@ import scipy.sparse.linalg  # noqa: F401
 # CYTools imports
 from cytools import config
 
+# imported for annotations only; the signatures quote these, so they
+# are never needed at runtime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from cytools.polytope import Polytope
+    from collections.abc import Generator
+    from cytools.calabiyau import CalabiYau
+    from cytools.toricvariety import ToricVariety
+
+
 
 # custom decorators
 # -----------------
@@ -1282,8 +1293,7 @@ def read_polytopes(
     favorable: bool = None,
     lattice: str = None,
     limit: int = None,
-) -> 'Generator["Polytope", None, None] | \
-                                                            list["Polytope"]':
+) -> 'Generator["Polytope", None, None] | list["Polytope"]':
     """
     **Description:**
     Reads polytopes from a file or a string. The polytopes can be specified
@@ -1623,7 +1633,7 @@ def fetch_polytopes(
 
 # point manipulations
 # -------------------
-def lll_reduce(pts_in: ArrayLike, transform: bool = False) -> "misc":
+def lll_reduce(pts_in: ArrayLike, transform: bool = False):
     """
     Apply lll-reduction to the input points (the rows).
 

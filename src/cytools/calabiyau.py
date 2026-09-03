@@ -42,6 +42,15 @@ from cytools.utils import (
     set_curve_basis,
 )
 
+# imported for annotations only; the signatures quote these, so they
+# are never needed at runtime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+    from numpy.typing import ArrayLike
+
+
 
 class CalabiYau:
     r"""

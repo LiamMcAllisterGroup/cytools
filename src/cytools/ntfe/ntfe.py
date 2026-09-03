@@ -1103,7 +1103,7 @@ def ntfe_hypers(
         # (use a local generator so that we don't perturb NumPy's global RNG)
         if seed is None:
             seed = time.time_ns() % (2**32)
-        rng = np.random.default_rng(seed)
+        rng = np.random.RandomState(seed)
 
         # choose the hypers
         while len(chosen) < N:

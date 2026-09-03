@@ -118,7 +118,6 @@ ignore = [
   "E741",    # 32x  ambiguous-variable-name
   "F401",    #  8x  unused-import
   "F403",    #  3x  undefined-local-with-import-star
-  "F821",    # 63x  undefined-name (mostly bad annotations, some real bugs)
   "F841",    # 19x  unused-variable
   "NPY002",  #  3x  legacy global RNG; remaining sites are in utils.py and
              #      Triangulation.__init__

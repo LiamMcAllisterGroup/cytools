@@ -37,6 +37,17 @@ from cytools.cone import Cone
 from cytools.toricvariety import ToricVariety
 from cytools.utils import gcd_list, lll_reduce
 
+# imported for annotations only; the signatures quote these, so they
+# are never needed at runtime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+    from cytools.calabiyau import CalabiYau
+    from cytools.polytope import Polytope
+    from cytools.polytopeface import PolytopeFace
+
+
 
 class Triangulation:
     """
@@ -2164,7 +2175,7 @@ class Triangulation:
         """
         # parse inputs
         # (use a local generator so that we don't perturb NumPy's global RNG)
-        rng = np.random.default_rng(seed)
+        rng = np.random.RandomState(seed)
 
         # unspecified restrictions default to the properties of this
         # triangulation (as documented above)
@@ -2786,7 +2797,7 @@ def all_triangulations(
     star_origin: int = None,
     backend: str = None,
     raw_output: bool = False,
-) -> "generator[Triangulation]":
+) -> "Iterator[Triangulation]":
     """
     **Description:**
     Computes all triangulations of the input point configuration using TOPCOM.
@@ -2904,7 +2915,7 @@ def random_triangulations_fast_generator(
     backend: str = "cgal",
     seed: int = None,
     verbosity: int = 0,
-) -> "generator[Triangulation]":
+) -> "Iterator[Triangulation]":
     """
     Constructs pseudorandom regular (optionally fine and star) triangulations
     of a given point set. This is done by picking random heights around the
@@ -2970,7 +2981,7 @@ def random_triangulations_fast_generator(
     """
     # parse inputs
     # (use a local generator so that we don't perturb NumPy's global RNG)
-    rng = np.random.default_rng(seed)
+    rng = np.random.RandomState(seed)
 
     triang_hashes = set()
     n_retries = 0
@@ -3032,7 +3043,7 @@ def random_triangulations_fair_generator(
     make_star: bool = False,
     backend: str = "cgal",
     seed: int = None,
-) -> "generator[Triangulation]":
+) -> "Iterator[Triangulation]":
     r"""
     **Description:**
     Constructs pseudorandom regular (optionally star) triangulations of a given
@@ -3122,10 +3133,10 @@ def random_triangulations_fair_generator(
         raise Exception("Point configuration must be full-dimensional.")
 
     # (use a local generator so that we don't perturb NumPy's global RNG)
-    rng = np.random.default_rng(seed)
+    rng = np.random.RandomState(seed)
 
     # Obtain random Delaunay triangulation by picking random point as origin
-    rand_ind = rng.integers(0, len(pts))
+    rand_ind = rng.randint(0, len(pts))
     points_shifted = [p - triang_pts[rand_ind] for p in triang_pts]
 
     delaunay_heights = [walk_step_size * (np.dot(p, p)) for p in points_shifted]
@@ -3235,7 +3246,7 @@ def random_triangulations_fair_generator(
                     only_star=True,
                     # derive the sub-seed from our local generator so that the
                     # walk stays reproducible for a given `seed`
-                    seed=int(rng.integers(2**32)),
+                    seed=int(rng.randint(2**32)),
                 )
             else:
                 temp_tri = flip_seed_tri

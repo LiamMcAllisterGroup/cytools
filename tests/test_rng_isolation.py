@@ -14,6 +14,15 @@ from cytools import Polytope
 SEED = 1234567
 
 
+# random_flips needs a polytope whose triangulation actually has an
+# acceptable neighbour; on a square or a simplex the walk has nowhere to go
+# and raises "There was an error in the random walk."
+FLIPPABLE = [
+    [0, 0, 1, 0], [-2, -2, -1, -2], [0, 0, 1, 2], [-1, 0, 1, 0],
+    [1, 2, -2, -1], [-1, 0, 0, -1], [0, 1, 0, 0], [1, 0, 0, 0],
+]
+
+
 def _expected_draw():
     """The draw a caller would get if CYTools never touched the global RNG."""
     np.random.seed(SEED)
@@ -66,7 +75,7 @@ def test_random_triangulations_fast_is_reproducible():
 
 
 def test_random_flips_does_not_perturb_global_rng():
-    p = Polytope([[1, 1], [1, -1], [-1, 1], [-1, -1]])
+    p = Polytope(FLIPPABLE)
     t = p.triangulate()
     expected = _expected_draw()
 
@@ -78,7 +87,7 @@ def test_random_flips_does_not_perturb_global_rng():
 
 
 def test_random_flips_is_reproducible():
-    p = Polytope([[1, 1], [1, -1], [-1, 1], [-1, -1]])
+    p = Polytope(FLIPPABLE)
     t = p.triangulate()
     first = t.random_flips(3, seed=3).simplices().tolist()
     second = t.random_flips(3, seed=3).simplices().tolist()
@@ -132,5 +141,5 @@ def test_no_legacy_global_rng_calls(monkeypatch):
         N=2, as_list=True, progress_bar=False, seed=17, make_star=False
     )
 
-    t = Polytope([[1, 1], [1, -1], [-1, 1], [-1, -1]]).triangulate()
+    t = Polytope(FLIPPABLE).triangulate()
     t.random_flips(2, seed=3)

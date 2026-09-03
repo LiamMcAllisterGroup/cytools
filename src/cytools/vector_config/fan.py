@@ -31,6 +31,14 @@ from typing import Union
 from cytools import Cone, HPolytope, utils
 from cytools.triangulation import Triangulation
 
+# imported for annotations only; the signatures quote these, so they
+# are never needed at runtime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from numpy.typing import ArrayLike
+
+
 _INTERSECTION_NUMBERS_DEFAULT_EPS = 1e-4
 _INTERSECTION_NUMBERS_DEFAULT_DIGITS = 10
 
