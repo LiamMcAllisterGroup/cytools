@@ -61,14 +61,24 @@ class CY_orientifold:
         """
         **Description:**
 
-        Constructs a `CY_orientifold` object describing an O3/O7 orientifold of a Calabi-Yau hypersurface in a toric ambient variety. The input toric data are converted into a vector configuration, orbifolded by the `Z_2` action `xi`, and used to determine the associated orientifold line bundle. Optionally, the construction resolves A1 singularities and attempts to refine the toric data so that the relevant divisors become Cartier and nef.
+        Constructs a `CY_orientifold` object describing an O3/O7 orientifold of a
+            Calabi-Yau hypersurface in a toric ambient variety. The input toric data are
+            converted into a vector configuration, orbifolded by the `Z_2` action `xi`,
+            and used to determine the associated orientifold line bundle. Optionally,
+            the construction resolves A1 singularities and attempts to refine the toric
+            data so that the relevant divisors become Cartier and nef.
 
         **Arguments:**
 
-        - `fan_polytope_or_points`: The input toric data. This can be a `Polytope`, `VectorConfiguration`, `Fan`, `numpy.ndarray`, or list of lattice points.
-        - `xi`: The orientifold action/vector. If the input is a trilayer `Polytope`, this may be inferred automatically.
-        - `resolve_A1_singularities (bool)`: Whether to resolve A1 singularities in the toric orbifold. Defaults to `True`.
-        - `construct_nef_decomposition (bool)`: Whether to attempt to construct a Cartier and nef decomposition by refining the orbifold data. Defaults to `True`.
+        - `fan_polytope_or_points`: The input toric data. This can be a `Polytope`,
+            `VectorConfiguration`, `Fan`, `numpy.ndarray`, or list of lattice points.
+        - `xi`: The orientifold action/vector. If the input is a trilayer `Polytope`,
+            this may be inferred automatically.
+        - `resolve_A1_singularities (bool)`: Whether to resolve A1 singularities in the
+            toric orbifold. Defaults to `True`.
+        - `construct_nef_decomposition (bool)`: Whether to attempt to construct a
+            Cartier and nef decomposition by refining the orbifold data. Defaults to
+            `True`.
 
         **Raises:**
 
@@ -212,7 +222,10 @@ class CY_orientifold:
         """
         **Description:**
 
-        Finds codimension-two `Z_2` fixed loci in the Calabi-Yau ambient toric fan and refines the orbifold fan by adding the corresponding blowup rays. The orbifold line bundle is updated by adding the induced weights of the exceptional divisors.
+        Finds codimension-two `Z_2` fixed loci in the Calabi-Yau ambient toric fan and
+            refines the orbifold fan by adding the corresponding blowup rays. The
+            orbifold line bundle is updated by adding the induced weights of the
+            exceptional divisors.
 
         **Returns:**
 
@@ -251,7 +264,10 @@ class CY_orientifold:
         """
         **Description:**
 
-        Constructs the toric fan associated with the orbifold vector configuration if it has not already been cached. If a nef decomposition was constructed, the fan is obtained from the corresponding normal fan refinement. Otherwise, it uses the cone structure inherited from the Calabi-Yau ambient toric fan.
+        Constructs the toric fan associated with the orbifold vector configuration if it
+            has not already been cached. If a nef decomposition was constructed, the fan
+            is obtained from the corresponding normal fan refinement. Otherwise, it uses
+            the cone structure inherited from the Calabi-Yau ambient toric fan.
 
         **Returns:**
 
@@ -286,7 +302,9 @@ class CY_orientifold:
         """
         **Description:**
 
-        Returns the toric fan before orbifolding. If no fan was provided at initialization, one is constructed by triangulating the ambient vector configuration.
+        Returns the toric fan before orbifolding. If no fan was provided at
+            initialization, one is constructed by triangulating the ambient vector
+            configuration.
 
         **Returns:**
 
@@ -301,7 +319,8 @@ class CY_orientifold:
         """
         **Description:**
 
-        Returns all orbifold rays, or only those with labels specified by `c`. Labels are one-indexed, following the CYTools convention for toric rays.
+        Returns all orbifold rays, or only those with labels specified by `c`. Labels
+            are one-indexed, following the CYTools convention for toric rays.
 
         **Arguments:**
 
@@ -321,7 +340,8 @@ class CY_orientifold:
         """
         **Description:**
 
-        Returns all rays of the toric ambient space before orbifolding, or only those with labels specified by `c`. Labels are one-indexed.
+        Returns all rays of the toric ambient space before orbifolding, or only those
+            with labels specified by `c`. Labels are one-indexed.
 
         **Arguments:**
 
@@ -354,7 +374,9 @@ class CY_orientifold:
         """
         **Description:**
 
-        Returns whether the generic invariant Calabi-Yau hypersurface descends regularly to the toric orbifold, i.e. whether the corresponding generic section does not factorize in the orbifold description.
+        Returns whether the generic invariant Calabi-Yau hypersurface descends regularly
+            to the toric orbifold, i.e. whether the corresponding generic section does
+            not factorize in the orbifold description.
 
         **Returns:**
 
@@ -367,7 +389,8 @@ class CY_orientifold:
         """
         **Description:**
 
-        Returns the toric divisor coefficients of the O3/O7 line bundle on the orbifold ambient space.
+        Returns the toric divisor coefficients of the O3/O7 line bundle on the orbifold
+            ambient space.
 
         **Returns:**
 
@@ -380,7 +403,8 @@ class CY_orientifold:
         """
         **Description:**
 
-        Computes the rank of the ambient vector configuration used to define the Calabi-Yau orientifold.
+        Computes the rank of the ambient vector configuration used to define the
+            Calabi-Yau orientifold.
 
         **Returns:**
 
@@ -393,7 +417,9 @@ class CY_orientifold:
         """
         **Description:**
 
-        Computes and caches the normal fan associated with the relevant Newton polytopes if it has not already been constructed. This fan is used to test or implement the Cartier/nef refinement of the orientifold data.
+        Computes and caches the normal fan associated with the relevant Newton polytopes
+            if it has not already been constructed. This fan is used to test or
+            implement the Cartier/nef refinement of the orientifold data.
 
         **Returns:**
 
@@ -429,7 +455,8 @@ class CY_orientifold:
         """
         **Description:**
 
-        Computes and caches the Newton polytope associated with the orbifold vector configuration and orientifold line bundle.
+        Computes and caches the Newton polytope associated with the orbifold vector
+            configuration and orientifold line bundle.
 
         **Returns:**
 
@@ -446,11 +473,15 @@ class CY_orientifold:
         """
         **Description:**
 
-        Determines whether the relevant line bundles define a Cartier and nef decomposition. If an ambient triangulation was provided, this is tested directly on the orbifold toric fan. Otherwise, it is checked through the normal-fan refinement data.
+        Determines whether the relevant line bundles define a Cartier and nef
+            decomposition. If an ambient triangulation was provided, this is tested
+            directly on the orbifold toric fan. Otherwise, it is checked through the
+            normal-fan refinement data.
 
         **Returns:**
 
-        - `bool`: `True` if the construction yields a nef decomposition, otherwise `False`.
+        - `bool`: `True` if the construction yields a nef decomposition, otherwise
+            `False`.
 
         """
         if self.__yields_nef_decomposition is None:
@@ -477,7 +508,9 @@ class CY_orientifold:
         """
         **Description:**
 
-        Returns the `Polytope` object used to initialize the orientifold. If the orientifold was initialized from a fan, vector configuration, array, or list of points, this returns `None`.
+        Returns the `Polytope` object used to initialize the orientifold. If the
+            orientifold was initialized from a fan, vector configuration, array, or list
+            of points, this returns `None`.
 
         **Returns:**
 
@@ -507,11 +540,14 @@ class CY_orientifold:
         """
         **Description:**
 
-        Determines the toric divisors supporting non-Higgsable clusters by checking the sections of the appropriate line bundle. The result may be returned either as one-indexed ray labels or as lattice vectors.
+        Determines the toric divisors supporting non-Higgsable clusters by checking the
+            sections of the appropriate line bundle. The result may be returned either
+            as one-indexed ray labels or as lattice vectors.
 
         **Arguments:**
 
-        - `as_labels (bool)`: If `True`, return one-indexed ray labels. If `False`, return the corresponding lattice vectors. Defaults to `False`.
+        - `as_labels (bool)`: If `True`, return one-indexed ray labels. If `False`,
+            return the corresponding lattice vectors. Defaults to `False`.
 
         **Returns:**
 
@@ -537,7 +573,8 @@ class CY_orientifold:
         """
         **Description:**
 
-        Computes and caches the fixed loci of the `Z_2` orientifold action in the Calabi-Yau ambient toric fan.
+        Computes and caches the fixed loci of the `Z_2` orientifold action in the
+            Calabi-Yau ambient toric fan.
 
         **Returns:**
 
@@ -553,14 +590,23 @@ class F_Theory_Uplift:
     """
     **Description:**
 
-    Constructs and stores the toric data associated with an F-theory uplift of a `CY_orientifold`. The uplift is described as a toric complete intersection with base and Weierstrass line bundles, together with optional blowups over non-Higgsable-cluster loci. The class provides access to the associated singular and resolved ambient fans, Cayley polytopes, nef-partition data, intersection numbers, homology bases, and Hodge numbers when available.
+    Constructs and stores the toric data associated with an F-theory uplift of a
+        `CY_orientifold`. The uplift is described as a toric complete intersection with
+        base and Weierstrass line bundles, together with optional blowups over
+        non-Higgsable-cluster loci. The class provides access to the associated singular
+        and resolved ambient fans, Cayley polytopes, nef-partition data, intersection
+        numbers, homology bases, and Hodge numbers when available.
 
     **Arguments:**
 
-    - `orientifold_or_points`: Either a `CY_orientifold` object or raw toric input data from which a `CY_orientifold` should first be constructed.
-    - `xi`: The orientifold action/vector. Required if raw toric data are provided instead of a `CY_orientifold`.
-    - `resolve_A1_singularities (bool)`: Whether to resolve A1 singularities in the underlying orientifold. Defaults to `False`.
-    - `construct_nef_decomposition (bool)`: Whether to attempt to construct a Cartier and nef decomposition for the underlying orientifold. Defaults to `True`.
+    - `orientifold_or_points`: Either a `CY_orientifold` object or raw toric input data
+        from which a `CY_orientifold` should first be constructed.
+    - `xi`: The orientifold action/vector. Required if raw toric data are provided
+        instead of a `CY_orientifold`.
+    - `resolve_A1_singularities (bool)`: Whether to resolve A1 singularities in the
+        underlying orientifold. Defaults to `False`.
+    - `construct_nef_decomposition (bool)`: Whether to attempt to construct a Cartier
+        and nef decomposition for the underlying orientifold. Defaults to `True`.
 
     **Returns:**
 
@@ -578,14 +624,23 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Constructs an `F_Theory_Uplift` object from either an existing `CY_orientifold` or from raw toric input data. The object stores the underlying orientifold and initializes caches for the singular uplift, resolved uplift, nef-partition data, divisor representations, Hodge numbers, and intersection-theoretic data.
+        Constructs an `F_Theory_Uplift` object from either an existing `CY_orientifold`
+            or from raw toric input data. The object stores the underlying orientifold
+            and initializes caches for the singular uplift, resolved uplift,
+            nef-partition data, divisor representations, Hodge numbers, and
+            intersection-theoretic data.
 
         **Arguments:**
 
-        - `orientifold_or_points`: Either a `CY_orientifold` object or raw toric input data accepted by `CY_orientifold`.
-        - `xi`: The orientifold action/vector. Required when raw toric data are provided.
-        - `resolve_A1_singularities (bool)`: Whether to resolve A1 singularities in the underlying orientifold. Defaults to `False`.
-        - `construct_nef_decomposition (bool)`: Whether to attempt to construct a Cartier and nef decomposition for the underlying orientifold. Defaults to `True`.
+        - `orientifold_or_points`: Either a `CY_orientifold` object or raw toric input
+            data accepted by `CY_orientifold`.
+        - `xi`: The orientifold action/vector. Required when raw toric data are
+            provided.
+        - `resolve_A1_singularities (bool)`: Whether to resolve A1 singularities in the
+            underlying orientifold. Defaults to `False`.
+        - `construct_nef_decomposition (bool)`: Whether to attempt to construct a
+            Cartier and nef decomposition for the underlying orientifold. Defaults to
+            `True`.
 
         **Returns:**
 
@@ -652,7 +707,10 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Constructs the toric divisor coefficient vectors representing the base and Weierstrass line bundles on the resolved uplift ambient space. The method also checks whether these divisors define a valid partition of the anticanonical class and stores the resulting line bundle data.
+        Constructs the toric divisor coefficient vectors representing the base and
+            Weierstrass line bundles on the resolved uplift ambient space. The method
+            also checks whether these divisors define a valid partition of the
+            anticanonical class and stores the resulting line bundle data.
 
         **Returns:**
 
@@ -705,7 +763,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Returns the `CY_orientifold` object from which the F-theory uplift is constructed.
+        Returns the `CY_orientifold` object from which the F-theory uplift is
+            constructed.
 
         **Returns:**
 
@@ -719,7 +778,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Returns whether the resolved F-theory uplift defines both a valid partition and a nef decomposition. The value is computed once and then cached.
+        Returns whether the resolved F-theory uplift defines both a valid partition and
+            a nef decomposition. The value is computed once and then cached.
 
         **Returns:**
 
@@ -738,7 +798,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Returns whether the base and Weierstrass divisor representatives sum to the anticanonical class of the resolved uplift ambient space.
+        Returns whether the base and Weierstrass divisor representatives sum to the
+            anticanonical class of the resolved uplift ambient space.
 
         **Returns:**
 
@@ -753,7 +814,10 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Constructs and caches the toric fan of the resolved F-theory uplift ambient space. Starting from the singular uplift fan, the method inserts the blowup rays associated with non-Higgsable-cluster divisors and performs the corresponding local cone refinements.
+        Constructs and caches the toric fan of the resolved F-theory uplift ambient
+            space. Starting from the singular uplift fan, the method inserts the blowup
+            rays associated with non-Higgsable-cluster divisors and performs the
+            corresponding local cone refinements.
 
         **Returns:**
 
@@ -819,7 +883,9 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Constructs and caches the toric fan obtained by adding the toric `P^2_[2,3,1]` fiber rays to the orbifold base fan, before resolving non-Higgsable-cluster singularities.
+        Constructs and caches the toric fan obtained by adding the toric `P^2_[2,3,1]`
+            fiber rays to the orbifold base fan, before resolving non-Higgsable-cluster
+            singularities.
 
         **Returns:**
 
@@ -846,7 +912,9 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Constructs and caches the Cayley polytope associated with the base and Weierstrass Newton polytopes in the M-lattice. If the uplift is not a nef partition, a warning is raised.
+        Constructs and caches the Cayley polytope associated with the base and
+            Weierstrass Newton polytopes in the M-lattice. If the uplift is not a nef
+            partition, a warning is raised.
 
         **Returns:**
 
@@ -883,7 +951,9 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Constructs and caches the Cayley polytope associated with the dual N-lattice nef partition. This is only defined when the uplift gives a valid partition. If the uplift is not a nef partition, a warning is raised.
+        Constructs and caches the Cayley polytope associated with the dual N-lattice nef
+            partition. This is only defined when the uplift gives a valid partition. If
+            the uplift is not a nef partition, a warning is raised.
 
         **Raises:**
 
@@ -928,7 +998,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Computes and caches the Newton polytope associated with the Weierstrass line bundle on the resolved uplift ambient space.
+        Computes and caches the Newton polytope associated with the Weierstrass line
+            bundle on the resolved uplift ambient space.
 
         **Returns:**
 
@@ -945,7 +1016,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Computes and caches the Newton polytope associated with the base divisor line bundle on the resolved uplift ambient space.
+        Computes and caches the Newton polytope associated with the base divisor line
+            bundle on the resolved uplift ambient space.
 
         **Returns:**
 
@@ -962,7 +1034,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Constructs and caches the convex hull of the union of the base and Weierstrass Newton polytopes in the M-lattice.
+        Constructs and caches the convex hull of the union of the base and Weierstrass
+            Newton polytopes in the M-lattice.
 
         **Returns:**
 
@@ -984,7 +1057,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Computes and caches the Minkowski sum of the base and Weierstrass Newton polytopes in the M-lattice.
+        Computes and caches the Minkowski sum of the base and Weierstrass Newton
+            polytopes in the M-lattice.
 
         **Returns:**
 
@@ -999,7 +1073,9 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Constructs and caches the N-lattice polytope corresponding to the Weierstrass part of the dual nef partition. This is only defined when the uplift gives a valid partition. If the uplift is not a nef partition, a warning is raised.
+        Constructs and caches the N-lattice polytope corresponding to the Weierstrass
+            part of the dual nef partition. This is only defined when the uplift gives a
+            valid partition. If the uplift is not a nef partition, a warning is raised.
 
         **Raises:**
 
@@ -1033,7 +1109,9 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Constructs and caches the N-lattice polytope corresponding to the base part of the dual nef partition. This is only defined when the uplift gives a valid partition. If the uplift is not a nef partition, a warning is raised.
+        Constructs and caches the N-lattice polytope corresponding to the base part of
+            the dual nef partition. This is only defined when the uplift gives a valid
+            partition. If the uplift is not a nef partition, a warning is raised.
 
         **Raises:**
 
@@ -1067,7 +1145,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Constructs and caches the convex hull of the lattice points defining the resolved uplift ambient space.
+        Constructs and caches the convex hull of the lattice points defining the
+            resolved uplift ambient space.
 
         **Returns:**
 
@@ -1082,7 +1161,9 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Computes and caches the Minkowski sum of the base and Weierstrass N-lattice polytopes. This is only defined when the uplift gives a valid partition. If the uplift is not a nef partition, a warning is raised.
+        Computes and caches the Minkowski sum of the base and Weierstrass N-lattice
+            polytopes. This is only defined when the uplift gives a valid partition. If
+            the uplift is not a nef partition, a warning is raised.
 
         **Raises:**
 
@@ -1106,7 +1187,10 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Constructs and caches the rays of the singular F-theory uplift ambient fan. These consist of the orbifold base rays together with the three toric `P^2_[2,3,1]` fiber rays. If `labels` are provided, only the corresponding one-indexed rays are returned.
+        Constructs and caches the rays of the singular F-theory uplift ambient fan.
+            These consist of the orbifold base rays together with the three toric
+            `P^2_[2,3,1]` fiber rays. If `labels` are provided, only the corresponding
+            one-indexed rays are returned.
 
         **Arguments:**
 
@@ -1141,11 +1225,14 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Constructs and caches the blowup rays inserted over the non-Higgsable clusters of the singular uplift. The result can be returned either as lattice vectors or as one-indexed ray labels in the resolved uplift fan.
+        Constructs and caches the blowup rays inserted over the non-Higgsable clusters
+            of the singular uplift. The result can be returned either as lattice vectors
+            or as one-indexed ray labels in the resolved uplift fan.
 
         **Arguments:**
 
-        - `as_labels (bool)`: If `True`, return one-indexed labels of the blowup rays. If `False`, return the corresponding lattice vectors. Defaults to `False`.
+        - `as_labels (bool)`: If `True`, return one-indexed labels of the blowup rays.
+            If `False`, return the corresponding lattice vectors. Defaults to `False`.
 
         **Returns:**
 
@@ -1179,7 +1266,9 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Returns the points of the M-lattice convex hull polytope that are not interior to facets or codimension-two faces. These are the points retained for the corresponding toric ambient fan construction.
+        Returns the points of the M-lattice convex hull polytope that are not interior
+            to facets or codimension-two faces. These are the points retained for the
+            corresponding toric ambient fan construction.
 
         **Returns:**
 
@@ -1196,7 +1285,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Returns the points of the N-lattice convex hull polytope that are not interior to facets or codimension-two faces.
+        Returns the points of the N-lattice convex hull polytope that are not interior
+            to facets or codimension-two faces.
 
         **Returns:**
 
@@ -1213,7 +1303,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Returns the polytope underlying the associated `CY_orientifold`. If the orientifold was not initialized from a polytope, this returns `None`.
+        Returns the polytope underlying the associated `CY_orientifold`. If the
+            orientifold was not initialized from a polytope, this returns `None`.
 
         **Returns:**
 
@@ -1226,7 +1317,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Computes and caches the intersection numbers of the toric fan associated with the M-lattice convex hull polytope.
+        Computes and caches the intersection numbers of the toric fan associated with
+            the M-lattice convex hull polytope.
 
         **Arguments:**
 
@@ -1247,7 +1339,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Computes and caches the intersection numbers of the resolved F-theory uplift ambient toric fan.
+        Computes and caches the intersection numbers of the resolved F-theory uplift
+            ambient toric fan.
 
         **Returns:**
 
@@ -1264,7 +1357,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Computes and caches the intersection numbers of the singular F-theory uplift ambient toric fan.
+        Computes and caches the intersection numbers of the singular F-theory uplift
+            ambient toric fan.
 
         **Arguments:**
 
@@ -1285,7 +1379,9 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Computes and caches `h^{1,1}` using the Batyrev-Borisov formulas for two-part nef partitions. This is only available when the uplift defines a nef partition.
+        Computes and caches `h^{1,1}` using the Batyrev-Borisov formulas for two-part
+            nef partitions. This is only available when the uplift defines a nef
+            partition.
 
         **Raises:**
 
@@ -1307,7 +1403,9 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Computes and caches `h^{3,1}` using the Batyrev-Borisov formulas for two-part nef partitions. This is only available when the uplift defines a nef partition.
+        Computes and caches `h^{3,1}` using the Batyrev-Borisov formulas for two-part
+            nef partitions. This is only available when the uplift defines a nef
+            partition.
 
         **Raises:**
 
@@ -1329,7 +1427,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Computes a fast point-counting expression based on the M-lattice Cayley polytope. This is not the full Batyrev-Borisov Hodge-number formula.
+        Computes a fast point-counting expression based on the M-lattice Cayley
+            polytope. This is not the full Batyrev-Borisov Hodge-number formula.
 
         **Returns:**
 
@@ -1342,7 +1441,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Computes and caches the divisor coefficient vector corresponding to the Weierstrass component of the dual nef partition in the M-lattice.
+        Computes and caches the divisor coefficient vector corresponding to the
+            Weierstrass component of the dual nef partition in the M-lattice.
 
         **Raises:**
 
@@ -1373,7 +1473,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Computes and caches the divisor coefficient vector corresponding to the base component of the dual nef partition in the M-lattice.
+        Computes and caches the divisor coefficient vector corresponding to the base
+            component of the dual nef partition in the M-lattice.
 
         **Raises:**
 
@@ -1404,7 +1505,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Returns the divisor coefficient vector representing the Weierstrass component of the partition on the resolved uplift ambient space.
+        Returns the divisor coefficient vector representing the Weierstrass component of
+            the partition on the resolved uplift ambient space.
 
         **Returns:**
 
@@ -1419,7 +1521,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Returns the divisor coefficient vector representing the base component of the partition on the resolved uplift ambient space.
+        Returns the divisor coefficient vector representing the base component of the
+            partition on the resolved uplift ambient space.
 
         **Returns:**
 
@@ -1447,7 +1550,9 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Constructs and caches a triangulation of the relevant primitive rays of the M-lattice convex-hull polytope. This fan is only defined when the uplift is a partition.
+        Constructs and caches a triangulation of the relevant primitive rays of the
+            M-lattice convex-hull polytope. This fan is only defined when the uplift is
+            a partition.
 
         **Raises:**
 
@@ -1478,11 +1583,13 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Computes the curve classes obtained by intersecting the base and Weierstrass divisors in the M-lattice toric fan.
+        Computes the curve classes obtained by intersecting the base and Weierstrass
+            divisors in the M-lattice toric fan.
 
         **Arguments:**
 
-        - `as_LLL (bool)`: Whether to return the intersections in an LLL-reduced basis. Defaults to `True`.
+        - `as_LLL (bool)`: Whether to return the intersections in an LLL-reduced basis.
+            Defaults to `True`.
 
         **Raises:**
 
@@ -1490,7 +1597,8 @@ class F_Theory_Uplift:
 
         **Returns:**
 
-        - Object returned by `UF.divisor_intersections`: The divisor-intersection data in the chosen homology basis.
+        - Object returned by `UF.divisor_intersections`: The divisor-intersection
+            data in the chosen homology basis.
 
         """
         if not self.is_nef_partition():
@@ -1507,15 +1615,18 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Computes the curve classes obtained by intersecting the base and Weierstrass divisors in the resolved uplift ambient toric fan.
+        Computes the curve classes obtained by intersecting the base and Weierstrass
+            divisors in the resolved uplift ambient toric fan.
 
         **Arguments:**
 
-        - `as_LLL (bool)`: Whether to return the intersections in an LLL-reduced basis. Defaults to `True`.
+        - `as_LLL (bool)`: Whether to return the intersections in an LLL-reduced basis.
+            Defaults to `True`.
 
         **Returns:**
 
-        - Object returned by `UF.divisor_intersections`: The divisor-intersection data in the chosen homology basis.
+        - Object returned by `UF.divisor_intersections`: The divisor-intersection
+            data in the chosen homology basis.
 
         """
         return UF.divisor_intersections(
@@ -1530,11 +1641,13 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Delegates to the underlying orientifold and returns the divisors supporting non-Higgsable clusters, either as one-indexed labels or as lattice vectors.
+        Delegates to the underlying orientifold and returns the divisors supporting
+            non-Higgsable clusters, either as one-indexed labels or as lattice vectors.
 
         **Arguments:**
 
-        - `as_labels (bool)`: If `True`, return one-indexed ray labels. If `False`, return the corresponding lattice vectors. Defaults to `False`.
+        - `as_labels (bool)`: If `True`, return one-indexed ray labels. If `False`,
+            return the corresponding lattice vectors. Defaults to `False`.
 
         **Returns:**
 
@@ -1547,11 +1660,14 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Returns the rays of the singular uplift ambient fan corresponding to the base non-Higgsable-cluster divisors. The result may be returned as one-indexed labels or as vectors.
+        Returns the rays of the singular uplift ambient fan corresponding to the base
+            non-Higgsable-cluster divisors. The result may be returned as one-indexed
+            labels or as vectors.
 
         **Arguments:**
 
-        - `as_labels (bool)`: If `True`, return one-indexed ray labels. If `False`, return the corresponding lattice vectors. Defaults to `False`.
+        - `as_labels (bool)`: If `True`, return one-indexed ray labels. If `False`,
+            return the corresponding lattice vectors. Defaults to `False`.
 
         **Returns:**
 
@@ -1569,7 +1685,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Delegates to the underlying orientifold and returns either all orbifold base rays or the one-indexed rays specified by `labels`.
+        Delegates to the underlying orientifold and returns either all orbifold base
+            rays or the one-indexed rays specified by `labels`.
 
         **Arguments:**
 
@@ -1586,7 +1703,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Delegates to the underlying orientifold and returns either all original ambient rays or the one-indexed rays specified by `labels`.
+        Delegates to the underlying orientifold and returns either all original ambient
+            rays or the one-indexed rays specified by `labels`.
 
         **Arguments:**
 
@@ -1629,7 +1747,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Delegates to the underlying orientifold and returns the toric fan before orbifolding.
+        Delegates to the underlying orientifold and returns the toric fan before
+            orbifolding.
 
         **Returns:**
 
@@ -1642,7 +1761,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Delegates to the underlying orientifold and returns the toric fan of the orbifold base.
+        Delegates to the underlying orientifold and returns the toric fan of the
+            orbifold base.
 
         **Returns:**
 
@@ -1655,7 +1775,10 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Constructs and caches the rays of the resolved F-theory uplift ambient fan. These consist of the singular uplift rays together with the blowup rays over non-Higgsable clusters. If `labels` are provided, only the corresponding one-indexed rays are returned.
+        Constructs and caches the rays of the resolved F-theory uplift ambient fan.
+            These consist of the singular uplift rays together with the blowup rays over
+            non-Higgsable clusters. If `labels` are provided, only the corresponding
+            one-indexed rays are returned.
 
         **Arguments:**
 
@@ -1682,7 +1805,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Delegates to the underlying orientifold and returns the vector `xi` specifying the toric `Z_2` action.
+        Delegates to the underlying orientifold and returns the vector `xi` specifying
+            the toric `Z_2` action.
 
         **Returns:**
 
@@ -1695,7 +1819,9 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Computes and caches `h^{2,1}` using the Batyrev-Borisov formulas for two-part nef partitions. This is only available when the uplift defines a nef partition.
+        Computes and caches `h^{2,1}` using the Batyrev-Borisov formulas for two-part
+            nef partitions. This is only available when the uplift defines a nef
+            partition.
 
         **Raises:**
 
@@ -1717,7 +1843,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Computes and caches the Euler characteristic using the fourfold relation `chi = 48 + 6*(h11 + h31 - h21)`.
+        Computes and caches the Euler characteristic using the fourfold relation `chi =
+            48 + 6*(h11 + h31 - h21)`.
 
         **Returns:**
 
@@ -1732,7 +1859,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Delegates to the underlying orientifold and returns whether the orientifold construction is regular.
+        Delegates to the underlying orientifold and returns whether the orientifold
+            construction is regular.
 
         **Returns:**
 
@@ -1745,7 +1873,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Delegates to the underlying orientifold and returns the normal fan used in the nef-decomposition construction.
+        Delegates to the underlying orientifold and returns the normal fan used in the
+            nef-decomposition construction.
 
         **Returns:**
 
@@ -1758,7 +1887,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Computes and caches a basis of `H_2` for the toric fan associated with the M-lattice convex hull.
+        Computes and caches a basis of `H_2` for the toric fan associated with the
+            M-lattice convex hull.
 
         **Arguments:**
 
@@ -1766,7 +1896,8 @@ class F_Theory_Uplift:
 
         **Returns:**
 
-        - Object returned by `UF.basis_H2_toric_fan`: A basis for the relevant toric curve homology.
+        - Object returned by `UF.basis_H2_toric_fan`: A basis for the relevant
+            toric curve homology.
 
         """
         if self.__basis_homology_M is None:
@@ -1777,7 +1908,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Computes and caches a basis of `H_2` for the resolved F-theory uplift ambient toric fan.
+        Computes and caches a basis of `H_2` for the resolved F-theory uplift ambient
+            toric fan.
 
         **Arguments:**
 
@@ -1785,7 +1917,8 @@ class F_Theory_Uplift:
 
         **Returns:**
 
-        - Object returned by `UF.basis_H2_toric_fan`: A basis for the relevant toric curve homology.
+        - Object returned by `UF.basis_H2_toric_fan`: A basis for the relevant
+            toric curve homology.
 
         """
         if self.__basis_homology_N is None:
@@ -1798,7 +1931,9 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Returns the one-indexed labels of the base and Weierstrass components of the N-lattice nef partition. If the uplift is not a nef partition, returns empty tuples.
+        Returns the one-indexed labels of the base and Weierstrass components of the
+            N-lattice nef partition. If the uplift is not a nef partition, returns empty
+            tuples.
 
         **Returns:**
 
@@ -1817,7 +1952,9 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Returns the one-indexed labels of the base and Weierstrass components of the M-lattice nef partition. If the uplift is not a nef partition, returns empty tuples.
+        Returns the one-indexed labels of the base and Weierstrass components of the
+            M-lattice nef partition. If the uplift is not a nef partition, returns empty
+            tuples.
 
         **Returns:**
 
@@ -1836,7 +1973,10 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Determines whether the base and Weierstrass line bundles define Cartier and nef divisors on the resolved uplift ambient fan. If the underlying orientifold was not constructed from an ambient triangulation, this delegates to the orientifold nef-decomposition check.
+        Determines whether the base and Weierstrass line bundles define Cartier and nef
+            divisors on the resolved uplift ambient fan. If the underlying orientifold
+            was not constructed from an ambient triangulation, this delegates to the
+            orientifold nef-decomposition check.
 
         **Returns:**
 
@@ -1875,7 +2015,8 @@ class F_Theory_Uplift:
         """
         **Description:**
 
-        Delegates to the underlying orientifold and returns the intersection numbers of the orbifold toric fan.
+        Delegates to the underlying orientifold and returns the intersection numbers of
+            the orbifold toric fan.
 
         **Returns:**
 
@@ -1915,13 +2056,19 @@ def fetch_orientifolds(
     """
     **Description:**
 
-    Iterates over polytopes returned by `fetch_polytopes`, computes inequivalent toric `Z_2` actions, and yields the corresponding `CY_orientifold` objects. The output may optionally be restricted to regular orientifolds or to orientifolds yielding a nef decomposition.
+    Iterates over polytopes returned by `fetch_polytopes`, computes inequivalent toric
+        `Z_2` actions, and yields the corresponding `CY_orientifold` objects. The output
+        may optionally be restricted to regular orientifolds or to orientifolds yielding
+        a nef decomposition.
 
     **Arguments:**
 
-    - `only_regular (bool)`: Whether to yield only regular orientifolds. Defaults to `True`.
-    - `only_nef_decomposition (bool)`: Whether to yield only orientifolds that yield a nef decomposition. Defaults to `False`.
-    - `h11, h12, h13, h21, h22, h31, chi`: Optional Hodge-number and Euler characteristic filters passed to `fetch_polytopes`.
+    - `only_regular (bool)`: Whether to yield only regular orientifolds. Defaults to
+        `True`.
+    - `only_nef_decomposition (bool)`: Whether to yield only orientifolds that yield a
+        nef decomposition. Defaults to `False`.
+    - `h11, h12, h13, h21, h22, h31, chi`: Optional Hodge-number and Euler
+        characteristic filters passed to `fetch_polytopes`.
     - `lattice (str)`: Lattice used by `fetch_polytopes`. Defaults to `"N"`.
     - `dim (int)`: Polytope dimension. Defaults to `4`.
     - `n_points (int)`: Optional filter on the number of lattice points.
@@ -1932,9 +2079,11 @@ def fetch_orientifolds(
     - `samples (int)`: Optional number of random samples.
     - `sample_seed (int)`: Optional random seed for sampling.
     - `timeout (int)`: Timeout passed to `fetch_polytopes`. Defaults to `60`.
-    - `as_list (bool)`: Whether `fetch_polytopes` should return a list. Defaults to `True`.
+    - `as_list (bool)`: Whether `fetch_polytopes` should return a list. Defaults to
+        `True`.
     - `backend (str)`: Optional backend passed to `fetch_polytopes`.
-    - `deterministic_glsm_basis (bool)`: Passed to `fetch_polytopes`. Defaults to `False`.
+    - `deterministic_glsm_basis (bool)`: Passed to `fetch_polytopes`. Defaults to
+        `False`.
     - `dualize (bool)`: Passed to `fetch_polytopes`. Defaults to `False`.
     - `favorable (bool)`: Optional favorability filter.
     - `verbosity (int)`: Verbosity level. Defaults to `0`.
@@ -2041,14 +2190,21 @@ def fetch_F_Theory_uplifts(
     """
     **Description:**
 
-    Iterates over Calabi-Yau orientifolds obtained from `fetch_orientifolds` and yields the associated `F_Theory_Uplift` objects. The output may optionally be restricted to regular orientifolds, orientifolds yielding a nef decomposition, or uplifts defining a nef partition.
+    Iterates over Calabi-Yau orientifolds obtained from `fetch_orientifolds` and yields
+        the associated `F_Theory_Uplift` objects. The output may optionally be
+        restricted to regular orientifolds, orientifolds yielding a nef decomposition,
+        or uplifts defining a nef partition.
 
     **Arguments:**
 
-    - `only_regular (bool)`: Whether to use only regular orientifolds. Defaults to `True`.
-    - `only_nef_partition (bool)`: Whether to yield only uplifts defining a nef partition. Defaults to `False`.
-    - `only_nef_decomposition (bool)`: Whether to use only orientifolds yielding a nef decomposition. Defaults to `False`.
-    - `h11, h12, h13, h21, h22, h31, chi`: Optional Hodge-number and Euler characteristic filters passed to `fetch_polytopes`.
+    - `only_regular (bool)`: Whether to use only regular orientifolds. Defaults to
+        `True`.
+    - `only_nef_partition (bool)`: Whether to yield only uplifts defining a nef
+        partition. Defaults to `False`.
+    - `only_nef_decomposition (bool)`: Whether to use only orientifolds yielding a nef
+        decomposition. Defaults to `False`.
+    - `h11, h12, h13, h21, h22, h31, chi`: Optional Hodge-number and Euler
+        characteristic filters passed to `fetch_polytopes`.
     - `lattice (str)`: Lattice used by `fetch_polytopes`. Defaults to `"N"`.
     - `dim (int)`: Polytope dimension. Defaults to `4`.
     - `n_points (int)`: Optional filter on the number of lattice points.
@@ -2059,9 +2215,11 @@ def fetch_F_Theory_uplifts(
     - `samples (int)`: Optional number of random samples.
     - `sample_seed (int)`: Optional random seed for sampling.
     - `timeout (int)`: Timeout passed to `fetch_polytopes`. Defaults to `60`.
-    - `as_list (bool)`: Whether `fetch_polytopes` should return a list. Defaults to `True`.
+    - `as_list (bool)`: Whether `fetch_polytopes` should return a list. Defaults to
+        `True`.
     - `backend (str)`: Optional backend passed to `fetch_polytopes`.
-    - `deterministic_glsm_basis (bool)`: Passed to `fetch_polytopes`. Defaults to `False`.
+    - `deterministic_glsm_basis (bool)`: Passed to `fetch_polytopes`. Defaults to
+        `False`.
     - `dualize (bool)`: Passed to `fetch_polytopes`. Defaults to `False`.
     - `favorable (bool)`: Optional favorability filter.
     - `verbosity (int)`: Verbosity level. Defaults to `0`.
@@ -2173,22 +2331,35 @@ def fetch_nef_partition_uplifts(
     """
     **Description:**
 
-    Reads an indexed parquet dataset of F-theory uplifts and returns rows matching the specified Hodge-number filters. Data may be read either from the Hugging Face Hub or from a local dataset directory.
+    Reads an indexed parquet dataset of F-theory uplifts and returns rows matching the
+        specified Hodge-number filters. Data may be read either from the Hugging Face
+        Hub or from a local dataset directory.
 
     **Arguments:**
 
-    - `h11 (int or None)`: Desired value of `h^{1,1}`. If `None`, no `h11` restriction is applied. Defaults to `None`.
-    - `h21 (int or None)`: Desired value of `h^{2,1}`. If `None`, no `h21` restriction is applied. Defaults to `None`.
-    - `limit (int or None)`: Maximum number of rows to return. If `None`, all matching rows are returned. Defaults to `100`.
-    - `repo_id (str)`: Hugging Face dataset repository ID. Defaults to `"jakobmoritz/F-theory_Uplifts_Nef-partitions"`.
-    - `index_path (str or Path or None)`: Path to `hodge_index.parquet`. If `None`, the default index path is inferred from `repo_id` or `local_base`. Defaults to `None`.
-    - `local_base (str or Path or None)`: Local dataset directory containing `data_by_h11/` and `index/`. If `None`, data are read from Hugging Face. Defaults to `None`.
-    - `columns (list[str] or None)`: Columns to read from the parquet files. If `None`, all columns are read. Defaults to `None`.
-    - `as_pandas (bool)`: Whether to return a pandas `DataFrame`. If `False`, returns a pyarrow `Table`. Defaults to `True`.
+    - `h11 (int or None)`: Desired value of `h^{1,1}`. If `None`, no `h11` restriction
+        is applied. Defaults to `None`.
+    - `h21 (int or None)`: Desired value of `h^{2,1}`. If `None`, no `h21` restriction
+        is applied. Defaults to `None`.
+    - `limit (int or None)`: Maximum number of rows to return. If `None`, all matching
+        rows are returned. Defaults to `100`.
+    - `repo_id (str)`: Hugging Face dataset repository ID. Defaults to
+        `"jakobmoritz/F-theory_Uplifts_Nef-partitions"`.
+    - `index_path (str or Path or None)`: Path to `hodge_index.parquet`. If `None`, the
+        default index path is inferred from `repo_id` or `local_base`. Defaults to
+        `None`.
+    - `local_base (str or Path or None)`: Local dataset directory containing
+        `data_by_h11/` and `index/`. If `None`, data are read from Hugging Face.
+        Defaults to `None`.
+    - `columns (list[str] or None)`: Columns to read from the parquet files. If `None`,
+        all columns are read. Defaults to `None`.
+    - `as_pandas (bool)`: Whether to return a pandas `DataFrame`. If `False`, returns a
+        pyarrow `Table`. Defaults to `True`.
 
     **Raises:**
 
-    - `ValueError`: Raised if neither `h11` nor `h21` is specified, or if the index is missing required row-group information.
+    - `ValueError`: Raised if neither `h11` nor `h21` is specified, or if the index is
+        missing required row-group information.
 
     **Returns:**
 
