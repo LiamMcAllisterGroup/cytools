@@ -1384,7 +1384,10 @@ class Polytope:
             self._faces.append(dd_faces)
 
             # store for next iteration
-            ineq2pts_prev = ineq2pts
+            # (read at the top of the next pass; ruff reads the loop body as
+            #  straight-line code, so it sees a store with no load here and a
+            #  load with no binding there -- hence the F821 noqa above too)
+            ineq2pts_prev = ineq2pts  # noqa: F841
 
         # Finally add vertices
         self._faces.append(

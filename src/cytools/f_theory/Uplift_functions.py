@@ -57,7 +57,6 @@ def compute_partition(divisors,rays):
 
     """
 
-    null = np.zeros([rays.shape[0],rays.shape[1]],dtype=int)
     linear1 = np.tensordot(np.identity(2,dtype=int),rays,axes=0)
     linear1 = linear1.transpose(0, 2, 1, 3).reshape(len(divisors)*rays.shape[0], len(divisors)*rays.shape[1])
     linear2 = np.hstack([rays]*len(divisors))
@@ -75,7 +74,10 @@ def compute_partition(divisors,rays):
     upper = np.concatenate([upper1,upper2])
 
     c = np.zeros(linear.shape[1])
-    integrality = np.ones_like(c)
+    # noqa below: built but not passed to milp() two lines down, so the solve
+    # may be running as an LP where an ILP was intended. Raised with the
+    # f_theory authors; kept until they decide.
+    integrality = np.ones_like(c)  # noqa: F841
 
     constraints = LinearConstraint(linear, lower, upper)
     res = milp(c=np.zeros(linear.shape[1]),
@@ -262,7 +264,6 @@ def h21_2_part(Cay: Polytope,Cayd: Polytope,det=False):
 
     """
     Cdvert=Cayd.vertices()
-    n=Cay.dim()-1
     h21_ret=0
     for f in Cay.faces(2):
         h21_ret=h21_ret+len(Polytope(2*(dual_face_Cayley_polytope(Cdvert,f).vertices())).interior_points())*len(f.interior_points())
@@ -339,7 +340,6 @@ def glsm_from_points(pts):
     """
     a,s,t=smith_normal_decomp(Matrix(np.array(pts).T),domain=ZZ)
     aa=np.array(a,dtype=int)
-    ss=np.array(s,dtype=int)
     tt=np.array(t,dtype=int)
     rank_a=np.linalg.matrix_rank(aa)
     return tt.T[rank_a:]
@@ -362,7 +362,6 @@ def points_from_glsm(glsm):
     D,U,V=smith_normal_decomp(Matrix(np.array(glsm).T),domain=ZZ)
     DD=np.array(D,dtype=int)
     UU=np.array(U,dtype=int)
-    VV=np.array(V,dtype=int)
     rank_D=np.linalg.matrix_rank(DD)
     return (UU[rank_D:].astype(int)).T
 
@@ -451,9 +450,7 @@ def trilayer_normal_form(p):
             y[ii]=c[ii]/a[ii][ii]
     r=t@y
     aa2,ss2,tt2=smith_normal_decomp(Matrix(r[:,None]),domain=ZZ)
-    a2=np.array(aa2,dtype=int)
     s2=np.array(ss2,dtype=int)
-    t2=np.array(tt2,dtype=int)
     U0=np.round(np.linalg.inv(s2).T).astype(int)
     M=U0@verts.T
     for i in range(1,p.ambient_dim()):
@@ -1264,7 +1261,6 @@ def normal_fan(polytopes,inequalities=None,maximal_refinement=False,triangulate_
 
     inequalities=np.array(inequalities)
     
-    n_vectors=n_fan.vectors()
     if np.max((1-weights[:,0])*inequalities[0]-weights[:,1])>=inequalities[-1]:
         if return_unrefined_fan:
             return (None,None,None)

@@ -2536,11 +2536,9 @@ class Triangulation:
                         continue
 
                     # check it
-                    in_SR = False
                     for order in range(1, i + 1):
                         for t in itertools.combinations(tup, order):
                             if frozenset(t + (j,)) in SR_ideal:
-                                in_SR = True
                                 break
                         else:
                             # frozenset(t+(j,)) was not in SR_ideal for any t

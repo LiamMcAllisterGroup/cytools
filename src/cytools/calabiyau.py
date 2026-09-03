@@ -1375,9 +1375,6 @@ class CalabiYau:
                     ii[1:]: -ambient_intnums[ii] for ii in ambient_intnums if 0 in ii
                 }
             else:
-                triang_pts = [
-                    tuple(pt) for pt in self.ambient_variety().triangulation().points()
-                ]
                 parts = self._nef_part
                 ambient_dim = self.ambient_dim()
                 intnums_dict = ambient_intnums
@@ -2368,7 +2365,6 @@ class CalabiYau:
                     for f in self.polytope().facets()]
         twofaces = [self.ambient_variety().triangulation().points_to_indices(f.points())
                     for f in self.polytope().faces(2)]
-        n_pts = pts_ext.shape[0]
         mori_cap_rays = set()
         simp_2d_all = set()
         # We start by finding circuits in 2-faces and their respective Mori cone
