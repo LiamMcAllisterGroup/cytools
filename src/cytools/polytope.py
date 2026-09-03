@@ -4109,9 +4109,12 @@ def saturating_lattice_pts(
         dim = np.linalg.matrix_rank([list(pt) + [1] for pt in pts]) - 1
     
     if backend is None:
-        if 1 <= dim <= 4: backend = "ppl"
-        else:             backend = "palp"
-    if dim == 0:          backend = "palp"
+        if 1 <= dim <= 4:
+            backend = "ppl"
+        else:
+            backend = "palp"
+    if dim == 0:
+        backend = "palp"
     if ineqs is None:
         ineqs, _ = poly_v_to_h(pts, backend)
 
