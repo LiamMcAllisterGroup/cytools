@@ -138,7 +138,8 @@ class Cone:
     [`__init__`](#__init__) function.
 
     **Arguments:**
-    - `rays`: A list of rays that generates the cone. If it is not specified then the hyperplane normals must be specified.
+    - `rays`: A list of rays that generates the cone. If it is not specified then
+        the hyperplane normals must be specified.
     - `hyperplanes` *(array_like, optional)*: A list of inward-pointing
         hyperplane normals that define the cone. If it is not specified then the
         generating rays must be specified.
@@ -156,7 +157,8 @@ class Cone:
     the same cone.
     ```python {2,3}
     from cytools import Cone
-    c1 = Cone([[0,1],[1,1]]) # Create a cone using rays. It can also be done with Cone(rays=[[0,1],[1,1]])
+    # Create a cone using rays. It can also be done with Cone(rays=[[0,1],[1,1]])
+    c1 = Cone([[0,1],[1,1]])
     c2 = Cone(hyperplanes=[[1,0],[-1,1]]) # Create a cone using hyperplane normals.
     c1 == c2 # We verify that the two cones are the same.
     # True
@@ -203,7 +205,8 @@ class Cone:
         result in the same cone.
         ```python {2,3}
         from cytools import Cone
-        c1 = Cone([[0,1],[1,1]]) # Create a cone using rays. It can also be done with Cone(rays=[[0,1],[1,1]])
+        # Create a cone using rays. It can also be done with Cone(rays=[[0,1],[1,1]])
+        c1 = Cone([[0,1],[1,1]])
         c2 = Cone(hyperplanes=[[1,0],[-1,1]]) # Create a cone using hyperplane normals.
         c1 == c2 # We verify that the two cones are the same.
         # True

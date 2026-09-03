@@ -456,7 +456,16 @@ class Polytope:
         **Example:**
         We compute the lattice points of a large polytope.
         ```python {4}
-        p = Polytope([[-1,-1,-1,-1,-1],[3611,-1,-1,-1,-1],[-1,42,-1,-1,-1],[-1,-1,6,-1,-1],[-1,-1,-1,2,-1],[-1,-1,-1,-1,1]])
+        p = Polytope(
+            [
+                [-1, -1, -1, -1, -1],
+                [3611, -1, -1, -1, -1],
+                [-1, 42, -1, -1, -1],
+                [-1, -1, 6, -1, -1],
+                [-1, -1, -1, 2, -1],
+                [-1, -1, -1, -1, 1],
+            ]
+        )
         pts = p.points() # Takes a few seconds
         pts = p.points() # It runs instantly because the result is cached
         p.clear_cache() # Clears the results of any previous computation
@@ -1150,9 +1159,11 @@ class Polytope:
         We construct a polytope and find the indices of some of its points.
         ```python {2,4}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        p.points_to_indices([-1,-1,-6,-9]) # We input a single point, so a single index is returned
+        # We input a single point, so a single index is returned
+        p.points_to_indices([-1,-1,-6,-9])
         # 1
-        p.points_to_indices([[-1,-1,-6,-9],[0,0,0,0],[0,0,1,0]]) # We input a list of points, so a list of indices is returned
+        # We input a list of points, so a list of indices is returned
+        p.points_to_indices([[-1,-1,-6,-9],[0,0,0,0],[0,0,1,0]])
         # array([1, 0, 3])
         ```
         """
@@ -1710,7 +1721,8 @@ class Polytope:
         #  [-1, -1, -6, -9],
         #  [ 0,  0,  1,  0],
         #  [ 0,  0,  0,  1]])
-        print(f"{p.vertices()}\n{p.vertices().dot(a)}") # Print vertices before and after applying the automorphism
+        # Print vertices before and after applying the automorphism
+        print(f"{p.vertices()}\n{p.vertices().dot(a)}")
         # [[ 1  0  0  0]
         #  [ 0  1  0  0]
         #  [ 0  0  1  0]
@@ -2396,7 +2408,16 @@ class Polytope:
         constructing triangulations with heights, input simplices, and using
         the other backends.
         ```python {2,4,6,8,10}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-2,-1,-1],[-2,-1,-1,-1]])
+        p = Polytope(
+            [
+                [1, 0, 0, 0],
+                [0, 1, 0, 0],
+                [0, 0, 1, 0],
+                [0, 0, 0, 1],
+                [-1, -2, -1, -1],
+                [-2, -1, -1, -1],
+            ]
+        )
         p.triangulate()
         # A fine, regular, star triangulation of a 4-dimensional polytope in
         # ZZ^4
@@ -2557,7 +2578,8 @@ class Polytope:
         # A fine, regular, star triangulation of a 4-dimensional point configuration...
         next(g) # Keeps producing triangulations until it has trouble finding more
         # A fine, regular, star triangulation of a 4-dimensional point configuration...
-        rand_triangs = p.random_triangulations_fast(N=10, as_list=True) # Produces the list of 10 triangulations very quickly
+        # Produces the list of 10 triangulations very quickly
+        rand_triangs = p.random_triangulations_fast(N=10, as_list=True)
         ```
         """
         # if self.ambient_dim() > self.dim():
@@ -2712,7 +2734,8 @@ class Polytope:
         next(g) # Takes slightly shorter (still around a minute)
         # A fine, regular, star triangulation of a 4-dimensional point
         # configuration with 106 points in ZZ^4
-        rand_triangs = p.random_triangulations_fair(N=10, as_list=True) # Produces the list of 10 triangulations, but takes a long time (around 10 minutes)
+        # Produces the list of 10 triangulations, but takes a long time (around 10 minutes)
+        rand_triangs = p.random_triangulations_fair(N=10, as_list=True)
         ```
         It is worth noting that the time it takes to obtain each triangulation
         varies very significantly on the parameters used. The function tries to
@@ -2864,8 +2887,11 @@ class Polytope:
         verts = [[-1,-1,-1,-1],[-1,-1,-1,3],[-1,-1,3,-1],[-1,3,-1,-1],
                  [ 1,-1,-1,-1],[ 1,-1,-1,3],[ 1,-1,3,-1],[ 1,3,-1,-1]]
         p = Polytope(verts) # h11=86
-        pools = p.face_triangs(dim=2, triang_method="dualgnn", max_npts=0, N_face_triangs=50, seed=0) # the expensive step (~10s)
-        frsts = p.ntfe_frts(N=300, face_triangs=pools, make_star=True, seed=0) # cheap (~2s)
+        pools = p.face_triangs(
+            dim=2, triang_method="dualgnn", max_npts=0, N_face_triangs=50, seed=0
+        )  # the expensive step (~10s)
+        # cheap (~2s)
+        frsts = p.ntfe_frts(N=300, face_triangs=pools, make_star=True, seed=0)
         # [A fine, regular, star triangulation of a 4-dimensional point...
         #  A fine, regular, star triangulation of a 4-dimensional point...
         #  A fine, regular, star triangulation of a 4-dimensional point...
@@ -3027,7 +3053,16 @@ class Polytope:
         picking different restrictions and see how the number of triangulations
         changes.
         ```python {2,7,9}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-2,-1,-1],[-2,-1,-1,-1]])
+        p = Polytope(
+            [
+                [1, 0, 0, 0],
+                [0, 1, 0, 0],
+                [0, 0, 1, 0],
+                [0, 0, 0, 1],
+                [-1, -2, -1, -1],
+                [-2, -1, -1, -1],
+            ]
+        )
         g = p.all_triangulations()
         next(g) # Takes some time while TOPCOM finds all the triangulations
         # A fine, regular, star triangulation of a 4-dimensional point
@@ -3035,9 +3070,14 @@ class Polytope:
         next(g) # Produces the next triangulation immediately
         # A fine, regular, star triangulation of a 4-dimensional point
         # configuration with 7 points in ZZ^4
-        len(p.all_triangulations(as_list=True)) # Number of fine, regular, star triangulations
+        # Number of fine, regular, star triangulations
+        len(p.all_triangulations(as_list=True))
         # 2
-        len(p.all_triangulations(only_regular=False, only_star=False, only_fine=False, as_list=True) )# Number of triangularions, no matter if fine, regular, or star
+        len(
+            p.all_triangulations(
+                only_regular=False, only_star=False, only_fine=False, as_list=True
+            )
+        )  # Number of triangularions, no matter if fine, regular, or star
         # 6
         ```
         """
@@ -3350,13 +3390,15 @@ class Polytope:
         p.glsm_charge_matrix()
         # array([[-18,   1,   9,   6,   1,   1,   0],
         #        [ -6,   0,   3,   2,   0,   0,   1]])
-        p.glsm_charge_matrix().dot(p.points_not_interior_to_facets()) # By definition this product must be zero
+        # By definition this product must be zero
+        p.glsm_charge_matrix().dot(p.points_not_interior_to_facets())
         # array([[0, 0, 0, 0],
         #        [0, 0, 0, 0]])
         p.glsm_charge_matrix(include_origin=False) # Excludes the canonical divisor
         # array([[1, 9, 6, 1, 1, 0],
         #        [0, 3, 2, 0, 0, 1]])
-        p.glsm_charge_matrix(include_points_interior_to_facets=True) # Includes points interior to facets
+        # Includes points interior to facets
+        p.glsm_charge_matrix(include_points_interior_to_facets=True)
         # array([[-18,   1,   9,   6,   1,   1,   0,   0,   0,   0],
         #        [ -6,   0,   3,   2,   0,   0,   1,   0,   0,   0],
         #        [ -4,   0,   2,   1,   0,   0,   0,   1,   0,   0],
@@ -3651,7 +3693,8 @@ class Polytope:
         #        [ 0,  6,  0, -1,  0,  0,  2],
         #        [ 0,  1,  0,  0, -1,  0,  0],
         #        [ 0,  1,  0,  0,  0, -1,  0]])
-        p.glsm_linear_relations().dot(p.glsm_charge_matrix().T) # By definition this product must be zero
+        # By definition this product must be zero
+        p.glsm_linear_relations().dot(p.glsm_charge_matrix().T)
         # array([[0, 0],
         #        [0, 0],
         #        [0, 0],
@@ -3662,7 +3705,8 @@ class Polytope:
         #        [ 6,  0, -1,  0,  0,  2],
         #        [ 1,  0,  0, -1,  0,  0],
         #        [ 1,  0,  0,  0, -1,  0]])
-        p.glsm_linear_relations(include_points_interior_to_facets=True) # Includes points interior to facets
+        # Includes points interior to facets
+        p.glsm_linear_relations(include_points_interior_to_facets=True)
         # array([[ 1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
         #        [ 0,  9, -1,  0,  0,  0,  3,  2,  1,  1],
         #        [ 0,  6,  0, -1,  0,  0,  2,  1,  1,  0],
@@ -3735,7 +3779,8 @@ class Polytope:
         p.glsm_basis()
         # array([1, 6])
         glsm = p.glsm_charge_matrix()
-        np.linalg.matrix_rank(glsm) == np.linalg.matrix_rank(glsm[:,p.glsm_basis()]) # This shows that the columns form a basis
+        # This shows that the columns form a basis
+        np.linalg.matrix_rank(glsm) == np.linalg.matrix_rank(glsm[:,p.glsm_basis()])
         # True
         ```
         """
@@ -3959,7 +4004,18 @@ class Polytope:
         **Example:**
         We construct a tesseract and find the 2- and 3-part nef partitions.
         ```python {2,5}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,0,0,0],[0,-1,0,0],[0,0,-1,0],[0,0,0,-1]])
+        p = Polytope(
+            [
+                [1, 0, 0, 0],
+                [0, 1, 0, 0],
+                [0, 0, 1, 0],
+                [0, 0, 0, 1],
+                [-1, 0, 0, 0],
+                [0, -1, 0, 0],
+                [0, 0, -1, 0],
+                [0, 0, 0, -1],
+            ]
+        )
         nef_part_2 = p.nef_partitions() # Default codimension is 2
         print(nef_part_2[0]) # Print the first of the nef partitions
         # ((5, 2, 3, 4), (8, 7, 6, 1))

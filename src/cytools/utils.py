@@ -570,7 +570,8 @@ def filter_tensor_indices(tensor: dict, indices: list[int]) -> dict:
     - `indices`: The list of indices that will be preserved.
 
     **Returns:**
-    A dictionary describing a tensor in the same format as the input, but only with the desired indices.
+    A dictionary describing a tensor in the same format as the input, but only with
+        the desired indices.
 
     **Example:**
     We construct a simple tensor and then filter some of the indices. We also
@@ -1350,7 +1351,8 @@ def read_polytopes(
     We take a string obtained from the KS database and read the polytope it
     specifies.
     ```python {8}
-    from cytools import read_polytopes # Note that it can directly be imported from the root
+    # Note that it can directly be imported from the root
+    from cytools import read_polytopes
     poly_data = '''4 5  M:10 5 N:376 5 H:272,2 [540]
                     1    0    0    0   -9
                     0    1    0    0   -6
@@ -1471,14 +1473,16 @@ def fetch_polytopes(
     We fetch polytopes from the Kreuzer-Skarke and Schöller-Skarke databases
     with a few different parameters.
     ```python {2,5,8}
-    from cytools import fetch_polytopes # Note that it can directly be imported from the root
+    # Note that it can directly be imported from the root
+    from cytools import fetch_polytopes
     g = fetch_polytopes(h11=27, as_list=False) # Constructs a generator of polytopes
     next(g)
     # A 4-dimensional reflexive lattice polytope in ZZ^4
     l = fetch_polytopes(h11=27, limit=100) # Constructs a list of polytopes
     print(f"Fetched {len(l)} polytopes")
     # Fetched 100 polytopes
-    g_5d = fetch_polytopes(h11=1000, as_list=False, dim=5, limit=100) # Generator of 5D polytopes
+    # Generator of 5D polytopes
+    g_5d = fetch_polytopes(h11=1000, as_list=False, dim=5, limit=100)
     next(g_5d)
     # A 5-dimensional reflexive lattice polytope in ZZ^5
     ```
