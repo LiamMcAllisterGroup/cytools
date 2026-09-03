@@ -109,7 +109,6 @@ select = [
 # until the currently open PRs have landed (see issue #90).  The counts are
 # from ruff 0.16.3 at the time this config was added.
 ignore = [
-  "F403",    #  2x  undefined-local-with-import-star
   "F841",    # 16x  unused-variable
   "NPY002",  # 13x  legacy global RNG
 ]
