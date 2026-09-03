@@ -109,7 +109,6 @@ select = [
 # until the currently open PRs have landed (see issue #90).  The counts are
 # from ruff 0.16.3 at the time this config was added.
 ignore = [
-  "E702",    #  3x  multiple-statements-on-one-line (semicolon)
   "E712",    #  3x  true-false-comparison
   "E721",    #  6x  type-comparison
   "E731",    # 20x  lambda-assignment
