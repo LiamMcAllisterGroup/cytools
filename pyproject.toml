@@ -104,14 +104,6 @@ select = [
   "TID",  # tidy imports
   "NPY",  # numpy-specific rules
 ]
-# Rules that belong in the selection above but that the tree does not satisfy
-# yet.  Fixing them requires a repo-wide sweep, which is deliberately deferred
-# until the currently open PRs have landed (see issue #90).  The counts are
-# from ruff 0.16.3 at the time this config was added.
-ignore = [
-  "NPY002",  # 13x  legacy global RNG
-]
-
 [tool.hatch.build.targets.wheel]
 packages = ["src/cytools"]
 

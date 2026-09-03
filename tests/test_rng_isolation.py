@@ -25,8 +25,8 @@ FLIPPABLE = [
 
 def _expected_draw():
     """The draw a caller would get if CYTools never touched the global RNG."""
-    np.random.seed(SEED)
-    return np.random.random(8)
+    np.random.seed(SEED)  # noqa: NPY002
+    return np.random.random(8)  # noqa: NPY002
 
 
 def test_glsm_charge_matrix_does_not_perturb_global_rng():
@@ -35,13 +35,13 @@ def test_glsm_charge_matrix_does_not_perturb_global_rng():
     )
     expected = _expected_draw()
 
-    np.random.seed(SEED)
+    np.random.seed(SEED)  # noqa: NPY002
     p.glsm_charge_matrix()
     p.glsm_charge_matrix(include_origin=False)
     p.clear_cache()
     p.glsm_charge_matrix(include_points_interior_to_facets=True)
 
-    assert np.array_equal(np.random.random(8), expected)
+    assert np.array_equal(np.random.random(8), expected)  # noqa: NPY002
 
 
 def test_glsm_charge_matrix_is_reproducible():
@@ -55,7 +55,7 @@ def test_random_triangulations_fast_does_not_perturb_global_rng():
     p = Polytope([[1, 0, 0], [0, 1, 0], [0, 0, 1], [-1, -1, -1]])
     expected = _expected_draw()
 
-    np.random.seed(SEED)
+    np.random.seed(SEED)  # noqa: NPY002
     p.random_triangulations_fast(
         N=2, as_list=True, progress_bar=False, seed=17, make_star=False
     )
@@ -63,7 +63,7 @@ def test_random_triangulations_fast_does_not_perturb_global_rng():
         N=2, as_list=True, progress_bar=False, make_star=False
     )
 
-    assert np.array_equal(np.random.random(8), expected)
+    assert np.array_equal(np.random.random(8), expected)  # noqa: NPY002
 
 
 def test_random_triangulations_fast_is_reproducible():
@@ -79,11 +79,11 @@ def test_random_flips_does_not_perturb_global_rng():
     t = p.triangulate()
     expected = _expected_draw()
 
-    np.random.seed(SEED)
+    np.random.seed(SEED)  # noqa: NPY002
     t.random_flips(2, seed=3)
     t.random_flips(2)
 
-    assert np.array_equal(np.random.random(8), expected)
+    assert np.array_equal(np.random.random(8), expected)  # noqa: NPY002
 
 
 def test_random_flips_is_reproducible():
@@ -113,10 +113,10 @@ def test_ntfe_hypers_does_not_perturb_global_rng():
     )
     expected = _expected_draw()
 
-    np.random.seed(SEED)
+    np.random.seed(SEED)  # noqa: NPY002
     p.ntfe_hypers(N=5, seed=5)
 
-    assert np.array_equal(np.random.random(8), expected)
+    assert np.array_equal(np.random.random(8), expected)  # noqa: NPY002
 
 
 def test_no_legacy_global_rng_calls(monkeypatch):
