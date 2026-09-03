@@ -1884,8 +1884,8 @@ class Cone:
 
                 # define model with windowed degree constraints
                 window_model   = deepcopy(model)
-                deg_constr_low = window_model.Add(deg <= soln_deg)
-                deg_constr_up  = window_model.Add(soln_deg <= deg + deg_window)
+                window_model.Add(deg <= soln_deg)
+                window_model.Add(soln_deg <= deg + deg_window)
 
                 # solve and check status
                 status = solver.SearchForAllSolutions(window_model, solution_storage)
@@ -2356,7 +2356,7 @@ class Cone:
             stderr=subprocess.PIPE,
             universal_newlines=True,
         )
-        normaliz_out = normaliz.communicate()
+        normaliz.communicate()
         with open(f"/tmp/{proj_name}.out") as f:
             data = f.readlines()
         os.remove(f"/tmp/{proj_name}.in")
