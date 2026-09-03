@@ -808,7 +808,7 @@ def Cartier_index(toric_fan,weights):
         if res>1e-10:
             return None
         cone_index = 1
-        while np.all(np.isclose(cone_index*y, np.round(cone_index*y)))==False:
+        while not np.all(np.isclose(cone_index*y, np.round(cone_index*y))):
             cone_index+=1
         index_data.append(cone_index)
     return np.lcm.reduce(np.array(index_data))
@@ -1080,7 +1080,7 @@ def is_partition(points, L1,L2):
     """
     
     sta=sums_to_anticanonical(points,L1,L2)
-    if sta[0]==False:
+    if not sta[0]:
         return (False,False,np.zeros(points.shape[1],dtype=int),np.zeros(points.shape[1],dtype=int))
         
     basis_indices=basis(points)

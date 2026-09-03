@@ -808,7 +808,7 @@ class Fan(regfans.fan.Fan):
         **Returns:**
         The Mori cone.
         """
-        include_origin = (pushed_down==False)
+        include_origin = not pushed_down
 
         rays = self.mori_rays()
 
