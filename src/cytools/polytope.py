@@ -31,8 +31,7 @@ import warnings
 from flint import fmpz_mat, fmpq_mat
 import numpy as np
 from numpy.typing import ArrayLike
-import ppl
-import ctypes; ctypes.CDLL(None).fesetround(0)  # ppl changes FPU rounding mode; reset to FE_TONEAREST
+from cytools._ppl import ppl  # ppl, with its FPU rounding side effect undone
 
 # imported for annotations only
 from typing import TYPE_CHECKING

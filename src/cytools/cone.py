@@ -41,8 +41,7 @@ import warnings
 from flint import fmpz_mat, fmpz, fmpq
 import numpy as np
 import highspy
-import ppl
-import ctypes; ctypes.CDLL(None).fesetround(0)  # ppl changes FPU rounding mode; reset to FE_TONEAREST
+from cytools._ppl import ppl  # ppl, with its FPU rounding side effect undone
 
 # imported for annotations only; the signatures quote these, so they
 # are never needed at runtime
