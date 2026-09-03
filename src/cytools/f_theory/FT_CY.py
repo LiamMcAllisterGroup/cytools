@@ -1652,18 +1652,18 @@ def fetch_orientifolds(only_regular: bool=True, only_nef_decomposition: bool=Fal
     if only_nef_decomposition:
         for p in fetch_polytopes(h11,h12,h13,h21,h22,h31,chi,lattice,dim,n_points,n_vertices,n_dual_points,n_facets,limit,samples,sample_seed,timeout,as_list,backend,deterministic_glsm_basis,dualize,favorable,verbosity):
             for xi in UF.inequivalent_Z2_actions(p.automorphisms(action="left")):
-                O=CY_orientifold(p,xi)
-                if O.yields_nef_decomposition():
-                    yield O
+                orientifold=CY_orientifold(p,xi)
+                if orientifold.yields_nef_decomposition():
+                    yield orientifold
     else:
         for p in fetch_polytopes(h11,h12,h13,h21,h22,h31,chi,lattice,dim,n_points,n_vertices,n_dual_points,n_facets,limit,samples,sample_seed,timeout,as_list,backend,deterministic_glsm_basis,dualize,favorable,verbosity):
             for xi in UF.inequivalent_Z2_actions(p.automorphisms(action="left")):
-                O=CY_orientifold(p,xi)
+                orientifold=CY_orientifold(p,xi)
                 if only_regular:
-                    if O.is_regular():
-                        yield O 
+                    if orientifold.is_regular():
+                        yield orientifold 
                 else:
-                    yield O
+                    yield orientifold
 
 def fetch_F_Theory_uplifts(only_regular: bool = True, only_nef_partition:bool=False,only_nef_decomposition: bool=False,h11: int = None,h12: int = None,h13: int = None,
     h21: int = None,h22: int = None,h31: int = None,chi: int = None,
@@ -1711,16 +1711,16 @@ def fetch_F_Theory_uplifts(only_regular: bool = True, only_nef_partition:bool=Fa
     """
     
     if only_nef_partition:
-        for O in fetch_orientifolds(only_nef_decomposition=True,h11=h11,h12=h12,h13=h13,h21=h21,h22=h22,h31=h31,chi=chi,lattice=lattice,dim=dim,n_points=n_points,n_vertices=n_vertices,n_dual_points=n_dual_points,n_facets=n_facets,limit=limit,samples=samples,sample_seed=sample_seed,timeout=timeout,as_list=as_list,backend=backend,deterministic_glsm_basis=deterministic_glsm_basis,dualize=dualize,favorable=favorable,verbosity=verbosity):
-            F=F_Theory_Uplift(O)
+        for orientifold in fetch_orientifolds(only_nef_decomposition=True,h11=h11,h12=h12,h13=h13,h21=h21,h22=h22,h31=h31,chi=chi,lattice=lattice,dim=dim,n_points=n_points,n_vertices=n_vertices,n_dual_points=n_dual_points,n_facets=n_facets,limit=limit,samples=samples,sample_seed=sample_seed,timeout=timeout,as_list=as_list,backend=backend,deterministic_glsm_basis=deterministic_glsm_basis,dualize=dualize,favorable=favorable,verbosity=verbosity):
+            F=F_Theory_Uplift(orientifold)
             if F.is_nef_partition():
                 yield F
     elif only_nef_decomposition:
-        for O in fetch_orientifolds(only_nef_decomposition=True,h11=h11,h12=h12,h13=h13,h21=h21,h22=h22,h31=h31,chi=chi,lattice=lattice,dim=dim,n_points=n_points,n_vertices=n_vertices,n_dual_points=n_dual_points,n_facets=n_facets,limit=limit,samples=samples,sample_seed=sample_seed,timeout=timeout,as_list=as_list,backend=backend,deterministic_glsm_basis=deterministic_glsm_basis,dualize=dualize,favorable=favorable,verbosity=verbosity):
-            yield F_Theory_Uplift(O)
+        for orientifold in fetch_orientifolds(only_nef_decomposition=True,h11=h11,h12=h12,h13=h13,h21=h21,h22=h22,h31=h31,chi=chi,lattice=lattice,dim=dim,n_points=n_points,n_vertices=n_vertices,n_dual_points=n_dual_points,n_facets=n_facets,limit=limit,samples=samples,sample_seed=sample_seed,timeout=timeout,as_list=as_list,backend=backend,deterministic_glsm_basis=deterministic_glsm_basis,dualize=dualize,favorable=favorable,verbosity=verbosity):
+            yield F_Theory_Uplift(orientifold)
     else:
-        for O in fetch_orientifolds(only_regular=only_regular, only_nef_decomposition=False,h11=h11,h12=h12,h13=h13,h21=h21,h22=h22,h31=h31,chi=chi,lattice=lattice,dim=dim,n_points=n_points,n_vertices=n_vertices,n_dual_points=n_dual_points,n_facets=n_facets,limit=limit,samples=samples,sample_seed=sample_seed,timeout=timeout,as_list=as_list,backend=backend,deterministic_glsm_basis=deterministic_glsm_basis,dualize=dualize,favorable=favorable,verbosity=verbosity):
-            yield F_Theory_Uplift(O)
+        for orientifold in fetch_orientifolds(only_regular=only_regular, only_nef_decomposition=False,h11=h11,h12=h12,h13=h13,h21=h21,h22=h22,h31=h31,chi=chi,lattice=lattice,dim=dim,n_points=n_points,n_vertices=n_vertices,n_dual_points=n_dual_points,n_facets=n_facets,limit=limit,samples=samples,sample_seed=sample_seed,timeout=timeout,as_list=as_list,backend=backend,deterministic_glsm_basis=deterministic_glsm_basis,dualize=dualize,favorable=favorable,verbosity=verbosity):
+            yield F_Theory_Uplift(orientifold)
 
 
 
