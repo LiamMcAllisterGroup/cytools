@@ -634,17 +634,34 @@ def solve_linear_system(
     solution = None
 
     if backend == "all":
+        # a backend that fails in an unanticipated way must not break the
+        # chain, so the fallback is guarded here rather than by widening the
+        # per-backend excepts below
+        errors = []
         for s in backends[1:]:
-            solution = solve_linear_system(
-                M,
-                C,
-                backend=s,
-                check=check,
-                backend_error_tol=backend_error_tol,
-                verbosity=verbosity,
-            )
+            try:
+                solution = solve_linear_system(
+                    M,
+                    C,
+                    backend=s,
+                    check=check,
+                    backend_error_tol=backend_error_tol,
+                    verbosity=verbosity,
+                )
+            except Exception as e:
+                errors.append((s, e))
+                if verbosity >= 1:
+                    print(f"Linear backend error: {s} raised {e!r}.")
+                continue
             if solution is not None:
                 return solution
+
+        # every backend raised: surface the underlying error rather than
+        # reporting it as "no solution"
+        if len(errors) == len(backends) - 1:
+            raise RuntimeError(
+                f"All linear system backends failed: {errors}"
+            ) from errors[-1][1]
 
     elif backend == "sksparse":
         try:
@@ -657,7 +674,7 @@ def solve_linear_system(
             try:
                 factor = cholesky_AAt(M.transpose())
                 solution = factor(-M.transpose() * C)
-            except (CholmodError, ArithmeticError, ValueError) as e:
+            except (CholmodError, ArithmeticError, ValueError, RuntimeError) as e:
                 # only numerical/shape failures are treated as "no solution";
                 # anything else is a genuine bug and must not be swallowed
                 if verbosity >= 1:
@@ -1202,49 +1219,56 @@ def polytope_generator(
         return
 
     # format is "ks"
-    while limit is None or n_yielded < limit:
-        if "M:" in l:
-            h = l.split()
-            n, m = int(h[0]), int(h[1])
+    #
+    # N.B.: like the "ws" branch above, the file must be closed on every
+    # exit path, including an abandoned generator
+    try:
+        while limit is None or n_yielded < limit:
+            if "M:" in l:
+                h = l.split()
+                n, m = int(h[0]), int(h[1])
 
-            # add vertices
-            vert = []
-            for i in range(n):
-                if input_type == "file":
-                    vert.append([int(c) for c in in_file.readline().split()])
-                else:
-                    vert.append([int(c) for c in in_string.pop(0).split()])
+                # add vertices
+                vert = []
+                for i in range(n):
+                    if input_type == "file":
+                        vert.append([int(c) for c in in_file.readline().split()])
+                    else:
+                        vert.append([int(c) for c in in_string.pop(0).split()])
 
-            vert = np.asarray(vert)
+                vert = np.asarray(vert)
 
-            # ensure reasonable shape
-            if vert.shape != (n, m):
-                raise ValueError("Dimensions of array do not match")
-            if m > n:
-                vert = vert.T
+                # ensure reasonable shape
+                if vert.shape != (n, m):
+                    raise ValueError("Dimensions of array do not match")
+                if m > n:
+                    vert = vert.T
 
-            # build the Polytope
-            p = Polytope(vert, backend=backend, deterministic_glsm_basis=deterministic_glsm_basis)
-            if (favorable is None) or (p.is_favorable(lattice=lattice) == favorable):
-                n_yielded += 1
-                yield (p.dual() if dualize else p)
+                # build the Polytope
+                p = Polytope(vert, backend=backend, deterministic_glsm_basis=deterministic_glsm_basis)
+                if (favorable is None) or (p.is_favorable(lattice=lattice) == favorable):
+                    n_yielded += 1
+                    yield (p.dual() if dualize else p)
 
-        # get next line
-        if input_type == "file":
-            l = in_file.readline()
-
-            for i in range(5):
-                if l != "":
-                    break
+            # get next line
+            if input_type == "file":
                 l = in_file.readline()
+
+                for i in range(5):
+                    if l != "":
+                        break
+                    l = in_file.readline()
+                else:
+                    in_file.close()
+                    break
             else:
-                in_file.close()
-                break
-        else:
-            if len(in_string) > 0:
-                l = in_string.pop(0)
-            else:
-                break
+                if len(in_string) > 0:
+                    l = in_string.pop(0)
+                else:
+                    break
+    finally:
+        if input_type == "file":
+            in_file.close()
 
 
 def read_polytopes(
