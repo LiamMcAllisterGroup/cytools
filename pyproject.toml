@@ -109,7 +109,6 @@ select = [
 # until the currently open PRs have landed (see issue #90).  The counts are
 # from ruff 0.16.3 at the time this config was added.
 ignore = [
-  "E731",    # 20x  lambda-assignment
   "E741",    # 32x  ambiguous-variable-name
   "F401",    #  8x  unused-import
   "F403",    #  3x  undefined-local-with-import-star

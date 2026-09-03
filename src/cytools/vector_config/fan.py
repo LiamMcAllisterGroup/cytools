@@ -611,7 +611,9 @@ class Fan(regfans.fan.Fan):
             elif r==1:
                 kappa_solver = kappa_solve_1x1
             else:
-                kappa_solver = lambda pts, known: kappa_solve_nxn(pts, known, r)
+
+                def kappa_solver(pts, known):
+                    return kappa_solve_nxn(pts, known, r)
 
             # iterate over each r-face
             for face, neighbs in neighbors[r].items():

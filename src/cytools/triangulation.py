@@ -1894,9 +1894,8 @@ class Triangulation:
             autos[i] = temp
 
         # define helper function
-        apply_auto = lambda auto: tuple(
-            sorted(tuple(sorted([auto[i] for i in s])) for s in simps)
-        )
+        def apply_auto(auto):
+            return tuple(sorted(tuple(sorted([auto[i] for i in s])) for s in simps))
 
         # apply the automorphisms
         orbit = set()

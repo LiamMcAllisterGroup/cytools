@@ -1560,9 +1560,14 @@ class Cone:
 
         # function to take dot products
         if isinstance(H, (list, np.ndarray)):
-            dot = lambda hp, x: hp.dot(x)
+
+            def dot(hp, x):
+                return hp.dot(x)
+
         else:
-            dot = lambda hp, x: sum([val * x[ind] for ind, val in hp.items()])
+
+            def dot(hp, x):
+                return sum([val * x[ind] for ind, val in hp.items()])
 
         # Make sure that the solution is valid
         if check and any(dot(v, solution) <= 0 for v in H):
@@ -2568,7 +2573,9 @@ def feasibility(
         hyperplanes = np.asarray(hyperplanes)
         hp_iter = enumerate
     else:
-        hp_iter = lambda hp: hp.items()
+
+        def hp_iter(hp):
+            return hp.items()
 
     # accommodate trivial hyperplanes
     if len(hyperplanes) == 0:
