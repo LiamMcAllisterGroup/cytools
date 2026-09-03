@@ -22,7 +22,6 @@
 # 'standard' imports
 import fractions
 import functools
-import io
 import itertools
 import math
 import re
@@ -35,6 +34,10 @@ import numpy as np
 from numpy.typing import ArrayLike
 import pypalp
 import scipy.sparse as sp
+
+# `scipy.sparse` does not necessarily bring in its `linalg` subpackage, so
+# import it explicitly; it is used below as `sp.linalg.spsolve`
+import scipy.sparse.linalg  # noqa: F401
 
 # CYTools imports
 from cytools import config
@@ -570,8 +573,11 @@ def filter_tensor_indices(tensor: dict, indices: list[int]) -> dict:
     reindex = {ind: i for i, ind in enumerate(indices)}
 
     # only keep entries whose indices match those in indices
+    # (membership is tested against a set; `indices` may be large and these
+    # tensors can hold O(10^6) entries)
+    indices_set = set(indices)
     filtered = {
-        key: val for key, val in tensor.items() if all(c in indices for c in key)
+        key: val for key, val in tensor.items() if all(c in indices_set for c in key)
     }
 
     # return reindexed tensor (order defined by indices input)
@@ -642,20 +648,29 @@ def solve_linear_system(
 
     elif backend == "sksparse":
         try:
-            from sksparse.cholmod import cholesky_AAt
-
-            factor = cholesky_AAt(M.transpose())
-            solution = factor(-M.transpose() * C)
-        except Exception:
+            from sksparse.cholmod import CholmodError, cholesky_AAt
+        except ImportError:
+            # optional dependency; not an error worth propagating
             if verbosity >= 1:
-                print("Linear backend error: sksparse failed.")
+                print("Linear backend error: sksparse is not installed.")
+        else:
+            try:
+                factor = cholesky_AAt(M.transpose())
+                solution = factor(-M.transpose() * C)
+            except (CholmodError, ArithmeticError, ValueError) as e:
+                # only numerical/shape failures are treated as "no solution";
+                # anything else is a genuine bug and must not be swallowed
+                if verbosity >= 1:
+                    print(f"Linear backend error: sksparse failed ({e}).")
 
     elif backend == "scipy":
         try:
             solution = sp.linalg.spsolve(M.transpose() * M, -M.transpose() * C).tolist()
-        except Exception:
+        except (ArithmeticError, ValueError, RuntimeError) as e:
+            # only numerical/shape failures are treated as "no solution";
+            # anything else is a genuine bug and must not be swallowed
             if verbosity >= 1:
-                print("Linear backend error: scipy failed.")
+                print(f"Linear backend error: scipy failed ({e}).")
 
     # check/return solution
     if solution is None:
@@ -665,7 +680,9 @@ def solve_linear_system(
         res = M.dot(solution) + C
         max_error = max(abs(s) for s in res.flat)
 
-        if max_error > backend_error_tol:
+        # NaNs/infs (e.g. from a singular system) are failures, but they do not
+        # compare greater than the tolerance, so check for them explicitly
+        if (not np.isfinite(max_error)) or (max_error > backend_error_tol):
             if verbosity >= 1:
                 print("Linear backend error: numerical error.")
             solution = None
@@ -994,8 +1011,7 @@ def set_curve_basis(
     if b.shape == (glsm_rnk, glsm_cm.shape[1]):
         new_b = b
     elif b.shape == (glsm_rnk, glsm_cm.shape[1] - 1):
-        # HERE PROBLEM with undefined variable t
-        new_b = np.empty(glsm_cm.shape, dtype=t)
+        new_b = np.empty(glsm_cm.shape, dtype=int)
         new_b[:, 1:] = b
         new_b[:, 0] = -np.sum(b, axis=1)
     else:
@@ -1123,6 +1139,9 @@ def polytope_generator(
     if input_type not in ["file", "str"]:
         raise ValueError('"input_type" must be either "file" or "str"')
 
+    if format not in ["ks", "ws"]:
+        raise ValueError('Unsupported format. Options are "ks" and "ws".')
+
     # read data
     n_yielded = 0
 
@@ -1134,45 +1153,53 @@ def polytope_generator(
         l = in_string.pop(0)
 
     if format == "ws":
-        buf = io.StringIO(input)
+        # read the polytopes as weight systems, one per line
+        #
+        # N.B.: the lines must be taken from the same source as for the "ks"
+        # format (i.e. the *contents* of the file, when reading a file), and
+        # blank lines must never be handed to PALP: an empty weight system
+        # trips a C-level assertion that aborts the entire interpreter
+        try:
+            while (limit is None) or (n_yielded < limit):
+                if l.strip():
+                    # pass line to PALP
+                    p = pypalp.Polytope(l)
+                    vert = p.vertices()
 
-        # read the polytopes as weight systems
-        while (limit is None) or (n_yielded < limit):
-            # pass line to PALP
-            p = pypalp.Polytope(buf.readline())
-            vert = p.vertices()
-
-            # ensure reasonable shape
-            if len(vert.shape) == 0:
-                break
-            if vert.shape[0] < vert.shape[1]:
-                vert = vert.T
-
-            # build the Polytope
-            p = Polytope(vert, backend=backend, deterministic_glsm_basis=deterministic_glsm_basis)
-
-            if (favorable is None) or (p.is_favorable(lattice=lattice) == favorable):
-                n_yielded += 1
-                yield (p.dual() if dualize else p)
-
-            # get next line
-            if input_type == "file":
-                l = in_file.readline()
-
-                for i in range(5):
-                    if l != "":
+                    # ensure reasonable shape
+                    if len(vert.shape) == 0:
                         break
+                    if vert.shape[0] < vert.shape[1]:
+                        vert = vert.T
+
+                    # build the Polytope
+                    p = Polytope(
+                        vert,
+                        backend=backend,
+                        deterministic_glsm_basis=deterministic_glsm_basis,
+                    )
+
+                    if (favorable is None) or (
+                        p.is_favorable(lattice=lattice) == favorable
+                    ):
+                        n_yielded += 1
+                        yield (p.dual() if dualize else p)
+
+                # get next line ("" signals EOF; blank lines are just "\n")
+                if input_type == "file":
                     l = in_file.readline()
+                    if l == "":
+                        break
                 else:
-                    in_file.close()
-                    break
-            else:
-                if len(in_string) > 0:
-                    l = in_string.pop(0)
-                else:
-                    break
-    elif format != "ks":
-        raise ValueError('Unsupported format. Options are "ks" and "ws".')
+                    if len(in_string) > 0:
+                        l = in_string.pop(0)
+                    else:
+                        break
+        finally:
+            if input_type == "file":
+                in_file.close()
+
+        return
 
     # format is "ks"
     while limit is None or n_yielded < limit:
@@ -1461,7 +1488,9 @@ def fetch_polytopes(
             (chi is not None)
             and (h11 is not None)
             and (h12 is not None)
-            and (chi != 2 * (h11 - h21))
+            # h11/h12/chi have been converted to the M-lattice convention
+            # above, in which chi = 2*(h11 - h21) and h21 == h12
+            and (chi != 2 * (h11 - h12))
         ):
             raise ValueError("Inconsistent Euler characteristic input.")
 
@@ -1650,7 +1679,8 @@ def find_new_affinely_independent_points(pts: ArrayLike) -> np.ndarray:
         raise ValueError("List of points cannot be empty.")
 
     # cast to numpy array
-    pts = np.asarray(pts)
+    # (copy, so that the caller's array is never modified in-place below)
+    pts = np.array(pts)
     shape = pts.shape
 
     # translate, append unit vector
@@ -1658,8 +1688,7 @@ def find_new_affinely_independent_points(pts: ArrayLike) -> np.ndarray:
     pts -= translation
 
     if shape[0] == 1:
-        # HERE PROBLEM with undefined variable pts_trans
-        pts = np.append(pts_trans, [[1] + [0] * (shape[1] - 1)], axis=0)
+        pts = np.append(pts, [[1] + [0] * (shape[1] - 1)], axis=0)
 
     dim = np.linalg.matrix_rank(pts)
 
