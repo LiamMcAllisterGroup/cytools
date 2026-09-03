@@ -209,7 +209,9 @@ class Polytope:
             self._dim_diff = None
         else:
             self._dim_ambient = len(points[0])
-            self._dim = int(np.linalg.matrix_rank([list(pt) + [1] for pt in points]) - 1)
+            self._dim = int(
+                np.linalg.matrix_rank([list(pt) + [1] for pt in points]) - 1
+            )
             self._dim_diff = self.ambient_dim() - self.dim()
 
         # backend
@@ -913,7 +915,8 @@ class Polytope:
         # dictionary from labels to input coordinates
         pts_input_all = self._optimal_to_input(self.points(optimal=True))
         self._labels2inputPts = {
-            label: tuple(map(int, pt)) for label, pt in zip(self._pts_order, pts_input_all)
+            label: tuple(map(int, pt))
+            for label, pt in zip(self._pts_order, pts_input_all)
         }
 
         # reverse dictionaries
@@ -1585,7 +1588,11 @@ class Polytope:
             )
 
         pts = np.array(self._ineqs_input[:, :-1])
-        self._dual = Polytope(pts, backend=self._backend, deterministic_glsm_basis=self._deterministic_glsm_basis)
+        self._dual = Polytope(
+            pts,
+            backend=self._backend,
+            deterministic_glsm_basis=self._deterministic_glsm_basis,
+        )
         self._dual._dual = self
         return self._dual
 
@@ -3424,7 +3431,9 @@ class Polytope:
                     if self._deterministic_glsm_basis:
                         norms = [[n,i] for i,n in enumerate(norms)]
                     if self._deterministic_glsm_basis:
-                        indices = np.array(sorted(range(len(norms)), key=lambda i:norms[i]))
+                        indices = np.array(
+                            sorted(range(len(norms)), key=lambda i: norms[i])
+                        )
                     else:
                         indices = np.argsort(norms)
                     indices[: linrel.shape[0]] = np.sort(indices[: linrel.shape[0]])
@@ -3525,7 +3534,9 @@ class Polytope:
             if self._deterministic_glsm_basis:
                 pts_norms = [[n,i] for i,n in enumerate(pts_norms)]
             if self._deterministic_glsm_basis:
-                pts_order = np.array(sorted(range(len(pts_norms)), key=lambda i:pts_norms[i]))
+                pts_order = np.array(
+                    sorted(range(len(pts_norms)), key=lambda i: pts_norms[i])
+                )
             else:
                 pts_order = np.argsort(pts_norms)
             # Find good lattice basis
@@ -3778,7 +3789,10 @@ class Polytope:
         points = {tuple(sum(verts))
                   for verts in itertools.product(self.vertices(),
                                                  other.vertices())}
-        return Polytope(list(points), deterministic_glsm_basis=self._deterministic_glsm_basis)
+        return Polytope(
+            list(points),
+            deterministic_glsm_basis=self._deterministic_glsm_basis,
+        )
 
     def volume(self) -> int:
         """
@@ -3992,7 +4006,9 @@ class Polytope:
         ) for partition in results]
         
         if compute_hodge_numbers:
-            hodge_nums = [tuple(tuple(part) for part in partition[1]) for partition in results]
+            hodge_nums = [
+                tuple(tuple(part) for part in partition[1]) for partition in results
+            ]
             nef_parts = (nef_parts, hodge_nums)
             
         self._nef_parts[args_id] = nef_parts
@@ -4006,7 +4022,10 @@ class Polytope:
         """
         Check if a polytope is 'trilayer'.
         """
-        glsm_vert = np.array(fmpz_mat(self.vertices().T.tolist()).nullspace()[0].transpose().tolist(), dtype=int)[:-self.dim()]
+        glsm_vert = np.array(
+            fmpz_mat(self.vertices().T.tolist()).nullspace()[0].transpose().tolist(),
+            dtype=int,
+        )[: -self.dim()]
         anticanon = np.sum(glsm_vert, axis=1)
 
         # compute if the Polytope is trilayer
