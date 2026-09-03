@@ -641,7 +641,7 @@ def Z2_fixed_locus(vc_triangulation,q,cone_dimension=None,denominator=2):
     - `list`: Fixed-locus cones, represented as tuples of one-indexed ray labels.
 
     """
-    if type(cone_dimension)==type(None):
+    if cone_dimension is None:
         all_cones = {j for c in vc_triangulation.cones() for i in range(1,len(c))  for j in combinations(c,i)}
         all_cones = [c for c in all_cones]
     else:
@@ -1194,7 +1194,7 @@ def base_locus(sections,cones=None,dim=4):
     num_coords,num_sections=sections.shape
     B=sections > 0 
     minimal_hitting_sets=[]
-    if type(cones)==type(None):
+    if cones is None:
         for codim in range(1,dim + 1):
             for combo in combinations(range(num_coords), codim):
                 combo_set = set(combo)
@@ -1238,7 +1238,7 @@ def normal_fan(polytopes,inequalities=None,maximal_refinement=False,triangulate_
 
     """
     
-    if type(polytopes)==type([]):
+    if isinstance(polytopes, list):
         msum_vertices = nested_sum([p.vertices() for p in polytopes])
         p = Polytope(np.unique(flatten(msum_vertices,len(polytopes)-1),axis=0))
         vertex_split = np.array([np.array(np.where(np.all(np.array(msum_vertices)-v==0,axis=-1))).T[0] for v in p.vertices()])
@@ -1252,14 +1252,14 @@ def normal_fan(polytopes,inequalities=None,maximal_refinement=False,triangulate_
     cones = [[int(np.where(np.all(normal_fan_edges-x==0,axis=1))[0][0])+1 for x in np.delete(s.T,-1,0).T] for s in hyperplane_saturations]
     n_fan = Fan(vc=normal_fan_vc,cones=cones)
 
-    if type(polytopes)==type([]):
+    if isinstance(polytopes, list):
         vertices_to_vertices_map = [vertex_split[np.where([i in c for c in cones])[0][0]] for i in range(1,len(normal_fan_edges)+1)]
         weights = np.array([-np.array([polytopes[j].vertices()[x] for j,x in enumerate(pointers)])@(normal_fan_edges[i]) for i,pointers in enumerate(vertices_to_vertices_map)])
 
     if not maximal_refinement:
         return (normal_fan_vc.triangulate(cells=cones),weights,cones)
 
-    if type(inequalities)==type(None):
+    if inequalities is None:
         raise Exception('Inequalities must be given to construct maximal refinement')
 
     inequalities=np.array(inequalities)
@@ -1288,7 +1288,7 @@ def normal_fan(polytopes,inequalities=None,maximal_refinement=False,triangulate_
     all_weights = np.array([-np.array([(pol.vertices()[vertex_split[np.where([np.any(np.all(y-x==0,axis=-1)) for y in maximal_blow_ups])[0][0]][j]])@x for x in all_vectors]) 
                         for j,pol in enumerate(polytopes)])
 
-    old_indices = np.where([type(n_fan.vc.vectors_to_labels(v))!=type(None) for v in all_vectors])[0]
+    old_indices = np.where([n_fan.vc.vectors_to_labels(v) is not None for v in all_vectors])[0]
     blow_up_weights = np.delete(all_weights.T,old_indices,0)
     blow_up_vectors = np.delete(all_vectors,old_indices,0)
     
