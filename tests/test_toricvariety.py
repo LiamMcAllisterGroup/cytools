@@ -1,5 +1,8 @@
+import contextlib
+
 import numpy as np
 
+import cytools.config
 from cytools import Polytope
 
 
@@ -203,3 +206,46 @@ def test_equality():
     v2 = t2.get_toric_variety()
     assert v1 == v1
     assert v1 != v2
+
+
+@contextlib.contextmanager
+def _experimental_features():
+    prev = cytools.config._exp_features_enabled
+    cytools.config._exp_features_enabled = True
+    try:
+        yield
+    finally:
+        cytools.config._exp_features_enabled = prev
+
+
+def test_matrix_basis_include_origin():
+    # regression test: with a matrix basis, ToricVariety.divisor_basis and
+    # ToricVariety.curve_basis returned the full matrix regardless of
+    # include_origin, unlike their CalabiYau counterparts
+    p = Polytope(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -6, -9]]
+    )
+    t = p.triangulate()
+    v = t.get_toric_variety()
+    cy = t.get_cy()
+
+    basis = [[0, 0, 0, 0, 0, 1, 1], [0, 0, 0, 0, 0, 0, 1]]
+    with _experimental_features():
+        v.set_divisor_basis(basis)
+        cy.set_divisor_basis(basis)
+
+        assert v.divisor_basis(include_origin=True).shape == (2, 7)
+        assert v.divisor_basis(include_origin=False).shape == (2, 6)
+        assert v.curve_basis(include_origin=True).shape == (2, 7)
+        assert v.curve_basis(include_origin=False).shape == (2, 6)
+
+        # the toric variety and the Calabi-Yau must agree
+        for include_origin in (True, False):
+            assert (
+                v.divisor_basis(include_origin=include_origin)
+                == cy.divisor_basis(include_origin=include_origin)
+            ).all()
+            assert (
+                v.curve_basis(include_origin=include_origin)
+                == cy.curve_basis(include_origin=include_origin)
+            ).all()
