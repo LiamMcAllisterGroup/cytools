@@ -345,8 +345,10 @@ def array_to_flint(arr: np.ndarray, t: "int | float" = None) -> np.ndarray:
 
 
 # some type-specific aliases
-array_int_to_fmpz = lambda arr: array_to_flint(arr, t=int)
-array_float_to_fmpq = lambda arr: array_to_flint(arr, t=float)
+def array_int_to_fmpz(arr):
+    return array_to_flint(arr, t=int)
+def array_float_to_fmpq(arr):
+    return array_to_flint(arr, t=float)
 
 
 def array_from_flint(arr: np.ndarray, t=None) -> np.ndarray:
@@ -377,8 +379,10 @@ def array_from_flint(arr: np.ndarray, t=None) -> np.ndarray:
 
 
 # some type-specific aliases
-array_fmpz_to_int = lambda arr: array_from_flint(arr, t=flint.fmpz)
-array_fmpq_to_float = lambda arr: array_from_flint(arr, t=flint.fmpq)
+def array_fmpz_to_int(arr):
+    return array_from_flint(arr, t=flint.fmpz)
+def array_fmpq_to_float(arr):
+    return array_from_flint(arr, t=flint.fmpq)
 
 
 # sparse conversions

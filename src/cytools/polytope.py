@@ -1056,21 +1056,20 @@ class Polytope:
 
     # common point grabbers
     # ---------------------
-    pts_int = lambda self, as_indices=False: self.pts(
-        which=self._labels_int, as_indices=as_indices
-    )
-    pts_bdry = lambda self, as_indices=False: self.pts(
-        which=self._labels_bdry, as_indices=as_indices
-    )
-    pts_facet = lambda self, as_indices=False: self.pts(
-        which=self._labels_facet, as_indices=as_indices
-    )
-    pts_codim2 = lambda self, as_indices=False: self.pts(
-        which=self._labels_codim2, as_indices=as_indices
-    )
-    pts_not_facets = lambda self, as_indices=False: self.pts(
-        which=self._labels_not_facet, as_indices=as_indices
-    )
+    def pts_int(self, as_indices=False):
+        return self.pts(which=self._labels_int, as_indices=as_indices)
+
+    def pts_bdry(self, as_indices=False):
+        return self.pts(which=self._labels_bdry, as_indices=as_indices)
+
+    def pts_facet(self, as_indices=False):
+        return self.pts(which=self._labels_facet, as_indices=as_indices)
+
+    def pts_codim2(self, as_indices=False):
+        return self.pts(which=self._labels_codim2, as_indices=as_indices)
+
+    def pts_not_facets(self, as_indices=False):
+        return self.pts(which=self._labels_not_facet, as_indices=as_indices)
 
     # aliases
     interior_points = pts_int
@@ -3172,12 +3171,21 @@ class Polytope:
             return hpq
         raise RuntimeError("Error computing Hodge numbers.")
 
-    h11 = lambda self, lattice="N": self.hpq(1, 1, lattice=lattice)
-    h12 = lambda self, lattice="N": self.hpq(1, 2, lattice=lattice)
+    def h11(self, lattice="N"):
+        return self.hpq(1, 1, lattice=lattice)
+
+    def h12(self, lattice="N"):
+        return self.hpq(1, 2, lattice=lattice)
+
     h21 = h12
-    h13 = lambda self, lattice="N": self.hpq(1, 3, lattice=lattice)
+
+    def h13(self, lattice="N"):
+        return self.hpq(1, 3, lattice=lattice)
+
     h31 = h13
-    h22 = lambda self, lattice="N": self.hpq(2, 2, lattice=lattice)
+
+    def h22(self, lattice="N"):
+        return self.hpq(2, 2, lattice=lattice)
 
     def chi(self, lattice: str) -> int:
         """

@@ -203,7 +203,8 @@ class PolytopeFace:
         """
         return self._ambient_poly
 
-    ambient_polytope = lambda self: self.ambient_poly
+    def ambient_polytope(self):
+        return self.ambient_poly
 
     @property
     def labels(self) -> tuple:

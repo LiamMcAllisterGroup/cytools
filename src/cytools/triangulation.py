@@ -620,7 +620,8 @@ class Triangulation:
         """
         return self._poly
 
-    polytope = lambda self: self.poly
+    def polytope(self):
+        return self.poly
 
     @property
     def labels(self):
