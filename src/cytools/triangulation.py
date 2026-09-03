@@ -268,7 +268,7 @@ class Triangulation:
                 # (do some checks here b/c otherwise self.is_valid() hits
                 # errors)
                 simp_labels = set(self._simplices.flatten())
-                if any([(l not in self._labels) for l in simp_labels]):
+                if any([(lab not in self._labels) for lab in simp_labels]):
                     unknown = simp_labels.difference(self._labels)
                     error_msg = (
                         f"Simplices had labels {simp_labels}; "
@@ -941,7 +941,7 @@ class Triangulation:
                             self._labels2optPts[label] = tuple(pt)
 
                     # return the relevant points
-                    return np.array([self._labels2optPts[l] for l in which])
+                    return np.array([self._labels2optPts[lab] for lab in which])
 
             # normal case
             return self.poly.points(
@@ -1114,11 +1114,11 @@ class Triangulation:
         # append a 1 to each point
         pts = dict(zip(self.labels, self.points(optimal=True)))
         pts_ext = {
-            l: list(pts[l])
+            lab: list(pts[lab])
             + [
                 1,
             ]
-            for l in self.labels
+            for lab in self.labels
         }
         pts_all = np.array(list(pts.values()))
         # pts_ext = np.array([list(pt)+[1,] for pt in pts])
@@ -1126,7 +1126,7 @@ class Triangulation:
         # We first check if the volumes add up to the volume of the polytope
         v = 0
         for s in simps:
-            tmp_v = abs(int(round(np.linalg.det([pts_ext[l] for l in s]))))
+            tmp_v = abs(int(round(np.linalg.det([pts_ext[lab] for lab in s]))))
 
             if tmp_v == 0:
                 self._is_valid = False
@@ -1269,8 +1269,8 @@ class Triangulation:
 
             # cast to indices
             if as_indices:
-                l2i = {l: i for i, l in enumerate(self.labels)}
-                out = [[l2i[l] for l in s] for s in out]
+                l2i = {lab: i for i, lab in enumerate(self.labels)}
+                out = [[l2i[lab] for lab in s] for s in out]
 
             if as_np_array:
                 return np.array(out)
@@ -1308,8 +1308,8 @@ class Triangulation:
 
         # cast to indices
         if as_indices:
-            l2i = {l: i for i, l in enumerate(self.labels)}
-            out = [[frozenset([l2i[l] for l in s]) for s in face] for face in out]
+            l2i = {lab: i for i, lab in enumerate(self.labels)}
+            out = [[frozenset([l2i[lab] for lab in s]) for s in face] for face in out]
 
         if split_by_face:
             if as_np_array:
@@ -2441,19 +2441,19 @@ class Triangulation:
 
         # calculate the answer
         pts_ext = {
-            l: list(pt)
+            lab: list(pt)
             + [
                 1,
             ]
-            for l, pt in zip(self.labels, self.points(optimal=True))
+            for lab, pt in zip(self.labels, self.points(optimal=True))
         }
-        l2i = {l: i for i, l in enumerate(self.labels)}
+        l2i = {lab: i for i, lab in enumerate(self.labels)}
         phi = np.zeros(len(pts_ext), dtype=int)
 
         for s in self._simplices:
-            simp_vol = int(round(abs(np.linalg.det([pts_ext[l] for l in s]))))
-            for l in s:
-                phi[l2i[l]] += simp_vol
+            simp_vol = int(round(abs(np.linalg.det([pts_ext[lab] for lab in s]))))
+            for lab in s:
+                phi[l2i[lab]] += simp_vol
 
         # return
         self._gkz_phi = phi
