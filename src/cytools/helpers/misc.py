@@ -21,6 +21,7 @@
 # 'standard' imports
 import gzip
 import os
+import zlib
 
 # 3rd party imports
 import pickle
@@ -102,9 +103,20 @@ def load_zipped_pickle(fname, path=cache_dir):
         try:
             with gzip.open(file, "rb") as f:
                 return pickle.load(f)
-        except (EOFError, pickle.UnpicklingError) as e:
+        except (
+            EOFError,
+            pickle.UnpicklingError,
+            # a file that isn't valid gzip at all raises BadGzipFile (an
+            # OSError), and a truncated/corrupted deflate stream raises
+            # zlib.error; both are 'broken cache', not fatal errors
+            gzip.BadGzipFile,
+            zlib.error,
+        ) as e:
             print(f"Warning: cache {file} is broken ({e}), removing it...")
-            os.remove(file)
+            try:
+                os.remove(file)
+            except OSError:
+                pass
             return None
     else:
         return None
