@@ -977,11 +977,6 @@ class Cone:
         ext_rays = [True for _ in range(len(rays))]
         to_check = list(range(len(rays)))
 
-        # a ray-check can fail for transient reasons (e.g. a flaky solver), in
-        # which case retrying is worthwhile. A deterministic failure, however,
-        # would loop forever, so only retry a bounded number of times.
-        n_failures = dict()
-
         if verbose:
             print(f"Computing extremal rays for a cone with {len(rays)} using {n_threads} threads...")
 
