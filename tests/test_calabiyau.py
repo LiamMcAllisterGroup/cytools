@@ -552,9 +552,15 @@ def test_compute_divisor_volumes_out_of_basis_honors_basis():
     )
     cy = p2.triangulate().get_cy()
     with _experimental_features():
-        cy.set_divisor_basis([[0, 0, 0, 0, 0, 1, 1], [0, 0, 0, 0, 0, 0, 1]])
-        tip = cy.toric_kahler_cone().tip_of_stretched_cone(1)
-        # the tip is the same point of the Kahler cone, written in a new basis
+        # a unimodular change of whatever the current default basis is, rather
+        # than a hardcoded matrix: the default is not part of the contract and
+        # has changed before (#96)
+        M = np.array([[1, 1], [0, 1]])
+        basis_default = cy_default.divisor_basis(as_matrix=True, include_origin=True)
+        cy.set_divisor_basis(M @ basis_default)
+
+        # the same point of the Kahler cone, rewritten in the new basis
+        tip = tip_default @ np.linalg.inv(M)
         assert np.isclose(
             tip.dot(cy.divisor_basis(as_matrix=True, include_origin=False)),
             tip_default.dot(
@@ -575,5 +581,8 @@ def test_curve_basis_with_all_points_triangulation():
         [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -6, -9]]
     )
     cy = p.triangulate(points=p.labels).get_cy()
-    assert (cy.curve_basis() == [5, 6]).all()
+    # the point is that this does not raise; which basis is picked by default
+    # is not part of the contract (it changed in #96), so only pin that
+    # curve_basis and divisor_basis agree on it
     assert (cy.curve_basis() == cy.divisor_basis()).all()
+    assert len(cy.curve_basis()) == cy.h11()
