@@ -66,6 +66,7 @@ class Fan(regfans.fan.Fan):
     **Returns:**
     Nothing.
     """
+
     # read from regfans type
     @classmethod
     def from_regfans(cls, fan: "regfans.Fan") -> "Fan":
@@ -81,18 +82,20 @@ class Fan(regfans.fan.Fan):
         **Returns:**
         The CYTools Fan object.
         """
-        obj = cls.__new__(cls)              # allocate new instance
+        obj = cls.__new__(cls)  # allocate new instance
         obj.__dict__ = fan.__dict__.copy()  # copy state
         return obj
 
     # cones/simplices
     # ---------------
-    def cones(self,
+    def cones(
+        self,
         dim: int = None,
         formal: bool = False,
         as_hyps: bool = False,
         as_inds: bool = False,
-        ind_offset: int = 0) -> Union[ tuple[tuple[int]], list["Cone"] ]:
+        ind_offset: int = 0,
+    ) -> Union[tuple[tuple[int]], list["Cone"]]:
         """
         **Description:**
         Returns the cones in the fan, each cone specified either by
@@ -120,20 +123,16 @@ class Fan(regfans.fan.Fan):
             return tuple([self.vc.cone(c) for c in super(Fan, self).cones(dim=dim)])
         else:
             return super(Fan, self).cones(
-                dim=dim,
-                as_hyps=as_hyps,
-                as_inds=as_inds,
-                ind_offset=ind_offset)
+                dim=dim, as_hyps=as_hyps, as_inds=as_inds, ind_offset=ind_offset
+            )
 
     # aliases
     simplices = cones
     simps = cones
 
-
-    def restricted_simps(self,
-        to_dim: int = 2,
-        padded: bool = False,
-        as_face_inds: bool = False):
+    def restricted_simps(
+        self, to_dim: int = 2, padded: bool = False, as_face_inds: bool = False
+    ):
         """
         **Description:**
         Restrict input simplices to the to_dim-faces of the underlying polytope.
@@ -179,12 +178,10 @@ class Fan(regfans.fan.Fan):
             if as_face_inds:
                 label_to_ind = {lbl: i for i, lbl in enumerate(face.labels)}
                 face_simps_reduced = [
-                    sorted(label_to_ind[i] for i in simp) for simp in\
-                                                            face_simps_reduced
+                    sorted(label_to_ind[i] for i in simp) for simp in face_simps_reduced
                 ]
             else:
-                face_simps_reduced = [sorted(simp) for simp in\
-                                                            face_simps_reduced]
+                face_simps_reduced = [sorted(simp) for simp in face_simps_reduced]
 
             # pad the simplices
             # (the entries are sorted lists by now, so this works regardless of
@@ -202,9 +199,9 @@ class Fan(regfans.fan.Fan):
 
     # VC <-> PC
     # ---------
-    def get_pc_triangulation(self,
-        check: bool = True,
-        verbosity: int = 0) -> "Triangulation":
+    def get_pc_triangulation(
+        self, check: bool = True, verbosity: int = 0
+    ) -> "Triangulation":
         """
         **Description:**
         If the fan respects the point configuration, get the associated point
@@ -225,15 +222,17 @@ class Fan(regfans.fan.Fan):
         # super easy for regular triangulations. Lift by heights >=0, with origin at 0
         if self.is_regular():
             p = self.vc.conv(which=self.labels)
-            pts_in_facets = (self.labels == p.labels[1:])
+            pts_in_facets = self.labels == p.labels[1:]
             h = self.heights()
             if not np.all(h >= 0):
-                msg =   "Heights are assumed non-negative here... "
+                msg = "Heights are assumed non-negative here... "
                 msg += f"your heights={h}..."
                 raise ValueError(msg)
-            return p.triangulate(heights=[0]+h.tolist(),
-                                 include_points_interior_to_facets=pts_in_facets,
-                                 check_heights=check)
+            return p.triangulate(
+                heights=[0] + h.tolist(),
+                include_points_interior_to_facets=pts_in_facets,
+                check_heights=check,
+            )
 
         # get/return the triangulation
         p = self.vc.conv(self.labels)
@@ -251,10 +250,12 @@ class Fan(regfans.fan.Fan):
 
     # reformatting regfans.Fans outputs
     # ---------------------------------
-    def secondary_cone(self,
+    def secondary_cone(
+        self,
         via_circuits: bool = False,
         project_lineality: bool = False,
-        verbosity: int = 0):
+        verbosity: int = 0,
+    ):
         """
         **Description:**
         Compute the hyperplanes of the secondary cone associated to this fan.
@@ -288,20 +289,20 @@ class Fan(regfans.fan.Fan):
         """
         # the circuits-based and the folding-based cones can differ (see the
         # warning above), so they must be cached separately
-        if not hasattr(self, '_secondary_cone'):
+        if not hasattr(self, "_secondary_cone"):
             self._secondary_cone = dict()
 
         cache_key = bool(via_circuits)
         if cache_key not in self._secondary_cone:
             H = super().secondary_cone_hyperplanes(
-                via_circuits=via_circuits,
-                verbosity=verbosity)
+                via_circuits=via_circuits, verbosity=verbosity
+            )
             self._secondary_cone[cache_key] = Cone(hyperplanes=H)
 
         cone = self._secondary_cone[cache_key]
 
         if project_lineality:
-            return Cone(rays=cone.rays()@(self.vc.gale()))
+            return Cone(rays=cone.rays() @ (self.vc.gale()))
         else:
             return cone
 
@@ -348,7 +349,7 @@ class Fan(regfans.fan.Fan):
         **Returns:**
         The intersection numbers.
         """
-        if not hasattr(self, '_kappa'):
+        if not hasattr(self, "_kappa"):
             # a plain dict (not a defaultdict) so that a missing key is an
             # error rather than a silent 0.0; the few genuinely-optional
             # lookups below use .get(..., 0.0) explicitly
@@ -403,7 +404,7 @@ class Fan(regfans.fan.Fan):
                         kappa[tuple(k_perm)] = kappa[k]
 
             if as_np_array_output:
-                kappa_np = np.zeros(self.ambient_dim*(self.vc.size+1,))
+                kappa_np = np.zeros(self.ambient_dim * (self.vc.size + 1,))
                 for k, v in kappa.items():
                     kappa_np[k] = v
                 return kappa_np
@@ -415,24 +416,29 @@ class Fan(regfans.fan.Fan):
         # push down the intersection numbers and represent them in said basis
         if pushed_down or in_basis:
             # view cache: these flag combos are pure functions of _kappa
-            view_key = (bool(pushed_down), bool(in_basis),
-                        bool(symmetrize), bool(as_np_array))
+            view_key = (
+                bool(pushed_down),
+                bool(in_basis),
+                bool(symmetrize),
+                bool(as_np_array),
+            )
             if self._kappa_known_labels == set(self.labels):
                 cached = self._kappa_view_cache.get(view_key)
                 if cached is not None:
                     if not copy:
                         return cached
-                    return (cached.copy()
-                            if isinstance(cached, np.ndarray)
-                            else dict(cached))
+                    return (
+                        cached.copy()
+                        if isinstance(cached, np.ndarray)
+                        else dict(cached)
+                    )
 
             # get the ambient intersection numbers
-            kappa = self.intersection_numbers(symmetrize=False,
-                                              digits=None)
+            kappa = self.intersection_numbers(symmetrize=False, digits=None)
             arr_size = self.vc.size
 
             if verbosity >= 10:
-                tmp = sorted([k + (round(v),) for k,v in kappa.items()])
+                tmp = sorted([k + (round(v),) for k, v in kappa.items()])
                 print(f"ambient intersection numbers were (in COO format) {tmp}")
 
             if pushed_down:
@@ -442,14 +448,14 @@ class Fan(regfans.fan.Fan):
                 # (equiv to taking kappa[i,j,k] = -kappa[0,i,j,k] b/c
                 #  anticanonical)
                 kappa_pushdown = dict()
-                for k,v in kappa.items():
+                for k, v in kappa.items():
                     if (k[0] == 0) and (0 not in k[1:]):
                         kappa_pushdown[k[1:]] = -v
 
                 kappa = kappa_pushdown
 
                 if verbosity >= 10:
-                    tmp = sorted([k + (round(v),) for k,v in kappa.items()])
+                    tmp = sorted([k + (round(v),) for k, v in kappa.items()])
                     print(f"after pushing kappa down, it is {tmp}")
 
             # write the intersection numbers in the basis
@@ -463,7 +469,10 @@ class Fan(regfans.fan.Fan):
                 # set/dict lookups in place of list scans (faster for in_basis=True)
                 basis_set = set(basis)
                 basis_idx = {x: i for i, x in enumerate(basis)}
-                non_basis_set = {0, *(i for i in self.used_labels if i not in basis_set)}
+                non_basis_set = {
+                    0,
+                    *(i for i in self.used_labels if i not in basis_set),
+                }
                 kappa = {
                     tuple(basis_idx[i] for i in k): kappa[k]
                     for k in kappa
@@ -471,7 +480,7 @@ class Fan(regfans.fan.Fan):
                 }
 
                 if verbosity >= 10:
-                    tmp = sorted([k + (round(v),) for k,v in kappa.items()])
+                    tmp = sorted([k + (round(v),) for k, v in kappa.items()])
                     print(f"after putting kappa in-basis, it is {tmp}")
 
             # symmetrize
@@ -482,18 +491,18 @@ class Fan(regfans.fan.Fan):
                         kappa[tuple(k_perm)] = kappa[k]
 
                 if verbosity >= 10:
-                    tmp = sorted([k + (round(v),) for k,v in kappa.items()])
+                    tmp = sorted([k + (round(v),) for k, v in kappa.items()])
                     print(f"after symmetrizing kappa, it is {tmp}")
 
             # map to numpy array
             if as_np_array:
-                kappa_np = np.zeros((self.ambient_dim-pushed_down)*(arr_size,))
+                kappa_np = np.zeros((self.ambient_dim - pushed_down) * (arr_size,))
                 if in_basis:
-                    for k,v in kappa.items():
+                    for k, v in kappa.items():
                         kappa_np[k] = v
                 else:
                     # map labels to indices...
-                    for k,v in kappa.items():
+                    for k, v in kappa.items():
                         kappa_np[tuple(ki - 1 for ki in k)] = v
                 result = kappa_np
             else:
@@ -506,14 +515,12 @@ class Fan(regfans.fan.Fan):
                 self._kappa_view_cache[view_key] = result
             if not copy:
                 return result
-            return (result.copy()
-                    if isinstance(result, np.ndarray)
-                    else dict(result))
+            return result.copy() if isinstance(result, np.ndarray) else dict(result)
 
         # not given a basis
         # -----------------
         # check if we know the answer
-        if (self._kappa_known_labels == set(self.labels)):
+        if self._kappa_known_labels == set(self.labels):
             if self._kappa_default is None:
                 self._kappa_default = format_kappa(
                     self._kappa,
@@ -546,7 +553,7 @@ class Fan(regfans.fan.Fan):
         dim = self.dim
 
         # (formally add the origin to ease indexing)
-        vecs  = np.vstack([ np.zeros((1,dim),dtype=int), self.vectors() ])
+        vecs = np.vstack([np.zeros((1, dim), dtype=int), self.vectors()])
         simps = self.cones(as_inds=True, ind_offset=1)
         simps_np = np.array(simps)
 
@@ -573,19 +580,20 @@ class Fan(regfans.fan.Fan):
         # compute the intersection numbers
         # --------------------------------
         # for distinct indices, just 1/vol of the cone
-        vals = 1/np.abs(np.linalg.det(vecs[simps_np])) # NumPy broadcasting
-        kappa_dict = self._kappa # local aliases (the loop below is hot)
-        kappa_get  = kappa_dict.get
-        kappa_dict.update(zip(simps, map(float,vals)))
+        vals = 1 / np.abs(np.linalg.det(vecs[simps_np]))  # NumPy broadcasting
+        kappa_dict = self._kappa  # local aliases (the loop below is hot)
+        kappa_get = kappa_dict.get
+        kappa_dict.update(zip(simps, map(float, vals)))
 
         if verbosity >= 1:
-            msg =  "After computing the intersection numbers associated to "
+            msg = "After computing the intersection numbers associated to "
             msg += "solid cones, we have:"
             print(msg)
             print({k: v for k, v in self._kappa.items()})
 
         # helpers
-        if dim==4:
+        if dim == 4:
+
             def insert_sorted(t, x):
                 a, b, c = t
                 if x <= a:
@@ -597,18 +605,19 @@ class Fan(regfans.fan.Fan):
                 else:
                     return (a, b, c, x)
         else:
+
             def insert_sorted(t, x):
                 return tuple(sorted(t + [x]))
 
         # for duplicated indices, these can be determined by r-dim faces for
         # dim-1 >= r >= 1
         # (i.e., intersection numbers with duplicated indices)
-        for r in range(dim-1, 0, -1): # dim-1, dim-2, ..., 1
+        for r in range(dim - 1, 0, -1):  # dim-1, dim-2, ..., 1
             if r == 3:
                 kappa_solver = kappa_solve_3x3
-            elif r==2:
+            elif r == 2:
                 kappa_solver = kappa_solve_2x2
-            elif r==1:
+            elif r == 1:
                 kappa_solver = kappa_solve_1x1
             else:
 
@@ -618,11 +627,11 @@ class Fan(regfans.fan.Fan):
             # iterate over each r-face
             for face, neighbs in neighbors[r].items():
                 neighbs = sorted(neighbs)
-                inds = list(face) + neighbs # analogous to the star of the face
-                pts  = vecs[inds].astype(float)
+                inds = list(face) + neighbs  # analogous to the star of the face
+                pts = vecs[inds].astype(float)
 
                 if verbosity >= 1:
-                    msg =   "Computing the intersection numbers associated to "
+                    msg = "Computing the intersection numbers associated to "
                     msg += f"face = {face}"
                     print(msg)
 
@@ -655,17 +664,16 @@ class Fan(regfans.fan.Fan):
                     # a key can legitimately be absent (the corresponding
                     # indices don't span a cone of the fan), in which case the
                     # intersection number vanishes
-                    known_vals = np.array([
-                        kappa_get(insert_sorted(prefactor, i), 0.0) for i in\
-                                                                        neighbs
-                        ]).reshape(-1,1)
+                    known_vals = np.array(
+                        [kappa_get(insert_sorted(prefactor, i), 0.0) for i in neighbs]
+                    ).reshape(-1, 1)
 
                     # the unknown intersection numbers will have indices of the
                     # form `face+duplicates+[i]` for i in face
 
                     # solve for the unknowns
                     # (i.e., find x such that pts.T@kappa_{..., [x,known]} == 0)
-                    # (i.e., find x such that pts.T[:,:N_unknown]@kappa_{...,x} == -pts.T[:,N_unknown:]@kappa_{..., known})           
+                    # (i.e., find x such that pts.T[:,:N_unknown]@kappa_{...,x} == -pts.T[:,N_unknown:]@kappa_{..., known})
                     sol = kappa_solver(pts, known_vals)
 
                     # save it
@@ -676,17 +684,17 @@ class Fan(regfans.fan.Fan):
         # -------------------------
         kappa_nzeros = [kappa_dict]
 
-        for num_zeros in range(1,dim+1):
+        for num_zeros in range(1, dim + 1):
             # make container for kappa w/ n zeros
             kappa_nzeros.append(collections.defaultdict(float))
 
             # iterate over values with 1 fewer 0
-            for k,v in kappa_nzeros[num_zeros-1].items():
+            for k, v in kappa_nzeros[num_zeros - 1].items():
+                for kprime in set(
+                    itertools.combinations(k[num_zeros - 1 :], r=dim - num_zeros)
+                ):
+                    kappa_nzeros[num_zeros][num_zeros * (0,) + kprime] -= v
 
-                for kprime in set(itertools.combinations(k[num_zeros-1:],\
-                                                            r=dim-num_zeros)):
-                    kappa_nzeros[num_zeros][num_zeros*(0,)+kprime] -= v
-        
         for kappa_n in kappa_nzeros[1:]:
             self._kappa.update(kappa_n)
 
@@ -713,7 +721,7 @@ class Fan(regfans.fan.Fan):
         )
 
     int_nums = intersection_numbers
-    kappa    = intersection_numbers
+    kappa = intersection_numbers
 
     def c2(self, eps: float = 1e-4, digits: int = 4) -> "ArrayLike":
         """
@@ -737,18 +745,18 @@ class Fan(regfans.fan.Fan):
 
             for two_cone in itertools.combinations(s, 2):
                 two_cones.add(two_cone)
-        two_cones = np.array(list(two_cones))-1
+        two_cones = np.array(list(two_cones)) - 1
 
         # get the intersection numbers
         kappa = self.intersection_numbers(
             pushed_down=True, as_np_array=True, eps=eps, digits=digits
         )
-        
+
         # compute c2
         out = []
         for a in range(max_ind):
-            vals = kappa[two_cones[:,0], two_cones[:,1], a]
-            out.append( round(vals.sum()) )
+            vals = kappa[two_cones[:, 0], two_cones[:, 1], a]
+            out.append(round(vals.sum()))
 
         return out
 
@@ -766,8 +774,8 @@ class Fan(regfans.fan.Fan):
         """
         intnums = self.intersection_numbers(in_basis=False)
         dim = self.dim
-        num_divs = self.vc.gale().shape[0]+1
-        
+        num_divs = self.vc.gale().shape[0] + 1
+
         # COPIED FROM THE ToricVariety CLASS
         curve_dict = collections.defaultdict(lambda: [[], []])
         for ii in intnums:
@@ -794,10 +802,9 @@ class Fan(regfans.fan.Fan):
         mori_rays[:, 0] = -np.sum(mori_rays, axis=1)
         return mori_rays
 
-    def mori_cone(self,
-        pushed_down: bool = False,
-        in_basis: bool = False,
-        verbosity: int = 0) -> "Cone":
+    def mori_cone(
+        self, pushed_down: bool = False, in_basis: bool = False, verbosity: int = 0
+    ) -> "Cone":
         """
         **Description:**
         Compute the Mori cone of the toric variety defined by the fan.
@@ -906,19 +913,17 @@ class Fan(regfans.fan.Fan):
         #  instances)
         def hook_init(fan):
             fan._kappa_np = fan.intersection_numbers(
-                pushed_down=True,
-                in_basis=True,
-                as_np_array=True)
+                pushed_down=True, in_basis=True, as_np_array=True
+            )
 
         def hook_flip(fanpre, fanpost, circ):
             fanpost._kappa_np = flop(fanpre, fanpre._kappa_np, circ)
 
         # call flip_linear with the hooks
         return self.flip_linear(
-            *args,
-            hook_init=hook_init,
-            hook_flip=hook_flip,
-            **kwargs)
+            *args, hook_init=hook_init, hook_flip=hook_flip, **kwargs
+        )
+
 
 # intersection numbers
 # --------------------
@@ -927,41 +932,43 @@ class Fan(regfans.fan.Fan):
 def kappa_solve_nxn(pts, known, r):
     # alternative methods (slower)
     # -------------------
-    #solutions, res, *_ = np.linalg.lstsq(
+    # solutions, res, *_ = np.linalg.lstsq(
     #    pts[:, 0:N_unknown], -pts[:, N_unknown:] @ known,
     #    rcond=None
-    #)
+    # )
     #
-    #solutions, res, *_ = sp.linalg.lstsq(
+    # solutions, res, *_ = sp.linalg.lstsq(
     #    pts[:, 0:N_unknown], -pts[:, N_unknown:] @ known,
     #    check_finite=False,lapack_driver='gelsy'
-    #)
-    M = pts[0:r,:].T
-    b = -pts[r:,:].T @ known
+    # )
+    M = pts[0:r, :].T
+    b = -pts[r:, :].T @ known
     return np.linalg.solve(M.T @ M, M.T @ b).flatten()
 
+
 @njit
-def kappa_solve_1x1(pts,known):
+def kappa_solve_1x1(pts, known):
     # solve M@x=b
     # solution x = a/b
-    b = -pts[1:,:].T @ known
-    M = pts[0:1,:].T
+    b = -pts[1:, :].T @ known
+    M = pts[0:1, :].T
     M = np.ascontiguousarray(M)
 
     # normal equation
     b = M.T @ b
     M = M.T @ M
     # hardcoded 1x1 solve
-    if M[0,0] == 0:
+    if M[0, 0] == 0:
         raise ValueError("Singular matrix")
-    x0 = b[0,0] * (1/M[0,0])
+    x0 = b[0, 0] * (1 / M[0, 0])
     return [x0]
 
+
 @njit
-def kappa_solve_2x2(pts,known):
+def kappa_solve_2x2(pts, known):
     # solve M@x=b
-    b = -pts[2:,:].T @ known
-    M = pts[0:2,:].T
+    b = -pts[2:, :].T @ known
+    M = pts[0:2, :].T
     M = np.ascontiguousarray(M)
 
     # normal equation
@@ -969,21 +976,22 @@ def kappa_solve_2x2(pts,known):
     M = M.T @ M
 
     # hardcoded 2x2 solve
-    det = M[0,0]*M[1,1] - M[0,1]*M[1,0]
+    det = M[0, 0] * M[1, 1] - M[0, 1] * M[1, 0]
     if det == 0:
         raise ValueError("Singular matrix")
 
-    x0 = (b[0,0]*M[1,1] - M[0, 1]*b[1,0]) / det
-    x1 = (M[0,0]*b[1,0] - b[0,0]*M[1, 0]) / det
+    x0 = (b[0, 0] * M[1, 1] - M[0, 1] * b[1, 0]) / det
+    x1 = (M[0, 0] * b[1, 0] - b[0, 0] * M[1, 0]) / det
 
     # return
-    return [x0,x1]
+    return [x0, x1]
+
 
 @njit
-def kappa_solve_3x3(pts,known):
+def kappa_solve_3x3(pts, known):
     # solve M@x=b
-    b = -pts[3:,:].T @ known
-    M = pts[0:3,:].T
+    b = -pts[3:, :].T @ known
+    M = pts[0:3, :].T
     M = np.ascontiguousarray(M)
 
     # normal equation
@@ -992,54 +1000,56 @@ def kappa_solve_3x3(pts,known):
 
     # hardcoded 3x3 solve
     det = (
-        M[0,0]*(M[1,1]*M[2,2] - M[1,2]*M[2,1])
-        - M[0,1]*(M[1,0]*M[2,2] - M[1,2]*M[2,0])
-        + M[0,2]*(M[1,0]*M[2,1] - M[1,1]*M[2,0])
+        M[0, 0] * (M[1, 1] * M[2, 2] - M[1, 2] * M[2, 1])
+        - M[0, 1] * (M[1, 0] * M[2, 2] - M[1, 2] * M[2, 0])
+        + M[0, 2] * (M[1, 0] * M[2, 1] - M[1, 1] * M[2, 0])
     )
     if det == 0:
         raise ValueError("Singular matrix")
 
     # inverse via cofactor / adjugate
-    inv = np.empty((3,3), dtype=np.float64)
-    inv[0,0] =  (M[1,1]*M[2,2] - M[1,2]*M[2,1]) / det
-    inv[0,1] = -(M[0,1]*M[2,2] - M[0,2]*M[2,1]) / det
-    inv[0,2] =  (M[0,1]*M[1,2] - M[0,2]*M[1,1]) / det
-    inv[1,0] = -(M[1,0]*M[2,2] - M[1,2]*M[2,0]) / det
-    inv[1,1] =  (M[0,0]*M[2,2] - M[0,2]*M[2,0]) / det
-    inv[1,2] = -(M[0,0]*M[1,2] - M[0,2]*M[1,0]) / det
-    inv[2,0] =  (M[1,0]*M[2,1] - M[1,1]*M[2,0]) / det
-    inv[2,1] = -(M[0,0]*M[2,1] - M[0,1]*M[2,0]) / det
-    inv[2,2] =  (M[0,0]*M[1,1] - M[0,1]*M[1,0]) / det
+    inv = np.empty((3, 3), dtype=np.float64)
+    inv[0, 0] = (M[1, 1] * M[2, 2] - M[1, 2] * M[2, 1]) / det
+    inv[0, 1] = -(M[0, 1] * M[2, 2] - M[0, 2] * M[2, 1]) / det
+    inv[0, 2] = (M[0, 1] * M[1, 2] - M[0, 2] * M[1, 1]) / det
+    inv[1, 0] = -(M[1, 0] * M[2, 2] - M[1, 2] * M[2, 0]) / det
+    inv[1, 1] = (M[0, 0] * M[2, 2] - M[0, 2] * M[2, 0]) / det
+    inv[1, 2] = -(M[0, 0] * M[1, 2] - M[0, 2] * M[1, 0]) / det
+    inv[2, 0] = (M[1, 0] * M[2, 1] - M[1, 1] * M[2, 0]) / det
+    inv[2, 1] = -(M[0, 0] * M[2, 1] - M[0, 1] * M[2, 0]) / det
+    inv[2, 2] = (M[0, 0] * M[1, 1] - M[0, 1] * M[1, 0]) / det
 
     # multiply inverse with b
-    x0 = inv[0,0]*b[0,0] + inv[0,1]*b[1,0] + inv[0,2]*b[2,0]
-    x1 = inv[1,0]*b[0,0] + inv[1,1]*b[1,0] + inv[1,2]*b[2,0]
-    x2 = inv[2,0]*b[0,0] + inv[2,1]*b[1,0] + inv[2,2]*b[2,0]
+    x0 = inv[0, 0] * b[0, 0] + inv[0, 1] * b[1, 0] + inv[0, 2] * b[2, 0]
+    x1 = inv[1, 0] * b[0, 0] + inv[1, 1] * b[1, 0] + inv[1, 2] * b[2, 0]
+    x2 = inv[2, 0] * b[0, 0] + inv[2, 1] * b[1, 0] + inv[2, 2] * b[2, 0]
 
     return [x0, x1, x2]
+
 
 # flops
 def minface_dim(config, labels):
     # get dim (face must have at least this dimension)
     p = config.conv()
     A = config.vectors(labels)
-    dim = np.linalg.matrix_rank([pt.tolist()+[1] for pt in A])-1
-    
+    dim = np.linalg.matrix_rank([pt.tolist() + [1] for pt in A]) - 1
+
     # try increasing dimensions
-    for facedim in range(dim,config.dim+1):
+    for facedim in range(dim, config.dim + 1):
         for face in p.faces(facedim):
             if labels.issubset(face.labels):
                 return facedim
-    
+
+
 def curve_to_gv(fan, kappa, circ, verbosity=0):
     config = fan.vc
-    
+
     # check that the signature is of the right type
     if min(circ.signature) != 2:
         raise ValueError
-    
+
     unsigned = set(circ.Z)
-    
+
     # get the minface_dim of the circuit
     dim = minface_dim(config, unsigned)
     if max(circ.signature) == 3:
@@ -1057,25 +1067,26 @@ def curve_to_gv(fan, kappa, circ, verbosity=0):
         else:
             # get a 3-cone on this side
             c = sorted(list(circ.Zneg) + [circ.Zpos[0]])
-            
+
             if set(c).issubset(fan.vc.divisor_basis):
                 c_inds = fan.vc.labels_to_inds(c, ambient_labels=fan.vc.divisor_basis)
                 kappa_c = kappa[tuple(c_inds)]
             else:
                 c_inds = fan.vc.labels_to_inds(c)
-                divisors = fan.vc.gale()[c_inds,:].T
-                kappa_c = ((kappa@divisors[:,0])@divisors[:,1])@divisors[:,2]
-            
+                divisors = fan.vc.gale()[c_inds, :].T
+                kappa_c = ((kappa @ divisors[:, 0]) @ divisors[:, 1]) @ divisors[:, 2]
+
             if verbosity >= 1:
                 print(f"(2,2), minface dim<4 -> gv=kappa[cone={c}]={kappa_c}")
-            
+
             return np.round(kappa_c)
     else:
         raise ValueError
 
+
 def flop(fan, kappa, circ, verbosity=0):
     # get GV
-    gv = curve_to_gv(fan, kappa, circ, verbosity-1)
+    gv = curve_to_gv(fan, kappa, circ, verbosity - 1)
     if verbosity >= 1:
         print(f"GV = {gv}")
 
@@ -1091,10 +1102,11 @@ def flop(fan, kappa, circ, verbosity=0):
     kappa_flopped = kappa.copy()
     n_nonzero = np.where(n)[0]
 
-    for i,j,k in itertools.product(n_nonzero,repeat=3):
-        kappa_flopped[i,j,k] = kappa_flopped[i,j,k] - gv*n[i]*n[j]*n[k]
+    for i, j, k in itertools.product(n_nonzero, repeat=3):
+        kappa_flopped[i, j, k] = kappa_flopped[i, j, k] - gv * n[i] * n[j] * n[k]
 
     return kappa_flopped
+
 
 # misc
 # ----
@@ -1116,10 +1128,15 @@ def vc(self, include_points_interior_to_facets=None):
         include_points_interior_to_facets = tuple(self.labels) == self.polytope().labels
 
     # get the vc
-    vc = self.polytope().vc(include_points_interior_to_facets=include_points_interior_to_facets)
+    vc = self.polytope().vc(
+        include_points_interior_to_facets=include_points_interior_to_facets
+    )
 
     return vc
+
+
 Triangulation.vc = vc
+
 
 def fan(self, include_points_interior_to_facets=None):
     """
@@ -1138,7 +1155,9 @@ def fan(self, include_points_interior_to_facets=None):
         include_points_interior_to_facets = tuple(self.labels) == self.polytope().labels
 
     # get the vc
-    vc = self.polytope().vc(include_points_interior_to_facets=include_points_interior_to_facets)
+    vc = self.polytope().vc(
+        include_points_interior_to_facets=include_points_interior_to_facets
+    )
 
     # build the star fan: keep only simplices containing the origin and drop
     # the origin label from each. the vc above already carries these same
@@ -1151,4 +1170,6 @@ def fan(self, include_points_interior_to_facets=None):
     ]
     fan = vc.subdivide(cells=cells)
     return fan
+
+
 Triangulation.fan = fan

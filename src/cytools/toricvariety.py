@@ -1008,9 +1008,7 @@ class ToricVariety:
             g = abs(gcd_list([ii[1] for ii in row]))
             for ii in row:
                 ii[1] = int(round(ii[1] / g))
-        row_list = set(
-            tuple(tuple(ii) for ii in sorted(row)) for row in row_list
-        )
+        row_list = set(tuple(tuple(ii) for ii in sorted(row)) for row in row_list)
         mori_rays = np.zeros((len(row_list), num_divs), dtype=int)
         for i, row in enumerate(row_list):
             for ii in row:
@@ -1074,7 +1072,7 @@ class ToricVariety:
         simps = self.triangulation().simplices(as_indices=True)
 
         # Origin is at index 0
-        pts_ext = np.empty( (points.shape[0], points.shape[1] + 1), dtype=int )
+        pts_ext = np.empty((points.shape[0], points.shape[1] + 1), dtype=int)
         pts_ext[:, :-1] = points
         pts_ext[:, -1] = 1
 
@@ -1237,12 +1235,11 @@ class ToricVariety:
                 for simp in self.triangulation().simplices(as_indices=True)
             ]
         )
-        frst = [[c for c in s if c != 0]
-                for s in self.triangulation().simplices(as_indices=True)]
-        simp_n = [
-            {j for f in frst for j in combinations(f, n)}
-            for n in range(2, dim)
+        frst = [
+            [c for c in s if c != 0]
+            for s in self.triangulation().simplices(as_indices=True)
         ]
+        simp_n = [{j for f in frst for j in combinations(f, n)} for n in range(2, dim)]
         simp_n = [[np.array(c) for c in simp_n[n]] for n in range(len(simp_n))]
         # We construct and solve the linear system M*x + C = 0, where M is
         # a rectangular mxn matrix and C is a vector.
@@ -1407,30 +1404,35 @@ class ToricVariety:
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
         t = p.triangulate()
         v = t.get_toric_variety()
-        # By default this function computes the intersection numbers of the canonical and prime toric divisors
+        # By default this function computes the intersection numbers of the canonical
+        # and prime toric divisors
         intnum_nobasis = v.intersection_numbers()
         # Let's print the output and see how to interpret it
         print(intnum_nobasis)
-        # {(1, 2, 3, 4): 1.0, (1, 2, 3, 5): 1.0, (1, 2, 4, 6): 0.5, (1, 2, 5, 6): 0.5, [the output is too long so we truncate it]
-        # The above output means that the intersection number of divisors 1, 2, 3, 4  is 1, and so on
+        # {(1, 2, 3, 4): 1.0, (1, 2, 3, 5): 1.0, (1, 2, 4, 6): 0.5, (1, 2, 5, 6):...
+        # The above output means that the intersection number of divisors 1, 2, 3, 4  is
+        # 1, and so on
         # Let us now compute the intersection numbers in a given basis of divisors
         # First, let's check the current basis of divisors
         v.divisor_basis()
         # array([1, 6])
-        # Now, setting in_basis=True we only compute the intersection numbers of divisors 1 and 6
+        # Now, setting in_basis=True we only compute the intersection numbers of
+        # divisors 1 and 6
         intnum_basis = v.intersection_numbers(in_basis=True)
         # Let's print the output and see how to interpret it
         print(intnum_basis)
-        # {(0, 0, 1, 1): 0.16666666666667923, (0, 1, 1, 1): -1.0000000000000335, (1, 1, 1, 1): 4.500000000000089}
+        # {(0, 0, 1, 1): 0.16666666666667923, (0, 1, 1, 1): -1.0000000000000335, (1...
         # Here, the indices correspond to indices of the basis divisors
         # So the intersection of 1, 1, 6, 6 is 0.1666, and so on
-        # Now, let's look at the different output formats. The default one is the "dok" (Dictionary Of Keys) format shown above
+        # Now, let's look at the different output formats. The default one is the "dok"
+        # (Dictionary Of Keys) format shown above
         # There is also the "coo" (COOrdinate format)
         print(v.intersection_numbers(in_basis=True, format="coo"))
         # [[ 0.          0.          1.          1.          0.16666667]
         #  [ 0.          1.          1.          1.         -1.        ]
         #  [ 1.          1.          1.          1.          4.5       ]]
-        # In this format, all but the last entry of each row are the indices and the last entry of the row is the intersection number
+        # In this format, all but the last entry of each row are the indices and the
+        # last entry of the row is the intersection number
         # Lastrly, there is the "dense" format where it outputs the full dense array
         print(v.intersection_numbers(in_basis=True, format="dense"))
         # [[[[ 0.          0.        ]
@@ -1461,12 +1463,11 @@ class ToricVariety:
             backends = ["all", "sksparse", "scipy"]
             if backend not in backends:
                 raise ValueError(
-                    "Invalid linear system backend. " f"The options are: {backends}."
+                    f"Invalid linear system backend. The options are: {backends}."
                 )
             if exact_arithmetic and not config._exp_features_enabled:
                 raise ValueError(
-                    "The experimental features must be enabled to "
-                    "use exact arithmetic."
+                    "The experimental features must be enabled to use exact arithmetic."
                 )
             # Construct the linear equations
             # Note that self.dim gives the dimension of the CY not the of the
@@ -1716,7 +1717,9 @@ class ToricVariety:
         """
         if self._prime_divs is None:
             tri_ind = list(
-                set.union(*[set(s) for s in self.triangulation().simplices(as_indices=True)])
+                set.union(
+                    *[set(s) for s in self.triangulation().simplices(as_indices=True)]
+                )
             )
             divs = self.triangulation().triangulation_to_polytope_indices(tri_ind)
             self._prime_divs = tuple(i for i in divs if i)
@@ -1780,7 +1783,9 @@ class ToricVariety:
         if self._canon_div_is_smooth is not None:
             return self._canon_div_is_smooth
         pts_mpcp = {tuple(pt) for pt in self.polytope().points_not_interior_to_facets()}
-        ind_triang = list(set.union(*[set(s) for s in self._triang.simplices(as_indices=True)]))
+        ind_triang = list(
+            set.union(*[set(s) for s in self._triang.simplices(as_indices=True)])
+        )
         pts_triang = {tuple(pt) for pt in self._triang.points()[ind_triang]}
         sm = pts_mpcp.issubset(pts_triang) and (
             True
@@ -1852,7 +1857,7 @@ class ToricVariety:
         if d is None:
             d = self.dim() if face_dim is None else face_dim
         if d not in range(1, self.dim() + 1):
-            raise ValueError("Only cones of dimension 1 through d are " "supported.")
+            raise ValueError("Only cones of dimension 1 through d are supported.")
         if (d, face_dim) in self._fan_cones:
             return self._fan_cones[(d, face_dim)]
         pts = self.triangulation().points()
@@ -1919,7 +1924,7 @@ class ToricVariety:
         if nef_partition is not None:
             if not config._exp_features_enabled:
                 raise Exception(
-                    "The experimental features must be enabled to " "construct CICYs."
+                    "The experimental features must be enabled to construct CICYs."
                 )
             self._cy = CalabiYau(self, nef_partition)
             self._nef_part = nef_partition
@@ -1941,7 +1946,7 @@ class ToricVariety:
 
             # check that we have sensical points
             triang = self.triangulation()
-            poly   = triang.polytope()
+            poly = triang.polytope()
 
             if sorted(triang.labels) == sorted(poly.labels_not_facet):
                 pass

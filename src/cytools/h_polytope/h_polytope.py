@@ -113,14 +113,14 @@ class HPolytope(polytope.Polytope):
         self._ineqs = ineqs.copy()
 
         # compute the vertices
-        if np.all(np.abs(self._ineqs[:,-1]-1)<1e-4):
+        if np.all(np.abs(self._ineqs[:, -1] - 1) < 1e-4):
             # constant terms are all =1. Compute Newton polytope
             if backend is None:
-                backend = 'ppl'
-            dual, dual_poly = polytope.poly_v_to_h(self._ineqs[:,:-1], backend=backend)
+                backend = "ppl"
+            dual, dual_poly = polytope.poly_v_to_h(self._ineqs[:, :-1], backend=backend)
 
             # check for rays
-            if 0 in dual[:,-1]:
+            if 0 in dual[:, -1]:
                 raise ValueError("Dual was a polyhedron, not a polytope.")
 
             # map the ineqs into points. Divide integrally when we can, so
@@ -174,7 +174,9 @@ class HPolytope(polytope.Polytope):
 
 # utils
 # -----
-def poly_h_to_v(hypers: "ArrayLike", verbosity: int = 0) -> ("ArrayLike", "ppl.C_Polyhedron"):
+def poly_h_to_v(
+    hypers: "ArrayLike", verbosity: int = 0
+) -> ("ArrayLike", "ppl.C_Polyhedron"):
     """
     **Description:**
     Generate the V-representation of a polytope, given the H-representation.
@@ -215,9 +217,9 @@ def poly_h_to_v(hypers: "ArrayLike", verbosity: int = 0) -> ("ArrayLike", "ppl.C
     vrs = np.array([ppl.Variable(i) for i in range(dim)])
 
     # insert points to generator system
-    for linexp in hypers[:,:-1]@vrs + hypers[:,-1]:
+    for linexp in hypers[:, :-1] @ vrs + hypers[:, -1]:
         cs.insert(linexp >= 0)
-        #cs.insert(sum(c[i] * vrs[i] for i in range(dim)) + c[-1] >= 0)
+        # cs.insert(sum(c[i] * vrs[i] for i in range(dim)) + c[-1] >= 0)
 
     # find polytope, vertices
     # -----------------------

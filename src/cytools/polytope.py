@@ -2554,9 +2554,9 @@ class Polytope:
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]]).dual()
         g = p.random_triangulations_fast()
         next(g) # Runs very quickly
-        # A fine, regular, star triangulation of a 4-dimensional point configuration with 106 points in ZZ^4
+        # A fine, regular, star triangulation of a 4-dimensional point configuration...
         next(g) # Keeps producing triangulations until it has trouble finding more
-        # A fine, regular, star triangulation of a 4-dimensional point configuration with 106 points in ZZ^4
+        # A fine, regular, star triangulation of a 4-dimensional point configuration...
         rand_triangs = p.random_triangulations_fast(N=10, as_list=True) # Produces the list of 10 triangulations very quickly
         ```
         """
@@ -2854,7 +2854,7 @@ class Polytope:
         ```python {2}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[0,0,0,-1],[-1,-1,-6,-9]])
         frsts = p.random_triangulations_gnn(N=4, seed=0)
-        # [A fine, regular, star triangulation of a 4-dimensional point configuration with 7 points in ZZ^4]
+        # [A fine, regular, star triangulation of a 4-dimensional point...
         ```
         For large polytopes, build the GNN-sampled 2-face FRT pools once via
         `face_triangs` and reuse them across NTFE
@@ -2866,9 +2866,9 @@ class Polytope:
         p = Polytope(verts) # h11=86
         pools = p.face_triangs(dim=2, triang_method="dualgnn", max_npts=0, N_face_triangs=50, seed=0) # the expensive step (~10s)
         frsts = p.ntfe_frts(N=300, face_triangs=pools, make_star=True, seed=0) # cheap (~2s)
-        # [A fine, regular, star triangulation of a 4-dimensional point configuration with 91 points in ZZ^4,
-        #  A fine, regular, star triangulation of a 4-dimensional point configuration with 91 points in ZZ^4,
-        #  A fine, regular, star triangulation of a 4-dimensional point configuration with 91 points in ZZ^4]
+        # [A fine, regular, star triangulation of a 4-dimensional point...
+        #  A fine, regular, star triangulation of a 4-dimensional point...
+        #  A fine, regular, star triangulation of a 4-dimensional point...
         ```
         """
         if self.dim() != 4 or not self.is_reflexive():

@@ -48,7 +48,6 @@ if TYPE_CHECKING:
     from cytools.polytopeface import PolytopeFace
 
 
-
 class Triangulation:
     """
     This class handles triangulations of lattice polytopes. It can compute
@@ -310,7 +309,7 @@ class Triangulation:
                 # construct the heights
                 if backend is None:
                     raise ValueError(
-                        "Simplices must be specified when working" "without a backend"
+                        "Simplices must be specified when workingwithout a backend"
                     )
 
                 # Heights need to be perturbed around the Delaunay heights for
@@ -373,9 +372,7 @@ class Triangulation:
                     # (don't assume that the origin sits at index 0!)
                     other_heights = heights_masked.compressed()
                     if len(other_heights):
-                        origin_step = max(
-                            10, other_heights.max() - other_heights.min()
-                        )
+                        origin_step = max(10, other_heights.max() - other_heights.min())
                     else:
                         origin_step = 10
 
@@ -449,7 +446,7 @@ class Triangulation:
         t = p.triangulate()
         poly_info = str(t) # Converts to string
         print(t) # Prints triangulation info
-        # A fine, regular, star triangulation of a 4-dimensional point configuration with 7 points in ZZ^4
+        # A fine, regular, star triangulation of a 4-dimensional point configuration...
         ```
         """
         fine_str = "fine" if self.is_fine() else "non-fine"
@@ -847,7 +844,7 @@ class Triangulation:
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
         t = p.triangulate()
         t.get_cy()
-        # A Calabi-Yau 3-fold hypersurface with h11=2 and h21=272 in a 4-dimensional toric variety
+        # A Calabi-Yau 3-fold hypersurface with h11=2 and h21=272 in a 4-dimensional...
         ```
         """
         return self.get_toric_variety().get_cy(nef_partition)
@@ -1092,11 +1089,11 @@ class Triangulation:
         simps = self.simplices()
         # simps = np.array([self.points(s, as_triang_indices=True) for s in simps])
 
-        if simps.shape[1] != self.dim()+1:
+        if simps.shape[1] != self.dim() + 1:
             self._is_valid = False
             return self._is_valid
 
-        #if simps.shape[0] == 1:
+        # if simps.shape[0] == 1:
         #    # triangulation is trivial
         #    self._is_valid = True
         #    return self._is_valid
@@ -1298,8 +1295,9 @@ class Triangulation:
             full_simp = [frozenset(s) for s in self._simplices]
 
             # get face indices
-            face_labels = [frozenset(face.labels)
-                           for face in self.polytope().faces(faces_dim)]
+            face_labels = [
+                frozenset(face.labels) for face in self.polytope().faces(faces_dim)
+            ]
 
             # actually restrict
             restricted = []
@@ -2089,9 +2087,7 @@ class Triangulation:
 
         # optimized method for 2D fine neighbors
         if self.is_fine() and (self.dim() == 2) and only_fine:
-            return self._fine_neighbors_2d(
-                only_regular=only_regular, backend=backend
-            )
+            return self._fine_neighbors_2d(only_regular=only_regular, backend=backend)
 
         # triangulumancer indexes points by their position in the point
         # configuration (i.e., row of self.points(...)), while self._simplices
@@ -2332,8 +2328,7 @@ class Triangulation:
         n_faces = len(face_triangs)
 
         def ineqs(ft):
-            return np.asarray(_2d_frt_cone_ineqs(ft, npts).toarray(),
-                              dtype=np.float64)
+            return np.asarray(_2d_frt_cone_ineqs(ft, npts).toarray(), dtype=np.float64)
 
         # A single 2-face flip changes only that one face's inequalities, so
         # the other faces' blocks are stacked once into a warm incremental LP
@@ -2353,14 +2348,21 @@ class Triangulation:
             lp = None
             cur = None
             for i, flipped, circuit in chunk:
-                key = (i, tuple(sorted(
-                    tuple(sorted(int(x) for x in s))
-                    for s in flipped.simplices())))
+                key = (
+                    i,
+                    tuple(
+                        sorted(
+                            tuple(sorted(int(x) for x in s))
+                            for s in flipped.simplices()
+                        )
+                    ),
+                )
                 if key in seen:
                     continue
                 if cur != i:
-                    other = [fixed[j] for j in range(n_faces)
-                             if j != i and len(fixed[j])]
+                    other = [
+                        fixed[j] for j in range(n_faces) if j != i and len(fixed[j])
+                    ]
                     base = np.vstack(other) if other else np.zeros((0, npts))
                     lp = _IncrementalLP(npts)
                     lp.push(base)
@@ -2375,7 +2377,8 @@ class Triangulation:
                 tri = poly.triangulate(
                     heights=np.delete(heights, poly.labels_facet),
                     include_points_interior_to_facets=False,
-                    make_star=make_star, check_heights=False,
+                    make_star=make_star,
+                    check_heights=False,
                     **({} if backend is None else {"backend": backend}),
                 )
                 out.append((tri, i, circuit) if two_neighbors_track_flips else tri)
@@ -2385,15 +2388,20 @@ class Triangulation:
             # the diagonal swap rewrites the 2-face's triangulation; the
             # symmetric difference of the two spans exactly the quadrilateral
             before = {tuple(sorted(int(v) for v in s)) for s in pre.simplices()}
-            after  = {tuple(sorted(int(v) for v in s)) for s in post.simplices()}
+            after = {tuple(sorted(int(v) for v in s)) for s in post.simplices()}
             return tuple(sorted({v for s in before ^ after for v in s}))
 
         # the (face, flip) tasks, grouped by face so each chunk reuses its
         # warm LP for a face's flips
-        tasks = [(i, flipped, _flip_circuit(ft, flipped) if two_neighbors_track_flips
-                  else None)
-                 for i, ft in enumerate(face_triangs)
-                 for flipped in ft._fine_neighbors_2d()]
+        tasks = [
+            (
+                i,
+                flipped,
+                _flip_circuit(ft, flipped) if two_neighbors_track_flips else None,
+            )
+            for i, ft in enumerate(face_triangs)
+            for flipped in ft._fine_neighbors_2d()
+        ]
 
         # parallelization follows CYTools' global config.n_threads
         from multiprocessing import cpu_count
@@ -2412,7 +2420,7 @@ class Triangulation:
 
         n = joblib.effective_n_jobs(n_threads)
         size = -(-len(tasks) // n)
-        chunks = [tasks[k * size:(k + 1) * size] for k in range(n)]
+        chunks = [tasks[k * size : (k + 1) * size] for k in range(n)]
         chunks = [c for c in chunks if c]
         batches = joblib.Parallel(n_jobs=n_threads)(
             joblib.delayed(extend_chunk)(c, fixed) for c in chunks
@@ -3120,7 +3128,7 @@ def random_triangulations_fair_generator(
     p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]]).dual()
     g = p.random_triangulations_fast()
     next(g) # Takes a long time (around a minute)
-    # A fine, regular, star triangulation of a 4-dimensional point configuration with 106 points in ZZ^4
+    # A fine, regular, star triangulation of a 4-dimensional point configuration...
     next(g) # Takes slightly shorter (still around a minute)
     # A fine, regular, star triangulation of a 4-dimensional point
     # configuration with 106 points in ZZ^4
