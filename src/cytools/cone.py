@@ -25,6 +25,8 @@ from ast import literal_eval
 from collections.abc import Iterable
 from copy import deepcopy
 from fractions import Fraction
+import functools
+import importlib
 import itertools
 import joblib
 from multiprocessing import cpu_count
@@ -38,8 +40,6 @@ import warnings
 # 3rd party imports
 from flint import fmpz_mat, fmpz, fmpq
 import numpy as np
-from ortools.linear_solver import pywraplp
-from ortools.sat.python import cp_model
 import highspy
 import ppl
 import ctypes; ctypes.CDLL(None).fesetround(0)  # ppl changes FPU rounding mode; reset to FE_TONEAREST
@@ -55,6 +55,7 @@ except ImportError:
 import qpsolvers
 from scipy import sparse
 from scipy.optimize import linprog, nnls
+from tqdm import tqdm
 import latticepts
 
 # CYTools imports
@@ -77,6 +78,36 @@ def _rank(arr) -> int:
     if arr.size == 0:
         return 0
     return int(np.linalg.matrix_rank(arr))
+
+
+class _LazyModule:
+    """
+    **Description:**
+    A stand-in for a module that is only imported when it is first used. It
+    forwards every attribute access to the real module, so `mod.attr` works
+    exactly as it would after a plain `import`.
+
+    This is used for the OR-Tools solvers, which are only needed by a handful
+    of methods but which are expensive to import (`ortools.sat` alone pulls in
+    pandas, costing ~1 s of `import cytools` time).
+    """
+
+    def __init__(self, name: str):
+        self._name = name
+        self._module = None
+
+    def __getattr__(self, attr: str):
+        if self._module is None:
+            self._module = importlib.import_module(self._name)
+        return getattr(self._module, attr)
+
+    def __repr__(self) -> str:
+        state = "loaded" if self._module is not None else "not loaded"
+        return f"<lazy module {self._name!r} ({state})>"
+
+
+cp_model = _LazyModule("ortools.sat.python.cp_model")
+pywraplp = _LazyModule("ortools.linear_solver.pywraplp")
 
 
 class Cone:
@@ -2690,16 +2721,40 @@ def feasibility(
 
 # cone degeneracy
 # ---------------
-class EarlyStopCallback(cp_model.CpSolverSolutionCallback):
-    def __init__(self, threshold, solver):
-        cp_model.CpSolverSolutionCallback.__init__(self)
-        self._threshold = threshold
-        self._solver = solver
+@functools.cache
+def _early_stop_callback_cls():
+    """
+    **Description:**
+    Builds (and caches) the CP-SAT callback that stops the search once the
+    objective reaches a given threshold.
 
-    def on_solution_callback(self):
-        current_value = int(self.ObjectiveValue())
-        if current_value >= self._threshold:
-            self.StopSearch()
+    It is defined in a function rather than at module scope because its base
+    class lives in `ortools.sat`, which is imported lazily.
+
+    **Returns:**
+    The `EarlyStopCallback` class.
+    """
+
+    class EarlyStopCallback(cp_model.CpSolverSolutionCallback):
+        def __init__(self, threshold, solver):
+            cp_model.CpSolverSolutionCallback.__init__(self)
+            self._threshold = threshold
+            self._solver = solver
+
+        def on_solution_callback(self):
+            current_value = int(self.ObjectiveValue())
+            if current_value >= self._threshold:
+                self.StopSearch()
+
+    return EarlyStopCallback
+
+
+def __getattr__(name):
+    # keeps `cytools.cone.EarlyStopCallback` working now that the class is
+    # only built on demand (see PEP 562)
+    if name == "EarlyStopCallback":
+        return _early_stop_callback_cls()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 def _is_degenerate(
     H: "ArrayLike",
@@ -2803,7 +2858,7 @@ def _is_degenerate(
 
     # implement early-stop callback
     # -----------------------------
-    cb = EarlyStopCallback(H.shape[1]+1, solver)
+    cb = _early_stop_callback_cls()(H.shape[1]+1, solver)
 
     # solve and parse solution
     status = solver.Solve(model, cb)
