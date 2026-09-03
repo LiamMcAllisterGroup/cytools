@@ -62,7 +62,6 @@ except ImportError:
 import qpsolvers
 from scipy import sparse
 from scipy.optimize import linprog, nnls
-from tqdm import tqdm
 import latticepts
 
 # CYTools imports

@@ -24,6 +24,18 @@ from cytools.cone import Cone
 from cytools.utils import read_polytopes, fetch_polytopes
 from . import ntfe, vector_config
 
+# the public surface of the package root; these are re-exports, so listing them
+# here is what marks them as intentionally imported-but-unused
+__all__ = [
+    "Polytope",
+    "HPolytope",
+    "Cone",
+    "read_polytopes",
+    "fetch_polytopes",
+    "ntfe",
+    "vector_config",
+]
+
 # Latest version
 version = "1.4.12"
 versions_with_serious_bugs = []

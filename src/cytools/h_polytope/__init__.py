@@ -15,3 +15,5 @@
 # =============================================================================
 
 from cytools.h_polytope.h_polytope import HPolytope
+
+__all__ = ["HPolytope"]
