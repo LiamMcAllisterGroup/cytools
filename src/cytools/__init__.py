@@ -15,11 +15,26 @@
 # =============================================================================
 
 # Make the main classes and function accessible from the root of CYTools.
+import os
+import threading
+
 from cytools.polytope import Polytope
 from cytools.h_polytope import HPolytope
 from cytools.cone import Cone
 from cytools.utils import read_polytopes, fetch_polytopes
 from . import ntfe, vector_config
+
+# the public surface of the package root; these are re-exports, so listing them
+# here is what marks them as intentionally imported-but-unused
+__all__ = [
+    "Polytope",
+    "HPolytope",
+    "Cone",
+    "read_polytopes",
+    "fetch_polytopes",
+    "ntfe",
+    "vector_config",
+]
 
 # Latest version
 version = "1.4.12"
@@ -68,12 +83,12 @@ def check_for_updates():
         )
 
         # find/check the version in this file
-        for l in p.text.split("\n"):
-            if (not checked_version) and ("version =" in l):
+        for line in p.text.split("\n"):
+            if (not checked_version) and ("version =" in line):
                 checked_version = True
 
                 # parse version
-                latest_ver = tuple(int(c) for c in l.split('"')[1].split("."))
+                latest_ver = tuple(int(c) for c in line.split('"')[1].split("."))
                 ver = tuple(int(c) for c in version.split("."))
 
                 # check
@@ -92,9 +107,9 @@ def check_for_updates():
                     "tool.\n"
                 )
 
-            elif (not checked_bugs) and ("versions_with_serious_bugs =" in l):
+            elif (not checked_bugs) and ("versions_with_serious_bugs =" in line):
                 checked_bugs = True
-                bad_versions = literal_eval(l.split("=")[1].strip())
+                bad_versions = literal_eval(line.split("=")[1].strip())
                 if version in bad_versions:
                     print(
                         "\n****************************\n"
@@ -108,9 +123,6 @@ def check_for_updates():
     except Exception:
         pass
 
-
-import os
-import threading
 
 
 def start_update_check():

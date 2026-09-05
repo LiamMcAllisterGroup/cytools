@@ -61,6 +61,7 @@ def _import_dualgnn():
     try:
         from dualgnn import sample_frts
         from dualgnn.model import DualGNN
+
         return sample_frts, DualGNN
     except ImportError as e:
         if not _is_interactive():
@@ -68,6 +69,7 @@ def _import_dualgnn():
 
     try:
         import torch  # noqa: F401
+
         size_note = ""
     except ImportError:
         size_note = (
@@ -88,6 +90,7 @@ def _import_dualgnn():
     importlib.invalidate_caches()
     from dualgnn import sample_frts
     from dualgnn.model import DualGNN
+
     return sample_frts, DualGNN
 
 
@@ -224,7 +227,6 @@ def face_triangs(
                     "samples."
                 )
 
-            
             if triang_method == "fast":
                 triangs.append(
                     p.random_triangulations_fast(
@@ -466,8 +468,7 @@ def grow_ft(
 
             if verbosity >= 3:
                 print(
-                    f"Trying new vertex {i:03d}... ({len(to_try):03d} left)"
-                    " -> ",
+                    f"Trying new vertex {i:03d}... ({len(to_try):03d} left) -> ",
                     end="",
                 )
 

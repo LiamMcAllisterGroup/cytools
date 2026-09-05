@@ -84,6 +84,29 @@ Homepage = "https://cy.tools"
 Documentation = "https://cy.tools/docs/documentation/"
 Repository = "https://github.com/LiamMcAllisterGroup/cytools"
 
+[tool.ruff]
+# 88 is ruff/black's default and matches the files that have already been
+# run through `ruff format`.
+line-length = 88
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# Deliberately narrow starting selection: every rule enabled here is clean on
+# the current tree, so `ruff check` is a hard gate in CI from day one.
+select = [
+  "E4",   # pycodestyle: imports
+  # "E5",  # pycodestyle: line length -- temporarily off: 25 violations left
+           #   (~16 long string literals, ~5 long comments, 4 deferred until
+           #   PR #108 lands). Re-enable once those are wrapped.
+  "E7",   # pycodestyle: statement-level errors
+  "E9",   # pycodestyle: syntax/IO errors
+  "F",    # pyflakes
+  "PLE",  # pylint: errors
+  "ICN",  # import conventions (numpy as np, ...)
+  "TID",  # tidy imports
+  "NPY",  # numpy-specific rules
+]
 [tool.hatch.build.targets.wheel]
 packages = ["src/cytools"]
 

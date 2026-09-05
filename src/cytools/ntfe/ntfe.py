@@ -1117,13 +1117,14 @@ def ntfe_hypers(
         chosen = set()
 
         # set the seed
+        # (use a local generator so that we don't perturb NumPy's global RNG)
         if seed is None:
             seed = time.time_ns() % (2**32)
-        np.random.seed(seed)
+        rng = np.random.RandomState(seed)
 
         # choose the hypers
         while len(chosen) < N:
-            choice = tuple(np.random.choice(x) for x in choices)
+            choice = tuple(rng.choice(x) for x in choices)
             chosen.add(choice)
 
     # grab/return hyperplanes

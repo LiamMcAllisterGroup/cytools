@@ -14,7 +14,29 @@
 # CYTools. If not, see <https://www.gnu.org/licenses/>.
 # =============================================================================
 
-from cytools.ntfe.ntfe import *
+from cytools.ntfe.ntfe import (
+    cone_of_permissible_heights,
+    expanded_secondary_fan,
+    ntfe_cones,
+    ntfe_frsts,
+    ntfe_frts,
+    ntfe_hypers,
+    triangface_ineqs,
+    triangfaces_to_frst,
+    triangfaces_to_frt,
+)
+
+__all__ = [
+    "cone_of_permissible_heights",
+    "expanded_secondary_fan",
+    "ntfe_cones",
+    "ntfe_frsts",
+    "ntfe_frts",
+    "ntfe_hypers",
+    "triangface_ineqs",
+    "triangfaces_to_frst",
+    "triangfaces_to_frt",
+]
 
 # imported for its side effect: attaches methods to Polytope
 from cytools.ntfe import face_triangulations as face_triangulations

@@ -22,9 +22,7 @@
 # 'standard' imports
 import fractions
 import functools
-import io
 import itertools
-import math
 import re
 import requests
 from typing import Generator
@@ -36,8 +34,22 @@ from numpy.typing import ArrayLike
 import pypalp
 import scipy.sparse as sp
 
+# `scipy.sparse` does not necessarily bring in its `linalg` subpackage, so
+# import it explicitly; it is used below as `sp.linalg.spsolve`
+import scipy.sparse.linalg  # noqa: F401
+
 # CYTools imports
 from cytools import config
+
+# imported for annotations only; the signatures quote these, so they
+# are never needed at runtime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from cytools.polytope import Polytope
+    from collections.abc import Generator
+    from cytools.calabiyau import CalabiYau
+    from cytools.toricvariety import ToricVariety
 
 
 # custom decorators
@@ -112,7 +124,34 @@ def gcd_list(arr):
 # --------------
 def integral_nullspace(M, reduce_by_gcd=True):
     """
-    Returns the integral nullspace as column vectors
+    **Description:**
+    Returns the integral nullspace of M as column vectors.
+
+    The basis returned spans the *saturated* kernel {x in Z^n : M x = 0}: if
+    k*x lies in the span for some nonzero integer k, then so does x. That is
+    what the integral nullspace is, and callers who complete the basis to a
+    change of coordinates depend on it -- a non-saturated basis completes to a
+    matrix with |det| > 1.
+
+    Obtaining it from flint's rational nullspace and dividing each column by
+    its gcd is not enough: column-primitive is weaker than lattice-saturated,
+    and the result is then a proper finite-index sublattice. For example with
+    M = [[9, 4, 7]], the vector x = [1, -4, 1] satisfies M x = 0 but is not an
+    integer combination of that basis.
+
+    Instead take the Hermite normal form of M.T with transform. For
+    H = U @ M.T with U unimodular, the rows of U corresponding to zero rows of
+    H span the kernel, and because U is unimodular those rows extend to a basis
+    of Z^n -- so saturation is structural rather than checked afterwards.
+
+    **Arguments:**
+    - `M` *(array_like)*: The integer matrix whose kernel is wanted.
+    - `reduce_by_gcd` *(bool, optional)*: Accepted for backwards compatibility
+        and ignored. The returned basis is already primitive.
+
+    **Returns:**
+    *(numpy.ndarray)* The kernel basis, as column vectors. Entries are int64
+    when they fit and Python ints (object dtype) when they do not.
     """
     # a row-less M gives flint a 0x0 matrix, losing the column count; its
     # kernel is the whole ambient space
@@ -120,30 +159,22 @@ def integral_nullspace(M, reduce_by_gcd=True):
     if M.shape[0] == 0:
         return np.eye(M.shape[1], dtype=int)
 
-    null, nullity = flint.fmpz_mat(M.tolist()).nullspace()
-    nrows = null.nrows()
-    if not nullity:
-        return np.zeros((nrows, 0), dtype=int)
+    A = flint.fmpz_mat([[int(x) for x in row] for row in M.T.tolist()])
+    H, U = A.hnf(transform=True)
 
-    # read out the nullity real columns only; flint pads to ncols and
-    # converting the padding is wasted work
-    cols = [[int(null[i, j]) for j in range(nullity)] for i in range(nrows)]
+    nrows, ncols = H.nrows(), H.ncols()
+    kernel_rows = [i for i in range(nrows)
+                   if all(H[i, j] == 0 for j in range(ncols))]
+    if not kernel_rows:
+        return np.zeros((M.shape[1], 0), dtype=int)
 
     # kernel entries can exceed int64 (a 20x24 matrix of single-digit
     # integers reached ~70 bits), so keep exact Python ints when they do
+    cols = [[int(U[i, j]) for i in kernel_rows] for j in range(U.ncols())]
     try:
-        null = np.array(cols, dtype=np.int64)
+        return np.array(cols, dtype=np.int64)
     except OverflowError:
-        null = np.array(cols, dtype=object)
-
-    if reduce_by_gcd:
-        if null.dtype == object:
-            gcds = np.array([math.gcd(*c) for c in null.T], dtype=object)
-        else:
-            gcds = np.gcd.reduce(np.abs(null), axis=0)
-        null = null // gcds
-
-    return null
+        return np.array(cols, dtype=object)
 
 
 def adjugate(mat: ArrayLike) -> "tuple[np.ndarray, int]":
@@ -166,15 +197,12 @@ def adjugate(mat: ArrayLike) -> "tuple[np.ndarray, int]":
     S = [[int(x) for x in row] for row in np.asarray(mat)]
     n = len(S)
     if any(len(row) != n for row in S):
-        raise ValueError(f"expected a square matrix, got shape "
-                         f"{np.shape(mat)}")
+        raise ValueError(f"expected a square matrix, got shape {np.shape(mat)}")
 
     def minor(i, j):
-        return [[S[r][c] for c in range(n) if c != j]
-                for r in range(n) if r != i]
+        return [[S[r][c] for c in range(n) if c != j] for r in range(n) if r != i]
 
-    cof = [[(-1)**(i + j) * _det(minor(i, j)) for j in range(n)]
-           for i in range(n)]
+    cof = [[(-1) ** (i + j) * _det(minor(i, j)) for j in range(n)] for i in range(n)]
     det = sum(S[0][j] * cof[0][j] for j in range(n))
 
     adj = [[cof[j][i] for j in range(n)] for i in range(n)]
@@ -201,20 +229,24 @@ def _det(m: list) -> int:
     """
     n = len(m)
     if n == 0:
-        return 1        # the empty product; makes adjugate of a 1x1 be [[1]]
+        return 1  # the empty product; makes adjugate of a 1x1 be [[1]]
     if n == 1:
         return m[0][0]
     if n == 2:
-        return m[0][0]*m[1][1] - m[0][1]*m[1][0]
+        return m[0][0] * m[1][1] - m[0][1] * m[1][0]
     if n == 3:
-        return (m[0][0]*(m[1][1]*m[2][2] - m[1][2]*m[2][1])
-              - m[0][1]*(m[1][0]*m[2][2] - m[1][2]*m[2][0])
-              + m[0][2]*(m[1][0]*m[2][1] - m[1][1]*m[2][0]))
+        return (
+            m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+            - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+            + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0])
+        )
     if n >= 5:
         return int(flint.fmpz_mat(m).det())
-    return sum((-1)**j * m[0][j]
-               * _det([[r[c] for c in range(n) if c != j] for r in m[1:]])
-               for j in range(n) if m[0][j])
+    return sum(
+        (-1) ** j * m[0][j] * _det([[r[c] for c in range(n) if c != j] for r in m[1:]])
+        for j in range(n)
+        if m[0][j]
+    )
 
 
 def lattice_index(mat: ArrayLike) -> int:
@@ -322,6 +354,7 @@ def array_to_flint(arr: np.ndarray, t: "int | float" = None) -> np.ndarray:
         t = arr.dtype
 
     if t is int:
+
         def f(n):
             return flint.fmpz(int(n))
     else:
@@ -331,8 +364,12 @@ def array_to_flint(arr: np.ndarray, t: "int | float" = None) -> np.ndarray:
 
 
 # some type-specific aliases
-array_int_to_fmpz = lambda arr: array_to_flint(arr, t=int)
-array_float_to_fmpq = lambda arr: array_to_flint(arr, t=float)
+def array_int_to_fmpz(arr):
+    return array_to_flint(arr, t=int)
+
+
+def array_float_to_fmpq(arr):
+    return array_to_flint(arr, t=float)
 
 
 def array_from_flint(arr: np.ndarray, t=None) -> np.ndarray:
@@ -363,8 +400,12 @@ def array_from_flint(arr: np.ndarray, t=None) -> np.ndarray:
 
 
 # some type-specific aliases
-array_fmpz_to_int = lambda arr: array_from_flint(arr, t=flint.fmpz)
-array_fmpq_to_float = lambda arr: array_from_flint(arr, t=flint.fmpq)
+def array_fmpz_to_int(arr):
+    return array_from_flint(arr, t=flint.fmpz)
+
+
+def array_fmpq_to_float(arr):
+    return array_from_flint(arr, t=flint.fmpq)
 
 
 # sparse conversions
@@ -547,7 +588,8 @@ def filter_tensor_indices(tensor: dict, indices: list[int]) -> dict:
     - `indices`: The list of indices that will be preserved.
 
     **Returns:**
-    A dictionary describing a tensor in the same format as the input, but only with the desired indices.
+    A dictionary describing a tensor in the same format as the input, but only with
+        the desired indices.
 
     **Example:**
     We construct a simple tensor and then filter some of the indices. We also
@@ -570,8 +612,11 @@ def filter_tensor_indices(tensor: dict, indices: list[int]) -> dict:
     reindex = {ind: i for i, ind in enumerate(indices)}
 
     # only keep entries whose indices match those in indices
+    # (membership is tested against a set; `indices` may be large and these
+    # tensors can hold O(10^6) entries)
+    indices_set = set(indices)
     filtered = {
-        key: val for key, val in tensor.items() if all(c in indices for c in key)
+        key: val for key, val in tensor.items() if all(c in indices_set for c in key)
     }
 
     # return reindexed tensor (order defined by indices input)
@@ -628,34 +673,60 @@ def solve_linear_system(
     solution = None
 
     if backend == "all":
+        # a backend that fails in an unanticipated way must not break the
+        # chain, so the fallback is guarded here rather than by widening the
+        # per-backend excepts below
+        errors = []
         for s in backends[1:]:
-            solution = solve_linear_system(
-                M,
-                C,
-                backend=s,
-                check=check,
-                backend_error_tol=backend_error_tol,
-                verbosity=verbosity,
-            )
+            try:
+                solution = solve_linear_system(
+                    M,
+                    C,
+                    backend=s,
+                    check=check,
+                    backend_error_tol=backend_error_tol,
+                    verbosity=verbosity,
+                )
+            except Exception as e:
+                errors.append((s, e))
+                if verbosity >= 1:
+                    print(f"Linear backend error: {s} raised {e!r}.")
+                continue
             if solution is not None:
                 return solution
 
+        # every backend raised: surface the underlying error rather than
+        # reporting it as "no solution"
+        if len(errors) == len(backends) - 1:
+            raise RuntimeError(
+                f"All linear system backends failed: {errors}"
+            ) from errors[-1][1]
+
     elif backend == "sksparse":
         try:
-            from sksparse.cholmod import cholesky_AAt
-
-            factor = cholesky_AAt(M.transpose())
-            solution = factor(-M.transpose() * C)
-        except Exception:
+            from sksparse.cholmod import CholmodError, cholesky_AAt
+        except ImportError:
+            # optional dependency; not an error worth propagating
             if verbosity >= 1:
-                print("Linear backend error: sksparse failed.")
+                print("Linear backend error: sksparse is not installed.")
+        else:
+            try:
+                factor = cholesky_AAt(M.transpose())
+                solution = factor(-M.transpose() * C)
+            except (CholmodError, ArithmeticError, ValueError, RuntimeError) as e:
+                # only numerical/shape failures are treated as "no solution";
+                # anything else is a genuine bug and must not be swallowed
+                if verbosity >= 1:
+                    print(f"Linear backend error: sksparse failed ({e}).")
 
     elif backend == "scipy":
         try:
             solution = sp.linalg.spsolve(M.transpose() * M, -M.transpose() * C).tolist()
-        except Exception:
+        except (ArithmeticError, ValueError, RuntimeError) as e:
+            # only numerical/shape failures are treated as "no solution";
+            # anything else is a genuine bug and must not be swallowed
             if verbosity >= 1:
-                print("Linear backend error: scipy failed.")
+                print(f"Linear backend error: scipy failed ({e}).")
 
     # check/return solution
     if solution is None:
@@ -665,7 +736,9 @@ def solve_linear_system(
         res = M.dot(solution) + C
         max_error = max(abs(s) for s in res.flat)
 
-        if max_error > backend_error_tol:
+        # NaNs/infs (e.g. from a singular system) are failures, but they do not
+        # compare greater than the tolerance, so check for them explicitly
+        if (not np.isfinite(max_error)) or (max_error > backend_error_tol):
             if verbosity >= 1:
                 print("Linear backend error: numerical error.")
             solution = None
@@ -770,14 +843,14 @@ def set_divisor_basis(
 
         linrels_tmp = np.empty(linrels.shape, dtype=int)
         linrels_tmp[:, : len(nobasis)] = linrels[:, nobasis]
-        linrels_tmp[:, len(nobasis):] = linrels[:, b]
+        linrels_tmp[:, len(nobasis) :] = linrels[:, b]
 
         linrels_tmp = flint.fmpz_mat(linrels_tmp.tolist()).hnf()
         linrels_tmp = np.array(linrels_tmp.tolist(), dtype=int)
 
         linrels_new = np.empty(linrels.shape, dtype=int)
         linrels_new[:, nobasis] = linrels_tmp[:, : len(nobasis)]
-        linrels_new[:, b] = linrels_tmp[:, len(nobasis):]
+        linrels_new[:, b] = linrels_tmp[:, len(nobasis) :]
 
         self._curve_basis_mat = np.zeros(glsm_cm.shape, dtype=int)
         self._curve_basis_mat[:, b] = np.eye(len(b), dtype=int)
@@ -804,7 +877,7 @@ def set_divisor_basis(
         # input is a matrix
         if not config._exp_features_enabled:
             raise Exception(
-                "The experimental features must be enabled to " "use generic bases."
+                "The experimental features must be enabled to use generic bases."
             )
 
         # We start by checking if the input matrix looks right
@@ -982,7 +1055,7 @@ def set_curve_basis(
     # Else input is a matrix
     if not config._exp_features_enabled:
         raise Exception(
-            "The experimental features must be enabled to " "use generic bases."
+            "The experimental features must be enabled to use generic bases."
         )
 
     # grab GLSM information
@@ -994,8 +1067,7 @@ def set_curve_basis(
     if b.shape == (glsm_rnk, glsm_cm.shape[1]):
         new_b = b
     elif b.shape == (glsm_rnk, glsm_cm.shape[1] - 1):
-        # HERE PROBLEM with undefined variable t
-        new_b = np.empty(glsm_cm.shape, dtype=t)
+        new_b = np.empty(glsm_cm.shape, dtype=int)
         new_b[:, 1:] = b
         new_b[:, 0] = -np.sum(b, axis=1)
     else:
@@ -1123,101 +1195,125 @@ def polytope_generator(
     if input_type not in ["file", "str"]:
         raise ValueError('"input_type" must be either "file" or "str"')
 
+    if format not in ["ks", "ws"]:
+        raise ValueError('Unsupported format. Options are "ks" and "ws".')
+
     # read data
     n_yielded = 0
 
     if input_type == "file":
         in_file = open(input)
-        l = in_file.readline()
+        line = in_file.readline()
     else:
         in_string = input.split("\n")
-        l = in_string.pop(0)
+        line = in_string.pop(0)
 
     if format == "ws":
-        buf = io.StringIO(input)
+        # read the polytopes as weight systems, one per line
+        #
+        # N.B.: the lines must be taken from the same source as for the "ks"
+        # format (i.e. the *contents* of the file, when reading a file), and
+        # blank lines must never be handed to PALP: an empty weight system
+        # trips a C-level assertion that aborts the entire interpreter
+        try:
+            while (limit is None) or (n_yielded < limit):
+                if line.strip():
+                    # pass line to PALP
+                    p = pypalp.Polytope(line)
+                    vert = p.vertices()
 
-        # read the polytopes as weight systems
-        while (limit is None) or (n_yielded < limit):
-            # pass line to PALP
-            p = pypalp.Polytope(buf.readline())
-            vert = p.vertices()
+                    # ensure reasonable shape
+                    if len(vert.shape) == 0:
+                        break
+                    if vert.shape[0] < vert.shape[1]:
+                        vert = vert.T
 
-            # ensure reasonable shape
-            if len(vert.shape) == 0:
-                break
-            if vert.shape[0] < vert.shape[1]:
-                vert = vert.T
+                    # build the Polytope
+                    p = Polytope(
+                        vert,
+                        backend=backend,
+                        deterministic_glsm_basis=deterministic_glsm_basis,
+                    )
 
-            # build the Polytope
-            p = Polytope(vert, backend=backend, deterministic_glsm_basis=deterministic_glsm_basis)
+                    if (favorable is None) or (
+                        p.is_favorable(lattice=lattice) == favorable
+                    ):
+                        n_yielded += 1
+                        yield (p.dual() if dualize else p)
 
-            if (favorable is None) or (p.is_favorable(lattice=lattice) == favorable):
-                n_yielded += 1
-                yield (p.dual() if dualize else p)
+                # get next line ("" signals EOF; blank lines are just "\n")
+                if input_type == "file":
+                    line = in_file.readline()
+                    if line == "":
+                        break
+                else:
+                    if len(in_string) > 0:
+                        line = in_string.pop(0)
+                    else:
+                        break
+        finally:
+            if input_type == "file":
+                in_file.close()
+
+        return
+
+    # format is "ks"
+    #
+    # N.B.: like the "ws" branch above, the file must be closed on every
+    # exit path, including an abandoned generator
+    try:
+        while limit is None or n_yielded < limit:
+            if "M:" in line:
+                h = line.split()
+                n, m = int(h[0]), int(h[1])
+
+                # add vertices
+                vert = []
+                for i in range(n):
+                    if input_type == "file":
+                        vert.append([int(c) for c in in_file.readline().split()])
+                    else:
+                        vert.append([int(c) for c in in_string.pop(0).split()])
+
+                vert = np.asarray(vert)
+
+                # ensure reasonable shape
+                if vert.shape != (n, m):
+                    raise ValueError("Dimensions of array do not match")
+                if m > n:
+                    vert = vert.T
+
+                # build the Polytope
+                p = Polytope(
+                    vert,
+                    backend=backend,
+                    deterministic_glsm_basis=deterministic_glsm_basis,
+                )
+                if (favorable is None) or (
+                    p.is_favorable(lattice=lattice) == favorable
+                ):
+                    n_yielded += 1
+                    yield (p.dual() if dualize else p)
 
             # get next line
             if input_type == "file":
-                l = in_file.readline()
+                line = in_file.readline()
 
                 for i in range(5):
-                    if l != "":
+                    if line != "":
                         break
-                    l = in_file.readline()
+                    line = in_file.readline()
                 else:
                     in_file.close()
                     break
             else:
                 if len(in_string) > 0:
-                    l = in_string.pop(0)
+                    line = in_string.pop(0)
                 else:
                     break
-    elif format != "ks":
-        raise ValueError('Unsupported format. Options are "ks" and "ws".')
-
-    # format is "ks"
-    while limit is None or n_yielded < limit:
-        if "M:" in l:
-            h = l.split()
-            n, m = int(h[0]), int(h[1])
-
-            # add vertices
-            vert = []
-            for i in range(n):
-                if input_type == "file":
-                    vert.append([int(c) for c in in_file.readline().split()])
-                else:
-                    vert.append([int(c) for c in in_string.pop(0).split()])
-
-            vert = np.asarray(vert)
-
-            # ensure reasonable shape
-            if vert.shape != (n, m):
-                raise ValueError("Dimensions of array do not match")
-            if m > n:
-                vert = vert.T
-
-            # build the Polytope
-            p = Polytope(vert, backend=backend, deterministic_glsm_basis=deterministic_glsm_basis)
-            if (favorable is None) or (p.is_favorable(lattice=lattice) == favorable):
-                n_yielded += 1
-                yield (p.dual() if dualize else p)
-
-        # get next line
+    finally:
         if input_type == "file":
-            l = in_file.readline()
-
-            for i in range(5):
-                if l != "":
-                    break
-                l = in_file.readline()
-            else:
-                in_file.close()
-                break
-        else:
-            if len(in_string) > 0:
-                l = in_string.pop(0)
-            else:
-                break
+            in_file.close()
 
 
 def read_polytopes(
@@ -1231,8 +1327,7 @@ def read_polytopes(
     favorable: bool = None,
     lattice: str = None,
     limit: int = None,
-) -> 'Generator["Polytope", None, None] | \
-                                                            list["Polytope"]':
+) -> 'Generator["Polytope", None, None] | list["Polytope"]':
     """
     **Description:**
     Reads polytopes from a file or a string. The polytopes can be specified
@@ -1274,7 +1369,8 @@ def read_polytopes(
     We take a string obtained from the KS database and read the polytope it
     specifies.
     ```python {8}
-    from cytools import read_polytopes # Note that it can directly be imported from the root
+    # Note that it can directly be imported from the root
+    from cytools import read_polytopes
     poly_data = '''4 5  M:10 5 N:376 5 H:272,2 [540]
                     1    0    0    0   -9
                     0    1    0    0   -6
@@ -1395,14 +1491,16 @@ def fetch_polytopes(
     We fetch polytopes from the Kreuzer-Skarke and Schöller-Skarke databases
     with a few different parameters.
     ```python {2,5,8}
-    from cytools import fetch_polytopes # Note that it can directly be imported from the root
+    # Note that it can directly be imported from the root
+    from cytools import fetch_polytopes
     g = fetch_polytopes(h11=27, as_list=False) # Constructs a generator of polytopes
     next(g)
     # A 4-dimensional reflexive lattice polytope in ZZ^4
     l = fetch_polytopes(h11=27, limit=100) # Constructs a list of polytopes
     print(f"Fetched {len(l)} polytopes")
     # Fetched 100 polytopes
-    g_5d = fetch_polytopes(h11=1000, as_list=False, dim=5, limit=100) # Generator of 5D polytopes
+    # Generator of 5D polytopes
+    g_5d = fetch_polytopes(h11=1000, as_list=False, dim=5, limit=100)
     next(g_5d)
     # A 5-dimensional reflexive lattice polytope in ZZ^5
     ```
@@ -1417,7 +1515,7 @@ def fetch_polytopes(
 
     if favorable is not None:
         if lattice is None:
-            raise ValueError("Must specify lattice when checking " "favorability.")
+            raise ValueError("Must specify lattice when checking favorability.")
 
         fetch_limit = (5 if favorable else 10) * limit + 100
     else:
@@ -1461,7 +1559,9 @@ def fetch_polytopes(
             (chi is not None)
             and (h11 is not None)
             and (h12 is not None)
-            and (chi != 2 * (h11 - h21))
+            # h11/h12/chi have been converted to the M-lattice convention
+            # above, in which chi = 2*(h11 - h21) and h21 == h12
+            and (chi != 2 * (h11 - h12))
         ):
             raise ValueError("Inconsistent Euler characteristic input.")
 
@@ -1490,7 +1590,7 @@ def fetch_polytopes(
     else:
         # further input checking...
         if (lattice is None) and ((h11 is not None) or (h13 is not None)):
-            raise ValueError("Lattice must be specified when h11 or h13 " "are given.")
+            raise ValueError("Lattice must be specified when h11 or h13 are given.")
 
         if lattice == "N":
             h11, h13 = h13, h11
@@ -1536,16 +1636,20 @@ def fetch_polytopes(
     # sample
     if samples is not None:
         if dim == 4:
-            result_text = re.split(r'<b>Result:</b>\n', data_str, maxsplit=1)[1]
-            items = re.split(r'\n(?=\d+ \d+\s+M:)', result_text)
+            result_text = re.split(r"<b>Result:</b>\n", data_str, maxsplit=1)[1]
+            items = re.split(r"\n(?=\d+ \d+\s+M:)", result_text)
             items = [item.strip() for item in items if item.strip()]
         else:
             items = data_str.split("\n")
 
         # check if we actually need to sample (otherwise, just use full list)
         if len(items) > samples:
-            np.random.seed(sample_seed)
-            sampled = np.random.choice(items, size=samples, replace=False)
+            # a local generator: seeding the global one would reset the
+            # caller's stream, and with sample_seed=None it reseeded from
+            # entropy. RandomState (not default_rng) keeps the draws that
+            # existing sample_seed values already produce.
+            rng = np.random.RandomState(sample_seed)
+            sampled = rng.choice(items, size=samples, replace=False)
         else:
             sampled = items
 
@@ -1564,13 +1668,13 @@ def fetch_polytopes(
         dualize=dualize,
         favorable=favorable,
         lattice=lattice,
-        limit=limit
+        limit=limit,
     )
 
 
 # point manipulations
 # -------------------
-def lll_reduce(pts_in: ArrayLike, transform: bool = False) -> "misc":
+def lll_reduce(pts_in: ArrayLike, transform: bool = False):
     """
     Apply lll-reduction to the input points (the rows).
 
@@ -1650,7 +1754,8 @@ def find_new_affinely_independent_points(pts: ArrayLike) -> np.ndarray:
         raise ValueError("List of points cannot be empty.")
 
     # cast to numpy array
-    pts = np.asarray(pts)
+    # (copy, so that the caller's array is never modified in-place below)
+    pts = np.array(pts)
     shape = pts.shape
 
     # translate, append unit vector
@@ -1658,8 +1763,7 @@ def find_new_affinely_independent_points(pts: ArrayLike) -> np.ndarray:
     pts -= translation
 
     if shape[0] == 1:
-        # HERE PROBLEM with undefined variable pts_trans
-        pts = np.append(pts_trans, [[1] + [0] * (shape[1] - 1)], axis=0)
+        pts = np.append(pts, [[1] + [0] * (shape[1] - 1)], axis=0)
 
     dim = np.linalg.matrix_rank(pts)
 
@@ -1698,16 +1802,23 @@ def project_heights_to_kahler(poly, heights_in, prime_divisors=None):
     """
     basis = [i - 1 for i in poly.glsm_basis(include_origin=True)]
     if prime_divisors is None:
-        prime_divisors = np.array([rr
-                                   for r, rr in enumerate(poly.triangulate(verbosity=0).get_cy().toric_effective_cone().rays())
-                                   if r not in basis], dtype=float)
-    extra_divs = [i for i in range(poly.h11(lattice='N') + 4) if i not in basis]
+        prime_divisors = np.array(
+            [
+                rr
+                for r, rr in enumerate(
+                    poly.triangulate(verbosity=0).get_cy().toric_effective_cone().rays()
+                )
+                if r not in basis
+            ],
+            dtype=float,
+        )
+    extra_divs = [i for i in range(poly.h11(lattice="N") + 4) if i not in basis]
     origin_height = heights_in[0]
     kahler_parameters = np.array([i - origin_height for i in heights_in[1:]])
     for e, ee in enumerate(prime_divisors):
         prime_ind = extra_divs[e]
         prime_height = kahler_parameters[prime_ind]
-        lin_rel = np.zeros(poly.h11(lattice='N') + 4)
+        lin_rel = np.zeros(poly.h11(lattice="N") + 4)
         lin_rel[basis] = ee
         lin_rel[prime_ind] = -1
         corr = prime_height * lin_rel
@@ -1731,5 +1842,9 @@ def kahler_to_heights(poly, kahler_in):
     """
     basis = list(poly.glsm_basis(include_origin=True))
     kahler_gen = iter(kahler_in)
-    return np.array([next(kahler_gen) if i in basis else 0
-                     for i in range(poly.h11(lattice='N') + 5)])
+    return np.array(
+        [
+            next(kahler_gen) if i in basis else 0
+            for i in range(poly.h11(lattice="N") + 5)
+        ]
+    )

@@ -37,6 +37,16 @@ from cytools.cone import Cone
 from cytools.toricvariety import ToricVariety
 from cytools.utils import gcd_list, lll_reduce
 
+# imported for annotations only; the signatures quote these, so they
+# are never needed at runtime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+    from cytools.calabiyau import CalabiYau
+    from cytools.polytope import Polytope
+    from cytools.polytopeface import PolytopeFace
+
 
 class Triangulation:
     """
@@ -122,6 +132,7 @@ class Triangulation:
         check_heights: bool = True,
         backend: str = "cgal",
         verbosity: int = 1,
+        seed: int = None,
     ) -> None:
         """
         **Description:**
@@ -153,6 +164,10 @@ class Triangulation:
             "qhull", "cgal", and "topcom". CGAL is the default as it is very
             fast and robust.
         - `verbosity`: The verbosity level.
+        - `seed`: Seed for the height perturbation used by the QHull backend.
+            Only that backend perturbs its heights, so this has no effect for
+            CGAL or TOPCOM. Left unset, the perturbation is drawn afresh each
+            time and the triangulation is not reproducible.
 
         **Returns:**
         Nothing.
@@ -257,7 +272,7 @@ class Triangulation:
                 # (do some checks here b/c otherwise self.is_valid() hits
                 # errors)
                 simp_labels = set(self._simplices.flatten())
-                if any([(l not in self._labels) for l in simp_labels]):
+                if any([(lab not in self._labels) for lab in simp_labels]):
                     unknown = simp_labels.difference(self._labels)
                     error_msg = (
                         f"Simplices had labels {simp_labels}; "
@@ -294,15 +309,19 @@ class Triangulation:
                 # construct the heights
                 if backend is None:
                     raise ValueError(
-                        "Simplices must be specified when working" "without a backend"
+                        "Simplices must be specified when workingwithout a backend"
                     )
 
                 # Heights need to be perturbed around the Delaunay heights for
                 # QHull or the triangulation might not be regular. If using
                 # CGAL then they are not perturbed.
                 if backend == "qhull":
+                    # a local generator: reading the global stream made this
+                    # reproducible only via a global seed, which is invisible
+                    # from here. Pass `seed` instead.
+                    rng = np.random.RandomState(seed)
                     heights = [
-                        np.dot(p, p) + np.random.normal(0, 0.05) for p in self.points()
+                        np.dot(p, p) + rng.normal(0, 0.05) for p in self.points()
                     ]
                 elif backend == "cgal":
                     heights = [np.dot(p, p) for p in self.points()]
@@ -353,9 +372,7 @@ class Triangulation:
                     # (don't assume that the origin sits at index 0!)
                     other_heights = heights_masked.compressed()
                     if len(other_heights):
-                        origin_step = max(
-                            10, other_heights.max() - other_heights.min()
-                        )
+                        origin_step = max(10, other_heights.max() - other_heights.min())
                     else:
                         origin_step = 10
 
@@ -429,7 +446,7 @@ class Triangulation:
         t = p.triangulate()
         poly_info = str(t) # Converts to string
         print(t) # Prints triangulation info
-        # A fine, regular, star triangulation of a 4-dimensional point configuration with 7 points in ZZ^4
+        # A fine, regular, star triangulation of a 4-dimensional point configuration...
         ```
         """
         fine_str = "fine" if self.is_fine() else "non-fine"
@@ -609,7 +626,8 @@ class Triangulation:
         """
         return self._poly
 
-    polytope = lambda self: self.poly
+    def polytope(self):
+        return self.poly
 
     @property
     def labels(self):
@@ -826,7 +844,7 @@ class Triangulation:
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
         t = p.triangulate()
         t.get_cy()
-        # A Calabi-Yau 3-fold hypersurface with h11=2 and h21=272 in a 4-dimensional toric variety
+        # A Calabi-Yau 3-fold hypersurface with h11=2 and h21=272 in a 4-dimensional...
         ```
         """
         return self.get_toric_variety().get_cy(nef_partition)
@@ -929,7 +947,7 @@ class Triangulation:
                             self._labels2optPts[label] = tuple(pt)
 
                     # return the relevant points
-                    return np.array([self._labels2optPts[l] for l in which])
+                    return np.array([self._labels2optPts[lab] for lab in which])
 
             # normal case
             return self.poly.points(
@@ -984,9 +1002,11 @@ class Triangulation:
         We construct a polytope and find the indices of some of its points.
         ```python {2,4}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        p.points_to_indices([-1,-1,-6,-9]) # We input a single point, so a single index is returned
+        # We input a single point, so a single index is returned
+        p.points_to_indices([-1,-1,-6,-9])
         # 1
-        p.points_to_indices([[-1,-1,-6,-9],[0,0,0,0],[0,0,1,0]]) # We input a list of points, so a list of indices is returned
+        # We input a list of points, so a list of indices is returned
+        p.points_to_indices([[-1,-1,-6,-9],[0,0,0,0],[0,0,1,0]])
         # array([1, 0, 3])
         ```
         """
@@ -1058,7 +1078,15 @@ class Triangulation:
         set of simplices. We show this in this example.
         ```python {3}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        t = p.triangulate(simplices=[[0,1,2,3,4],[0,1,2,3,5],[0,1,2,4,5],[0,1,3,4,5],[0,2,3,4,5]]) # It is already used here unless using check_input_simplices=False
+        t = p.triangulate(
+            simplices=[
+                [0, 1, 2, 3, 4],
+                [0, 1, 2, 3, 5],
+                [0, 1, 2, 4, 5],
+                [0, 1, 3, 4, 5],
+                [0, 2, 3, 4, 5],
+            ]
+        )  # It is already used here unless using check_input_simplices=False
         t.is_valid()
         # True
         ```
@@ -1071,11 +1099,11 @@ class Triangulation:
         simps = self.simplices()
         # simps = np.array([self.points(s, as_triang_indices=True) for s in simps])
 
-        if simps.shape[1] != self.dim()+1:
+        if simps.shape[1] != self.dim() + 1:
             self._is_valid = False
             return self._is_valid
 
-        #if simps.shape[0] == 1:
+        # if simps.shape[0] == 1:
         #    # triangulation is trivial
         #    self._is_valid = True
         #    return self._is_valid
@@ -1102,11 +1130,11 @@ class Triangulation:
         # append a 1 to each point
         pts = dict(zip(self.labels, self.points(optimal=True)))
         pts_ext = {
-            l: list(pts[l])
+            lab: list(pts[lab])
             + [
                 1,
             ]
-            for l in self.labels
+            for lab in self.labels
         }
         pts_all = np.array(list(pts.values()))
         # pts_ext = np.array([list(pt)+[1,] for pt in pts])
@@ -1114,7 +1142,7 @@ class Triangulation:
         # We first check if the volumes add up to the volume of the polytope
         v = 0
         for s in simps:
-            tmp_v = abs(int(round(np.linalg.det([pts_ext[l] for l in s]))))
+            tmp_v = abs(int(round(np.linalg.det([pts_ext[lab] for lab in s]))))
 
             if tmp_v == 0:
                 self._is_valid = False
@@ -1257,8 +1285,8 @@ class Triangulation:
 
             # cast to indices
             if as_indices:
-                l2i = {l: i for i, l in enumerate(self.labels)}
-                out = [[l2i[l] for l in s] for s in out]
+                l2i = {lab: i for i, lab in enumerate(self.labels)}
+                out = [[l2i[lab] for lab in s] for s in out]
 
             if as_np_array:
                 return np.array(out)
@@ -1277,8 +1305,9 @@ class Triangulation:
             full_simp = [frozenset(s) for s in self._simplices]
 
             # get face indices
-            face_labels = [frozenset(face.labels)
-                           for face in self.polytope().faces(faces_dim)]
+            face_labels = [
+                frozenset(face.labels) for face in self.polytope().faces(faces_dim)
+            ]
 
             # actually restrict
             restricted = []
@@ -1296,8 +1325,8 @@ class Triangulation:
 
         # cast to indices
         if as_indices:
-            l2i = {l: i for i, l in enumerate(self.labels)}
-            out = [[frozenset([l2i[l] for l in s]) for s in face] for face in out]
+            l2i = {lab: i for i, lab in enumerate(self.labels)}
+            out = [[frozenset([l2i[lab] for lab in s]) for s in face] for face in out]
 
         if split_by_face:
             if as_np_array:
@@ -1790,7 +1819,19 @@ class Triangulation:
         **Example:**
         We construct a triangulation and find some of its automorphism orbits.
         ```python {3,9}
-        p = Polytope([[-1,0,0,0],[-1,1,0,0],[-1,0,1,0],[2,-1,0,-1],[2,0,-1,-1],[2,-1,-1,-1],[-1,0,0,1],[-1,1,0,1],[-1,0,1,1]])
+        p = Polytope(
+            [
+                [-1, 0, 0, 0],
+                [-1, 1, 0, 0],
+                [-1, 0, 1, 0],
+                [2, -1, 0, -1],
+                [2, 0, -1, -1],
+                [2, -1, -1, -1],
+                [-1, 0, 0, 1],
+                [-1, 1, 0, 1],
+                [-1, 0, 1, 1],
+            ]
+        )
         t = p.triangulate()
         orbit_all_autos = t.automorphism_orbit()
         print(len(orbit_all_autos))
@@ -1882,9 +1923,8 @@ class Triangulation:
             autos[i] = temp
 
         # define helper function
-        apply_auto = lambda auto: tuple(
-            sorted(tuple(sorted([auto[i] for i in s])) for s in simps)
-        )
+        def apply_auto(auto):
+            return tuple(sorted(tuple(sorted([auto[i] for i in s])) for s in simps))
 
         # apply the automorphisms
         orbit = set()
@@ -1952,7 +1992,19 @@ class Triangulation:
         We construct two triangulations and check whether they are equivalent
         under various conditions.
         ```python {5,7,9}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[-1,1,1,0],[0,-1,-1,0],[0,0,0,1],[1,-2,1,1],[-2,2,1,-1],[1,1,-1,-1]])
+        p = Polytope(
+            [
+                [1, 0, 0, 0],
+                [0, 1, 0, 0],
+                [0, 0, 1, 0],
+                [-1, 1, 1, 0],
+                [0, -1, -1, 0],
+                [0, 0, 0, 1],
+                [1, -2, 1, 1],
+                [-2, 2, 1, -1],
+                [1, 1, -1, -1],
+            ]
+        )
         triangs_gen = p.all_triangulations()
         t1 = next(triangs_gen)
         t2 = next(triangs_gen)
@@ -2069,9 +2121,7 @@ class Triangulation:
 
         # optimized method for 2D fine neighbors
         if self.is_fine() and (self.dim() == 2) and only_fine:
-            return self._fine_neighbors_2d(
-                only_regular=only_regular, backend=backend
-            )
+            return self._fine_neighbors_2d(only_regular=only_regular, backend=backend)
 
         # triangulumancer indexes points by their position in the point
         # configuration (i.e., row of self.points(...)), while self._simplices
@@ -2163,8 +2213,8 @@ class Triangulation:
         ```
         """
         # parse inputs
-        if seed is not None:
-            np.random.seed(seed)
+        # (use a local generator so that we don't perturb NumPy's global RNG)
+        rng = np.random.RandomState(seed)
 
         # unspecified restrictions default to the properties of this
         # triangulation (as documented above)
@@ -2181,7 +2231,7 @@ class Triangulation:
             neighbors = curr_triang.neighbor_triangulations(
                 only_fine=False, only_regular=False, only_star=False
             )
-            np.random.shuffle(neighbors)
+            rng.shuffle(neighbors)
 
             for t in neighbors:
                 # check that the triangulation meets the requirements
@@ -2312,8 +2362,7 @@ class Triangulation:
         n_faces = len(face_triangs)
 
         def ineqs(ft):
-            return np.asarray(_2d_frt_cone_ineqs(ft, npts).toarray(),
-                              dtype=np.float64)
+            return np.asarray(_2d_frt_cone_ineqs(ft, npts).toarray(), dtype=np.float64)
 
         # A single 2-face flip changes only that one face's inequalities, so
         # the other faces' blocks are stacked once into a warm incremental LP
@@ -2333,14 +2382,21 @@ class Triangulation:
             lp = None
             cur = None
             for i, flipped, circuit in chunk:
-                key = (i, tuple(sorted(
-                    tuple(sorted(int(x) for x in s))
-                    for s in flipped.simplices())))
+                key = (
+                    i,
+                    tuple(
+                        sorted(
+                            tuple(sorted(int(x) for x in s))
+                            for s in flipped.simplices()
+                        )
+                    ),
+                )
                 if key in seen:
                     continue
                 if cur != i:
-                    other = [fixed[j] for j in range(n_faces)
-                             if j != i and len(fixed[j])]
+                    other = [
+                        fixed[j] for j in range(n_faces) if j != i and len(fixed[j])
+                    ]
                     base = np.vstack(other) if other else np.zeros((0, npts))
                     lp = _IncrementalLP(npts)
                     lp.push(base)
@@ -2355,7 +2411,8 @@ class Triangulation:
                 tri = poly.triangulate(
                     heights=np.delete(heights, poly.labels_facet),
                     include_points_interior_to_facets=False,
-                    make_star=make_star, check_heights=False,
+                    make_star=make_star,
+                    check_heights=False,
                     **({} if backend is None else {"backend": backend}),
                 )
                 out.append((tri, i, circuit) if two_neighbors_track_flips else tri)
@@ -2365,15 +2422,20 @@ class Triangulation:
             # the diagonal swap rewrites the 2-face's triangulation; the
             # symmetric difference of the two spans exactly the quadrilateral
             before = {tuple(sorted(int(v) for v in s)) for s in pre.simplices()}
-            after  = {tuple(sorted(int(v) for v in s)) for s in post.simplices()}
+            after = {tuple(sorted(int(v) for v in s)) for s in post.simplices()}
             return tuple(sorted({v for s in before ^ after for v in s}))
 
         # the (face, flip) tasks, grouped by face so each chunk reuses its
         # warm LP for a face's flips
-        tasks = [(i, flipped, _flip_circuit(ft, flipped) if two_neighbors_track_flips
-                  else None)
-                 for i, ft in enumerate(face_triangs)
-                 for flipped in ft._fine_neighbors_2d()]
+        tasks = [
+            (
+                i,
+                flipped,
+                _flip_circuit(ft, flipped) if two_neighbors_track_flips else None,
+            )
+            for i, ft in enumerate(face_triangs)
+            for flipped in ft._fine_neighbors_2d()
+        ]
 
         # parallelization follows CYTools' global config.n_threads
         from multiprocessing import cpu_count
@@ -2392,7 +2454,7 @@ class Triangulation:
 
         n = joblib.effective_n_jobs(n_threads)
         size = -(-len(tasks) // n)
-        chunks = [tasks[k * size:(k + 1) * size] for k in range(n)]
+        chunks = [tasks[k * size : (k + 1) * size] for k in range(n)]
         chunks = [c for c in chunks if c]
         batches = joblib.Parallel(n_jobs=n_threads)(
             joblib.delayed(extend_chunk)(c, fixed) for c in chunks
@@ -2430,19 +2492,19 @@ class Triangulation:
 
         # calculate the answer
         pts_ext = {
-            l: list(pt)
+            lab: list(pt)
             + [
                 1,
             ]
-            for l, pt in zip(self.labels, self.points(optimal=True))
+            for lab, pt in zip(self.labels, self.points(optimal=True))
         }
-        l2i = {l: i for i, l in enumerate(self.labels)}
+        l2i = {lab: i for i, lab in enumerate(self.labels)}
         phi = np.zeros(len(pts_ext), dtype=int)
 
         for s in self._simplices:
-            simp_vol = int(round(abs(np.linalg.det([pts_ext[l] for l in s]))))
-            for l in s:
-                phi[l2i[l]] += simp_vol
+            simp_vol = int(round(abs(np.linalg.det([pts_ext[lab] for lab in s]))))
+            for lab in s:
+                phi[l2i[lab]] += simp_vol
 
         # return
         self._gkz_phi = phi
@@ -2525,11 +2587,9 @@ class Triangulation:
                         continue
 
                     # check it
-                    in_SR = False
                     for order in range(1, i + 1):
                         for t in itertools.combinations(tup, order):
                             if frozenset(t + (j,)) in SR_ideal:
-                                in_SR = True
                                 break
                         else:
                             # frozenset(t+(j,)) was not in SR_ideal for any t
@@ -2786,7 +2846,7 @@ def all_triangulations(
     star_origin: int = None,
     backend: str = None,
     raw_output: bool = False,
-) -> "generator[Triangulation]":
+) -> "Iterator[Triangulation]":
     """
     **Description:**
     Computes all triangulations of the input point configuration using TOPCOM.
@@ -2834,9 +2894,14 @@ def all_triangulations(
     next(g) # Produces the next triangulation immediately
     # A fine, regular, star triangulation of a 4-dimensional point
     # configuration with 7 points in ZZ^4
-    len(p.all_triangulations(as_list=True)) # Number of fine, regular, star triangulations
+    # Number of fine, regular, star triangulations
+    len(p.all_triangulations(as_list=True))
     # 2
-    len(p.all_triangulations(only_regular=False, only_star=False, only_fine=False, as_list=True) )# Number of triangularions, no matter if fine, regular, or star
+    len(
+        p.all_triangulations(
+            only_regular=False, only_star=False, only_fine=False, as_list=True
+        )
+    )  # Number of triangularions, no matter if fine, regular, or star
     # 6
     ```
     """
@@ -2904,7 +2969,7 @@ def random_triangulations_fast_generator(
     backend: str = "cgal",
     seed: int = None,
     verbosity: int = 0,
-) -> "generator[Triangulation]":
+) -> "Iterator[Triangulation]":
     """
     Constructs pseudorandom regular (optionally fine and star) triangulations
     of a given point set. This is done by picking random heights around the
@@ -2965,12 +3030,13 @@ def random_triangulations_fast_generator(
     next(g) # Keeps producing triangulations until it has trouble finding more
     # A fine, regular, star triangulation of a 4-dimensional point
     # configuration with 106 points in ZZ^4
-    rand_triangs = p.random_triangulations_fast(N=10, as_list=True) # Produces the list of 10 triangulations very quickly
+    # Produces the list of 10 triangulations very quickly
+    rand_triangs = p.random_triangulations_fast(N=10, as_list=True)
     ```
     """
     # parse inputs
-    if seed is not None:
-        np.random.seed(seed)
+    # (use a local generator so that we don't perturb NumPy's global RNG)
+    rng = np.random.RandomState(seed)
 
     triang_hashes = set()
     n_retries = 0
@@ -2989,7 +3055,7 @@ def random_triangulations_fast_generator(
             return
 
         # generate random heights, make the triangulation
-        heights = [pt.dot(pt) + np.random.normal(0, c) for pt in poly.points(which=pts)]
+        heights = [pt.dot(pt) + rng.normal(0, c) for pt in poly.points(which=pts)]
         t = Triangulation(
             poly,
             pts,
@@ -3032,7 +3098,7 @@ def random_triangulations_fair_generator(
     make_star: bool = False,
     backend: str = "cgal",
     seed: int = None,
-) -> "generator[Triangulation]":
+) -> "Iterator[Triangulation]":
     r"""
     **Description:**
     Constructs pseudorandom regular (optionally star) triangulations of a given
@@ -3102,11 +3168,12 @@ def random_triangulations_fair_generator(
     p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]]).dual()
     g = p.random_triangulations_fast()
     next(g) # Takes a long time (around a minute)
-    # A fine, regular, star triangulation of a 4-dimensional point configuration with 106 points in ZZ^4
+    # A fine, regular, star triangulation of a 4-dimensional point configuration...
     next(g) # Takes slightly shorter (still around a minute)
     # A fine, regular, star triangulation of a 4-dimensional point
     # configuration with 106 points in ZZ^4
-    rand_triangs = p.random_triangulations_fair(N=10, as_list=True) # Produces the list of 10 triangulations, but takes a long time (around 10 minutes)
+    # Produces the list of 10 triangulations, but takes a long time (around 10 minutes)
+    rand_triangs = p.random_triangulations_fair(N=10, as_list=True)
     ```
     It is worth noting that the time it takes to obtain each triangulation
     varies very significantly on the parameters used. The function tries to
@@ -3121,11 +3188,11 @@ def random_triangulations_fair_generator(
     if dim != triang_pts.shape[1]:
         raise Exception("Point configuration must be full-dimensional.")
 
-    if seed is not None:
-        np.random.seed(seed)
+    # (use a local generator so that we don't perturb NumPy's global RNG)
+    rng = np.random.RandomState(seed)
 
     # Obtain random Delaunay triangulation by picking random point as origin
-    rand_ind = np.random.randint(0, len(pts))
+    rand_ind = rng.randint(0, len(pts))
     points_shifted = [p - triang_pts[rand_ind] for p in triang_pts]
 
     delaunay_heights = [walk_step_size * (np.dot(p, p)) for p in points_shifted]
@@ -3156,7 +3223,7 @@ def random_triangulations_fair_generator(
             in_pt = old_pt
 
             # find random direction
-            random_dir = np.random.normal(size=num_points)
+            random_dir = rng.normal(size=num_points)
             random_dir = random_dir / np.linalg.norm(random_dir)
 
             # take steps
@@ -3212,7 +3279,7 @@ def random_triangulations_fair_generator(
 
         # Take a random walk step
         in_pt = in_pt / np.linalg.norm(in_pt)
-        random_coef = np.random.uniform(0, 1)
+        random_coef = rng.uniform(0, 1)
         new_pt = random_coef * np.array(old_pt) + (1 - random_coef) * np.array(in_pt)
 
         # after enough steps are taken, move on to random flips
@@ -3229,7 +3296,13 @@ def random_triangulations_fair_generator(
             # take flips
             if n_flip > 0:
                 temp_tri = flip_seed_tri.random_flips(
-                    n_flip, only_fine=True, only_regular=True, only_star=True
+                    n_flip,
+                    only_fine=True,
+                    only_regular=True,
+                    only_star=True,
+                    # derive the sub-seed from our local generator so that the
+                    # walk stays reproducible for a given `seed`
+                    seed=int(rng.randint(2**32)),
                 )
             else:
                 temp_tri = flip_seed_tri

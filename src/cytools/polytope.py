@@ -31,8 +31,14 @@ import warnings
 from flint import fmpz_mat, fmpq_mat
 import numpy as np
 from numpy.typing import ArrayLike
-import ppl
-import ctypes; ctypes.CDLL(None).fesetround(0)  # ppl changes FPU rounding mode; reset to FE_TONEAREST
+from cytools._ppl import ppl  # ppl, with its FPU rounding side effect undone
+
+# imported for annotations only
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
 from scipy.spatial import ConvexHull
 from tqdm import tqdm
 import pypalp
@@ -203,7 +209,9 @@ class Polytope:
             self._dim_diff = None
         else:
             self._dim_ambient = len(points[0])
-            self._dim = int(np.linalg.matrix_rank([list(pt) + [1] for pt in points]) - 1)
+            self._dim = int(
+                np.linalg.matrix_rank([list(pt) + [1] for pt in points]) - 1
+            )
             self._dim_diff = self.ambient_dim() - self.dim()
 
         # backend
@@ -448,7 +456,16 @@ class Polytope:
         **Example:**
         We compute the lattice points of a large polytope.
         ```python {4}
-        p = Polytope([[-1,-1,-1,-1,-1],[3611,-1,-1,-1,-1],[-1,42,-1,-1,-1],[-1,-1,6,-1,-1],[-1,-1,-1,2,-1],[-1,-1,-1,-1,1]])
+        p = Polytope(
+            [
+                [-1, -1, -1, -1, -1],
+                [3611, -1, -1, -1, -1],
+                [-1, 42, -1, -1, -1],
+                [-1, -1, 6, -1, -1],
+                [-1, -1, -1, 2, -1],
+                [-1, -1, -1, -1, 1],
+            ]
+        )
         pts = p.points() # Takes a few seconds
         pts = p.points() # It runs instantly because the result is cached
         p.clear_cache() # Clears the results of any previous computation
@@ -907,7 +924,8 @@ class Polytope:
         # dictionary from labels to input coordinates
         pts_input_all = self._optimal_to_input(self.points(optimal=True))
         self._labels2inputPts = {
-            label: tuple(map(int, pt)) for label, pt in zip(self._pts_order, pts_input_all)
+            label: tuple(map(int, pt))
+            for label, pt in zip(self._pts_order, pts_input_all)
         }
 
         # reverse dictionaries
@@ -1050,21 +1068,20 @@ class Polytope:
 
     # common point grabbers
     # ---------------------
-    pts_int = lambda self, as_indices=False: self.pts(
-        which=self._labels_int, as_indices=as_indices
-    )
-    pts_bdry = lambda self, as_indices=False: self.pts(
-        which=self._labels_bdry, as_indices=as_indices
-    )
-    pts_facet = lambda self, as_indices=False: self.pts(
-        which=self._labels_facet, as_indices=as_indices
-    )
-    pts_codim2 = lambda self, as_indices=False: self.pts(
-        which=self._labels_codim2, as_indices=as_indices
-    )
-    pts_not_facets = lambda self, as_indices=False: self.pts(
-        which=self._labels_not_facet, as_indices=as_indices
-    )
+    def pts_int(self, as_indices=False):
+        return self.pts(which=self._labels_int, as_indices=as_indices)
+
+    def pts_bdry(self, as_indices=False):
+        return self.pts(which=self._labels_bdry, as_indices=as_indices)
+
+    def pts_facet(self, as_indices=False):
+        return self.pts(which=self._labels_facet, as_indices=as_indices)
+
+    def pts_codim2(self, as_indices=False):
+        return self.pts(which=self._labels_codim2, as_indices=as_indices)
+
+    def pts_not_facets(self, as_indices=False):
+        return self.pts(which=self._labels_not_facet, as_indices=as_indices)
 
     # aliases
     interior_points = pts_int
@@ -1142,9 +1159,11 @@ class Polytope:
         We construct a polytope and find the indices of some of its points.
         ```python {2,4}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        p.points_to_indices([-1,-1,-6,-9]) # We input a single point, so a single index is returned
+        # We input a single point, so a single index is returned
+        p.points_to_indices([-1,-1,-6,-9])
         # 1
-        p.points_to_indices([[-1,-1,-6,-9],[0,0,0,0],[0,0,1,0]]) # We input a list of points, so a list of indices is returned
+        # We input a list of points, so a list of indices is returned
+        p.points_to_indices([[-1,-1,-6,-9],[0,0,0,0],[0,0,1,0]])
         # array([1, 0, 3])
         ```
         """
@@ -1357,7 +1376,7 @@ class Polytope:
                         ineq2pts[frozenset([f])].add(pt)
             else:
                 # codim>1 faces... take intersections of higher-dim faces
-                for f1, f2 in itertools.combinations(ineq2pts_prev.values(), 2):
+                for f1, f2 in itertools.combinations(ineq2pts_prev.values(), 2):  # noqa: F821  (bound below, on the previous iteration)
                     # check if their intersection has the right dimension
                     inter = f1 & f2
                     dim = np.linalg.matrix_rank([pt[0] + (1,) for pt in inter]) - 1
@@ -1379,7 +1398,10 @@ class Polytope:
             self._faces.append(dd_faces)
 
             # store for next iteration
-            ineq2pts_prev = ineq2pts
+            # (read at the top of the next pass; ruff reads the loop body as
+            #  straight-line code, so it sees a store with no load here and a
+            #  load with no binding there -- hence the F821 noqa above too)
+            ineq2pts_prev = ineq2pts  # noqa: F841
 
         # Finally add vertices
         self._faces.append(
@@ -1577,7 +1599,11 @@ class Polytope:
             )
 
         pts = np.array(self._ineqs_input[:, :-1])
-        self._dual = Polytope(pts, backend=self._backend, deterministic_glsm_basis=self._deterministic_glsm_basis)
+        self._dual = Polytope(
+            pts,
+            backend=self._backend,
+            deterministic_glsm_basis=self._deterministic_glsm_basis,
+        )
         self._dual._dual = self
         return self._dual
 
@@ -1695,7 +1721,8 @@ class Polytope:
         #  [-1, -1, -6, -9],
         #  [ 0,  0,  1,  0],
         #  [ 0,  0,  0,  1]])
-        print(f"{p.vertices()}\n{p.vertices().dot(a)}") # Print vertices before and after applying the automorphism
+        # Print vertices before and after applying the automorphism
+        print(f"{p.vertices()}\n{p.vertices().dot(a)}")
         # [[ 1  0  0  0]
         #  [ 0  1  0  0]
         #  [ 0  0  1  0]
@@ -2032,7 +2059,7 @@ class Polytope:
                 S[i] = i + 1
         # We determine the other rows of PM_max in turn by use of perms and
         # aut on previous rows.
-        for l in range(1, n_f - 1):
+        for row in range(1, n_f - 1):
             n_s = len(prm)
             n_s_bar = n_s
             cf = 0
@@ -2047,7 +2074,7 @@ class Polytope:
                 # We look for the line with the maximal entry in the first
                 # subsymmetry block, i.e. we are allowed to swap elements
                 # between 0 and S(0)
-                for s in range(l, n_f):
+                for s in range(row, n_f):
                     for j in range(1, S[0]):
                         v = PM[prmb[n_p][0].dot(range(n_f)), :][
                             :, prmb[n_p][1].dot(range(n_v))
@@ -2058,7 +2085,7 @@ class Polytope:
                         l_r[0] = PM[prmb[n_p][0].dot(range(n_f)), :][
                             :, prmb[n_p][1].dot(range(n_v))
                         ][s, 0]
-                        prmb[n_p][0] = PGE(n_f, l + 1, s + 1).dot(prmb[n_p][0])
+                        prmb[n_p][0] = PGE(n_f, row + 1, s + 1).dot(prmb[n_p][0])
                         n_p += 1
                         ccf = 1
                         prmb[n_p] = copy.copy(prm[k])
@@ -2072,14 +2099,14 @@ class Polytope:
                             continue
                         if d == 0:
                             # Maximal values agree, so possible symmetry
-                            prmb[n_p][0] = PGE(n_f, l + 1, s + 1).dot(prmb[n_p][0])
+                            prmb[n_p][0] = PGE(n_f, row + 1, s + 1).dot(prmb[n_p][0])
                             n_p += 1
                             prmb[n_p] = copy.copy(prm[k])
                         else:
                             # We found a greater maximal value for first entry.
                             # It becomes our new reference:
                             l_r[0] = d1
-                            prmb[n_p][0] = PGE(n_f, l + 1, s + 1).dot(prmb[n_p][0])
+                            prmb[n_p][0] = PGE(n_f, row + 1, s + 1).dot(prmb[n_p][0])
                             # Forget previous work done
                             cf = 0
                             prmb = {0: copy.copy(prmb[n_p])}
@@ -2103,19 +2130,19 @@ class Polytope:
                         for j in range(c + 1, h):
                             v = PM[prmb[s][0].dot(range(n_f)), :][
                                 :, prmb[s][1].dot(range(n_v))
-                            ][l]
+                            ][row]
                             if v[c] < v[j]:
                                 prmb[s][1] = PGE(n_v, c + 1, j + 1).dot(prmb[s][1])
                         if ccf == 0:
                             # Set reference and carry on to next permutation
                             l_r[c] = PM[prmb[s][0].dot(range(n_f)), :][
                                 :, prmb[s][1].dot(range(n_v))
-                            ][l, c]
+                            ][row, c]
                             ccf = 1
                         else:
                             d1 = PM[prmb[s][0].dot(range(n_f)), :][
                                 :, prmb[s][1].dot(range(n_v))
-                            ][l, c]
+                            ][row, c]
                             d = d1 - l_r[c]
                             if d < 0:
                                 n_p -= 1
@@ -2144,7 +2171,7 @@ class Polytope:
                 # the restrictions the last worked out
                 # row imposes.
                 c = 0
-                M = PM[prm[0][0].dot(range(n_f)), :][:, prm[0][1].dot(range(n_v))][l]
+                M = PM[prm[0][0].dot(range(n_f)), :][:, prm[0][1].dot(range(n_v))][row]
                 while c < n_v:
                     s = S[c] + 1
                     S[c] = c + 1
@@ -2179,7 +2206,7 @@ class Polytope:
                 S_max[i], S_max[k] = S_max[k], S_max[i]
                 p_c = PGE(n_v, 1 + i, 1 + k).dot(p_c)
         # Create array of possible NFs.
-        prm = [p_c.dot(l[1]) for l in prm.values()]
+        prm = [p_c.dot(perm[1]) for perm in prm.values()]
         Vs = [
             np.array(
                 fmpz_mat(V.T[:, sig.dot(range(n_v))].tolist()).hnf().tolist(),
@@ -2323,6 +2350,7 @@ class Polytope:
         check_heights: bool = True,
         backend: str = "cgal",
         verbosity: int = 1,
+        seed: int = None,
     ) -> Triangulation:
         """
         **Description:**
@@ -2365,6 +2393,10 @@ class Polytope:
             "qhull", "cgal", and "topcom". CGAL is the default as it is very
             fast and robust.
         - `verbosity`: The verbosity level.
+        - `seed`: Seed for the height perturbation used by the QHull backend.
+            Only that backend perturbs its heights, so this has no effect for
+            CGAL or TOPCOM. Left unset, the perturbation is drawn afresh each
+            time and the triangulation is not reproducible.
 
         **Returns:**
         A [`Triangulation`](./triangulation) object describing a triangulation
@@ -2376,7 +2408,16 @@ class Polytope:
         constructing triangulations with heights, input simplices, and using
         the other backends.
         ```python {2,4,6,8,10}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-2,-1,-1],[-2,-1,-1,-1]])
+        p = Polytope(
+            [
+                [1, 0, 0, 0],
+                [0, 1, 0, 0],
+                [0, 0, 1, 0],
+                [0, 0, 0, 1],
+                [-1, -2, -1, -1],
+                [-2, -1, -1, -1],
+            ]
+        )
         p.triangulate()
         # A fine, regular, star triangulation of a 4-dimensional polytope in
         # ZZ^4
@@ -2457,6 +2498,7 @@ class Polytope:
             check_heights=check_heights,
             backend=backend,
             verbosity=verbosity,
+            seed=seed,
         )
 
     def random_triangulations_fast(
@@ -2472,7 +2514,7 @@ class Polytope:
         as_list: bool = False,
         progress_bar: bool = True,
         seed: int = None,
-    ) -> "generator | list":
+    ) -> "Iterator | list":
         """
         **Description:**
         Constructs pseudorandom regular (optionally fine and star)
@@ -2533,10 +2575,11 @@ class Polytope:
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]]).dual()
         g = p.random_triangulations_fast()
         next(g) # Runs very quickly
-        # A fine, regular, star triangulation of a 4-dimensional point configuration with 106 points in ZZ^4
+        # A fine, regular, star triangulation of a 4-dimensional point configuration...
         next(g) # Keeps producing triangulations until it has trouble finding more
-        # A fine, regular, star triangulation of a 4-dimensional point configuration with 106 points in ZZ^4
-        rand_triangs = p.random_triangulations_fast(N=10, as_list=True) # Produces the list of 10 triangulations very quickly
+        # A fine, regular, star triangulation of a 4-dimensional point configuration...
+        # Produces the list of 10 triangulations very quickly
+        rand_triangs = p.random_triangulations_fast(N=10, as_list=True)
         ```
         """
         # if self.ambient_dim() > self.dim():
@@ -2601,7 +2644,7 @@ class Polytope:
         as_list: bool = False,
         progress_bar: bool = True,
         seed: int = None,
-    ) -> "generator | list":
+    ) -> "Iterator | list":
         r"""
         **Description:**
         Constructs pseudorandom regular (optionally star) triangulations of a
@@ -2691,7 +2734,8 @@ class Polytope:
         next(g) # Takes slightly shorter (still around a minute)
         # A fine, regular, star triangulation of a 4-dimensional point
         # configuration with 106 points in ZZ^4
-        rand_triangs = p.random_triangulations_fair(N=10, as_list=True) # Produces the list of 10 triangulations, but takes a long time (around 10 minutes)
+        # Produces the list of 10 triangulations, but takes a long time (around 10 minutes)
+        rand_triangs = p.random_triangulations_fair(N=10, as_list=True)
         ```
         It is worth noting that the time it takes to obtain each triangulation
         varies very significantly on the parameters used. The function tries to
@@ -2761,7 +2805,7 @@ class Polytope:
         as_generator: bool = False,
         seed: int = None,
         verbosity: int = 0,
-    ) -> "list | generator":
+    ) -> "list | Iterator":
         """
         **Description:**
         Constructs random NTFE FR(S)Ts of a reflexive 4D polytope, sampling
@@ -2833,7 +2877,7 @@ class Polytope:
         ```python {2}
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[0,0,0,-1],[-1,-1,-6,-9]])
         frsts = p.random_triangulations_gnn(N=4, seed=0)
-        # [A fine, regular, star triangulation of a 4-dimensional point configuration with 7 points in ZZ^4]
+        # [A fine, regular, star triangulation of a 4-dimensional point...
         ```
         For large polytopes, build the GNN-sampled 2-face FRT pools once via
         `face_triangs` and reuse them across NTFE
@@ -2843,11 +2887,14 @@ class Polytope:
         verts = [[-1,-1,-1,-1],[-1,-1,-1,3],[-1,-1,3,-1],[-1,3,-1,-1],
                  [ 1,-1,-1,-1],[ 1,-1,-1,3],[ 1,-1,3,-1],[ 1,3,-1,-1]]
         p = Polytope(verts) # h11=86
-        pools = p.face_triangs(dim=2, triang_method="dualgnn", max_npts=0, N_face_triangs=50, seed=0) # the expensive step (~10s)
-        frsts = p.ntfe_frts(N=300, face_triangs=pools, make_star=True, seed=0) # cheap (~2s)
-        # [A fine, regular, star triangulation of a 4-dimensional point configuration with 91 points in ZZ^4,
-        #  A fine, regular, star triangulation of a 4-dimensional point configuration with 91 points in ZZ^4,
-        #  A fine, regular, star triangulation of a 4-dimensional point configuration with 91 points in ZZ^4]
+        pools = p.face_triangs(
+            dim=2, triang_method="dualgnn", max_npts=0, N_face_triangs=50, seed=0
+        )  # the expensive step (~10s)
+        # cheap (~2s)
+        frsts = p.ntfe_frts(N=300, face_triangs=pools, make_star=True, seed=0)
+        # [A fine, regular, star triangulation of a 4-dimensional point...
+        #  A fine, regular, star triangulation of a 4-dimensional point...
+        #  A fine, regular, star triangulation of a 4-dimensional point...
         ```
         """
         if self.dim() != 4 or not self.is_reflexive():
@@ -2960,7 +3007,7 @@ class Polytope:
         backend: str = None,
         as_list: bool = False,
         raw_output: bool = False,
-    ) -> "generator | list":
+    ) -> "Iterator | list":
         """
         **Description:**
         Computes all triangulations of the polytope using TOPCOM. There is the
@@ -3006,7 +3053,16 @@ class Polytope:
         picking different restrictions and see how the number of triangulations
         changes.
         ```python {2,7,9}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-2,-1,-1],[-2,-1,-1,-1]])
+        p = Polytope(
+            [
+                [1, 0, 0, 0],
+                [0, 1, 0, 0],
+                [0, 0, 1, 0],
+                [0, 0, 0, 1],
+                [-1, -2, -1, -1],
+                [-2, -1, -1, -1],
+            ]
+        )
         g = p.all_triangulations()
         next(g) # Takes some time while TOPCOM finds all the triangulations
         # A fine, regular, star triangulation of a 4-dimensional point
@@ -3014,9 +3070,14 @@ class Polytope:
         next(g) # Produces the next triangulation immediately
         # A fine, regular, star triangulation of a 4-dimensional point
         # configuration with 7 points in ZZ^4
-        len(p.all_triangulations(as_list=True)) # Number of fine, regular, star triangulations
+        # Number of fine, regular, star triangulations
+        len(p.all_triangulations(as_list=True))
         # 2
-        len(p.all_triangulations(only_regular=False, only_star=False, only_fine=False, as_list=True) )# Number of triangularions, no matter if fine, regular, or star
+        len(
+            p.all_triangulations(
+                only_regular=False, only_star=False, only_fine=False, as_list=True
+            )
+        )  # Number of triangularions, no matter if fine, regular, or star
         # 6
         ```
         """
@@ -3166,12 +3227,21 @@ class Polytope:
             return hpq
         raise RuntimeError("Error computing Hodge numbers.")
 
-    h11 = lambda self, lattice="N": self.hpq(1, 1, lattice=lattice)
-    h12 = lambda self, lattice="N": self.hpq(1, 2, lattice=lattice)
+    def h11(self, lattice="N"):
+        return self.hpq(1, 1, lattice=lattice)
+
+    def h12(self, lattice="N"):
+        return self.hpq(1, 2, lattice=lattice)
+
     h21 = h12
-    h13 = lambda self, lattice="N": self.hpq(1, 3, lattice=lattice)
+
+    def h13(self, lattice="N"):
+        return self.hpq(1, 3, lattice=lattice)
+
     h31 = h13
-    h22 = lambda self, lattice="N": self.hpq(2, 2, lattice=lattice)
+
+    def h22(self, lattice="N"):
+        return self.hpq(2, 2, lattice=lattice)
 
     def chi(self, lattice: str) -> int:
         """
@@ -3320,13 +3390,15 @@ class Polytope:
         p.glsm_charge_matrix()
         # array([[-18,   1,   9,   6,   1,   1,   0],
         #        [ -6,   0,   3,   2,   0,   0,   1]])
-        p.glsm_charge_matrix().dot(p.points_not_interior_to_facets()) # By definition this product must be zero
+        # By definition this product must be zero
+        p.glsm_charge_matrix().dot(p.points_not_interior_to_facets())
         # array([[0, 0, 0, 0],
         #        [0, 0, 0, 0]])
         p.glsm_charge_matrix(include_origin=False) # Excludes the canonical divisor
         # array([[1, 9, 6, 1, 1, 0],
         #        [0, 3, 2, 0, 0, 1]])
-        p.glsm_charge_matrix(include_points_interior_to_facets=True) # Includes points interior to facets
+        # Includes points interior to facets
+        p.glsm_charge_matrix(include_points_interior_to_facets=True)
         # array([[-18,   1,   9,   6,   1,   1,   0,   0,   0,   0],
         #        [ -6,   0,   3,   2,   0,   0,   1,   0,   0,   0],
         #        [ -4,   0,   2,   1,   0,   0,   0,   1,   0,   0],
@@ -3401,7 +3473,9 @@ class Polytope:
                     if self._deterministic_glsm_basis:
                         norms = [[n,i] for i,n in enumerate(norms)]
                     if self._deterministic_glsm_basis:
-                        indices = np.array(sorted(range(len(norms)), key=lambda i:norms[i]))
+                        indices = np.array(
+                            sorted(range(len(norms)), key=lambda i: norms[i])
+                        )
                     else:
                         indices = np.argsort(norms)
                     indices[: linrel.shape[0]] = np.sort(indices[: linrel.shape[0]])
@@ -3410,8 +3484,10 @@ class Polytope:
                     indices[: linrel.shape[0]] = np.sort(indices[: linrel.shape[0]])
                 elif n_try > 3:
                     if n_try == 4:
-                        np.random.seed(1337)
-                    np.random.shuffle(indices[1:])
+                        # use a local generator so that this fallback stays
+                        # deterministic without touching NumPy's global RNG
+                        rng = np.random.RandomState(1337)
+                    rng.shuffle(indices[1:])
                     indices[: linrel.shape[0]] = np.sort(indices[: linrel.shape[0]])
 
                 for ctr in range(np.prod(linrel.shape) + 1):
@@ -3500,7 +3576,9 @@ class Polytope:
             if self._deterministic_glsm_basis:
                 pts_norms = [[n,i] for i,n in enumerate(pts_norms)]
             if self._deterministic_glsm_basis:
-                pts_order = np.array(sorted(range(len(pts_norms)), key=lambda i:pts_norms[i]))
+                pts_order = np.array(
+                    sorted(range(len(pts_norms)), key=lambda i: pts_norms[i])
+                )
             else:
                 pts_order = np.argsort(pts_norms)
             # Find good lattice basis
@@ -3615,7 +3693,8 @@ class Polytope:
         #        [ 0,  6,  0, -1,  0,  0,  2],
         #        [ 0,  1,  0,  0, -1,  0,  0],
         #        [ 0,  1,  0,  0,  0, -1,  0]])
-        p.glsm_linear_relations().dot(p.glsm_charge_matrix().T) # By definition this product must be zero
+        # By definition this product must be zero
+        p.glsm_linear_relations().dot(p.glsm_charge_matrix().T)
         # array([[0, 0],
         #        [0, 0],
         #        [0, 0],
@@ -3626,7 +3705,8 @@ class Polytope:
         #        [ 6,  0, -1,  0,  0,  2],
         #        [ 1,  0,  0, -1,  0,  0],
         #        [ 1,  0,  0,  0, -1,  0]])
-        p.glsm_linear_relations(include_points_interior_to_facets=True) # Includes points interior to facets
+        # Includes points interior to facets
+        p.glsm_linear_relations(include_points_interior_to_facets=True)
         # array([[ 1,  1,  1,  1,  1,  1,  1,  1,  1,  1],
         #        [ 0,  9, -1,  0,  0,  0,  3,  2,  1,  1],
         #        [ 0,  6,  0, -1,  0,  0,  2,  1,  1,  0],
@@ -3699,7 +3779,8 @@ class Polytope:
         p.glsm_basis()
         # array([1, 6])
         glsm = p.glsm_charge_matrix()
-        np.linalg.matrix_rank(glsm) == np.linalg.matrix_rank(glsm[:,p.glsm_basis()]) # This shows that the columns form a basis
+        # This shows that the columns form a basis
+        np.linalg.matrix_rank(glsm) == np.linalg.matrix_rank(glsm[:,p.glsm_basis()])
         # True
         ```
         """
@@ -3753,7 +3834,10 @@ class Polytope:
         points = {tuple(sum(verts))
                   for verts in itertools.product(self.vertices(),
                                                  other.vertices())}
-        return Polytope(list(points), deterministic_glsm_basis=self._deterministic_glsm_basis)
+        return Polytope(
+            list(points),
+            deterministic_glsm_basis=self._deterministic_glsm_basis,
+        )
 
     def volume(self) -> int:
         """
@@ -3920,7 +4004,18 @@ class Polytope:
         **Example:**
         We construct a tesseract and find the 2- and 3-part nef partitions.
         ```python {2,5}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,0,0,0],[0,-1,0,0],[0,0,-1,0],[0,0,0,-1]])
+        p = Polytope(
+            [
+                [1, 0, 0, 0],
+                [0, 1, 0, 0],
+                [0, 0, 1, 0],
+                [0, 0, 0, 1],
+                [-1, 0, 0, 0],
+                [0, -1, 0, 0],
+                [0, 0, -1, 0],
+                [0, 0, 0, -1],
+            ]
+        )
         nef_part_2 = p.nef_partitions() # Default codimension is 2
         print(nef_part_2[0]) # Print the first of the nef partitions
         # ((5, 2, 3, 4), (8, 7, 6, 1))
@@ -3967,7 +4062,9 @@ class Polytope:
         ) for partition in results]
         
         if compute_hodge_numbers:
-            hodge_nums = [tuple(tuple(part) for part in partition[1]) for partition in results]
+            hodge_nums = [
+                tuple(tuple(part) for part in partition[1]) for partition in results
+            ]
             nef_parts = (nef_parts, hodge_nums)
             
         self._nef_parts[args_id] = nef_parts
@@ -3981,7 +4078,10 @@ class Polytope:
         """
         Check if a polytope is 'trilayer'.
         """
-        glsm_vert = np.array(fmpz_mat(self.vertices().T.tolist()).nullspace()[0].transpose().tolist(), dtype=int)[:-self.dim()]
+        glsm_vert = np.array(
+            fmpz_mat(self.vertices().T.tolist()).nullspace()[0].transpose().tolist(),
+            dtype=int,
+        )[: -self.dim()]
         anticanon = np.sum(glsm_vert, axis=1)
 
         # compute if the Polytope is trilayer
@@ -4101,9 +4201,12 @@ def saturating_lattice_pts(
         dim = np.linalg.matrix_rank([list(pt) + [1] for pt in pts]) - 1
     
     if backend is None:
-        if 1 <= dim <= 4: backend = "ppl"
-        else:             backend = "palp"
-    if dim == 0:          backend = "palp"
+        if 1 <= dim <= 4:
+            backend = "ppl"
+        else:
+            backend = "palp"
+    if dim == 0:
+        backend = "palp"
     if ineqs is None:
         ineqs, _ = poly_v_to_h(pts, backend)
 

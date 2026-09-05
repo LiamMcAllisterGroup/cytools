@@ -14,4 +14,18 @@
 # CYTools. If not, see <https://www.gnu.org/licenses/>.
 # =============================================================================
 
-from cytools.f_theory.FT_CY import *
+from cytools.f_theory.FT_CY import (
+    CY_orientifold,
+    F_Theory_Uplift,
+    fetch_F_Theory_uplifts,
+    fetch_nef_partition_uplifts,
+    fetch_orientifolds,
+)
+
+__all__ = [
+    "CY_orientifold",
+    "F_Theory_Uplift",
+    "fetch_F_Theory_uplifts",
+    "fetch_nef_partition_uplifts",
+    "fetch_orientifolds",
+]

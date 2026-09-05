@@ -31,6 +31,14 @@ from .fan import Fan
 # core CYTools imports
 from cytools import Cone, Polytope
 
+# imported for annotations only; the signatures quote these, so they
+# are never needed at runtime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from numpy.typing import ArrayLike
+
+
 
 class VectorConfiguration(regfans.VectorConfiguration):
     """
@@ -75,15 +83,12 @@ class VectorConfiguration(regfans.VectorConfiguration):
         # call regfans' initializer
         super().__init__(*args, **kwargs)
 
-        # some Polytope info
-        p = Polytope(self.vectors(), labels=self.labels)
-        self._is_reflexive = p.is_reflexive(allow_translations=False)
-        self._poly = {self.labels: p}
+        # Polytope/toric info is computed lazily (see `is_reflexive`); many
+        # VCs never need the convex-hull view, and the common construction
+        # path (Polytope.vc) hands us a ready-made Polytope afterwards
+        self._is_reflexive = None
+        self._poly = dict()
 
-        # some toric info
-        if self._is_reflexive and (self._gale_basis is None):
-            self._gale_basis = p.glsm_basis(include_points_interior_to_facets=False)
-    
     # hulls
     # -----
     def conical_hull(self, which: Union[int, Iterable[int]] = None) -> Cone:
@@ -155,6 +160,15 @@ class VectorConfiguration(regfans.VectorConfiguration):
         **Returns:**
         True if the convex hull is reflexive. False otherwise.
         """
+        if self._is_reflexive is None:
+            p = self.convex_hull()
+            self._is_reflexive = p.is_reflexive(allow_translations=False)
+
+            # some toric info
+            if self._is_reflexive and (self._gale_basis is None):
+                self._gale_basis = p.glsm_basis(
+                    include_points_interior_to_facets=False)
+
         return self._is_reflexive
 
     @property
@@ -171,8 +185,13 @@ class VectorConfiguration(regfans.VectorConfiguration):
         **Returns:**
         The divisor basis, as labels.
         """
-        if self._is_reflexive:
-            return self._gale_basis
+        if not self.is_reflexive:
+            raise NotImplementedError(
+                "A divisor basis is only defined when the convex hull of the "
+                "vector configuration is reflexive."
+            )
+
+        return self._gale_basis
 
     @property
     def divisor_basis_inds(self) -> Iterable[int]:
@@ -188,9 +207,12 @@ class VectorConfiguration(regfans.VectorConfiguration):
         **Returns:**
         The divisor basis, as indices.
         """
-        if self._is_reflexive:
-            # map labels to inds
-            return self.divisor_basis-1
+        # map labels to inds
+        # (this assumes the labels are the contiguous range 1, ..., n, which
+        #  is the convention used everywhere here - including when points
+        #  interior to facets are excluded, since the excluded points are
+        #  relabelled away rather than leaving gaps)
+        return self.divisor_basis - 1
 
     # misc regularity methods
     # -----------------------
@@ -208,7 +230,7 @@ class VectorConfiguration(regfans.VectorConfiguration):
         """
         return self.subdivide(heights=[1 for _ in self.labels])
 
-    def gale(self, **kwargs) -> "ArrayLike":
+    def gale(self, set_basis: bool = None, **kwargs) -> "ArrayLike":
         """
         **Description:**
         Compute the gale transform of the config.
@@ -219,16 +241,19 @@ class VectorConfiguration(regfans.VectorConfiguration):
         polytope is reflexive.
 
         **Arguments:**
-        None.
+        - `set_basis`: Whether to put the gale transform in the divisor basis.
+                       If left as None, this defaults to whether the associated
+                       polytope is reflexive.
+        - `**kwargs`:  Additional arguments, passed to the parent method.
 
         **Returns:**
         The gale transform.
         """
-        if self.is_reflexive:
-            return super().gale(set_basis=True)
-        else:
-            return super().gale(set_basis=False)
-        
+        if set_basis is None:
+            set_basis = self.is_reflexive
+
+        return super().gale(set_basis=set_basis, **kwargs)
+
     def moving_cone(self, 
                     pushed_down: bool = False,
                     verbosity: int = 0) -> Cone:
