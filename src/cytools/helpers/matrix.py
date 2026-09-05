@@ -83,6 +83,30 @@ def flatten_top(
 # Secondary cone hyperplanes are sparse: a row has <= d+2 nonzeros over an
 # ambient dimension (# of lattice points) that can reach the hundreds, so
 # blocks are held as CSR. Dense does not fit at scale.
+def _check_range(vals, dtype):
+    """
+    Raise if `vals` will not fit in `dtype`. numpy's astype wraps silently,
+    which corrupts coefficients rather than failing.
+    """
+    if not len(vals):
+        return
+    info = np.iinfo(dtype)
+    lo, hi = int(np.min(vals)), int(np.max(vals))
+    if lo < info.min or hi > info.max:
+        raise OverflowError(
+            f"entries [{lo}, {hi}] do not fit in {np.dtype(dtype).name} "
+            f"[{info.min}, {info.max}]; pass a wider dtype")
+
+
+def _index_dtype(nnz, width):
+    """
+    The index type to build a CSR block with. scipy rescans int64 indices to
+    downcast them, costing more than these arrays are worth, so pick the
+    narrow type up front when it fits.
+    """
+    return np.int32 if max(int(nnz), int(width)) < 2**31 else np.int64
+
+
 def csr_rows(cols, vals, width, dtype=np.int16):
     """
     **Description:**
@@ -106,9 +130,12 @@ def csr_rows(cols, vals, width, dtype=np.int16):
         return sp.csr_matrix((0, width), dtype=dtype)
 
     keep = vals != 0
-    indptr = np.zeros(len(vals) + 1, dtype=np.int64)
-    np.cumsum(keep.sum(axis=1), out=indptr[1:])
-    return sp.csr_matrix((vals[keep].astype(dtype), cols[keep], indptr),
+    idx = _index_dtype(keep.sum(), width)
+    indptr = np.zeros(len(vals) + 1, dtype=idx)
+    indptr[1:] = np.cumsum(keep.sum(axis=1))
+    _check_range(vals[keep], dtype)
+    return sp.csr_matrix((vals[keep].astype(dtype),
+                          cols[keep].astype(idx, copy=False), indptr),
                          shape=(len(vals), width))
 
 
@@ -128,12 +155,16 @@ def csr_dicts(rows, width, dtype=np.int16):
     if not len(rows):
         return sp.csr_matrix((0, width), dtype=dtype)
 
-    indptr = np.zeros(len(rows) + 1, dtype=np.int64)
-    np.cumsum([len(r) for r in rows], out=indptr[1:])
-    cols = np.fromiter((c for r in rows for c in r), dtype=np.int64,
-                       count=int(indptr[-1]))
-    vals = np.fromiter((v for r in rows for v in r.values()), dtype=dtype,
-                       count=int(indptr[-1]))
+    lens = [len(r) for r in rows]
+    nnz = int(sum(lens))
+    idx = _index_dtype(nnz, width)
+    indptr = np.zeros(len(rows) + 1, dtype=idx)
+    indptr[1:] = np.cumsum(lens)
+    cols = np.fromiter((c for r in rows for c in r), dtype=idx, count=nnz)
+    raw = np.fromiter((v for r in rows for v in r.values()), dtype=np.int64,
+                      count=nnz)
+    _check_range(raw, dtype)
+    vals = raw.astype(dtype)
     return sp.csr_matrix((vals, cols, indptr), shape=(len(rows), width))
 
 
@@ -171,8 +202,16 @@ def csr_unique_rows(mat):
         return mat
 
     mat.sum_duplicates()
-    keys = [(tuple(mat.indices[a:b]), tuple(mat.data[a:b]))
-            for a, b in zip(mat.indptr[:-1], mat.indptr[1:])]
+    # key each row by the raw bytes of its indices and values. Slicing one
+    # bytes buffer beats building a tuple per row, which boxed every entry
+    ind = np.ascontiguousarray(mat.indices)
+    dat = np.ascontiguousarray(mat.data)
+    ind_b, dat_b = ind.tobytes(), dat.tobytes()
+    iw, dw = ind.itemsize, dat.itemsize
+    ptr = mat.indptr.tolist()
+    keys = [ind_b[ptr[i] * iw:ptr[i + 1] * iw]
+            + dat_b[ptr[i] * dw:ptr[i + 1] * dw]
+            for i in range(len(ptr) - 1)]
     seen, keep = set(), []
     for i, k in enumerate(keys):
         if k not in seen:
