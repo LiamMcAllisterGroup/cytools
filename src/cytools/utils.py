@@ -23,7 +23,6 @@
 import fractions
 import functools
 import itertools
-import math
 import re
 import requests
 from typing import Generator
@@ -125,7 +124,34 @@ def gcd_list(arr):
 # --------------
 def integral_nullspace(M, reduce_by_gcd=True):
     """
-    Returns the integral nullspace as column vectors
+    **Description:**
+    Returns the integral nullspace of M as column vectors.
+
+    The basis returned spans the *saturated* kernel {x in Z^n : M x = 0}: if
+    k*x lies in the span for some nonzero integer k, then so does x. That is
+    what the integral nullspace is, and callers who complete the basis to a
+    change of coordinates depend on it -- a non-saturated basis completes to a
+    matrix with |det| > 1.
+
+    Obtaining it from flint's rational nullspace and dividing each column by
+    its gcd is not enough: column-primitive is weaker than lattice-saturated,
+    and the result is then a proper finite-index sublattice. For example with
+    M = [[9, 4, 7]], the vector x = [1, -4, 1] satisfies M x = 0 but is not an
+    integer combination of that basis.
+
+    Instead take the Hermite normal form of M.T with transform. For
+    H = U @ M.T with U unimodular, the rows of U corresponding to zero rows of
+    H span the kernel, and because U is unimodular those rows extend to a basis
+    of Z^n -- so saturation is structural rather than checked afterwards.
+
+    **Arguments:**
+    - `M` *(array_like)*: The integer matrix whose kernel is wanted.
+    - `reduce_by_gcd` *(bool, optional)*: Accepted for backwards compatibility
+        and ignored. The returned basis is already primitive.
+
+    **Returns:**
+    *(numpy.ndarray)* The kernel basis, as column vectors. Entries are int64
+    when they fit and Python ints (object dtype) when they do not.
     """
     # a row-less M gives flint a 0x0 matrix, losing the column count; its
     # kernel is the whole ambient space
@@ -133,30 +159,22 @@ def integral_nullspace(M, reduce_by_gcd=True):
     if M.shape[0] == 0:
         return np.eye(M.shape[1], dtype=int)
 
-    null, nullity = flint.fmpz_mat(M.tolist()).nullspace()
-    nrows = null.nrows()
-    if not nullity:
-        return np.zeros((nrows, 0), dtype=int)
+    A = flint.fmpz_mat([[int(x) for x in row] for row in M.T.tolist()])
+    H, U = A.hnf(transform=True)
 
-    # read out the nullity real columns only; flint pads to ncols and
-    # converting the padding is wasted work
-    cols = [[int(null[i, j]) for j in range(nullity)] for i in range(nrows)]
+    nrows, ncols = H.nrows(), H.ncols()
+    kernel_rows = [i for i in range(nrows)
+                   if all(H[i, j] == 0 for j in range(ncols))]
+    if not kernel_rows:
+        return np.zeros((M.shape[1], 0), dtype=int)
 
     # kernel entries can exceed int64 (a 20x24 matrix of single-digit
     # integers reached ~70 bits), so keep exact Python ints when they do
+    cols = [[int(U[i, j]) for i in kernel_rows] for j in range(U.ncols())]
     try:
-        null = np.array(cols, dtype=np.int64)
+        return np.array(cols, dtype=np.int64)
     except OverflowError:
-        null = np.array(cols, dtype=object)
-
-    if reduce_by_gcd:
-        if null.dtype == object:
-            gcds = np.array([math.gcd(*c) for c in null.T], dtype=object)
-        else:
-            gcds = np.gcd.reduce(np.abs(null), axis=0)
-        null = null // gcds
-
-    return null
+        return np.array(cols, dtype=object)
 
 
 def adjugate(mat: ArrayLike) -> "tuple[np.ndarray, int]":
