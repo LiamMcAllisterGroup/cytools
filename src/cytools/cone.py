@@ -406,7 +406,7 @@ class Cone:
         self._is_simplicial = None
         self._is_smooth = None
         self._hilbert_basis = None
-        self._face_lattice = None
+        self._faces = None
         if self._rays_were_input:
             self._hyperplanes = None
         else:
@@ -1094,12 +1094,12 @@ class Cone:
             tol=tol, minimal=minimal, method=method, verbose=verbose
         )
 
-    def face_lattice(
+    def faces(
         self, codim: int = None, include_self: bool = False, verbosity: int = 0
     ) -> tuple[tuple[Cone]] | tuple[Cone]:
         """
         **Description:**
-        Computes the positive-dimensional face lattice of a pointed cone.
+        Computes the positive-dimensional faces of a pointed cone.
 
         The faces are organized in a tuple of increasing codim. This method is
         distinct from `facets` since this will be a lot slower for high-dim
@@ -1123,7 +1123,7 @@ class Cone:
             raise ValueError(f"Cone does not have faces of codimension {codim}")
 
         if dim > 20:
-            warnings.warn("Getting the face lattice for high-dim cones is expensive")
+            warnings.warn("Getting the faces of high-dim cones is expensive")
 
         # easy answers
         if codim == 0:
@@ -1138,21 +1138,21 @@ class Cone:
                 return tuple()
 
         # fast track if cached
-        if self._face_lattice is not None:
+        if self._faces is not None:
             return (
-                self._face_lattice[codim]
+                self._faces[codim]
                 if codim is not None
-                else (self._face_lattice if include_self else self._face_lattice[1:])
+                else (self._faces if include_self else self._faces[1:])
             )
 
         if not self.is_pointed():
             raise NotImplementedError(
-                "Cone.face_lattice() currently supports only pointed cones."
+                "Cone.faces() currently supports only pointed cones."
             )
 
         if verbosity >= 1:
             print(
-                "Computing cone face lattice via extremal ray/hyperplane incidence..."
+                "Computing cone faces via extremal ray/hyperplane incidence..."
             )
 
         # expensive work vvv
@@ -1204,7 +1204,7 @@ class Cone:
             face_sets[face_codim].append(ray_inds)
             face_objects[ray_inds] = Cone(rays=face_rays, check=False)
 
-        face_lattice = [(self,)]
+        faces = [(self,)]
         for face_codim in range(1, dim):
             codim_faces = tuple(
                 face_objects[ray_inds]
@@ -1212,19 +1212,19 @@ class Cone:
                     face_sets[face_codim], key=lambda inds: tuple(sorted(inds))
                 )
             )
-            face_lattice.append(codim_faces)
+            faces.append(codim_faces)
 
         # add the 0D cone if this is pointed
         if self.is_pointed():
             eye = np.eye(self.ambient_dim(), dtype=int)
-            face_lattice.append((Cone(hyperplanes=np.vstack([eye, -eye])),))
+            faces.append((Cone(hyperplanes=np.vstack([eye, -eye])),))
 
         # cache and return
-        self._face_lattice = tuple(face_lattice)
+        self._faces = tuple(faces)
         return (
-            self._face_lattice[codim]
+            self._faces[codim]
             if codim is not None
-            else (self._face_lattice if include_self else self._face_lattice[1:])
+            else (self._faces if include_self else self._faces[1:])
         )
 
     def facets(self, verbosity: int = 0):
