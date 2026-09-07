@@ -1047,7 +1047,10 @@ def curve_to_gv(fan, kappa, circ, verbosity=0):
 
     # check that the signature is of the right type
     if min(circ.signature) != 2:
-        raise ValueError
+        raise ValueError(
+            f"curve_to_gv needs a flop circuit (min signature 2); "
+            f"got {circ.signature}, which has no transport rule for kappa"
+        )
 
     unsigned = set(circ.Z)
 
