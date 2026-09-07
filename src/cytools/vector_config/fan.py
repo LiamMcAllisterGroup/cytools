@@ -1124,9 +1124,11 @@ def vc(self, include_points_interior_to_facets=None):
     **Returns:**
     The associated VectorConfiguration.
     """
-    # set include_points_interior_to_facets
+    # default to the vc that contains every point the triangulation uses
     if include_points_interior_to_facets is None:
-        include_points_interior_to_facets = tuple(self.labels) == self.polytope().labels
+        include_points_interior_to_facets = not set(self.labels).issubset(
+            self.polytope().labels_not_facet
+        )
 
     # get the vc
     vc = self.polytope().vc(
@@ -1168,9 +1170,11 @@ def fan(self, include_points_interior_to_facets=None):
             f"include label {origin} in it."
         )
 
-    # set include_points_interior_to_facets
+    # default to the vc that contains every point the triangulation uses
     if include_points_interior_to_facets is None:
-        include_points_interior_to_facets = tuple(self.labels) == self.polytope().labels
+        include_points_interior_to_facets = not set(self.labels).issubset(
+            self.polytope().labels_not_facet
+        )
 
     # get the vc
     vc = self.polytope().vc(
