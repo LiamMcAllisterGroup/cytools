@@ -70,12 +70,6 @@ from cytools import config
 from cytools import utils
 
 
-# The number of times an extremality check is retried before giving up. Retries
-# only help for transient failures, so this must be finite to avoid spinning
-# forever on a deterministic error.
-MAX_EXTREMALITY_RETRIES = 3
-
-
 def _rank(arr) -> int:
     """
     Rank of a set of rays. numpy's matrix_rank raises on a (0, d) array, which
