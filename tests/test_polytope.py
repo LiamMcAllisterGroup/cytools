@@ -412,9 +412,9 @@ def test_is_reflexive_without_translations_nonsolid():
     # null vectors, so this always returned False for non-solid polytopes
     assert Polytope([[-1, 0], [1, 0]]).is_reflexive(allow_translations=False)
     assert Polytope([[-1, 0, 0], [1, 0, 0]]).is_reflexive(allow_translations=False)
-    assert Polytope(
-        [[-1, 0, 0], [1, 0, 0], [0, -1, 0], [0, 1, 0]]
-    ).is_reflexive(allow_translations=False)
+    assert Polytope([[-1, 0, 0], [1, 0, 0], [0, -1, 0], [0, 1, 0]]).is_reflexive(
+        allow_translations=False
+    )
 
     # a non-reflexive, non-solid polytope must still come out False
     assert not Polytope([[-2, 0], [1, 0]]).is_reflexive(allow_translations=False)
@@ -518,3 +518,45 @@ def test_volume_1d():
 
     # 0-dimensional polytopes are unaffected
     assert Polytope([[0]]).volume() == 0
+
+
+def test_default_glsm_basis_is_stable():
+    # regression: the `ctr += 1` in glsm_charge_matrix's search loop makes the
+    # norm-sorted candidate order roll before it is first tried. it looks like
+    # dead code and was removed once as such (2026-08-16), which silently
+    # changed the default basis of every polytope, and with it in-basis
+    # intersection numbers and Kahler cone data. these values have held since
+    # 2021 and downstream research depends on them, so pin them.
+    p = Polytope(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -6, -9]]
+    )
+    assert p.glsm_basis().tolist() == [5, 6]
+
+    quintic = Polytope(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -1, -1]]
+    )
+    assert quintic.glsm_basis().tolist() == [2]
+
+
+def test_default_glsm_basis_propagates_downstream():
+    # the default basis reaches the toric variety and the CY, so pin it there
+    # too: a change upstream silently rewrites every in-basis quantity
+    p = Polytope(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -6, -9]]
+    )
+    t = p.triangulate()
+    v = t.get_toric_variety()
+    cy = t.get_cy()
+
+    assert v.divisor_basis().tolist() == [5, 6]
+    assert v.curve_basis().tolist() == [5, 6]
+    assert cy.divisor_basis().tolist() == [5, 6]
+    assert cy.curve_basis().tolist() == [5, 6]
+
+
+def test_default_glsm_basis_is_deterministic_across_calls():
+    # a fresh Polytope must give the same basis every time, with and without
+    # the deterministic flag (the flag fixes argsort tie-breaking, not order)
+    V = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -6, -9]]
+    assert {tuple(Polytope(V).glsm_basis()) for _ in range(3)} == {(5, 6)}
+    assert Polytope(V, deterministic_glsm_basis=True).glsm_basis().tolist() == [5, 6]

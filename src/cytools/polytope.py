@@ -3492,8 +3492,13 @@ class Polytope:
 
                 for ctr in range(np.prod(linrel.shape) + 1):
                     found_good_basis = True
-                    # the candidate order was carefully constructed above, so
-                    # try it as-is first and only start rolling afterwards
+                    # DO NOT REMOVE. this makes `ctr > 0` true on the first
+                    # pass, so the norm-sorted order is rolled before it is
+                    # ever tried. that skip has fixed the default basis since
+                    # 2021 (e.g. [5, 6] for P(1,1,1,6,9)); dropping it as dead
+                    # code silently changes every default basis, and with it
+                    # in-basis intersection numbers and Kahler cone data
+                    ctr += 1
                     if ctr > 0:
                         st = max([good_exclusions, 1])
                         indices[st:] = np.roll(indices[st:], -1)
@@ -3777,7 +3782,7 @@ class Polytope:
         import numpy as np
         p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
         p.glsm_basis()
-        # array([1, 6])
+        # array([5, 6])
         glsm = p.glsm_charge_matrix()
         # This shows that the columns form a basis
         np.linalg.matrix_rank(glsm) == np.linalg.matrix_rank(glsm[:,p.glsm_basis()])

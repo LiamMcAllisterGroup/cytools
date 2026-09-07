@@ -796,7 +796,7 @@ def set_divisor_basis(
     t = p.triangulate()
     v = t.get_toric_variety()
     v.divisor_basis() # We haven't set any basis
-    # array([1, 6])
+    # array([5, 6])
     v.set_divisor_basis([5,6]) # Here we set a basis
     v.divisor_basis() # We get the basis we set
     # array([5, 6])
@@ -1026,7 +1026,7 @@ def set_curve_basis(
     t = p.triangulate()
     v = t.get_toric_variety()
     v.curve_basis() # We haven't set any basis
-    # array([1, 6])
+    # array([5, 6])
     v.set_curve_basis([5,6]) # Here we set a basis
     v.curve_basis() # We get the basis we set
     # array([5, 6])

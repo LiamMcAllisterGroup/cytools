@@ -1036,7 +1036,7 @@ class CalabiYau:
         t = p.triangulate()
         cy = t.get_cy()
         cy.divisor_basis() # We haven't set any basis
-        # array([1, 6])
+        # array([5, 6])
         cy.set_divisor_basis([5,6]) # Here we set a basis
         cy.divisor_basis() # We get the basis we set
         # array([5, 6])
@@ -1098,7 +1098,7 @@ class CalabiYau:
         t = p.triangulate()
         cy = t.get_cy()
         cy.divisor_basis() # We haven't set any basis
-        # array([1, 6])
+        # array([5, 6])
         cy.set_divisor_basis([5,6]) # Here we set a basis
         cy.divisor_basis() # We get the basis we set
         # array([5, 6])
@@ -1143,7 +1143,7 @@ class CalabiYau:
         t = p.triangulate()
         cy = t.get_cy()
         cy.curve_basis() # We haven't set any basis
-        # array([1, 6])
+        # array([5, 6])
         cy.set_curve_basis([5,6]) # Here we set a basis
         cy.curve_basis() # We get the basis we set
         # array([5, 6])
@@ -1214,7 +1214,7 @@ class CalabiYau:
         t = p.triangulate()
         cy = t.get_cy()
         cy.curve_basis() # We haven't set any basis
-        # array([1, 6])
+        # array([5, 6])
         cy.set_curve_basis([5,6]) # Here we set a basis
         cy.curve_basis() # We get the basis we set
         # array([5, 6])
@@ -1325,7 +1325,7 @@ class CalabiYau:
         # divisors
         # First, let's check the current basis of divisors
         cy.divisor_basis()
-        # array([1, 6])
+        # array([5, 6])
         # Now, setting in_basis=True we only compute the intersection numbers
         # of divisors 1 and 6
         intnum_basis = cy.intersection_numbers(in_basis=True)

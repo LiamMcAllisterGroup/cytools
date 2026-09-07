@@ -569,7 +569,7 @@ class ToricVariety:
         t = p.triangulate()
         v = t.get_toric_variety()
         v.divisor_basis() # We haven't set any basis
-        # array([1, 6])
+        # array([5, 6])
         v.set_divisor_basis([5,6]) # Here we set a basis
         v.divisor_basis() # We get the basis we set
         # array([5, 6])
@@ -635,7 +635,7 @@ class ToricVariety:
         t = p.triangulate()
         v = t.get_toric_variety()
         v.divisor_basis() # We haven't set any basis
-        # array([1, 6])
+        # array([5, 6])
         v.set_divisor_basis([5,6]) # Here we set a basis
         v.divisor_basis() # We get the basis we set
         # array([5, 6])
@@ -680,7 +680,7 @@ class ToricVariety:
         t = p.triangulate()
         v = t.get_toric_variety()
         v.curve_basis() # We haven't set any basis
-        # array([1, 6])
+        # array([5, 6])
         v.set_curve_basis([5,6]) # Here we set a basis
         v.curve_basis() # We get the basis we set
         # array([5, 6])
@@ -749,7 +749,7 @@ class ToricVariety:
         t = p.triangulate()
         v = t.get_toric_variety()
         v.curve_basis() # We haven't set any basis
-        # array([1, 6])
+        # array([5, 6])
         v.set_curve_basis([5,6]) # Here we set a basis
         v.curve_basis() # We get the basis we set
         # array([5, 6])
@@ -1437,7 +1437,7 @@ class ToricVariety:
         # Let us now compute the intersection numbers in a given basis of divisors
         # First, let's check the current basis of divisors
         v.divisor_basis()
-        # array([1, 6])
+        # array([5, 6])
         # Now, setting in_basis=True we only compute the intersection numbers of
         # divisors 1 and 6
         intnum_basis = v.intersection_numbers(in_basis=True)
