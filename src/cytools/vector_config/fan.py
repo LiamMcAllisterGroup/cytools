@@ -54,7 +54,8 @@ class Fan(regfans.fan.Fan):
     function.
 
     NOTE: This is not intended to be called directly. This is instead meant to
-    be constructed from `VectorConfiguration.subdivide`.
+    be constructed from `VectorConfiguration.triangulate`, which is also
+    available under the alias `VectorConfiguration.subdivide`.
 
     *Arguments:**
     - `vc`:      The ambient vector configuration that this fan is over.
@@ -73,8 +74,8 @@ class Fan(regfans.fan.Fan):
         """
         **Description:**
         Convert a `regfans.Fans` object to a object of the CYTools Fan class.
-        This is used when calling the CYTools VectorConfiguration.subdivide
-        method.
+        This is used when calling the CYTools VectorConfiguration.triangulate
+        method (also available under the alias `subdivide`).
 
         **Arguments:**
         - `fan`: The `regfans.Fan` object.
