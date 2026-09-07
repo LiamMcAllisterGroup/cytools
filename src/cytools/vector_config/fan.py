@@ -1151,6 +1151,23 @@ def fan(self, include_points_interior_to_facets=None):
     **Returns:**
     The associated Fan.
     """
+    # the fan is the star of the origin, so the triangulation must contain it.
+    # note that triangulating without the origin is legal (it just silently
+    # turns off make_star), so this is the first place it can be rejected
+    origin = self.polytope().label_origin
+    if origin is None:
+        raise ValueError(
+            "Cannot construct a fan: the origin is not a lattice point of the "
+            "polytope, so the star of the origin is undefined."
+        )
+    if origin not in self.labels:
+        raise ValueError(
+            f"Cannot construct a fan: the triangulation omits the origin "
+            f"(label {origin}), so the star of the origin is empty. If the "
+            f"triangulation was built with an explicit `points` argument, "
+            f"include label {origin} in it."
+        )
+
     # set include_points_interior_to_facets
     if include_points_interior_to_facets is None:
         include_points_interior_to_facets = tuple(self.labels) == self.polytope().labels
@@ -1163,7 +1180,6 @@ def fan(self, include_points_interior_to_facets=None):
     # build the star fan: keep only simplices containing the origin and drop
     # the origin label from each. the vc above already carries these same
     # labels (minus the origin), so the cells index it directly (no remap).
-    origin = self.polytope().label_origin
     cells = [
         sorted(x for x in simp if x != origin)
         for simp in self.simplices().tolist()
