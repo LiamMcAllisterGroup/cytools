@@ -1593,7 +1593,7 @@ class Polytope:
             return self._dual
 
         # calculate the answer
-        if not self.is_reflexive():
+        if not self.is_reflexive(allow_translations=False):
             raise NotImplementedError(
                 "Duality of non-reflexive polytopes " + "is not supported."
             )
@@ -1640,19 +1640,19 @@ class Polytope:
 
         # calculate the answer
         if allow_translations:
-            pts_opt = self.points(optimal=True)
-            if len(pts_opt) == 0 or len(self.interior_points()) != 1:
+            # reflexive after translating v to the origin iff every facet
+            # then sits at distance 1. optimal frame, so non-solid works too
+            interior = self.points(which=self._labels_int, optimal=True)
+            if len(interior) != 1:
                 self._is_reflexive[allow_translations] = False
             else:
-                # The unique interior point is listed first, so recenter there
-                # before checking reflexivity in the strict sense.
-                p = Polytope(
-                    pts_opt - pts_opt[0],
-                    backend=self._backend,
-                    deterministic_glsm_basis=self._deterministic_glsm_basis,
-                )
-                self._is_reflexive[allow_translations] = p.is_reflexive(
-                    allow_translations=False
+                v = interior[0]
+                self._is_reflexive[allow_translations] = bool(
+                    np.all(
+                        self._ineqs_optimal[:, :-1] @ v
+                        + self._ineqs_optimal[:, -1]
+                        == 1
+                    )
                 )
         else:
             if self.is_solid():
@@ -2480,11 +2480,11 @@ class Polytope:
         # set make_star
         if make_star is None:
             if heights is None and simplices is None:
-                make_star = self.is_reflexive()
+                make_star = self.is_reflexive(allow_translations=False)
             else:
                 make_star = False
 
-        if (not self.is_reflexive()) and (self._label_origin not in points):
+        if (not self.is_reflexive(allow_translations=False)) and (self._label_origin not in points):
             make_star = False
 
         # return triangulation
@@ -2597,7 +2597,7 @@ class Polytope:
             points = self._triang_labels(include_points_interior_to_facets)
 
         if make_star is None:
-            make_star = self.is_reflexive()
+            make_star = self.is_reflexive(allow_translations=False)
         if self._label_origin not in points:
             make_star = False
         g = random_triangulations_fast_generator(
@@ -2755,7 +2755,7 @@ class Polytope:
         else:
             points = self._triang_labels(include_points_interior_to_facets)
         if make_star is None:
-            make_star = self.is_reflexive()
+            make_star = self.is_reflexive(allow_translations=False)
         if self._label_origin not in points:
             make_star = False
         if n_walk is None:
@@ -3100,9 +3100,9 @@ class Polytope:
             return gen()
 
         if only_star is None:
-            only_star = self.is_reflexive()
+            only_star = self.is_reflexive(allow_translations=False)
         if only_star and star_origin is None:
-            if self.is_reflexive():
+            if self.is_reflexive(allow_translations=False):
                 star_origin = self._label_origin
             else:
                 raise ValueError(

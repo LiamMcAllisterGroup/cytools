@@ -124,7 +124,9 @@ class ToricVariety:
         # Regularity is not checked since it is generally slow.
         if not triang.is_star():
             raise ValueError("The input triangulation must be star.")
-        if not triang.polytope().is_reflexive() and not config._exp_features_enabled:
+        if (not triang.polytope().is_reflexive(allow_translations=False)) and (
+            not config._exp_features_enabled
+        ):
             raise Exception(
                 "The experimental features must be enabled to "
                 "construct toric varieties from triangulations "
