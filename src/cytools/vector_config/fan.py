@@ -1198,6 +1198,14 @@ def fan(self, include_points_interior_to_facets=None):
         for simp in self.simplices().tolist()
         if origin in simp
     ]
+    if len(cells) == 0:
+        raise ValueError(
+            f"Cannot construct a fan: no simplex of the triangulation contains "
+            f"the origin (label {origin}), so the star of the origin is empty. "
+            f"This happens for non-fine triangulations that leave the origin "
+            f"unused."
+        )
+
     fan = vc.subdivide(cells=cells)
     return fan
 
