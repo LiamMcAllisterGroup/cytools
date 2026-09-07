@@ -165,3 +165,98 @@ def test_gale_forwards_set_basis():
     assert not nonreflexive.is_reflexive
     with pytest.raises(AssertionError):
         nonreflexive.gale(set_basis=True)
+
+
+def quintic_dual_polytope():
+    """The polar dual of the standard quintic polytope; has facet-interior pts."""
+    return Polytope(
+        [
+            [-1, -1, -1, -1],
+            [4, -1, -1, -1],
+            [-1, 4, -1, -1],
+            [-1, -1, 4, -1],
+            [-1, -1, -1, 4],
+        ]
+    )
+
+
+def facet_interior_labels(p):
+    return sorted(set(p.labels) - set(p.labels_not_facet))
+
+
+def test_fan_rejects_triangulation_omitting_origin():
+    p = quintic_dual_polytope()
+    triang = p.triangulate(points=p.labels_vertices, verbosity=0)
+
+    # previously built a fan with no rays at all, which only surfaced later as
+    # a vstack shape mismatch inside intersection_numbers
+    with pytest.raises(ValueError, match="omits the origin"):
+        triang.fan()
+
+
+def test_fan_rejects_polytope_without_origin():
+    p = Polytope([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [1, 1, 1, 2]])
+    assert p.label_origin is None
+
+    with pytest.raises(ValueError, match="not a lattice point"):
+        p.triangulate(verbosity=0).fan()
+
+
+def test_fan_rejects_unused_origin():
+    # a non-fine triangulation can keep the origin as a label while using it in
+    # no simplex, which reaches an empty star without omitting the origin
+    p = Polytope(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [-1, -1, -1, -1]]
+    )
+    heights = [0] * len(p.labels)
+    heights[list(p.labels).index(p.label_origin)] = 50
+    triang = p.triangulate(heights=heights, make_star=False, verbosity=0)
+
+    assert not triang.is_fine()
+    assert p.label_origin in triang.labels
+
+    with pytest.raises(ValueError, match="no simplex"):
+        triang.fan()
+
+
+def test_fan_includes_facet_interior_points_when_used():
+    p = quintic_dual_polytope()
+    points = list(p.labels_not_facet) + facet_interior_labels(p)[:1]
+    triang = p.triangulate(points=points, verbosity=0)
+
+    # the vc must contain every point the triangulation uses; this previously
+    # raised a bare KeyError from inside regfans
+    fan = triang.fan()
+
+    assert fan.vectors().shape == (len(points) - 1, 4)
+    assert len(triang.vc().labels) == len(p.labels) - 1
+
+
+def test_fan_rejects_vc_missing_used_points():
+    p = quintic_dual_polytope()
+    points = list(p.labels_not_facet) + facet_interior_labels(p)[:1]
+    triang = p.triangulate(points=points, verbosity=0)
+
+    # explicitly asking for the narrower vc used to yield a Fan whose cones
+    # referenced labels it did not contain, deferring the KeyError to vectors()
+    with pytest.raises(ValueError, match="absent from the vector configuration"):
+        triang.fan(include_points_interior_to_facets=False)
+
+
+def test_fan_from_origin_and_vertices():
+    p = quintic_dual_polytope()
+    points = (p.label_origin,) + p.labels_vertices
+    fan = p.triangulate(points=points, verbosity=0).fan()
+
+    assert fan.vectors().shape == (5, 4)
+    assert len(fan.simplices()) == 5
+    assert set(map(tuple, fan.vectors())) == set(map(tuple, p.vertices()))
+
+
+def test_fan_canonical_point_sets_unchanged():
+    p = quintic_dual_polytope()
+
+    assert p.triangulate(verbosity=0).fan().vectors().shape == (105, 4)
+
+    all_pts = p.triangulate(include_points_interior_to_facets=True, verbosity=0)
+    assert all_pts.fan().vectors().shape == (125, 4)
