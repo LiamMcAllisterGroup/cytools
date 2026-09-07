@@ -3187,7 +3187,7 @@ class Polytope:
         if lattice == "M":
             p = d - p - 1
         elif lattice != "N":
-            raise ValueError("Lattice must be specified. " 'Options are: "N" or "M".')
+            raise ValueError(f'Unknown lattice {lattice!r}. Options are: "N" or "M".')
 
         # assume p,q ordered such that q>p
         if p > q:
