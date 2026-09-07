@@ -1181,6 +1181,15 @@ def fan(self, include_points_interior_to_facets=None):
         include_points_interior_to_facets=include_points_interior_to_facets
     )
 
+    # the cells index the vc by label, so the vc must contain each of them
+    missing = sorted(set(self.labels) - {origin} - set(vc.labels))
+    if missing:
+        raise ValueError(
+            f"Cannot construct a fan: the triangulation uses points {missing}, "
+            f"which are interior to facets and so are absent from the vector "
+            f"configuration. Pass include_points_interior_to_facets=True."
+        )
+
     # build the star fan: keep only simplices containing the origin and drop
     # the origin label from each. the vc above already carries these same
     # labels (minus the origin), so the cells index it directly (no remap).
