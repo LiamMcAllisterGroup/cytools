@@ -129,6 +129,9 @@ pymdownx.superfences = {}
 pymdownx.tabbed.alternate_style = true
 pymdownx.tabbed.combine_header_slug = true
 
+[project.plugins.mkdocstrings]
+custom_templates = "docs/.templates"
+
 [project.plugins.mkdocstrings.handlers.python]
 paths = ["src"]
 inventories = [
