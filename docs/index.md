@@ -10,7 +10,10 @@ hide:
 
 <div class="cy-hero" markdown>
 
-<img class="cy-hero__image" src="img/titleimage.svg" alt="CYTools">
+<picture>
+  <source media="(prefers-reduced-motion: reduce)" srcset="img/titleimage.svg">
+  <img class="cy-hero__image" src="img/titleimage-animated.svg" alt="CYTools">
+</picture>
 
 <p class="cy-hero__tagline">A software package for analyzing Calabi-Yau manifolds</p>
 
