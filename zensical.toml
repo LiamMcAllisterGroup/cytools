@@ -152,6 +152,9 @@ show_root_heading = true
 show_root_full_path = false
 show_signature_annotations = false
 show_source = true
+# Base URL of the "Source on GitHub" links (see docs/.templates). CI replaces it
+# with the repository and commit being built, so that line numbers always match.
+extra = { source_url = "https://github.com/LiamMcAllisterGroup/cytools/blob/main" }
 show_symbol_type_heading = true
 show_symbol_type_toc = true
 summary = true

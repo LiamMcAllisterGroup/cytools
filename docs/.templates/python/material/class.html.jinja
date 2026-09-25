@@ -4,7 +4,7 @@
 {% block source scoped %}
   {% if config.show_source and class.relative_filepath and class.lineno %}
     <p class="cy-source-link">
-      <a href="https://github.com/LiamMcAllisterGroup/cytools/blob/main/{{ class.relative_filepath.as_posix() }}#L{{ class.lineno }}">Source on GitHub</a>
+      <a href="{{ config.extra.source_url }}/{{ class.relative_filepath.as_posix() }}#L{{ class.lineno }}">Source on GitHub</a>
     </p>
   {% endif %}
 {% endblock source %}
