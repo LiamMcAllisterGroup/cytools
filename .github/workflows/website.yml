@@ -20,7 +20,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10
+        uses: astral-sh/setup-uv@v10.2.0
       - name: Build website
         run: uv run --only-group docs zensical build --clean --strict
       - name: Setup Pages
