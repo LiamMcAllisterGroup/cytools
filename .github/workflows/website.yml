@@ -22,6 +22,11 @@ jobs:
         uses: actions/checkout@v7
       - name: Setup uv
         uses: astral-sh/setup-uv@v10.2.0
+      - name: Link source code to the commit being built
+        run: >-
+          sed -i
+          "s#source_url = \"[^\"]*\"#source_url = \"https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}\"#"
+          zensical.toml
       - name: Build website
         run: uv run --only-group docs zensical build --clean --strict
       - name: Setup Pages
