@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - ariostas/move_to_zensical  # TEMPORARY: preview on fork, remove before merging
   pull_request:
     branches:
       - main
