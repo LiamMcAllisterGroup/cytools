@@ -210,3 +210,17 @@
     width: 14rem;
   }
 }
+
+/* "Source on GitHub" links rendered by docs/.templates. */
+.md-typeset .cy-source-link {
+  margin: 0.5rem 0 1rem;
+  font-size: 0.7rem;
+}
+
+.md-typeset .cy-source-link a {
+  color: var(--md-default-fg-color--light);
+}
+
+.md-typeset .cy-source-link a:hover {
+  color: var(--md-accent-fg-color);
+}
