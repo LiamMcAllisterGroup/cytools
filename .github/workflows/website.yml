@@ -4,11 +4,9 @@ on:
   push:
     branches:
       - main
-      - website
   pull_request:
     branches:
       - main
-      - website
   workflow_dispatch:
 
 concurrency:
@@ -19,40 +17,19 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout website branch
+      - name: Checkout
         uses: actions/checkout@v7
-        with:
-          ref: website
-      - name: Checkout main branch
-        uses: actions/checkout@v7
-        with:
-          ref: main
-          path: ./code/
-      - name: Setup Python
-        uses: actions/setup-python@v7
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-      - name: Install Python requirements
-        run: pip install -r requirements.txt
-      - name: Generate documentation
-        run: python3 ./docs/documentation/produce_doc.py ./code/src/cytools/
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: 20
-          cache: npm
-      - name: Install dependencies
-        run: npm ci
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10
       - name: Build website
-        run: npm run build
+        run: uv run --only-group docs zensical build --clean --strict
       - name: Setup Pages
         id: pages
         uses: actions/configure-pages@v6
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
         with:
-          path: ./build
+          path: ./site
 
   deploy:
     if: github.event_name == 'push'

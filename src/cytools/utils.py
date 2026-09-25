@@ -19,6 +19,17 @@
 #               CYTools.
 # -----------------------------------------------------------------------------
 
+"""Miscellaneous utility functions used throughout CYTools.
+
+This module contains the functions to read polytopes from files or strings
+([`read_polytopes`][cytools.utils.read_polytopes]) and to fetch them from the
+Kreuzer-Skarke and Schöller-Skarke databases
+([`fetch_polytopes`][cytools.utils.fetch_polytopes]), both of which can also be
+imported from the package root. It also contains various helpers for exact
+integer linear algebra, conversions to and from FLINT number types, sparse
+tensors, and linear systems, which are mainly used internally.
+"""
+
 # 'standard' imports
 import fractions
 import functools
@@ -57,6 +68,39 @@ if TYPE_CHECKING:
 # class instance caching
 # (lru_cache persists for all class instances... that is not desired...)
 def instanced_lru_cache(maxsize=128):
+    """Return a decorator that caches the results of a method per instance.
+
+    This works like `functools.lru_cache`, but each instance gets its own cache,
+    stored in its `_cache` dictionary (which is created if needed), so that cached
+    results are never shared between instances. Resetting `_cache` to an empty
+    dictionary clears the cache of the instance. The arguments of the decorated
+    method must be hashable.
+
+    Args:
+        maxsize (int | None): The maximum number of results cached per instance
+            and method, as in `functools.lru_cache`. If `None`, the cache can grow
+            without bound.
+
+    Returns:
+        Callable: The decorator.
+
+    Examples:
+        We define a class with a cached method. The result is only computed the
+        first time it is requested.
+
+        >>> from cytools.utils import instanced_lru_cache
+        >>> class A:
+        ...     @instanced_lru_cache(maxsize=None)
+        ...     def square(self, x):
+        ...         print("computing")
+        ...         return x**2
+        >>> a = A()
+        >>> a.square(3)
+        computing
+        9
+        >>> a.square(3)
+        9
+    """
     # implement lru_cache, stored in self._cache
     def decorator(func):
         @functools.wraps(func)  # copy func's metadata
@@ -81,34 +125,34 @@ def instanced_lru_cache(maxsize=128):
 # basic math
 # ----------
 def gcd_float(a: float, b: float, tol: float = 1e-5) -> float:
-    """
-    **Description:**
-    Compute the greatest common (floating-point) divisor of a and b. This is
-    simply the largest floating point number that divides a and b. Uses the
-    Euclidean algorithm.
+    """Return the greatest common divisor of two floats.
 
-    Warning - unexpected/buggy behavior can occur if b starts tiny. E.g.,
-    gcd_float(100,0.1,0.2) returns 100.
+    The gcd is computed with the Euclidean algorithm, where a remainder smaller
+    than `tol` in absolute value is treated as zero. The result is thus, up to
+    rounding errors, the largest number that divides both `a` and `b` a whole
+    number of times. This is useful since the standard gcd functions do not accept
+    non-integer values.
 
-    This only seems to be a risk if b *starts* below tol.
+    Args:
+        a (float): The first number.
+        b (float): The second number.
+        tol (float): The tolerance below which a remainder is considered to be
+            zero.
 
-    **Arguments:**
-    - `a`: The first number.
-    - `b`: The second number.
-    - `tol`: The tolerance for rounding.
+    Returns:
+        float: The (non-negative) gcd of `a` and `b`.
 
-    **Returns:**
-    The gcd of a and b.
+    Warning:
+        If `b` is already smaller than `tol` in absolute value, then `abs(a)` is
+        returned. For example, `gcd_float(100, 0.1, 0.2)` returns `100`.
 
-    **Example:**
-    We compute the gcd of two floats. This function is useful since the
-    standard gcd functions raise an error for non-integer values.
-    ```python {2}
-    from cytools.utils import gcd_float
-    gcd_float(0.2, 0.5)
-    # Should be 0.1, but there are small rounding errors
-    # 0.09999999999999998
-    ```
+    Examples:
+        We compute the gcd of two floats. The exact answer is 0.1, but there are
+        small rounding errors.
+
+        >>> from cytools.utils import gcd_float
+        >>> gcd_float(0.2, 0.5)
+        0.09999999999999998
     """
     if abs(b) < tol:
         return abs(a)
@@ -117,41 +161,66 @@ def gcd_float(a: float, b: float, tol: float = 1e-5) -> float:
 
 # variant that computes gcd over all elements in arr
 def gcd_list(arr):
+    """Return the greatest common divisor of a list of numbers.
+
+    The gcd is computed pairwise with [`gcd_float`][cytools.utils.gcd_float],
+    using its default tolerance, so the entries do not need to be integers.
+
+    Args:
+        arr (Iterable[float]): The numbers. It must not be empty.
+
+    Returns:
+        float: The gcd of all the numbers.
+
+    Examples:
+        We compute the gcd of a few integers.
+
+        >>> from cytools.utils import gcd_list
+        >>> gcd_list([4, 6, 10])
+        2
+    """
     return functools.reduce(gcd_float, arr)
 
 
 # linear algebra
 # --------------
 def integral_nullspace(M, reduce_by_gcd=True):
-    """
-    **Description:**
-    Returns the integral nullspace of M as column vectors.
+    r"""Return a basis of the integral nullspace of an integer matrix.
 
-    The basis returned spans the *saturated* kernel {x in Z^n : M x = 0}: if
-    k*x lies in the span for some nonzero integer k, then so does x. That is
-    what the integral nullspace is, and callers who complete the basis to a
-    change of coordinates depend on it -- a non-saturated basis completes to a
-    matrix with |det| > 1.
+    The returned vectors form a basis of the lattice
+    $\{x \in \mathbb{Z}^n : Mx = 0\}$, where $n$ is the number of columns of
+    `M`. This lattice is saturated: if $kx$ lies in it for some nonzero integer
+    $k$, then so does $x$. As a consequence, the basis can always be completed to
+    a basis of $\mathbb{Z}^n$. Note that dividing the vectors of a rational
+    nullspace basis by their gcds is not enough to obtain such a basis; in general
+    they only span a sublattice of finite index. For example, for
+    `M = [[9, 4, 7]]` the kernel vector `[1, -4, 1]` might not be an integer
+    combination of them.
 
-    Obtaining it from flint's rational nullspace and dividing each column by
-    its gcd is not enough: column-primitive is weaker than lattice-saturated,
-    and the result is then a proper finite-index sublattice. For example with
-    M = [[9, 4, 7]], the vector x = [1, -4, 1] satisfies M x = 0 but is not an
-    integer combination of that basis.
+    The basis is computed from the Hermite normal form $H = UM^T$, where $U$ is
+    unimodular. The rows of $U$ corresponding to zero rows of $H$ span the kernel,
+    and since $U$ is unimodular they extend to a basis of $\mathbb{Z}^n$.
 
-    Instead take the Hermite normal form of M.T with transform. For
-    H = U @ M.T with U unimodular, the rows of U corresponding to zero rows of
-    H span the kernel, and because U is unimodular those rows extend to a basis
-    of Z^n -- so saturation is structural rather than checked afterwards.
+    Args:
+        M (ArrayLike): The integer matrix whose nullspace is computed.
+        reduce_by_gcd (bool): Ignored. It is only accepted for backwards
+            compatibility, since the returned basis vectors are always primitive.
 
-    **Arguments:**
-    - `M` *(array_like)*: The integer matrix whose kernel is wanted.
-    - `reduce_by_gcd` *(bool, optional)*: Accepted for backwards compatibility
-        and ignored. The returned basis is already primitive.
+    Returns:
+        np.ndarray: The basis vectors, as the columns of an array of shape
+            `(n, k)`, where `k` is the dimension of the nullspace. The entries have
+            `int64` dtype when they fit, and are Python integers (`object` dtype)
+            otherwise.
 
-    **Returns:**
-    *(numpy.ndarray)* The kernel basis, as column vectors. Entries are int64
-    when they fit and Python ints (object dtype) when they do not.
+    Examples:
+        We compute the integral nullspace of a $1\times 3$ matrix. The kernel
+        vector `[1, -4, 1]` is 5 times the first column plus the second one.
+
+        >>> from cytools.utils import integral_nullspace
+        >>> integral_nullspace([[9, 4, 7]])
+        array([[ -4,  21],
+               [  9, -49],
+               [  0,   1]])
     """
     # a row-less M gives flint a 0x0 matrix, losing the column count; its
     # kernel is the whole ambient space
@@ -178,21 +247,31 @@ def integral_nullspace(M, reduce_by_gcd=True):
 
 
 def adjugate(mat: ArrayLike) -> "tuple[np.ndarray, int]":
-    """
-    **Description:**
-    Computes the adjugate and determinant of a square integer matrix, exactly.
-    The adjugate is the transpose of the cofactor matrix, so it satisfies
-    mat @ adj = det * I, and is defined even when mat is singular.
+    r"""Return the adjugate and the determinant of a square integer matrix.
 
-    Entries are exact Python ints throughout, so the result is correct at any
-    magnitude; the returned array uses int64 when it fits and object dtype
-    when it does not.
+    The adjugate is the transpose of the cofactor matrix. It satisfies
+    $A \operatorname{adj}(A) = \operatorname{adj}(A) A = \det(A) I$, and it is
+    defined even when $A$ is singular. All computations are done exactly with
+    Python integers, so the result is correct at any magnitude.
 
-    **Arguments:**
-    - `mat`: A square integer matrix.
+    Args:
+        mat (ArrayLike): A square integer matrix.
 
-    **Returns:**
-    The adjugate and the determinant.
+    Returns:
+        tuple[np.ndarray, int]: The adjugate and the determinant. The adjugate has
+            `int64` dtype when its entries fit, and `object` dtype (Python
+            integers) otherwise.
+
+    Raises:
+        ValueError: If the matrix is not square.
+
+    Examples:
+        We compute the adjugate and the determinant of a $2\times 2$ matrix.
+
+        >>> from cytools.utils import adjugate
+        >>> adjugate([[1, 2], [3, 4]])
+        (array([[ 4, -2],
+               [-3,  1]]), -2)
     """
     S = [[int(x) for x in row] for row in np.asarray(mat)]
     n = len(S)
@@ -214,18 +293,17 @@ def adjugate(mat: ArrayLike) -> "tuple[np.ndarray, int]":
 
 
 def _det(m: list) -> int:
-    """
-    **Description:**
-    Exact determinant of a small integer matrix, given as a list of rows.
-    Expanded explicitly up to 3x3 and by cofactors above that; from 5x5 the
-    cofactor recursion costs more than building a flint matrix, so it hands
-    over.
+    """Return the exact determinant of a square integer matrix.
 
-    **Arguments:**
-    - `m`: A square integer matrix, as a list of rows.
+    Matrices up to 3x3 are expanded explicitly and 4x4 matrices by cofactors,
+    while larger ones are handed to FLINT, which is faster at that size. The
+    determinant of the 0x0 matrix is 1 (the empty product).
 
-    **Returns:**
-    The determinant.
+    Args:
+        m (list[list[int]]): A square integer matrix, as a list of rows.
+
+    Returns:
+        int: The determinant.
     """
     n = len(m)
     if n == 0:
@@ -250,16 +328,28 @@ def _det(m: list) -> int:
 
 
 def lattice_index(mat: ArrayLike) -> int:
-    """
-    **Description:**
-    Computes the index of the sublattice generated by the rows of an integer
-    matrix, via the Smith normal form (the product of its invariant factors).
+    r"""Return the index of the lattice generated by the rows of an integer matrix.
 
-    **Arguments:**
-    - `mat`: An integer matrix whose rows generate the sublattice.
+    The index is computed as the product of the invariant factors (the diagonal
+    entries of the Smith normal form) of `mat`. For a square matrix of full rank,
+    this is $|\det(\text{mat})|$, the index of the generated sublattice in
+    $\mathbb{Z}^n$. More generally, if the rank of `mat` equals its number of rows
+    or of columns, this is the index of the generated lattice in its saturation
+    (the set of integer points in its real span). Otherwise, the result is 0.
 
-    **Returns:**
-    The lattice index (an integer).
+    Args:
+        mat (ArrayLike): An integer matrix whose rows generate the lattice.
+
+    Returns:
+        int: The lattice index.
+
+    Examples:
+        The vectors $(1,1)$ and $(1,-1)$ generate the sublattice of index 2 of
+        $\mathbb{Z}^2$ consisting of the points with even coordinate sum.
+
+        >>> from cytools.utils import lattice_index
+        >>> lattice_index([[1, 1], [1, -1]])
+        2
     """
     S = flint.fmpz_mat(np.asarray(mat, dtype=int).tolist()).snf()
     index = 1
@@ -271,83 +361,80 @@ def lattice_index(mat: ArrayLike) -> int:
 # flint conversion
 # ----------------
 def float_to_fmpq(c: float) -> flint.fmpq:
-    """
-    **Description:**
-    Converts a float to an fmpq (Flint's rational number class).
+    r"""Convert a float to an `fmpq`, FLINT's rational number type.
 
-    See https://flintlib.org/doc/fmpq.html
+    The float is approximated by the closest rational number with denominator at
+    most $10^6$ (see `fractions.Fraction.limit_denominator`), which recovers simple
+    fractions despite floating-point rounding errors.
 
-    **Arguments:**
-    - `c`: The input number.
+    Args:
+        c (float): The number to convert.
 
-    **Returns:**
-    The rational number that most reasonably approximates the input.
+    Returns:
+        flint.fmpq: The rational approximation of `c`.
 
-    **Example:**
-    We convert a few floats to rational numbers.
-    ```python {2}
-    from cytools.utils import float_to_fmpq
-    float_to_fmpq(0.1), float_to_fmpq(0.333333333333), float_to_fmpq(2.45)
-    # (1/10, 1/3, 49/20)
-    ```
+    Examples:
+        We convert a few floats to rational numbers.
+
+        >>> from cytools.utils import float_to_fmpq
+        >>> float_to_fmpq(0.1), float_to_fmpq(0.333333333333), float_to_fmpq(2.45)
+        (1/10, 1/3, 49/20)
     """
     f = fractions.Fraction(c).limit_denominator()
     return flint.fmpq(f.numerator, f.denominator)
 
 
 def fmpq_to_float(c: flint.fmpq) -> float:
-    """
-    **Description:**
-    Converts an fmpq (Flint's rational number class) to a float.
+    """Convert an `fmpq`, FLINT's rational number type, to a float.
 
-    See https://flintlib.org/doc/fmpq.html
+    Args:
+        c (flint.fmpq): The rational number to convert.
 
-    **Arguments:**
-    - `c`: The input rational number.
+    Returns:
+        float: The number as a float.
 
-    **Returns:**
-    The number as a float.
+    Examples:
+        We convert a few rational numbers to floats.
 
-    **Example:**
-    We convert a few rational numbers to floats.
-    ```python {3}
-    from cytools.utils import fmpq_to_float
-    from flint import fmpq
-    fmpq_to_float(fmpq(1,2)), fmpq_to_float(fmpq(1,3)),\
-                                                    fmpq_to_float(fmpq(49,20))
-    # (0.5, 0.3333333333333333, 2.45)
-    ```
+        >>> from flint import fmpq
+        >>> from cytools.utils import fmpq_to_float
+        >>> [fmpq_to_float(fmpq(p, q)) for p, q in [(1, 2), (1, 3), (49, 20)]]
+        [0.5, 0.3333333333333333, 2.45]
     """
     return int(c.p) / int(c.q)
 
 
 def array_to_flint(arr: np.ndarray, t: "int | float" = None) -> np.ndarray:
-    """
-    **Description:**
-    Converts a numpy array with either:
-        1) 64-bit integer entries or
-        2) float entries
-    to Flint type (fmpz or fmpq for integer or rational numbers, respectively).
+    """Convert a numpy array to an array of FLINT numbers.
 
-    See https://flintlib.org/doc/fmpz.html and
-        https://flintlib.org/doc/fmpq.html
+    Depending on `t`, each entry is converted either to an `fmpz` (FLINT's
+    integer type) or to an `fmpq` (FLINT's rational type), the latter using
+    [`float_to_fmpq`][cytools.utils.float_to_fmpq]. The functions
+    [`array_int_to_fmpz`][cytools.utils.array_int_to_fmpz] and
+    [`array_float_to_fmpq`][cytools.utils.array_float_to_fmpq] are shortcuts for
+    the two cases.
 
-    **Arguments:**
-    - `arr`: A numpy array with either 64-bit integer or float entries.
+    Args:
+        arr (np.ndarray): The array to convert.
+        t (type | None): The type of the entries of `arr`. If it is `int`, the
+            entries are converted to `fmpz`, and otherwise to `fmpq`. If not
+            specified, `arr.dtype` is used. Since a numpy dtype is never `int`,
+            this always results in a conversion to `fmpq`.
 
-    **Returns:**
-    A numpy array with either fmpz or fmpq entries.
+    Returns:
+        np.ndarray: An array of the same shape, with `object` dtype and `fmpz` or
+            `fmpq` entries.
 
-    **Example:**
-    We convert an integer array to an fmpz array.
-    ```python {3}
-    from cytools.utils import array_int_to_fmpz
-    arr = [[1,0,0],[0,2,0],[0,0,3]]
-    array_int_to_fmpz(arr)
-    # array([[1, 0, 0],
-    #        [0, 2, 0],
-    #        [0, 0, 3]], dtype=object)
-    ```
+    Examples:
+        We convert an integer array and a float array.
+
+        >>> import numpy as np
+        >>> from cytools.utils import array_to_flint
+        >>> array_to_flint(np.array([[1, 0], [0, 2]]), t=int)
+        array([[1, 0],
+               [0, 2]], dtype=object)
+        >>> array_to_flint(np.array([0.5, 0.25]))
+        array([1/2, 1/4], dtype=object)
     """
     # type conversion function
     if t is None:
@@ -365,24 +452,79 @@ def array_to_flint(arr: np.ndarray, t: "int | float" = None) -> np.ndarray:
 
 # some type-specific aliases
 def array_int_to_fmpz(arr):
+    """Convert an integer array to an array of `fmpz`, FLINT's integer type.
+
+    This is a shortcut for [`array_to_flint`][cytools.utils.array_to_flint] with
+    `t=int`.
+
+    Args:
+        arr (ArrayLike): An array with integer entries.
+
+    Returns:
+        np.ndarray: An array of the same shape, with `object` dtype and `fmpz`
+            entries.
+
+    Examples:
+        We convert an integer array to an `fmpz` array.
+
+        >>> from cytools.utils import array_int_to_fmpz
+        >>> array_int_to_fmpz([[1, 0], [0, 2]])
+        array([[1, 0],
+               [0, 2]], dtype=object)
+    """
     return array_to_flint(arr, t=int)
 
 
 def array_float_to_fmpq(arr):
+    """Convert a float array to an array of `fmpq`, FLINT's rational type.
+
+    This is a shortcut for [`array_to_flint`][cytools.utils.array_to_flint] with
+    `t=float`. Each entry is converted with
+    [`float_to_fmpq`][cytools.utils.float_to_fmpq].
+
+    Args:
+        arr (ArrayLike): An array with float entries.
+
+    Returns:
+        np.ndarray: An array of the same shape, with `object` dtype and `fmpq`
+            entries.
+
+    Examples:
+        We convert a float array to an `fmpq` array.
+
+        >>> from cytools.utils import array_float_to_fmpq
+        >>> array_float_to_fmpq([0.5, 0.25])
+        array([1/2, 1/4], dtype=object)
+    """
     return array_to_flint(arr, t=float)
 
 
 def array_from_flint(arr: np.ndarray, t=None) -> np.ndarray:
-    """
-    **Description:**
-    Converts a numpy array with fmpz/fmpq (Flint's integer/float number class)
-    entries to 64-bit integer/float entries.
+    """Convert an array of FLINT numbers to an array of integers or floats.
 
-    **Arguments:**
-    - `arr`: A numpy array with fmpz/fmpq entries.
+    Entries of type `fmpz` (FLINT's integer type) are converted to integers, and
+    entries of type `fmpq` (FLINT's rational type) to floats.
 
-    **Returns:**
-    A numpy array with 64-bit integer/float entries.
+    Args:
+        arr (np.ndarray): An array with `fmpz` or `fmpq` entries.
+        t (type | None): The type of the entries, either `flint.fmpz` or
+            `flint.fmpq`. If not specified, it is taken to be the type of the first
+            entry of `arr`.
+
+    Returns:
+        np.ndarray: An array of the same shape, with `int` or `float` dtype.
+
+    Raises:
+        ValueError: If the entries are not of type `fmpz` or `fmpq`.
+
+    Examples:
+        We convert an `fmpq` array to a float array.
+
+        >>> import numpy as np
+        >>> from flint import fmpq
+        >>> from cytools.utils import array_from_flint
+        >>> array_from_flint(np.array([fmpq(1, 2), fmpq(1, 3)]))
+        array([0.5       , 0.33333333])
     """
     # get the type of arr
     if t is None:
@@ -401,10 +543,32 @@ def array_from_flint(arr: np.ndarray, t=None) -> np.ndarray:
 
 # some type-specific aliases
 def array_fmpz_to_int(arr):
+    """Convert an array of `fmpz`, FLINT's integer type, to an integer array.
+
+    This is a shortcut for [`array_from_flint`][cytools.utils.array_from_flint]
+    with `t=flint.fmpz`.
+
+    Args:
+        arr (np.ndarray): An array with `fmpz` entries.
+
+    Returns:
+        np.ndarray: An array of the same shape, with `int` dtype.
+    """
     return array_from_flint(arr, t=flint.fmpz)
 
 
 def array_fmpq_to_float(arr):
+    """Convert an array of `fmpq`, FLINT's rational type, to a float array.
+
+    This is a shortcut for [`array_from_flint`][cytools.utils.array_from_flint]
+    with `t=flint.fmpq`.
+
+    Args:
+        arr (np.ndarray): An array with `fmpq` entries.
+
+    Returns:
+        np.ndarray: An array of the same shape, with `float` dtype.
+    """
     return array_from_flint(arr, t=flint.fmpq)
 
 
@@ -413,33 +577,46 @@ def array_fmpq_to_float(arr):
 def to_sparse(
     arr: "dict | list", sparse_type: str = "dok"
 ) -> "sp.dok_matrix | sp.csr_matrix":
-    """
-    **Description:**
-    Converts a (manually implemented) sparse matrix of the form
-    [[a,b,M_ab], ...] or a dictionary of the form {(a,b):M_ab, ...} to a formal
-    dok_matrix or to a csr_matrix.
+    """Convert a matrix given by its nonzero entries to a SciPy sparse matrix.
 
-    **Arguments:**
-    - `arr`: A list of the form [[a,b,M_ab],...] or a dictionary of the
-        form [(a,b):M_ab,...].
-    - `sparse_type`: The type of sparse matrix to return. The options are "dok"
-        and "csr".
+    The input matrix can be given either as a list of triples
+    `[[a, b, M_ab], ...]` or as a dictionary `{(a, b): M_ab, ...}`, where `a` and
+    `b` are the row and column indices of an entry. The shape of the output is
+    inferred from the largest row and column indices, and its entries are
+    floats.
 
-    **Returns:**
-    The sparse matrix in dok_matrix or csr_matrix format.
+    Args:
+        arr (dict | list): The matrix, either as a list of the form
+            `[[a, b, M_ab], ...]` or as a dictionary of the form
+            `{(a, b): M_ab, ...}`.
+        sparse_type (str): The format of the output matrix. The options are
+            `"dok"` (a `scipy.sparse.dok_matrix`) and `"csr"` (a
+            `scipy.sparse.csr_matrix`).
 
-    **Example:**
-    We convert the 5x5 identity matrix into a sparse matrix.
-    ```python {3,6}
-    from cytools.utils import to_sparse
-    id_array = [[0,0,1],[1,1,1],[2,2,1],[3,3,1],[4,4,1]]
-    to_sparse(id_array)
-    # <5x5 sparse matrix of type '<class 'numpy.float64'>'
-    #        with 5 stored elements in Dictionary Of Keys format>
-    to_sparse(id_array, sparse_type="csr")
-    # <5x5 sparse matrix of type '<class 'numpy.float64'>'
-    #        with 5 stored elements in Compressed Sparse Row format>
-    ```
+    Returns:
+        sp.dok_matrix | sp.csr_matrix: The sparse matrix.
+
+    Raises:
+        ValueError: If `sparse_type` is not one of the allowed options.
+
+    Examples:
+        We convert the 5x5 identity matrix into a sparse matrix, in the two
+        available formats.
+
+        >>> from cytools.utils import to_sparse
+        >>> id_array = [[0,0,1],[1,1,1],[2,2,1],[3,3,1],[4,4,1]]
+        >>> M = to_sparse(id_array)
+        >>> M.format, M.shape, M.nnz
+        ('dok', (5, 5), 5)
+        >>> to_sparse(id_array, sparse_type="csr").format
+        'csr'
+
+        The matrix can also be given as a dictionary.
+
+        >>> to_sparse({(0, 1): 2, (2, 0): 1}).toarray()
+        array([[0., 2.],
+               [0., 0.],
+               [1., 0.]])
     """
     #  input checking
     if sparse_type not in ("dok", "csr"):
@@ -467,33 +644,49 @@ def to_sparse(
 
 
 def symmetric_sparse_to_dense(tensor: dict, basis: ArrayLike = None) -> np.ndarray:
-    """
-    **Description:**
-    Converts a symmetric sparse tensor of the form {(a,b,...,c): M_ab...c, ...}
-    to a dense tensor.
+    r"""Convert a symmetric sparse tensor to a dense array.
 
-    Optionally, it then applies a basis transformation.
+    The sparse tensor is a dictionary `{(a, b, ..., c): M_ab...c, ...}`, where each
+    entry only needs to be given for one ordering of its indices; the dense tensor
+    is filled in for all their permutations. Optionally, a change of basis is then
+    applied, so that the entries of the output are
+    $$
+    T'_{ij\cdots k} = \sum_{a,b,\ldots,c} B_{ia} B_{jb} \cdots B_{kc}\,
+    T_{ab\cdots c}\,,
+    $$
+    where $B$ is the `basis` matrix.
 
-    **Arguments:**
-    - `tensor`: A sparse tensor of the form {(a,b,...,c):M_ab...c, ...}.
-    - `basis`: A matrix where the rows are the basis elements.
+    Args:
+        tensor (dict): The symmetric sparse tensor, as a dictionary of the form
+            `{(a, b, ..., c): M_ab...c, ...}`.
+        basis (ArrayLike | None): A matrix whose rows are the new basis elements,
+            written in terms of the original ones. It must have at least as many
+            columns as the largest index in `tensor` plus one. If not specified, no
+            change of basis is applied.
 
-    **Returns:**
-    A dense tensor.
+    Returns:
+        np.ndarray: The dense tensor. Without a change of basis, its length along
+            each axis is the largest index in `tensor` plus one; with a change of
+            basis, it is the number of rows of `basis`. The entries have the type
+            of the first value in `tensor` (before any change of basis).
 
-    **Example:**
-    We construct a simple tensor and then convert it to a dense array. We
-    consider the same example as for the
-    [`filter_tensor_indices`](#filter_tensor_indices) function, but now we have
-    to specify the basis in matrix form.
-    ```python {4}
-    from cytools.utils import symmetric_sparse_to_dense_in_basis
-    tensor = {(0,1):0, (1,1):1, (1,2):2, (1,3):3, (2,3):4}
-    basis = [[0,1,0,0],[0,0,0,1]]
-    symmetric_sparse_to_dense(tensor, basis)
-    # array([[1, 3],
-    #        [3, 0]])
-    ```
+    Examples:
+        We convert a sparse tensor to a dense array. We then do the same in the
+        basis consisting of the elements 1 and 3, which gives the same result as
+        [`filter_tensor_indices`][cytools.utils.filter_tensor_indices] with
+        indices `[1, 3]`.
+
+        >>> from cytools.utils import symmetric_sparse_to_dense
+        >>> tensor = {(0,1):0, (1,1):1, (1,2):2, (1,3):3, (2,3):4}
+        >>> symmetric_sparse_to_dense(tensor)
+        array([[0, 0, 0, 0],
+               [0, 1, 2, 3],
+               [0, 2, 0, 4],
+               [0, 3, 4, 0]])
+        >>> basis = [[0,1,0,0],[0,0,0,1]]
+        >>> symmetric_sparse_to_dense(tensor, basis)
+        array([[1, 3],
+               [3, 0]])
     """
     # build empty output object
     if basis is not None:
@@ -519,33 +712,34 @@ def symmetric_sparse_to_dense(tensor: dict, basis: ArrayLike = None) -> np.ndarr
 
 
 def symmetric_dense_to_sparse(tensor: ArrayLike, basis: ArrayLike = None) -> dict:
-    """
-    **Description:**
-    Converts a dense symmetric tensor to a sparse tensor of the form
-    {(a,b,...,c):M_ab...c, ...}.
+    r"""Convert a dense symmetric tensor to a sparse tensor.
 
-    The upper triangular indices are used. That is, a<=b<=...<=c.
+    The output is a dictionary `{(a, b, ..., c): M_ab...c, ...}` containing only
+    the nonzero entries with sorted indices $a \le b \le \cdots \le c$.
+    Optionally, a change of basis is applied first, in the same way as in
+    [`symmetric_sparse_to_dense`][cytools.utils.symmetric_sparse_to_dense].
 
-    Optionally, it applies a basis transformation.
+    Args:
+        tensor (ArrayLike): A dense symmetric tensor, with the same length along
+            all of its axes.
+        basis (ArrayLike | None): A matrix whose rows are the new basis elements,
+            written in terms of the original ones. Currently, only square matrices
+            are handled correctly. If not specified, no change of basis is
+            applied.
 
-    **Arguments:**
-    - `tensor`: A dense symmetric tensor.
-    - `basis`: A matrix where the rows are the basis elements.
+    Returns:
+        dict: The sparse tensor, as a dictionary of the form
+            `{(a, b, ..., c): M_ab...c, ...}`. The values are numpy scalars.
 
-    **Returns:**
-    A sparse tensor of the form {(a,b,...,c):M_ab...c, ...}.
+    Raises:
+        ValueError: If the axes of `tensor` do not all have the same length.
 
-    **Example:**
-    We construct a simple tensor and then convert it to a dense array. We
-    consider the same example as for the
-    [`filter_tensor_indices`](#filter_tensor_indices) function, but now we have
-    to specify the basis in matrix form.
-    ```python {3}
-    from cytools.utils import symmetric_dense_to_sparse
-    tensor = [[1,2],[2,3]]
-    symmetric_dense_to_sparse(tensor)
-    # {(0, 0): 1, (0, 1): 2, (1, 1): 3}
-    ```
+    Examples:
+        We convert a dense symmetric matrix to a sparse one.
+
+        >>> from cytools.utils import symmetric_dense_to_sparse
+        >>> symmetric_dense_to_sparse([[1,2],[2,3]])
+        {(0, 0): np.int64(1), (0, 1): np.int64(2), (1, 1): np.int64(3)}
     """
     out = {}
 
@@ -574,39 +768,42 @@ def symmetric_dense_to_sparse(tensor: ArrayLike, basis: ArrayLike = None) -> dic
 # other tensor operations
 # -----------------------
 def filter_tensor_indices(tensor: dict, indices: list[int]) -> dict:
-    """
-    **Description:**
-    Selects a specific subset of indices from a tensor.
+    """Restrict a sparse tensor to a subset of its indices.
 
-    The tensor is reindexed so that indices are in the range 0..len(indices)
-    with the ordering specified by the input indices. This function can be used
-    to convert the tensor of intersection numbers to a given basis.
+    Only the entries whose indices all belong to `indices` are kept, and they are
+    reindexed so that `indices[i]` becomes `i`. The indices of each resulting key
+    are sorted in ascending order. This can be used, for example, to obtain the
+    intersection numbers in a basis of divisors that is a subset of the prime
+    toric divisors.
 
-    **Arguments:**
-    - `tensor`: The input symmetric sparse tensor of the form of a dictionary
-        {(a,b,...,c):M_ab...c, ...}.
-    - `indices`: The list of indices that will be preserved.
+    Args:
+        tensor (dict): A symmetric sparse tensor, as a dictionary of the form
+            `{(a, b, ..., c): M_ab...c, ...}`.
+        indices (list[int]): The indices to keep. Their order determines the new
+            indexing.
 
-    **Returns:**
-    A dictionary describing a tensor in the same format as the input, but only with
-        the desired indices.
+    Returns:
+        dict: The filtered and reindexed sparse tensor, in the same format as the
+            input.
 
-    **Example:**
-    We construct a simple tensor and then filter some of the indices. We also
-    give a concrete example of when this is used for intersection numbers.
-    ```python {3,10}
-    from cytools.utils import filter_tensor_indices
-    tensor = {(0,1):0, (1,1):1, (1,2):2, (1,3):3, (2,3):4}
-    filter_tensor_indices(tensor, [1,3])
-    # {(0, 0): 1, (0, 1): 3}
-    p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-    t = p.triangulate()
-    v = t.get_toric_variety()
-    intnums_nobasis = v.intersection_numbers(in_basis=False)
-    intnums_inbasis = v.intersection_numbers(in_basis=True)
-    intnums_inbasis == filter_tensor_indices(intnums_nobasis, v.divisor_basis())
-    # True
-    ```
+    Examples:
+        We construct a simple tensor and keep only the indices 1 and 3.
+
+        >>> from cytools.utils import filter_tensor_indices
+        >>> tensor = {(0,1):0, (1,1):1, (1,2):2, (1,3):3, (2,3):4}
+        >>> filter_tensor_indices(tensor, [1,3])
+        {(0, 0): 1, (0, 1): 3}
+
+        The intersection numbers of a toric variety in its divisor basis can be
+        obtained in this way from those of all the prime toric divisors.
+
+        >>> from cytools import Polytope
+        >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        >>> v = p.triangulate().get_toric_variety()
+        >>> intnums_all = v.intersection_numbers(in_basis=False)
+        >>> intnums_basis = v.intersection_numbers(in_basis=True)
+        >>> intnums_basis == filter_tensor_indices(intnums_all, v.divisor_basis())
+        True
     """
     # map from index to its count in indices object
     reindex = {ind: i for i, ind in enumerate(indices)}
@@ -635,34 +832,47 @@ def solve_linear_system(
     backend_error_tol: float = 1e-4,
     verbosity: int = 0,
 ) -> np.ndarray:
-    """
-    **Description:**
-    Solves the sparse linear system M*x + C = 0.
+    """Solve the sparse linear system $Mx + C = 0$.
 
-    **Arguments:**
-    - `M`: The matrix.
-    - `C`: The constant term.
-    - `backend`: The solver to use. Options are "all", "sksparse" and "scipy".
-        When set to "all" it tries all available backends.
-    - `check`: Whether to explicitly check the solution to the linear system.
-    - `backend_error_tol`: Error tolerance for the solution.
-    - `verbosity`: The verbosity level.
-        - verbosity = 0: Do not print anything.
-        - verbosity = 1: Print warnings when backends fail.
+    The system is solved in the least-squares sense, through the normal equations
+    $M^T M x = -M^T C$. The `"sksparse"` backend uses a sparse Cholesky
+    factorization from scikit-sparse (an optional dependency), and the `"scipy"`
+    backend uses `scipy.sparse.linalg.spsolve`. If `check` is true, a solution is
+    only accepted if every entry of the residual $Mx + C$ is at most
+    `backend_error_tol` in absolute value.
 
-    **Returns:**
-    Floating-point solution to the linear system.
+    Args:
+        M (sp.csr_matrix): The coefficient matrix, as a SciPy sparse matrix.
+        C (list[float]): The constant term.
+        backend (str): The solver to use. The options are `"all"`, `"sksparse"`,
+            and `"scipy"`. With `"all"`, the `"sksparse"` and `"scipy"` backends
+            are tried in that order until one of them finds a solution.
+        check (bool): Whether to check the solution by computing the residual.
+        backend_error_tol (float): The largest absolute value of the residual
+            entries for which the solution is accepted. Only used if `check` is
+            true.
+        verbosity (int): The verbosity level. If it is 1 or larger, a message is
+            printed whenever a backend fails.
 
-    **Example:**
-    We solve a very simple linear equation.
-    ```python {5}
-    from cytools.utils import to_sparse, solve_linear_system
-    id_array = [[0,0,1],[1,1,1],[2,2,1],[3,3,1],[4,4,1]]
-    M = to_sparse(id_array, sparse_type="csr")
-    C = [1,1,1,1,1]
-    solve_linear_system(M, C)
-    # array([-1., -1., -1., -1., -1.])
-    ```
+    Returns:
+        list[float] | np.ndarray | None: The solution, or `None` if no acceptable
+            solution was found. The `"scipy"` backend returns a list, and the
+            `"sksparse"` backend returns an array.
+
+    Raises:
+        ValueError: If `backend` is not one of the allowed options.
+        RuntimeError: If `backend` is `"all"` and every backend raised an error,
+            rather than just failing to find a solution.
+
+    Examples:
+        We solve a very simple linear system.
+
+        >>> from cytools.utils import to_sparse, solve_linear_system
+        >>> id_array = [[0,0,1],[1,1,1],[2,2,1],[3,3,1],[4,4,1]]
+        >>> M = to_sparse(id_array, sparse_type="csr")
+        >>> C = [1,1,1,1,1]
+        >>> solve_linear_system(M, C)
+        [-1.0, -1.0, -1.0, -1.0, -1.0]
     """
     # input checking
     backends = ["all", "sksparse", "scipy"]
@@ -753,59 +963,63 @@ def set_divisor_basis(
     basis: ArrayLike,
     include_origin: bool = True,
 ):
-    """
-    **Description:**
-    Specifies a basis of divisors for the toric variety or Calabi-Yau manifold,
-    which in turn specifies a dual basis of curves. This can be done with a
-    vector specifying the indices of the prime toric divisors, or as a matrix
-    where each row is a linear combination of prime toric divisors.
+    """Set the basis of divisors of a toric variety or Calabi-Yau.
 
-    :::important
-    This function should generally not be called directly by the user. Instead,
-    it is called by the [`set_divisor_basis`](./toricvariety#set_divisor_basis)
-    function of the [`ToricVariety`](./toricvariety) class, or the
-    [`set_divisor_basis`](./calabiyau#set_divisor_basis) function of the
-    [`CalabiYau`](./calabiyau) class.
-    :::
+    Specifying a basis of divisors also determines the dual basis of curves. The
+    basis can be given either as a vector of indices of prime toric divisors, or
+    as a matrix whose rows are linear combinations of prime toric divisors. All
+    cached quantities that depend on the basis are cleared.
 
-    :::note
-    Only integral bases are supported by CYTools, meaning that all prime toric
-    divisors must be able to be written as an integral linear combination of
-    the basis divisors.
-    :::
+    This function is not meant to be called directly. Instead, it is called by
+    the methods
+    [`set_divisor_basis`][cytools.toricvariety.ToricVariety.set_divisor_basis] of
+    `ToricVariety` and
+    [`set_divisor_basis`][cytools.calabiyau.CalabiYau.set_divisor_basis] of
+    `CalabiYau`. Generic bases given by matrices are an experimental feature,
+    which must first be enabled with
+    [`enable_experimental_features`][cytools.config.enable_experimental_features].
 
-    **Arguments:**
-    - `tv_or_cy`: The toric variety or Calabi-Yau whose basis will be set.
-    - `basis`: Vector or matrix specifying a basis. When a vector is used, the
-        entries will be taken as the indices of points of the polytope or prime
-        divisors of the toric variety. When a matrix is used, the rows are
-        taken as linear combinations of the aforementioned divisors.
-    - `include_origin`: Whether to interpret the indexing specified by the
-        input vector as including the origin.
+    Args:
+        tv_or_cy (ToricVariety | CalabiYau): The toric variety or Calabi-Yau whose
+            basis is set.
+        basis (ArrayLike): The basis. If it is a vector, its entries are the
+            indices of the prime toric divisors (i.e. of the corresponding points
+            of the polytope) that form the basis. The indices are sorted, so their
+            order does not matter. If it is a matrix, each row is a basis divisor
+            written as a linear combination of the prime toric divisors, with or
+            without a first column for the origin (i.e. the canonical divisor), as
+            inferred from its shape.
+        include_origin (bool): Whether the indices of a vector basis count the
+            origin as index 0. If false, the indices are shifted by one. Ignored
+            for matrix bases.
 
-    **Returns:**
-    Nothing.
+    Raises:
+        ValueError: If the indices are out of range, if the matrix has the wrong
+            rank or shape, or if the given divisors do not form an integral basis.
+        Exception: If a matrix basis is given without enabling the experimental
+            features.
 
-    **Example:**
-    This function is not intended to be directly used, but it is used in the
-    following example. We consider a simple toric variety with two independent
-    divisors. We first find the default basis it picks and then we set a basis
-    of our choice.
-    ```python {6}
-    p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-    t = p.triangulate()
-    v = t.get_toric_variety()
-    v.divisor_basis() # We haven't set any basis
-    # array([5, 6])
-    v.set_divisor_basis([5,6]) # Here we set a basis
-    v.divisor_basis() # We get the basis we set
-    # array([5, 6])
-    v.divisor_basis(as_matrix=True) # We get the basis in matrix form
-    # array([[0, 0, 0, 0, 0, 1, 0],
-    #        [0, 0, 0, 0, 0, 0, 1]])
-    ```
-    An example for more generic basis choices can be found in the
-    [experimental features](./experimental) section.
+    Note:
+        Only integral bases are supported, meaning that every prime toric divisor
+        must be an integral linear combination of the basis divisors.
+
+    Examples:
+        This function is not meant to be used directly, but it is called in the
+        following example. We consider a toric variety with two independent
+        divisors, find the default basis, and then set a basis of our choice.
+
+        >>> from cytools import Polytope
+        >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        >>> t = p.triangulate()
+        >>> v = t.get_toric_variety()
+        >>> v.divisor_basis()  # the default basis
+        array([5, 6])
+        >>> v.set_divisor_basis([1,6])  # here we set a basis
+        >>> v.divisor_basis()  # we get the basis we set
+        array([1, 6])
+        >>> v.divisor_basis(as_matrix=True)  # the basis in matrix form
+        array([[0, 1, 0, 0, 0, 0, 0],
+               [0, 0, 0, 0, 0, 0, 1]])
     """
     self = tv_or_cy
 
@@ -980,64 +1194,75 @@ def set_curve_basis(
     basis: ArrayLike,
     include_origin: bool = True,
 ):
-    """
-    **Description:**
-    Specifies a basis of curves of the toric variety, which in turn specifies a
-    dual basis of divisors. This can be done with a vector specifying the
-    indices of the dual prime toric divisors or as a matrix with the rows being
-    the basis curves, and the entries are the intersection numbers with the
-    prime toric divisors. Note that when using a vector it is equivalent to
-    using the same vector in the [`set_divisor_basis`](#set_divisor_basis)
-    function.
+    """Set the basis of curves of a toric variety or Calabi-Yau.
 
-    :::important
-    This function should generally not be called directly by the user. Instead,
-    it is called by the [`set_curve_basis`](./toricvariety#set_curve_basis)
-    function of the [`ToricVariety`](./toricvariety) class, or the
-    [`set_curve_basis`](./calabiyau#set_curve_basis) function of the
-    [`CalabiYau`](./calabiyau) class.
-    :::
+    Specifying a basis of curves also determines the dual basis of divisors. The
+    basis can be given either as a vector of indices, or as a matrix whose rows
+    are the basis curves, specified by their intersection numbers with the prime
+    toric divisors. When a vector is used, this is equivalent to calling
+    [`set_divisor_basis`][cytools.utils.set_divisor_basis] with the same vector.
+    All cached quantities that depend on the basis are cleared.
 
-    :::note
-    Only integral bases are supported by CYTools, meaning that all toric curves
-    must be able to be written as an integral linear combination of the basis
-    curves.
-    :::
+    This function is not meant to be called directly. Instead, it is called by
+    the methods
+    [`set_curve_basis`][cytools.toricvariety.ToricVariety.set_curve_basis] of
+    `ToricVariety` and
+    [`set_curve_basis`][cytools.calabiyau.CalabiYau.set_curve_basis] of
+    `CalabiYau`. Generic bases given by matrices are an experimental feature,
+    which must first be enabled with
+    [`enable_experimental_features`][cytools.config.enable_experimental_features].
 
-    **Arguments:**
-    - `tv_or_cy`: The toric variety or Calabi-Yau whose basis will be set.
-    - `basis`: Vector or matrix specifying a basis. When a vector is used, the
-        entries will be taken as indices of the standard basis of the dual to
-        the lattice of prime toric divisors. When a matrix is used, the rows
-        are taken as linear combinations of the aforementioned elements.
-    - `include_origin`: Whether to interpret the indexing specified by the
-        input vector as including the origin.
+    Args:
+        tv_or_cy (ToricVariety | CalabiYau): The toric variety or Calabi-Yau whose
+            basis is set.
+        basis (ArrayLike): The basis. If it is a vector, its entries are the
+            indices of the elements of the standard basis of the dual to the
+            lattice of prime toric divisors, i.e. the curve basis dual to the
+            divisor basis with the same indices. If it is a matrix, each row is a
+            basis curve, given by its intersection numbers with the prime toric
+            divisors, with or without a first column for the origin (i.e. the
+            canonical divisor), as inferred from its shape. If the first column is
+            omitted, it is set to minus the sum of the other entries of the row.
+        include_origin (bool): Whether the indices of a vector basis count the
+            origin as index 0. If false, the indices are shifted by one. Ignored
+            for matrix bases.
 
-    **Returns:**
-    Nothing.
+    Raises:
+        ValueError: If the vector basis is invalid (see
+            [`set_divisor_basis`][cytools.utils.set_divisor_basis]), if the matrix
+            has the wrong rank or shape, if its rows are not valid curve charge
+            vectors (i.e. the corresponding combinations of the points of the
+            polytope, each with a 1 appended, do not vanish), or if they do not
+            form an integral basis.
+        Exception: If a matrix basis is given without enabling the experimental
+            features.
 
-    **Example:**
-    This function is not intended to be directly used, but it is used in the
-    following example. We consider a simple toric variety with two independent
-    curves. We first find the default basis of curves it picks and then set a
-    basis of our choice.
-    ```python {6}
-    p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-    t = p.triangulate()
-    v = t.get_toric_variety()
-    v.curve_basis() # We haven't set any basis
-    # array([5, 6])
-    v.set_curve_basis([5,6]) # Here we set a basis
-    v.curve_basis() # We get the basis we set
-    # array([5, 6])
-    v.curve_basis(as_matrix=True) # We get the basis in matrix form
-    # array([[-18,   1,   9,   6,   1,   1,   0],
-    #        [ -6,   0,   3,   2,   0,   0,   1]])
-    ```
-    Note that when setting a curve basis in this way, the function behaves
-    exactly the same as [`set_divisor_basis`](#set_divisor_basis). For a more
-    advanced example involving generic bases these two functions differ. An
-    example can be found in the [experimental features](./experimental) section.
+    Note:
+        Only integral bases are supported, meaning that every toric curve must be
+        an integral linear combination of the basis curves.
+
+    Examples:
+        This function is not meant to be used directly, but it is called in the
+        following example. We consider a toric variety with two independent
+        curves, find the default basis of curves, and then set a basis of our
+        choice.
+
+        >>> from cytools import Polytope
+        >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        >>> t = p.triangulate()
+        >>> v = t.get_toric_variety()
+        >>> v.curve_basis()  # the default basis
+        array([5, 6])
+        >>> v.set_curve_basis([1,6])  # here we set a basis
+        >>> v.curve_basis()  # we get the basis we set
+        array([1, 6])
+        >>> v.curve_basis(as_matrix=True)  # the basis in matrix form
+        array([[-18,   1,   9,   6,   1,   1,   0],
+               [ -6,   0,   3,   2,   0,   0,   1]])
+
+        Since a vector is used, this is the same as calling
+        [`set_divisor_basis`][cytools.utils.set_divisor_basis] with the same
+        vector. The two functions only differ for generic bases given by matrices.
     """
     self = tv_or_cy  # More convenient to work with
 
@@ -1129,62 +1354,70 @@ def polytope_generator(
     lattice: str = None,
     limit: int = None,
 ) -> Generator["Polytope", None, None]:
-    """
-    **Description:**
-    Reads polytopes from a file or a string. The polytopes can be specified
-    with their vertices, as used in the Kreuzer-Skarke database, or from a
-    weight system.
+    """Read polytopes from a file or a string, yielding them one at a time.
 
-    :::note
-    This function is not intended to be called by the end user. Instead, it is
-    used by the [`read_polytopes`](#read_polytopes) and
-    [`fetch_polytopes`](#fetch_polytopes) functions.
-    :::
+    The polytopes can be specified by their vertices, in the format used in the
+    Kreuzer-Skarke database, or by weight systems.
 
-    **Arguments:**
-    - `input`: Specifies the name of the file to read or the string containing
-        the polytopes.
-    - `input_type`: Specifies whether to read from a file or from the input
-        string. Options are "file" or "str".
-    - `format`: Specifies the format to read. The options are "ks", which is
-        the format used in the KS database, and "ws", if the polytopes should
-        be constructed from weight systems.
-    - `backend`: A string that specifies the backend used for the
-        [`Polytope`](./polytope) class.
-    - `deterministic_glsm_basis`: Whether to fix the GLSM basis in a
-        deterministic manner. By setting this True, the GLSM/divisor bases of
-        the associated Polytope/CYs should be consistent across different
-        machines. If this is left as False, then bases will be computed
-        identically to how they were before this flag was added.
-        N.B.: the basis chosen under `deterministic_glsm_basis=True` may
-        differ from the basis chosen under `deterministic_glsm_basis=False`!
-    - `dualize`: Flag that indicates whether to dualize all the polytopes
-        before yielding them.
-    - `favorable`: Yield only polytopes that are favorable when set to True, or
-        non-favorable when set to False. If not specified then it yields both
-        favorable and non-favorable polytopes.
-    - `lattice`: The lattice to use when checking favorability. This parameter
-        is only required when `favorable` is set. Options are "M" and "N".
-    - `limit`: Sets a maximum numbers of polytopes to yield.
+    In the `"ks"` format, each polytope consists of a header line containing
+    `M:`, whose first two numbers are the dimensions `n m` of the matrix that
+    follows, and `n` lines with `m` integers each. The vertices are the columns of
+    this matrix if it has more columns than rows, and its rows otherwise. In the
+    `"ws"` format, each non-empty line is a weight system, such as `5 1 1 1 1 1`
+    (the degree followed by the weights), and the polytope is the one that PALP
+    associates with it.
 
-    **Returns:**
-    A generator of [`Polytope`](./polytope) objects.
+    This function is not meant to be called directly. Instead, it is used by
+    [`read_polytopes`][cytools.utils.read_polytopes] and
+    [`fetch_polytopes`][cytools.utils.fetch_polytopes].
 
-    **Example:**
-    Since this function should not be used directly, we show an example of it
-    being used with the [`read_polytopes`](#read_polytopes) function. We take a
-    string obtained from the KS database and read the polytope it specifies.
-    ```python {8}
-    from cytools import read_polytopes # Note - it cannot be imported from root
-    poly_data = '''4 5  M:10 5 N:376 5 H:272,2 [540]
-                    1    0    0    0   -9
-                    0    1    0    0   -6
-                    0    0    1    0   -1
-                    0    0    0    1   -1
-                '''
-    read_polytopes(poly_data, input_type="str", as_list=True)
-    # [A 4-dimensional reflexive lattice polytope in ZZ^4]
-    ```
+    Args:
+        input (str): The name of the file to read, or the string containing the
+            polytopes, depending on `input_type`.
+        input_type (str): Whether `input` is the name of a file or a string
+            containing the data. The options are `"file"` and `"str"`.
+        format (str): The format of the data. The options are `"ks"`, the format
+            used in the Kreuzer-Skarke database, where the polytopes are specified
+            by their vertices, and `"ws"`, where each line is a weight system.
+        backend (str | None): The backend used to construct the convex hull of
+            each [`Polytope`][cytools.polytope.Polytope]. The options are `"ppl"`,
+            `"qhull"`, and `"palp"`. If not specified, it is chosen automatically.
+        deterministic_glsm_basis (bool): Whether to choose the GLSM (and thus
+            divisor) basis of each polytope in a deterministic manner, so that it
+            is consistent across different machines. The basis chosen with this
+            flag may differ from the default one.
+        dualize (bool): Whether to return the dual of each polytope instead of
+            the polytope itself.
+        favorable (bool | None): If true, only favorable polytopes are returned,
+            and if false, only non-favorable ones. Favorability is checked before
+            dualizing. If not specified, all polytopes are returned.
+        lattice (str | None): The lattice, `"N"` or `"M"`, with respect to which
+            favorability is checked. It must be specified if `favorable` is.
+        limit (int | None): The maximum number of polytopes to return. If not
+            specified, all of them are returned.
+
+    Yields:
+        Polytope: The polytopes that were read.
+
+    Raises:
+        ValueError: If `favorable` is specified without `lattice`, if `input_type`
+            or `format` is not one of the allowed options, or if the dimensions of
+            a vertex matrix do not match its header. Since this is a generator,
+            these errors are raised when it is first advanced.
+
+    Examples:
+        We read a polytope from a string taken from the Kreuzer-Skarke database.
+
+        >>> from cytools.utils import polytope_generator
+        >>> poly_data = '''4 5  M:10 5 N:376 5 H:272,2 [540]
+        ...    1    0    0    0   -9
+        ...    0    1    0    0   -6
+        ...    0    0    1    0   -1
+        ...    0    0    0    1   -1
+        ... '''
+        >>> g = polytope_generator(poly_data, input_type="str")
+        >>> print(next(g))
+        A 4-dimensional reflexive lattice polytope in ZZ^4
     """
     from cytools.polytope import Polytope
 
@@ -1328,58 +1561,84 @@ def read_polytopes(
     lattice: str = None,
     limit: int = None,
 ) -> 'Generator["Polytope", None, None] | list["Polytope"]':
-    """
-    **Description:**
-    Reads polytopes from a file or a string. The polytopes can be specified
-    with their vertices, as used in the Kreuzer-Skarke database, or from a
-    weight system.
+    """Read polytopes from a file or a string.
 
-    **Arguments:**
-    - `input`: Specifies the name of the file to read or the string containing
-        the polytopes.
-    - `input_type`: Specifies whether to read from a file or from the input
-        string. Options are "file" or "str".
-    - `format`: Specifies the format to read. The options are "ks", which is
-        the format used in the KS database, and "ws", if the polytopes should
-        be constructed from weight systems.
-    - `backend`: A string that specifies the backend used for the
-        [`Polytope`](./polytope) class.
-    - `deterministic_glsm_basis`: Whether to fix the GLSM basis in a
-        deterministic manner. By setting this True, the GLSM/divisor bases of
-        the associated Polytope/CYs should be consistent across different
-        machines. If this is left as False, then bases will be computed
-        identically to how they were before this flag was added.
-        N.B.: the basis chosen under `deterministic_glsm_basis=True` may
-        differ from the basis chosen under `deterministic_glsm_basis=False`!
-    - `as_list`: Return the list of polytopes instead of a generator.
-    - `dualize`: Flag that indicates whether to dualize all the polytopes
-        before yielding them.
-    - `favorable`: Yield or return only polytopes that are favorable when set
-        to True, or non-favorable when set to False. If not specified then it
-        yields both favorable and non-favorable polytopes.
-    - `lattice`: The lattice to use when checking favorability. This parameter
-        is only required when `favorable` is set. Options are "M" and "N".
-    - `limit`: Sets a maximum numbers of polytopes to yield.
+    The polytopes can be specified by their vertices, in the format used in the
+    Kreuzer-Skarke database, or by weight systems.
 
-    **Returns:**
-    A generator of [`Polytope`](./polytope) objects, or the full list when
-    `as_list` is set to True.
+    In the `"ks"` format, each polytope consists of a header line containing
+    `M:`, whose first two numbers are the dimensions `n m` of the matrix that
+    follows, and `n` lines with `m` integers each. The vertices are the columns of
+    this matrix if it has more columns than rows, and its rows otherwise. In the
+    `"ws"` format, each non-empty line is a weight system, such as `5 1 1 1 1 1`
+    (the degree followed by the weights), and the polytope is the one that PALP
+    associates with it.
 
-    **Example:**
-    We take a string obtained from the KS database and read the polytope it
-    specifies.
-    ```python {8}
-    # Note that it can directly be imported from the root
-    from cytools import read_polytopes
-    poly_data = '''4 5  M:10 5 N:376 5 H:272,2 [540]
-                    1    0    0    0   -9
-                    0    1    0    0   -6
-                    0    0    1    0   -1
-                    0    0    0    1   -1
-                '''
-    read_polytopes(poly_data, input_type="str", as_list=True)
-    # [A 4-dimensional reflexive lattice polytope in ZZ^4]
-    ```
+    This function can also be imported from the package root.
+
+    Args:
+        input (str): The name of the file to read, or the string containing the
+            polytopes, depending on `input_type`.
+        input_type (str): Whether `input` is the name of a file or a string
+            containing the data. The options are `"file"` and `"str"`.
+        format (str): The format of the data. The options are `"ks"`, the format
+            used in the Kreuzer-Skarke database, where the polytopes are specified
+            by their vertices, and `"ws"`, where each line is a weight system.
+        backend (str | None): The backend used to construct the convex hull of
+            each [`Polytope`][cytools.polytope.Polytope]. The options are `"ppl"`,
+            `"qhull"`, and `"palp"`. If not specified, it is chosen automatically.
+        deterministic_glsm_basis (bool): Whether to choose the GLSM (and thus
+            divisor) basis of each polytope in a deterministic manner, so that it
+            is consistent across different machines. The basis chosen with this
+            flag may differ from the default one.
+        as_list (bool): Whether to return a list of polytopes instead of a
+            generator.
+        dualize (bool): Whether to return the dual of each polytope instead of
+            the polytope itself.
+        favorable (bool | None): If true, only favorable polytopes are returned,
+            and if false, only non-favorable ones. Favorability is checked before
+            dualizing. If not specified, all polytopes are returned.
+        lattice (str | None): The lattice, `"N"` or `"M"`, with respect to which
+            favorability is checked. It must be specified if `favorable` is.
+        limit (int | None): The maximum number of polytopes to return. If not
+            specified, all of them are returned.
+
+    Returns:
+        Generator[Polytope, None, None] | list[Polytope]: A generator of
+            [`Polytope`][cytools.polytope.Polytope] objects, or a list of them if
+            `as_list` is true.
+
+    Raises:
+        ValueError: If `favorable` is specified without `lattice`, if `input_type`
+            or `format` is not one of the allowed options, or if the dimensions of
+            a vertex matrix do not match its header. If a generator is returned,
+            these errors are raised when it is first advanced.
+
+    Examples:
+        We read a polytope from a string taken from the Kreuzer-Skarke database.
+
+        >>> from cytools import read_polytopes
+        >>> poly_data = '''4 5  M:10 5 N:376 5 H:272,2 [540]
+        ...    1    0    0    0   -9
+        ...    0    1    0    0   -6
+        ...    0    0    1    0   -1
+        ...    0    0    0    1   -1
+        ... '''
+        >>> polys = read_polytopes(poly_data, input_type="str", as_list=True)
+        >>> len(polys)
+        1
+        >>> print(polys[0])
+        A 4-dimensional reflexive lattice polytope in ZZ^4
+        >>> polys[0].h11(lattice="N"), polys[0].h21(lattice="N")
+        (2, 272)
+
+        We can also construct polytopes from weight systems. Here we use the
+        weight system of the quintic, and take the dual of the resulting polytope.
+
+        >>> ws_polys = read_polytopes("5 1 1 1 1 1", input_type="str", format="ws",
+        ...                           dualize=True, as_list=True)
+        >>> ws_polys[0].h11(lattice="N")
+        1
     """
     g = polytope_generator(
         input,
@@ -1424,86 +1683,109 @@ def fetch_polytopes(
     favorable: bool = None,
     verbosity: int = 0,
 ) -> 'Generator["Polytope", None, None] | list["Polytope"]':
-    """
-    **Description:**
-    Fetches reflexive polytopes from the Kreuzer-Skarke database or from the
-    Schöller-Skarke database. The data is fetched from the websites
-    https://hep.itp.tuwien.ac.at/~kreuzer/CY/ and
-    http://rgc.itp.tuwien.ac.at/fourfolds/ respectively.
+    """Fetch reflexive polytopes from the Kreuzer-Skarke or Schöller-Skarke database.
 
-    :::note
-    The Kreuzer-Skarke database does not store favorability data. Thus, when
-    setting favorable to True or False it fetches additional polytopes so that
-    after filtering by favorability it can saturate the requested limit.
-    However, it may happen that fewer polytopes than requested are returned
-    even though more exist. To verify that no more polytopes with the requested
-    conditions exist one can increase the limit significantly and check if more
-    polytopes are returned.
-    :::
+    Four-dimensional polytopes are fetched from the
+    [Kreuzer-Skarke database](http://hep.itp.tuwien.ac.at/~kreuzer/CY/), and
+    five-dimensional ones from the
+    [Schöller-Skarke database](http://rgc.itp.tuwien.ac.at/fourfolds/). The
+    polytopes can be filtered by the Hodge numbers and Euler characteristic of the
+    associated Calabi-Yau hypersurfaces, and, for four-dimensional polytopes, by
+    their numbers of points, vertices, and facets.
 
-    **Arguments:**
-    - `h11`: The Hodge number $h^{1,1}$ of the Calabi-Yau hypersurface.
-    - `h12`: The Hodge number $h^{1,2}$ of the Calabi-Yau hypersurface.
-    - `h13`: The Hodge number $h^{1,3}$ of the Calabi-Yau hypersurface.
-    - `h21`: The Hodge number $h^{2,1}$ of the Calabi-Yau hypersurface. This is
-        equivalent to the h12 parameter.
-    - `h22`: The Hodge number $h^{2,2}$ of the Calabi-Yau hypersurface.
-    - `h31`: The Hodge number $h^{3,1}$ of the Calabi-Yau hypersurface. This is
-        equivalent to the h13 parameter.
-    - `chi`: The Euler characteristic of the Calabi-Yau hypersurface.
-    - `lattice`: The lattice on which the polytope is defined. Options are "N"
-        and "M". Has to be specified if the Hodge numbers or the Euler
-        characteristic is specified.
-    - `dim`: The dimension of the polytope. Only available options are 4 and 5.
-    - `n_points`: The number of lattice points of the desired polytopes.
-    - `n_vertices`: The number of vertices of the desired polytopes.
-    - `n_dual_points`: The number of points of the dual polytopes of the
-        desired polytopes.
-    - `n_facets`: The number of facets of the desired polytopes.
-    - `limit`: The maximum number of fetched polytopes.
-    - `samples`: Allow sampling of polytopes. Requires as_list=True and
-        samples<limit.
-    - `sample_seed`: A random number seed for sampling polytopes.
-    - `timeout`: The maximum number of seconds to wait for the server to return
-        the data.
-    - `as_list`: Return the list of polytopes instead of a generator.
-    - `backend`: A string that specifies the backend used for the
-        [`Polytope`](./polytope) class.
-    - `deterministic_glsm_basis`: Whether to fix the GLSM basis in a
-        deterministic manner. By setting this True, the GLSM/divisor bases of
-        the associated Polytope/CYs should be consistent across different
-        machines. If this is left as False, then bases will be computed
-        identically to how they were before this flag was added.
-        N.B.: the basis chosen under `deterministic_glsm_basis=True` may
-        differ from the basis chosen under `deterministic_glsm_basis=False`!
-    - `dualize`: Flag that indicates whether to dualize all the polytopes
-        before yielding them.
-    - `favorable`: Yield or return only polytopes that are favorable when set
-        to True, or non-favorable when set to False. If not specified then it
-        yields both favorable and non-favorable polytopes.
-    - `verbostiy`: The verbosity level.
+    This function can also be imported from the package root.
 
-    **Returns:**
-    A generator of [`Polytope`](./polytope) objects, or the full list when
-    `as_list` is set to True.
+    Args:
+        h11 (int | None): The Hodge number $h^{1,1}$ of the Calabi-Yau
+            hypersurface.
+        h12 (int | None): The Hodge number $h^{1,2}$ of the Calabi-Yau
+            hypersurface.
+        h13 (int | None): The Hodge number $h^{1,3}$ of the Calabi-Yau
+            hypersurface. Only used for five-dimensional polytopes.
+        h21 (int | None): The Hodge number $h^{2,1}$ of the Calabi-Yau
+            hypersurface. This is equivalent to `h12`.
+        h22 (int | None): The Hodge number $h^{2,2}$ of the Calabi-Yau
+            hypersurface. Only used for five-dimensional polytopes.
+        h31 (int | None): The Hodge number $h^{3,1}$ of the Calabi-Yau
+            hypersurface. This is equivalent to `h13`.
+        chi (int | None): The Euler characteristic of the Calabi-Yau
+            hypersurface.
+        lattice (str | None): The lattice in which the polytopes are defined,
+            `"N"` or `"M"`. The Hodge numbers and the Euler characteristic refer
+            to the Calabi-Yau hypersurface associated with polytopes in this
+            lattice, and favorability is checked with respect to it. It must be
+            specified if any Hodge number, the Euler characteristic, or
+            `favorable` is specified.
+        dim (int): The dimension of the polytopes. The options are 4 and 5.
+        n_points (int | None): The number of lattice points of the polytopes.
+            Only used for four-dimensional polytopes.
+        n_vertices (int | None): The number of vertices of the polytopes. Only
+            used for four-dimensional polytopes.
+        n_dual_points (int | None): The number of lattice points of the dual
+            polytopes. Only used for four-dimensional polytopes.
+        n_facets (int | None): The number of facets of the polytopes. Only used
+            for four-dimensional polytopes.
+        limit (int): The maximum number of polytopes to return.
+        samples (int | None): If specified, this many polytopes are chosen at
+            random, without replacement, among the (at most `limit`) fetched ones.
+            It must not be larger than `limit`.
+        sample_seed (int | None): The seed of the random number generator used for
+            sampling. If not specified, a different sample is drawn every time.
+        timeout (int): The maximum number of seconds to wait for the server to
+            return the data.
+        as_list (bool): Whether to return a list of polytopes instead of a
+            generator.
+        backend (str | None): The backend used to construct the convex hull of
+            each [`Polytope`][cytools.polytope.Polytope]. The options are `"ppl"`,
+            `"qhull"`, and `"palp"`. If not specified, it is chosen automatically.
+        deterministic_glsm_basis (bool): Whether to choose the GLSM (and thus
+            divisor) basis of each polytope in a deterministic manner, so that it
+            is consistent across different machines. The basis chosen with this
+            flag may differ from the default one.
+        dualize (bool): Whether to return the dual of each polytope instead of
+            the polytope itself.
+        favorable (bool | None): If true, only favorable polytopes are returned,
+            and if false, only non-favorable ones. Favorability is checked before
+            dualizing. If not specified, all polytopes are returned.
+        verbosity (int): The verbosity level. If it is 1 or larger, the URL of
+            the request is printed, and if it is 2 or larger, the received data is
+            printed as well.
 
-    **Example:**
-    We fetch polytopes from the Kreuzer-Skarke and Schöller-Skarke databases
-    with a few different parameters.
-    ```python {2,5,8}
-    # Note that it can directly be imported from the root
-    from cytools import fetch_polytopes
-    g = fetch_polytopes(h11=27, as_list=False) # Constructs a generator of polytopes
-    next(g)
-    # A 4-dimensional reflexive lattice polytope in ZZ^4
-    l = fetch_polytopes(h11=27, limit=100) # Constructs a list of polytopes
-    print(f"Fetched {len(l)} polytopes")
-    # Fetched 100 polytopes
-    # Generator of 5D polytopes
-    g_5d = fetch_polytopes(h11=1000, as_list=False, dim=5, limit=100)
-    next(g_5d)
-    # A 5-dimensional reflexive lattice polytope in ZZ^5
-    ```
+    Returns:
+        Generator[Polytope, None, None] | list[Polytope]: A list of
+            [`Polytope`][cytools.polytope.Polytope] objects, or a generator of
+            them if `as_list` is false.
+
+    Raises:
+        ValueError: If `dim` or `lattice` is not one of the allowed options, if
+            `lattice` is not specified when required, if `samples` is larger than
+            `limit`, if both `h12` and `h21` (or `h13` and `h31`) are given with
+            different values, or if the given Hodge numbers and Euler
+            characteristic are inconsistent.
+
+    Note:
+        The Kreuzer-Skarke database does not store favorability data. Thus, when
+        `favorable` is specified, additional polytopes are fetched so that the
+        requested limit can be saturated after filtering them. However, it may
+        happen that fewer polytopes than requested are returned even though more
+        exist. To verify that no more polytopes with the requested properties
+        exist, one can increase the limit significantly and check whether more
+        polytopes are returned.
+
+    Examples:
+        We fetch polytopes from the Kreuzer-Skarke and Schöller-Skarke databases
+        with a few different parameters.
+
+        >>> from cytools import fetch_polytopes
+        >>> g = fetch_polytopes(h11=27, as_list=False)  # a generator of polytopes
+        >>> print(next(g))
+        A 4-dimensional reflexive lattice polytope in ZZ^4
+        >>> polys = fetch_polytopes(h11=27, limit=100)  # a list of polytopes
+        >>> len(polys)
+        100
+        >>> g_5d = fetch_polytopes(h11=1000, dim=5, limit=100, as_list=False)
+        >>> print(next(g_5d))
+        A 5-dimensional reflexive lattice polytope in ZZ^5
     """
     # input checking
     # --------------
@@ -1675,16 +1957,38 @@ def fetch_polytopes(
 # point manipulations
 # -------------------
 def lll_reduce(pts_in: ArrayLike, transform: bool = False):
-    """
-    Apply lll-reduction to the input points (the rows).
+    r"""Apply LLL reduction to a set of lattice points.
 
-    **Arguments:**
-    - `pts`: A list of points.
+    The points are the rows of `pts_in`. The LLL algorithm is applied to the rows
+    of `pts_in.T`, i.e. the vectors of coordinates of the points. This amounts to a
+    unimodular change of lattice coordinates $p \mapsto Ap$, with
+    $A \in GL(n, \mathbb{Z})$, that makes these vectors short and nearly
+    orthogonal. If the points span a sublattice of dimension $d < n$, the
+    coordinates that vanish for all points come first, so that the last $d$
+    columns of the result give the coordinates of the points in the sublattice.
 
-    **Returns:**
-    The reduced points (pts_red; as rows of a numpy array).
-    If transform==True, also return the transformation matrix/inverse
-        (A, Ainv) s.t. pts_red.T = A*pts_in.T. As numpy arrays.
+    Args:
+        pts_in (ArrayLike): The integer points, one per row.
+        transform (bool): Whether to also return the transformation matrix and its
+            inverse.
+
+    Returns:
+        np.ndarray | tuple[np.ndarray, tuple[np.ndarray, np.ndarray]]: The reduced
+            points, one per row. If `transform` is true, a tuple
+            `(pts_red, (A, Ainv))` is returned instead, where `A` is the
+            unimodular matrix satisfying `pts_red.T == A @ pts_in.T` and `Ainv` is
+            its inverse.
+
+    Examples:
+        We reduce a set of points spanning a 2-dimensional sublattice of
+        $\mathbb{Z}^3$. The first coordinate of all the reduced points vanishes.
+
+        >>> from cytools.utils import lll_reduce
+        >>> lll_reduce([[1,1,0],[0,1,1],[1,2,1],[0,0,0]])
+        array([[0, 1, 0],
+               [0, 0, 1],
+               [0, 1, 1],
+               [0, 0, 0]])
     """
     pts = np.array(pts_in)
 
@@ -1726,28 +2030,30 @@ def lll_reduce(pts_in: ArrayLike, transform: bool = False):
 
 
 def find_new_affinely_independent_points(pts: ArrayLike) -> np.ndarray:
-    """
-    **Description:**
-    Finds new points that are affinely independent to the input list of points.
+    r"""Find new points that make a set of points full-dimensional.
 
-    This is useful when one wants to turn a polytope that is not
-    full-dimensional into one that is, without affecting the structure of the
-    triangulations.
+    If the input points affinely span a $d$-dimensional subspace of
+    $\mathbb{R}^n$, this function returns $n-d$ integer points such that the input
+    points together with the new ones affinely span all of $\mathbb{R}^n$. This is
+    useful to turn a point configuration that is not full-dimensional into one
+    that is.
 
-    **Arguments:**
-    - `pts`: A list of points.
+    Args:
+        pts (ArrayLike): The points, one per row. There must be at least one.
 
-    **Returns:**
-    A list of affinely independent points with respect to the ones inputted.
+    Returns:
+        np.ndarray: The $n-d$ new points, one per row.
 
-    **Example:**
-    We construct a list of points and then find a set of affinely independent
-    points.
-    ```python {2}
-    pts = [[1,0,1],[0,0,1],[0,1,1]]
-    find_new_affinely_independent_points(pts)
-    array([[1, 0, 2]])
-    ```
+    Raises:
+        ValueError: If the list of points is empty.
+
+    Examples:
+        We construct three points spanning a plane in 3 dimensions, and find a
+        new point off that plane.
+
+        >>> from cytools.utils import find_new_affinely_independent_points
+        >>> find_new_affinely_independent_points([[1,0,1],[0,0,1],[0,1,1]])
+        array([[1, 0, 2]])
     """
     # input checking
     if len(pts) == 0:
@@ -1796,9 +2102,41 @@ def find_new_affinely_independent_points(pts: ArrayLike) -> np.ndarray:
 # -----------------------
 # TEMPORARY
 def project_heights_to_kahler(poly, heights_in, prime_divisors=None):
-    """
-    Given an h11+5 dimensional height vector,
-    returns an h11+5 dimensional vector that corresponds to point in the kahler cone.
+    r"""Project a height vector onto the basis of divisors.
+
+    Given heights $h_0, h_1, \ldots$ for the origin and the prime toric divisors
+    $D_1, D_2, \ldots$ of the polytope, this computes the divisor class
+    $\sum_i (h_i - h_0) D_i$, written in the basis of divisors. The prime toric
+    divisors that are not in the basis are eliminated using `prime_divisors`,
+    which gives each of them as a linear combination of the basis divisors.
+
+    This is one of a few temporary helpers for converting between heights and
+    Kähler parameters. It assumes that `poly` is a four-dimensional reflexive
+    polytope whose prime toric divisors are the $h^{1,1}+4$ nonzero lattice
+    points not interior to facets (i.e. that `poly` is favorable), and it uses
+    the basis of divisors given by
+    [`Polytope.glsm_basis`][cytools.polytope.Polytope.glsm_basis].
+
+    Args:
+        poly (Polytope): The polytope.
+        heights_in (ArrayLike): The heights, a vector of length $h^{1,1}+5$ with
+            the height of the origin first, followed by those of the prime toric
+            divisors.
+        prime_divisors (ArrayLike | None): The prime toric divisors that are not
+            in the basis, in order, written as linear combinations of the basis
+            divisors, one per row. If not specified, they are read off from the
+            rays of the toric effective cone of a Calabi-Yau hypersurface obtained
+            from a triangulation of `poly`.
+
+    Returns:
+        np.ndarray: A vector of length $h^{1,1}+5$, indexed like `heights_in`,
+            whose entries at the positions of the basis divisors are the
+            coefficients of the divisor class, and whose other entries are zero.
+
+    Warning:
+        The rays of the toric effective cone are primitive, so the default
+        `prime_divisors` are only correct when the classes of the non-basis prime
+        toric divisors are primitive vectors in the basis.
     """
     basis = [i - 1 for i in poly.glsm_basis(include_origin=True)]
     if prime_divisors is None:
@@ -1827,18 +2165,60 @@ def project_heights_to_kahler(poly, heights_in, prime_divisors=None):
 
 
 def heights_to_kahler(poly, heights_in, prime_divisors=None):
-    """
-    Given an h11+5 dimensional height vector,
-    returns an h11 dimensional vector that corresponds to point in the kahler cone.
+    r"""Convert a height vector to the corresponding divisor class in the basis.
+
+    This is the same as
+    [`project_heights_to_kahler`][cytools.utils.project_heights_to_kahler], but
+    only the $h^{1,1}$ coefficients of the divisor class in the basis of divisors
+    are returned.
+
+    This is one of a few temporary helpers for converting between heights and
+    Kähler parameters. It assumes that `poly` is a four-dimensional reflexive
+    polytope whose prime toric divisors are the $h^{1,1}+4$ nonzero lattice
+    points not interior to facets (i.e. that `poly` is favorable), and it uses
+    the basis of divisors given by
+    [`Polytope.glsm_basis`][cytools.polytope.Polytope.glsm_basis].
+
+    Args:
+        poly (Polytope): The polytope.
+        heights_in (ArrayLike): The heights, a vector of length $h^{1,1}+5$ with
+            the height of the origin first, followed by those of the prime toric
+            divisors.
+        prime_divisors (ArrayLike | None): The prime toric divisors that are not
+            in the basis, written as linear combinations of the basis divisors.
+            See [`project_heights_to_kahler`][cytools.utils.project_heights_to_kahler]
+            for details.
+
+    Returns:
+        np.ndarray: The $h^{1,1}$ coefficients of the divisor class
+            $\sum_i (h_i - h_0) D_i$ in the basis of divisors.
     """
     basis = poly.glsm_basis()
     return project_heights_to_kahler(poly, heights_in, prime_divisors)[basis]
 
 
 def kahler_to_heights(poly, kahler_in):
-    """
-    Given an h11 dimensional vector hat corresponds to point in the kahler cone,
-    returns an h11+5 dimensional height vector.
+    r"""Convert a divisor class in the basis to a height vector.
+
+    The heights of the basis divisors are set to the given coefficients, and all
+    the other heights, including that of the origin, are set to zero. This is a
+    right inverse of [`heights_to_kahler`][cytools.utils.heights_to_kahler].
+
+    This is one of a few temporary helpers for converting between heights and
+    Kähler parameters. It assumes that `poly` is a four-dimensional reflexive
+    polytope whose prime toric divisors are the $h^{1,1}+4$ nonzero lattice
+    points not interior to facets (i.e. that `poly` is favorable), and it uses
+    the basis of divisors given by
+    [`Polytope.glsm_basis`][cytools.polytope.Polytope.glsm_basis].
+
+    Args:
+        poly (Polytope): The polytope.
+        kahler_in (ArrayLike): The $h^{1,1}$ coefficients of the divisor class in
+            the basis of divisors.
+
+    Returns:
+        np.ndarray: The heights, a vector of length $h^{1,1}+5$ with the height of
+            the origin first, followed by those of the prime toric divisors.
     """
     basis = list(poly.glsm_basis(include_origin=True))
     kahler_gen = iter(kahler_in)

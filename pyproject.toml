@@ -71,9 +71,15 @@ gnn = [
   "dualgnn"
 ]
 
+[dependency-groups]
+docs = [
+  "zensical",
+  "mkdocstrings-python",
+]
+
 [project.urls]
 Homepage = "https://cy.tools"
-Documentation = "https://cy.tools/docs/documentation/"
+Documentation = "https://cy.tools/documentation/"
 Repository = "https://github.com/LiamMcAllisterGroup/cytools"
 
 [tool.ruff]

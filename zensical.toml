@@ -1,0 +1,173 @@
+[project]
+site_name = "CYTools"
+site_url = "https://cy.tools/"
+site_description = "A software package for analyzing Calabi-Yau manifolds."
+site_author = "Liam McAllister Group"
+copyright = "Copyright &copy; Liam McAllister Group"
+repo_url = "https://github.com/LiamMcAllisterGroup/cytools"
+repo_name = "LiamMcAllisterGroup/cytools"
+edit_uri = "edit/main/docs/"
+docs_dir = "docs"
+site_dir = "site"
+
+nav = [
+  { "Home" = "index.md" },
+  { "Get Started" = [
+    "getting-started/index.md",
+    { "Linux/macOS" = "getting-started/linuxmacos.md" },
+    { "Windows" = "getting-started/windows.md" },
+    { "Tutorial" = "getting-started/tutorial.md" },
+    { "Advanced usage" = "getting-started/advanced.md" },
+  ] },
+  { "Documentation" = [
+    "documentation/index.md",
+    { "Polytope" = "documentation/polytope.md" },
+    { "PolytopeFace" = "documentation/polytopeface.md" },
+    { "Triangulation" = "documentation/triangulation.md" },
+    { "ToricVariety" = "documentation/toricvariety.md" },
+    { "CalabiYau" = "documentation/calabiyau.md" },
+    { "Cone" = "documentation/cone.md" },
+    { "HPolytope" = "documentation/hpolytope.md" },
+    { "VectorConfiguration and Fan" = "documentation/vector_config.md" },
+    { "NTFE enumeration" = "documentation/ntfe.md" },
+    { "F-theory and orientifolds" = "documentation/f_theory.md" },
+    { "F-theory helper functions" = "documentation/f_theory_helpers.md" },
+    { "Misc functions" = "documentation/other.md" },
+    { "Configuration" = "documentation/config.md" },
+    { "Experimental features" = "documentation/experimental.md" },
+    { "License" = "documentation/license.md" },
+  ] },
+  { "About" = "about.md" },
+]
+
+extra_css = ["stylesheets/extra.css"]
+extra_javascript = [
+  "javascripts/mathjax.js",
+  "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+]
+
+[project.theme]
+language = "en"
+logo = "img/logo.svg"
+favicon = "img/favicon.ico"
+features = [
+  "content.code.annotate",
+  "content.code.copy",
+  "content.tabs.link",
+  "content.tooltips",
+  "navigation.footer",
+  "navigation.indexes",
+  "navigation.instant",
+  "navigation.instant.prefetch",
+  "navigation.path",
+  "navigation.sections",
+  "navigation.tabs",
+  "navigation.top",
+  "navigation.tracking",
+  "search.highlight",
+  "toc.follow",
+]
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme)"
+primary = "custom"
+accent = "custom"
+toggle.icon = "lucide/sun-moon"
+toggle.name = "Switch to light mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+primary = "custom"
+accent = "custom"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+primary = "custom"
+accent = "custom"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to system preference"
+
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/LiamMcAllisterGroup/cytools"
+name = "CYTools on GitHub"
+
+[[project.extra.social]]
+icon = "lucide/globe"
+link = "https://liammcallistergroup.com"
+name = "Liam McAllister Group"
+
+[[project.extra.social]]
+icon = "lucide/mail"
+link = "mailto:support@cy.tools"
+name = "support@cy.tools"
+
+[project.markdown_extensions]
+abbr = {}
+admonition = {}
+attr_list = {}
+def_list = {}
+footnotes = {}
+md_in_html = {}
+toc.permalink = true
+pymdownx.arithmatex.generic = true
+pymdownx.betterem = {}
+pymdownx.details = {}
+pymdownx.emoji.emoji_generator = "zensical.extensions.emoji.to_svg"
+pymdownx.emoji.emoji_index = "zensical.extensions.emoji.twemoji"
+pymdownx.highlight.anchor_linenums = true
+pymdownx.highlight.line_spans = "__span"
+pymdownx.highlight.pygments_lang_class = true
+pymdownx.inlinehilite = {}
+pymdownx.keys = {}
+pymdownx.magiclink = {}
+pymdownx.superfences = {}
+pymdownx.tabbed.alternate_style = true
+pymdownx.tabbed.combine_header_slug = true
+
+[project.plugins.mkdocstrings.handlers.python]
+paths = ["src"]
+inventories = [
+  "https://docs.python.org/3/objects.inv",
+  "https://numpy.org/doc/stable/objects.inv",
+]
+
+[project.plugins.mkdocstrings.handlers.python.options]
+docstring_style = "google"
+docstring_section_style = "list"
+docstring_options = { returns_named_value = false, returns_multiple_items = false }
+filters = ["!^_"]
+heading_level = 2
+members_order = "alphabetical"
+merge_init_into_class = true
+separate_signature = true
+show_root_heading = true
+show_root_full_path = false
+show_signature_annotations = false
+show_source = true
+show_symbol_type_heading = true
+show_symbol_type_toc = true
+summary = true
+
+# Keep the URLs of the previous (Docusaurus) site working.
+[project.plugins.redirects.redirect_maps]
+"docs/getting-started/index.md" = "getting-started/index.md"
+"docs/getting-started/linuxmacos.md" = "getting-started/linuxmacos.md"
+"docs/getting-started/windows.md" = "getting-started/windows.md"
+"docs/getting-started/tutorial.md" = "getting-started/tutorial.md"
+"docs/getting-started/advanced.md" = "getting-started/advanced.md"
+"docs/documentation/index.md" = "documentation/index.md"
+"docs/documentation/polytope.md" = "documentation/polytope.md"
+"docs/documentation/polytopeface.md" = "documentation/polytopeface.md"
+"docs/documentation/triangulation.md" = "documentation/triangulation.md"
+"docs/documentation/toricvariety.md" = "documentation/toricvariety.md"
+"docs/documentation/calabiyau.md" = "documentation/calabiyau.md"
+"docs/documentation/cone.md" = "documentation/cone.md"
+"docs/documentation/other.md" = "documentation/other.md"
+"docs/documentation/config.md" = "documentation/config.md"
+"docs/documentation/experimental.md" = "documentation/experimental.md"
+"docs/documentation/license.md" = "documentation/license.md"

@@ -20,6 +20,23 @@
 #               triangulation data, and generating FRSTs from said data.
 # -----------------------------------------------------------------------------
 
+"""Expanded secondary cones and NTFE triangulations.
+
+This module implements the algorithm of
+[arXiv:2309.10855](https://arxiv.org/abs/2309.10855) for constructing
+non-two-face-equivalent (NTFE) fine, regular (star) triangulations of a
+polytope. It computes the CPL (convex piecewise-linear) inequalities that
+height vectors must satisfy to induce given fine, regular triangulations of the
+2-faces, intersects them into expanded secondary cones, and finds a height
+vector in each such cone. See [`cytools.ntfe`][cytools.ntfe] for an overview.
+
+Importing this module (which happens on `import cytools`) attaches most of
+these functions to [`Polytope`][cytools.polytope.Polytope] as methods of the
+same name, where `self` is the polytope. The exception is
+[`cone_of_permissible_heights`][cytools.ntfe.ntfe.cone_of_permissible_heights],
+which is a plain function.
+"""
+
 # 'standard' imports
 import atexit
 import collections
@@ -63,15 +80,26 @@ def _find_interior_point_highs(
     ambient_dim: int,
     c: float = 1,
 ):
-    """
-    Find a point in the strict interior of the cone $H x \\geq c$ using
-    SciPy's HiGHS solver. Faster than CYTools `Cone` methods for this case.
+    r"""Find a point $x$ satisfying $H x \geq c$ using SciPy's HiGHS solver.
 
-    **Arguments:**
-    - `hyperplanes`: The defining hyperplanes $H$. A `Cone` is also accepted,
-        in which case its hyperplanes are used.
-    - `ambient_dim`: The ambient dimension (number of columns of $H$).
-    - `c`: The 'stretching'. Default 1.
+    For $c > 0$, such a point lies in the strict interior of the cone
+    $H x \geq 0$. This is faster than the [`Cone`][cytools.cone.Cone] methods
+    for this purpose.
+
+    Args:
+        hyperplanes (ArrayLike | sp.spmatrix | Cone): The defining hyperplanes
+            $H$, one inward-facing normal per row. Dense arrays, SciPy sparse
+            matrices, `CSR_stack` objects, and [`Cone`][cytools.cone.Cone]
+            objects (whose hyperplanes are then used) are accepted.
+        ambient_dim (int): The ambient dimension (the number of columns of
+            $H$).
+        c (float): The right-hand side of the inequalities, which sets how far
+            from the walls of the cone the point must be.
+
+    Returns:
+        np.ndarray | None: A point satisfying the inequalities, or `None` if
+            none was found (e.g. if the cone is not solid). If there are no
+            hyperplanes, a vector of ones is returned.
     """
     # accept a formal Cone (e.g. from Polytope.ntfe_cones)
     if isinstance(hyperplanes, Cone):
@@ -106,7 +134,18 @@ def _find_interior_point_highs(
 # incremental feasibility for NTFE enumeration
 # --------------------------------------------
 class _IncrementalLP:
-    """Warm LP for feasibility of a stack of inequalities H x >= 1."""
+    r"""Incremental LP for the feasibility of a stack of inequalities $H x \geq 1$.
+
+    The inequalities are added and removed in blocks (one per depth of a
+    depth-first search), and the HiGHS model is kept warm between solves.
+
+    Args:
+        npts (int): The number of variables, i.e. the dimension of the space of
+            height vectors.
+
+    Raises:
+        ImportError: If the `highspy` package is not installed.
+    """
 
     def __init__(self, npts: int):
         # lazy: keeps `import cytools` working without highspy installed
@@ -126,7 +165,19 @@ class _IncrementalLP:
         self.depth_rows = []
 
     def push(self, rows: np.ndarray) -> bool:
-        """Add one face's rows; return feasibility (rolls back if not)."""
+        r"""Add a block of inequalities and check feasibility.
+
+        If the enlarged system is infeasible, the block is removed again.
+
+        Args:
+            rows (np.ndarray): The inequalities to add, as a dense 2D float
+                array with one row $r$ per inequality $r \cdot x \geq 1$. It
+                may have no rows (e.g. for a 2-face with a single
+                triangulation).
+
+        Returns:
+            bool: Whether the system with the new block is feasible.
+        """
         n = len(rows)
         if n:
             ncols = rows.shape[1]
@@ -146,7 +197,7 @@ class _IncrementalLP:
         return ok
 
     def pop(self):
-        """Remove the most recent level's rows (backtrack)."""
+        """Remove the most recently added block of inequalities (backtrack)."""
         n = self.depth_rows.pop()
         if n:
             total = self.h.getNumRow()
@@ -154,14 +205,30 @@ class _IncrementalLP:
                 n, np.arange(total - n, total, dtype=np.int32))
 
     def witness(self) -> np.ndarray:
-        """The current solve's interior point."""
+        """Return the solution of the most recent feasible solve.
+
+        Returns:
+            np.ndarray: A point satisfying all current inequalities, or a
+                vector of ones if there are none.
+        """
         if self.h.getNumRow() == 0:  # unconstrained: any point works
             return np.ones(self.npts)
         return np.array(self.h.getSolution().col_value)
 
 
 def _adjacency_order(poly):
-    """Order the 2-faces so ones sharing points are checked early."""
+    """Order the 2-faces so that ones sharing points are adjacent.
+
+    The facets are visited in a greedy walk that moves to an unvisited facet
+    sharing a 2-face with the current one whenever possible, and the 2-faces
+    of each facet are listed in turn.
+
+    Args:
+        poly (Polytope): The polytope.
+
+    Returns:
+        list[int]: A permutation of the indices of `poly.faces(2)`.
+    """
     face_pts = [set(int(v) for v in f.labels) for f in poly.faces(2)]
     facet_pts = [set(int(v) for v in f.labels) for f in poly.facets()]
     facet_faces = [[j for j, fp in enumerate(face_pts) if fp <= fl]
@@ -192,7 +259,27 @@ def _adjacency_order(poly):
 
 def _enumerate_ntfes_dfs(poly, face_ineqs, make_star, heights_only,
                          verbosity):
-    """Generate all NTFEs by DFS over the per-2-face FRT choices."""
+    """Generate all NTFEs by depth-first search over the 2-face FRT choices.
+
+    The 2-faces are visited in the order given by `_adjacency_order`, and the
+    inequalities of each choice are pushed onto an `_IncrementalLP`. Partial
+    choices that are already infeasible are pruned.
+
+    Args:
+        poly (Polytope): The polytope.
+        face_ineqs (list[list[sp.csr_matrix]]): For each 2-face (in the order
+            of `poly.faces(2)`), the inequalities of each of its FRTs, as
+            returned by [`triangface_ineqs`][cytools.ntfe.ntfe.triangface_ineqs].
+        make_star (bool): Whether to make the triangulations star.
+        heights_only (bool): Whether to yield height vectors instead of
+            triangulations.
+        verbosity (int): The verbosity level.
+
+    Yields:
+        Triangulation | np.ndarray: For each NTFE, an FR(S)T of `poly`, or a
+            height vector (indexed by point label) realizing it if
+            `heights_only` is true.
+    """
     # convert each FRT's sparse inequality block to the dense float
     # rows highspy takes, once up front (each is pushed many times)
     dense = [[np.asarray(t.toarray(), dtype=np.float64) for t in f]
@@ -250,40 +337,52 @@ if _ineq_cached is None:
 
 
 def _save_cache():
+    """Save the cache of 2-face circuit inequalities to disk."""
     misc.save_zipped_pickle(_ineq_cached, cache_path)
 
 atexit.register(_save_cache)
 
 
 def _2d_frt_cone_ineq_rows(self, verbosity: int=0) -> list:
-    """
-    (Very analogous to Triangulation.secondary_cone(on_faces_dim=2)...
-    main difference is that this treats point labels as column indices, while
-    that method treats point indices as column indices. Also, this uses 2D
-    speedups)
+    r"""Compute the CPL inequalities of a 2-face triangulation.
 
-    **Description:**
-    Compute the secondary cone for the 2-face triangulation.
+    The inequalities cut out the secondary cone of the triangulation, lifted to
+    the space of height vectors of the ambient polytope. This is analogous to
+    `Triangulation.secondary_cone(on_faces_dim=2)`, except that point labels
+    (rather than point indices) are used as column indices, and 2D speedups
+    are used.
 
-    **Overview:**
-    The hyperplane inequalities/normals are calculated by looking at each pair
-    of simplices that share an edge. For each pair, there are thus 4 relevant
-    points, p0, p1, p2, and p3. Order the points such that p0 and p1 define
-    the shared edge.
+    The inequalities are obtained by looking at each pair of triangles that
+    share an edge. For each pair, there are four relevant points
+    $p_0, p_1, p_2, p_3$, ordered so that $p_2$ and $p_3$ define the shared
+    edge. The normal of the associated inequality spans the (1-dimensional)
+    nullspace of the homogenized matrix
 
-    The associated inequalities/normals are then calculated as the (basis
-    vectors of the) null-space of the matrix
-        M = [[p0_x, p1_x, p2_x, p3_x],
-             [p0_y, p1_y, p2_y, p3_y],
-             [   1,    1,    1,    1]],
-    This matrix is the homogenization of our points. This nullspace is 1D and
-    corresponds to the normal defined by the circuit (one has to set the sign).
+    $$
+    M = \begin{pmatrix}
+    p_{0,x} & p_{1,x} & p_{2,x} & p_{3,x} \\
+    p_{0,y} & p_{1,y} & p_{2,y} & p_{3,y} \\
+    1 & 1 & 1 & 1
+    \end{pmatrix},
+    $$
 
-    **Arguments:**
-    - `verbosity`: The verbosity level.
+    i.e. it is the circuit defined by these points, with its sign chosen so
+    that the coefficients of the non-shared points $p_0, p_1$ are positive.
+    Nullspaces are cached (and saved to disk at exit), keyed by the translated
+    coordinates of the points.
 
-    **Returns:**
-    Each row is an inwards-facing hyperplane normal, as {label: coefficient}
+    This function is attached to
+    [`Triangulation`][cytools.triangulation.Triangulation] as a private method,
+    where `self` is the triangulation of the 2-face. Its points must carry the
+    labels of the ambient polytope.
+
+    Args:
+        verbosity (int): The verbosity level.
+
+    Returns:
+        list[dict[int, int]]: The inward-facing hyperplane normals, one per
+            pair of adjacent triangles, each as a `{label: coefficient}`
+            dictionary with zero coefficients omitted.
     """
     rows = []
 
@@ -350,10 +449,23 @@ def _2d_frt_cone_ineq_rows(self, verbosity: int=0) -> list:
 
 def _2d_frt_cone_ineqs(self, ambient_dim: int,
                        verbosity: int=0) -> "sp.csr_matrix":
-    """
-    The CPL inequalities of a 2-face triangulation as one CSR block, each row
-    an inwards-facing hyperplane normal. See _2d_frt_cone_ineq_rows for the
-    mathematics.
+    """Compute the CPL inequalities of a 2-face triangulation as a CSR matrix.
+
+    See `_2d_frt_cone_ineq_rows` for the mathematics.
+
+    This function is attached to
+    [`Triangulation`][cytools.triangulation.Triangulation] as a private method,
+    where `self` is the triangulation of the 2-face.
+
+    Args:
+        ambient_dim (int): The dimension of the space of height vectors (the
+            number of points of the ambient polytope), i.e. the number of
+            columns of the output.
+        verbosity (int): The verbosity level.
+
+    Returns:
+        sp.csr_matrix: The inward-facing hyperplane normals, one per row, with
+            columns indexed by point label.
     """
     return matrix.csr_dicts(_2d_frt_cone_ineq_rows(self, verbosity),
                             ambient_dim)
@@ -366,55 +478,61 @@ def _2d_s_cone_ineqs(self,
     poly,
     ambient_dim: int,
     verbosity: int=0) -> "sp.csr_matrix":
-    """
-    **Description:**
-    Compute the CPL-inequalities necessary to enforce that each simplex in each
-    2-face is a face of a star simplex in the full triangulation.
+    r"""Compute the inequalities enforcing starness on a 2-face triangulation.
 
-    Operates by iterating over each 2-simplex s and enforcing that each
-    4-simplex containing s also contains the origin o. This is done by
-    evaluating every circuit containing s+[o] and enforcing the associated
+    These are the CPL inequalities necessary to enforce that each 2-simplex
+    of the 2-face triangulation is a face of a star 4-simplex (i.e. one
+    containing the origin $o$) in the full triangulation. This is done by
+    iterating over each 2-simplex $s$ and enforcing that each 4-simplex
+    containing $s$ also contains the origin, which amounts to evaluating every
+    relevant circuit containing $s \cup \{o\}$ and imposing the associated
     constraint on the heights.
 
-    **Explanation:**
-    Think s+[o] is a 3-simplex. Possible pair of 4-simplices containing this
-    3-simplex can be made by s+[o,i] and s+[o,j] for i,j on the bdry of
-    (since we skip pts interior to facets) 2x different facets containing s.
+    In more detail, $s \cup \{o\}$ is a 3-simplex. Pairs of 4-simplices
+    containing it are of the form $s \cup \{o, i\}$ and $s \cup \{o, j\}$, with
+    $i$ and $j$ boundary points (points interior to facets are skipped) of two
+    different facets containing $s$. The set $s \cup \{o, i, j\}$ has six
+    points but only spans a 4-dimensional space, so it defines a dependency
+    $\lambda$. If both $s \cup \{o, i\}$ and $s \cup \{o, j\}$ appear in an
+    FRST $T$, then the heights are constrained by requiring $h_i$ and $h_j$ to
+    be large, i.e. $\lambda \cdot (h_s, h_o, h_i, h_j) \geq 0$. This can also be
+    thought of as a constraint that $h_o$ is sufficiently low.
 
-    The set s+[o,i,j] will have 6 elements but only be 4D, so it'll define a
-    dependency. If both s+[o,i] and s+[o,j] appear in an FRST T, then the
-    heights are constrained by enforcing that h_i and h_j are large:
-        [h_s, h_o, h_i, h_j].lambda >= 0.
-    This can also be thought of as a constraint that h_o is sufficiently low.
+    The cone of interest is that of heights which respect the 2-face
+    triangulations and define star triangulations. One can think of it as
+    either
 
-    The entire cone of interest is that of heights which respect the 2-face
-    triangulations (and define star triangulations). This can be thought of as
-        1) allow any flips that don't change 2-face structure and don't make
-           the triangulation non-star... drop these hyperplanes OR
-        2) disallow any flips which change 2-face structure or make the
-           triangulation non-star... keep these hyperplanes.
-    Since the flip defined by s+[o,i,j] makes the triangulation non-star, one
-    must enforce it if any FRST has both simplices s+[o,i] and s+[o,j]. I.e.,
-    if any FRST T exists with the imposed 2-face restrictions and with
-    simplices s+[o,i] and s+[o,j].
+    1. allowing any flips that don't change the 2-face structure and don't make
+       the triangulation non-star (dropping these hyperplanes), or
+    2. disallowing any flips which change the 2-face structure or make the
+       triangulation non-star (keeping these hyperplanes).
 
-    If the resultant cone (that respecting the 2-face+star structure) is solid,
-    then such heights exist: h+eps*lambda works for
-        -) h on the wall defined by lambda (i.e., h.lambda=0)
-        -) eps sufficiently small. 
-    If h is on a wall of codim-1, then h+eps*lambda will define T and hence the
-    hyperplane lambda must be included. If h is on a wall of higher codim, then
-    this circuit defines a flip to an irregular triangulation, but the
-    constraint h.lambda>=0 does not cut the cone.
+    Since the flip defined by $s \cup \{o, i, j\}$ makes the triangulation
+    non-star, the constraint must be imposed if any FRST $T$ with the imposed
+    2-face restrictions contains both $s \cup \{o, i\}$ and $s \cup \{o, j\}$.
+    If the resulting cone (respecting the 2-face and star structure) is solid,
+    then such heights exist: $h + \epsilon\lambda$ works for $h$ on the wall
+    defined by $\lambda$ (i.e. $h \cdot \lambda = 0$) and sufficiently small
+    $\epsilon$. If $h$ is on a wall of codimension 1, then $h + \epsilon\lambda$
+    defines $T$ and hence the hyperplane $\lambda$ must be included. If $h$ is
+    on a wall of higher codimension, then this circuit defines a flip to an
+    irregular triangulation, but the constraint $h \cdot \lambda \geq 0$ does
+    not cut the cone.
 
-    **Arguments:**
-    - `poly`: The ambient polytope.
-    - `ambient_dim`: The ambient dimension of the secondary-cone space (i.e.,
-        the number of points in the polytope).
-    - `verbosity`: The verbosity level.
+    This function is attached to
+    [`Triangulation`][cytools.triangulation.Triangulation] as a private method,
+    where `self` is the triangulation of the 2-face.
 
-    **Returns:**
-    Each row is an inwards-facing hyperplane normal enforcing starness.
+    Args:
+        poly (Polytope): The ambient polytope.
+        ambient_dim (int): The dimension of the space of height vectors (the
+            number of points of the ambient polytope), i.e. the number of
+            columns of the output.
+        verbosity (int): The verbosity level.
+
+    Returns:
+        sp.csr_matrix: The inward-facing hyperplane normals enforcing
+            starness, one per row, with columns indexed by point label.
     """
     blocks = []
     rows = []
@@ -516,27 +634,32 @@ Triangulation._2d_s_cone_ineqs = _2d_s_cone_ineqs
 
 @numba.njit(cache=True)
 def _2d_frt_subfan_search(xs, ys, grid, xmin, ymin, out):
-    """
-    **Description:**
-    Find the point-tuples generating the CPL inequalities of a 2-face. This is
-    the search half of `_2d_frt_subfan_ineq_rows`; see there for the
-    mathematics.
+    """Find the point tuples generating the CPL inequalities of a 2-face.
 
-    This is JIT-compiled because the case B) loop is O(N_pts^3) and, for the
-    largest 2-faces in the KS database, dominates the whole calculation.
+    This is the search half of `_2d_frt_subfan_ineq_rows`; see there for the
+    mathematics. It is JIT-compiled with Numba because the case B loop is
+    $O(N_{pts}^3)$ and, for the largest 2-faces in the Kreuzer-Skarke
+    database, dominates the whole calculation.
 
-    **Arguments:**
-    - `xs`, `ys`: The (optimal) coordinates of the points of the face.
-    - `grid`: A dense lookup, `grid[x-xmin,y-ymin]` being the index of that
-        point in `xs`/`ys` (or -1 if it isn't a point of the face).
-    - `xmin`, `ymin`: The offsets of `grid`.
-    - `out`: The output buffer. Row r is filled with (i,j,k,m), the indices of
-        the points involved, `k` being -1 in case A).
+    Args:
+        xs (np.ndarray): The x coordinates (in optimal coordinates) of the
+            points of the face.
+        ys (np.ndarray): The y coordinates (in optimal coordinates) of the
+            points of the face.
+        grid (np.ndarray): A dense lookup table, where `grid[x-xmin, y-ymin]`
+            is the index of the point $(x, y)$ in `xs`/`ys`, or -1 if it is not
+            a point of the face.
+        xmin (int): The x offset of `grid`.
+        ymin (int): The y offset of `grid`.
+        out (np.ndarray): The output buffer, of shape `(capacity, 4)`. Row `r`
+            is filled with the indices `(i, j, k, m)` of the points involved:
+            the vertices `i, j, k` (with `k = -1` in case A) and the interior
+            point `m`.
 
-    **Returns:**
-    The number of tuples found. This is returned even if it exceeds the
-    capacity of `out` (in which case only the leading rows were written), so
-    that the caller can resize and try again.
+    Returns:
+        int: The number of tuples found. This is returned even if it exceeds
+            the capacity of `out` (in which case only the leading rows were
+            written), so that the caller can resize the buffer and try again.
     """
     N_pts = len(xs)
     capacity = len(out)
@@ -598,46 +721,49 @@ def _2d_frt_subfan_search(xs, ys, grid, xmin, ymin, out):
 
 
 def _2d_frt_subfan_ineq_rows(self) -> list:
-    """
-    **Description:**
-    See https://arxiv.org/abs/2309.10855 for proof
+    r"""Compute the inequalities cutting out the heights giving FRTs of a 2-face.
 
-    Compute the (support of the) secondary subfan of FRTs for a 2-face.
+    These define the support of the subfan of the secondary fan of the 2-face
+    consisting of the secondary cones of its fine, regular triangulations
+    (FRTs). The interior of this cone consists of the height vectors that lead
+    to FRTs of the 2-face. See
+    [arXiv:2309.10855](https://arxiv.org/abs/2309.10855) for a proof.
 
-    This is a cone whose interior gives the height-vectors which would lead to
-    fine, regular triangulations (or, subdivisions).
+    Regularity is automatic (we are dealing with height vectors), so only
+    fineness needs to be enforced. There are two ways in which fineness can be
+    violated:
 
-    **Overview:**
-    Regularity is baked-in to this method (we're talking about height-vectors)
-    so all that we need to worry about is fine-ness. There are two cases where
-    fine-ness can be violated:
-        A) for three collinear points, p0, p1, and p2, the interior point must
-        be below the line defined by the end points.
-        B) for a simplex (S) with an interior point (p), the interior point, p,
-        must be below the plane defined by S.
+    - A) For three collinear points $p_0, p_1, p_2$, the middle point must lie
+      below the line through the end points.
+    - B) For a triangle $S$ with an interior point $p$, the point $p$ must lie
+      below the plane defined by $S$.
 
-    Computationally, these two cases can be reduced to:
-        A) for three *consecutive* collinear points, ...
-        B) for a simplex (S) with a *single* interior point and no 'extra'
-        boundary points (i.e., only boundary points are vertices)...
+    It suffices to consider
 
-    In practice, this is calculated by:
-        A) iterating over all pairs of distinct points (p0,p2) and keeping
-        those whose difference has GCD 2. Such a segment contains exactly one
-        further point, its midpoint p1, so impose 2*p1<=p0+p2
-        B) iterating over all subsets of three distinct points (p0,p1,p2) with
-        2x-area 3. This is either (N_bdry,N_int)=(3,1) or (5,0). We want the
-        (3,1) case, so check for the (5,0) case (i.e., a non-primitive edge)
-        and skip if so. Now that we have the (3,1) case, calculate the interior
-        point, p3, as the centroid and impose restriction 3*p3<=p0+p1+p2
+    - A) three *consecutive* collinear points, and
+    - B) triangles with a *single* interior point and no boundary points other
+      than their vertices.
 
-    **Arguments:**
-    - `secondary_dim`: The dimension of the secondary-cone space (i.e., the
-        number of points in the polytope)
+    In practice, these are found by
 
-    **Returns:**
-    Each row is an inwards-facing hyperplane normal... represents a CPL
-    inequality.
+    - A) iterating over all pairs of distinct points $(p_0, p_2)$ and keeping
+      those whose difference has GCD 2. Such a segment contains exactly one
+      further lattice point, its midpoint $p_1$, so we impose
+      $2 h_{p_1} < h_{p_0} + h_{p_2}$.
+    - B) iterating over all triples of distinct points $(p_0, p_1, p_2)$ with
+      twice the area equal to 3. By Pick's theorem, such a triangle has either
+      3 boundary points and 1 interior point, or 5 boundary points and no
+      interior points. The latter case (which has a non-primitive edge) is
+      skipped. In the former case, the interior point $p_3$ is the centroid,
+      and we impose $3 h_{p_3} < h_{p_0} + h_{p_1} + h_{p_2}$.
+
+    This function is attached to
+    [`PolytopeFace`][cytools.polytopeface.PolytopeFace] as a private method,
+    where `self` is the 2-face.
+
+    Returns:
+        list[dict[int, int]]: The inward-facing hyperplane normals, each as a
+            `{label: coefficient}` dictionary.
     """
     pts = np.asarray(self.points(optimal=True), dtype=np.int64)
     N_pts = len(pts)
@@ -691,34 +817,65 @@ def cone_of_permissible_heights(
     as_cone: bool = True,
     verbosity: int = 0,
 ) -> "sp.csr_matrix | Cone":
-    """
-    **Description:**
-    For an input set of 2-face triangulations, generate the cone whose strict
-    interior gives height vectors leading to the corresponding FRTs of its
-    2-faces.
+    """Return the cone of heights inducing given 2-face triangulations.
 
-    This is akin to the 'expanded secondary cone' except we allow enforcing a
-    subset of 2-faces. I.e., leaving some 2-faces free. This is why the more
-    generic function name is used.
+    Given triangulations of (some of) the 2-faces of a polytope, construct the
+    cone whose strict interior consists of the height vectors whose induced
+    regular subdivision restricts to the given triangulation on each of these
+    2-faces. The height vectors have one entry per lattice point of the
+    polytope, indexed by point label.
 
-    **Arguments:**
-    - `triangs` The triangulation(s) for the specified 2-face(s).
-    - `npts`: The number of points in the 4D polytope. Defines the ambient
-        dimension of the cone.
-    - `poly`: The ambient polyope. Used only if require_star=True.
-    - `require_star`: Whether to calculate the extra hyperplanes which enforce
-        starness of the resultant triangulation. Usually NOT RECOMMENDED, as
-        triangulations can be modified to become star simply by lowering the
-        height of the origin. Only recommended if the cone (or related ones,
-        like the Kahler cone/Kcup) are of independent interest.
-    - `dense`: Whether to use dense hyperplanes.
-    - `big_ints`: Whether to use 64bit integers.
-    - `as_cone`: Whether to return a formal Cone object.
-    - `verbosity`: The verbosity level.
+    This is akin to the expanded secondary cone (see
+    [`ntfe_cones`][cytools.ntfe.ntfe.ntfe_cones]), except that some 2-faces
+    may be left free, which is why the more generic name is used. Duplicate
+    inequalities are removed.
 
-    **Returns:**
-    The expanded secondary cone, either as hyperplanes or as a formal Cone
-    object.
+    Args:
+        triangs (list[Triangulation | None]): The triangulations of the
+            2-faces to enforce, with points labelled as in the ambient
+            polytope (e.g. as returned by
+            [`face_triangs`][cytools.ntfe.face_triangulations.face_triangs]).
+            `None` entries are skipped, leaving the corresponding 2-face free.
+        npts (int): The number of lattice points of the polytope. This is the
+            ambient dimension of the cone.
+        poly (Polytope | None): The ambient polytope. Only used, and then
+            required, if `require_star` is true.
+        require_star (bool): Whether to also include the inequalities enforcing
+            starness of the resulting triangulation. This is usually not
+            recommended, as triangulations can be made star simply by lowering
+            the height of the origin. It is only recommended if the cone (or
+            related ones, like the Kahler cone) is of independent interest.
+        dense (bool): Whether to return the hyperplanes as a dense array
+            instead of a sparse matrix. Only used if `as_cone` is false.
+        big_ints (bool): Whether to convert dense hyperplanes to the default
+            (64-bit) integer type instead of the 16-bit type used internally.
+            Only used if `dense` is true and `as_cone` is false.
+        as_cone (bool): Whether to return a [`Cone`][cytools.cone.Cone] object
+            instead of its hyperplanes.
+        verbosity (int): The verbosity level.
+
+    Returns:
+        Cone | sp.csr_matrix | np.ndarray: The cone, or its inward-facing
+            hyperplane normals (one per row) as a sparse matrix or, if `dense`
+            is true, as a dense array.
+
+    Raises:
+        ValueError: If `require_star` is true but `poly` is not specified.
+
+    Examples:
+        We construct the cone of heights that induce the first FRT of each
+        2-face, and check that it is solid.
+
+        >>> from cytools import Polytope
+        >>> from cytools.ntfe import cone_of_permissible_heights
+        >>> p = Polytope([[1,-1,-2,1],[1,-1,0,-1],[-1,0,1,1],[-1,2,1,-1],[1,0,0,0],
+        ...               [-1,0,0,0],[0,0,0,1],[0,0,1,0],[0,1,0,0],[0,1,1,-1]])
+        >>> triangs = [ft[0] for ft in p.face_triangs()]
+        >>> c = cone_of_permissible_heights(triangs, len(p.labels))
+        >>> print(c)
+        A rational polyhedral cone in RR^13 defined by 6 hyperplanes
+        >>> c.is_solid()
+        True
     """
     if require_star and (poly is None):
         raise ValueError("If `require_star=True`, then `poly` must be specified")
@@ -771,28 +928,40 @@ def cone_of_permissible_heights(
 def expanded_secondary_fan(
     self, dense: bool = False, big_ints: bool = False, as_cone: bool = True
 ) -> "sp.csr_matrix | Cone":
-    """
-    **Description:**
-    See https://arxiv.org/abs/2309.10855
+    """Return the support of the expanded secondary fan.
 
-    Generate the hyperplanes defining the (support of the)
-    'expanded-secondary' subfan.
+    This is the cone of all height vectors that induce fine, regular
+    triangulations (FRTs) of every 2-face of the polytope (emphasis on fine).
+    Equivalently, it is the union of all expanded secondary cones (see
+    [`ntfe_cones`][cytools.ntfe.ntfe.ntfe_cones]). It is called the
+    "expanded" (rather than "plain") secondary fan because only 2-face
+    information is used. The height vectors have one entry per lattice point
+    of the polytope, indexed by point label. See
+    [arXiv:2309.10855](https://arxiv.org/abs/2309.10855) for details.
 
-    That is, the cone of all height vectors which define FRTs of the 2-faces
-    (emphasis on fine). Equivalently, the union of all (expanded) secondary
-    cones.
+    This function is attached to [`Polytope`][cytools.polytope.Polytope] as the
+    method `expanded_secondary_fan`, where `self` is the polytope.
 
-    This is the 'expanded' (not 'plain') secondary fan because only 2-face
-    information is used.
+    Args:
+        dense (bool): Whether to return the hyperplanes as a dense array
+            instead of a sparse matrix. Only used if `as_cone` is false.
+        big_ints (bool): Whether to convert dense hyperplanes to the default
+            (64-bit) integer type instead of the 16-bit type used internally.
+            Only used if `dense` is true and `as_cone` is false.
+        as_cone (bool): Whether to return a [`Cone`][cytools.cone.Cone] object
+            instead of its hyperplanes.
 
-    **Arguments:**
-    - `dense`: Whether to use dense hyperplanes.
-    - `big_ints`: Whether to use 64bit integers.
-    - `as_cone`: Whether to return a formal Cone object.
+    Returns:
+        Cone | sp.csr_matrix | np.ndarray: The support of the expanded
+            secondary fan, or its inward-facing hyperplane normals (one per
+            row) as a sparse matrix or, if `dense` is true, as a dense array.
 
-    **Returns:**
-    The expanded secondary subfan, either as hyperplanes or as a formal Cone
-    object.
+    Examples:
+        >>> from cytools import Polytope
+        >>> p = Polytope([[1,-1,-2,1],[1,-1,0,-1],[-1,0,1,1],[-1,2,1,-1],[1,0,0,0],
+        ...               [-1,0,0,0],[0,0,0,1],[0,0,1,0],[0,1,0,0],[0,1,1,-1]])
+        >>> print(p.expanded_secondary_fan())
+        A rational polyhedral cone in RR^13 defined by 7 hyperplanes
     """
     ambient_dim = len(self.labels)
 
@@ -825,27 +994,45 @@ def triangfaces_to_frt(
     check_heights: bool = False,
     verbosity: int = 0,
 ) -> Triangulation:
-    """
-    **Description:**
-    See https://arxiv.org/abs/2309.10855
+    """Construct an FR(S)T that restricts to the given 2-face triangulations.
 
-    Given a list of 2-face triangulations, construct an FR(S)T that reduces to
-    said triangulations.
+    A height vector in the strict interior of the cone given by
+    [`cone_of_permissible_heights`][cytools.ntfe.ntfe.cone_of_permissible_heights]
+    is found, and the polytope is triangulated with it (without points
+    interior to facets). Some 2-faces can be left free by setting the
+    corresponding entries of `triangs` to `None`, or by omitting them. See
+    [arXiv:2309.10855](https://arxiv.org/abs/2309.10855) for details.
 
-    You can decide to not specify some of the 2-face triangulations. For this,
-    just leave the associated element in triangs as None or just skip them.
+    This function is attached to [`Polytope`][cytools.polytope.Polytope] as the
+    method `triangfaces_to_frt`, where `self` is the polytope.
 
-    (basically just a wrapper for cone_of_permissible_heights)
+    Args:
+        triangs (list[Triangulation | None]): The 2-face triangulations, with
+            points labelled as in the polytope (e.g. as returned by
+            [`face_triangs`][cytools.ntfe.face_triangulations.face_triangs]).
+            `None` entries leave the corresponding 2-face free.
+        make_star (bool): Whether to make the triangulation star, turning the
+            FRT into an FRST.
+        check_heights (bool): Whether to check that the heights uniquely define
+            the triangulation (see
+            [`check_heights`][cytools.triangulation.Triangulation.check_heights]).
+        verbosity (int): The verbosity level. Currently unused.
 
-    **Arguments:**
-    - `triangs`: The 2-face triangulations. Elements can be None, in which
-        case said 2-face is free.
-    - `make_star`: Whether to convert the FRT to an FRST (i.e., make it star).
-    - `check_heights`: Whether to check the heights used in the Triangulation.
-    - `verbosity: Verbosity level. Higher means more verbose.
+    Returns:
+        Triangulation | None: An FR(S)T that restricts to the specified 2-face
+            triangulations, or `None` if no such triangulation was found (i.e.
+            if the cone of permissible heights is not solid).
 
-    **Returns:**
-    The FR(S)T obeying the specified 2-face triangulations.
+    Examples:
+        We construct an FRT that restricts to the first FRT of each 2-face.
+
+        >>> from cytools import Polytope
+        >>> p = Polytope([[1,-1,-2,1],[1,-1,0,-1],[-1,0,1,1],[-1,2,1,-1],[1,0,0,0],
+        ...               [-1,0,0,0],[0,0,0,1],[0,0,1,0],[0,1,0,0],[0,1,1,-1]])
+        >>> triangs = [ft[0] for ft in p.face_triangs()]
+        >>> t = p.triangfaces_to_frt(triangs)
+        >>> t.is_fine(), t.is_regular(), t.is_star()
+        (True, True, False)
     """
     npts = len(self.labels)
 
@@ -876,26 +1063,40 @@ def triangfaces_to_frst(
     check_heights: bool = False,
     verbosity: int = 0,
 ) -> Triangulation:
-    """
-    **Description:**
-    See https://arxiv.org/abs/2309.10855
+    """Construct an FRST that restricts to the given 2-face triangulations.
 
-    Given a list of 2-face triangulations, construct an FRST that reduces to
-    said triangulations.
+    This is [`triangfaces_to_frt`][cytools.ntfe.ntfe.triangfaces_to_frt] with
+    `make_star=True`. Some 2-faces can be left free by setting the
+    corresponding entries of `triangs` to `None`, or by omitting them. See
+    [arXiv:2309.10855](https://arxiv.org/abs/2309.10855) for details.
 
-    You can decide to not specify some of the 2-face triangulations. For this,
-    just leave the associated element in triangs as None or just skip them.
+    This function is attached to [`Polytope`][cytools.polytope.Polytope] as the
+    method `triangfaces_to_frst`, where `self` is the polytope.
 
-    (just a wrapper for triangfaces_to_frt)
+    Args:
+        triangs (list[Triangulation | None]): The 2-face triangulations, with
+            points labelled as in the polytope (e.g. as returned by
+            [`face_triangs`][cytools.ntfe.face_triangulations.face_triangs]).
+            `None` entries leave the corresponding 2-face free.
+        check_heights (bool): Whether to check that the heights uniquely define
+            the triangulation (see
+            [`check_heights`][cytools.triangulation.Triangulation.check_heights]).
+        verbosity (int): The verbosity level. Currently unused.
 
-    **Arguments:**
-    - `triangs`: The 2-face triangulations. Elements can be None, in which
-        case said 2-face is free.
-    - `check_heights`: Whether to check the heights used in the Triangulation.
-    - `verbosity: Verbosity level. Higher means more verbose.
+    Returns:
+        Triangulation | None: An FRST that restricts to the specified 2-face
+            triangulations, or `None` if no such triangulation was found.
 
-    **Returns:**
-    The FRST obeying the specified 2-face triangulations.
+    Examples:
+        We construct an FRST that restricts to the first FRT of each 2-face.
+
+        >>> from cytools import Polytope
+        >>> p = Polytope([[1,-1,-2,1],[1,-1,0,-1],[-1,0,1,1],[-1,2,1,-1],[1,0,0,0],
+        ...               [-1,0,0,0],[0,0,0,1],[0,0,1,0],[0,1,0,0],[0,1,1,-1]])
+        >>> triangs = [ft[0] for ft in p.face_triangs()]
+        >>> t = p.triangfaces_to_frst(triangs)
+        >>> t.is_fine(), t.is_regular(), t.is_star()
+        (True, True, True)
     """
     return self.triangfaces_to_frt(
         triangs=triangs,
@@ -920,31 +1121,55 @@ def triangface_ineqs(
     return_triangs: bool = False,
     verbosity: int = 0,
 ) -> "[[sp.csr_matrix]]":
-    """
-    **Description:**
-    Calculate the 2-face FRTs and their associated inequalities for this
-    polytope.
+    """Compute the FRTs of the 2-faces and their CPL inequalities.
 
-    **Arguments:**
-    - `face_triangs`: The FRTs of the 2-faces. Automatically calculated if not
-        provided.
-    - `require_star`: Whether to calculate the inequalities to ensure starness.
-    - `max_npts`: The maximum number of points of 2-faces for which we try to
-        enumerate all FRTs (if face_triangs=None). For 2-faces with more
-        points, we only look to sample FRTs.
-    - `N_face_triangs`: For each face with |points|>max_npts, look to sample
-        only #N_face_triangs FRTs (if face_triangs=None).
-    - `triang_method`: For each face with |points|>max_npts, sample FRTs using
-        the specified method (if face_triangs=None). Allowed options are
-        listed in Polytope.face_triangs. Currently, they are "fast", "fair",
-        "grow2d", and "dualgnn".
-    - `return_triangs`: Whether to return the 2-face triangulation objects in
-        addition to the inequalities. Only relevant if face_triangs=None.
-    - `verbosity: Verbosity level. Higher means more verbose.
+    For each FRT of each 2-face, this computes the inequalities cutting out
+    its secondary cone, lifted to the space of height vectors of the polytope
+    (one entry per lattice point, indexed by point label). These are the
+    building blocks of the expanded secondary cones (see
+    [`ntfe_hypers`][cytools.ntfe.ntfe.ntfe_hypers]).
 
-    **Returns:**
-    List of faces. For each face, a list of (the hyperplanes of) each
-    expanded-secondary cone.
+    This function is attached to [`Polytope`][cytools.polytope.Polytope] as the
+    method `triangface_ineqs`, where `self` is the polytope.
+
+    Args:
+        face_triangs (list[list[Triangulation]] | None): The FRTs of each
+            2-face, as returned by
+            [`face_triangs`][cytools.ntfe.face_triangulations.face_triangs].
+            If not specified, they are computed.
+        require_star (bool): Whether to also include the inequalities enforcing
+            starness. This is not recommended unless such cones are of direct
+            interest. If one only cares about NTFE FRSTs, it is more efficient
+            to enforce starness when constructing the triangulation, by
+            lowering the height of the origin (i.e. with `make_star=True`).
+        max_npts (int): The maximum number of lattice points of a 2-face for
+            which all FRTs are enumerated (if `face_triangs` is not
+            specified). For 2-faces with more points, FRTs are only sampled.
+        N_face_triangs (int): The maximum number of FRTs to sample for each
+            2-face with more than `max_npts` points (if `face_triangs` is not
+            specified).
+        triang_method (str): The method used to sample FRTs of 2-faces with
+            more than `max_npts` points (if `face_triangs` is not specified).
+            The options are `"fast"`, `"fair"`, `"grow2d"`, and `"dualgnn"`;
+            see [`face_triangs`][cytools.ntfe.face_triangulations.face_triangs].
+        return_triangs (bool): Whether to also return the 2-face
+            triangulations.
+        verbosity (int): The verbosity level.
+
+    Returns:
+        list | tuple: For each 2-face (in the order of `self.faces(2)`), a
+            list with the inequalities of each of its FRTs, each as a sparse
+            matrix with one inward-facing normal per row. If `return_triangs`
+            is true, a tuple of this list and the 2-face triangulations is
+            returned instead.
+
+    Examples:
+        >>> from cytools import Polytope
+        >>> p = Polytope([[1,-1,-2,1],[1,-1,0,-1],[-1,0,1,1],[-1,2,1,-1],[1,0,0,0],
+        ...               [-1,0,0,0],[0,0,0,1],[0,0,1,0],[0,1,0,0],[0,1,1,-1]])
+        >>> ineqs = p.triangface_ineqs()
+        >>> [len(f) for f in ineqs]  # number of FRTs of each 2-face
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 3, 2, 2, 1, 1]
     """
     npts = len(self.labels)
 
@@ -1001,47 +1226,77 @@ def ntfe_hypers(
     separate_boring: bool = True,
     verbosity: int = 0,
 ) -> Union[Generator["matrix.CSR_stack", None, None], list["matrix.CSR_stack"]]:
-    """
-    **Description:**
-    See https://arxiv.org/abs/2309.10855
+    """Return the hyperplanes of (some of) the expanded secondary cones.
 
-    Generate the hyperplane normals defining each expanded secondary cone of
-    this polytope (i.e., each NTFE). Subsampling is allowed.
+    Each choice of one FRT per 2-face defines an expanded secondary cone: the
+    intersection of the (lifted) secondary cones of the chosen 2-face FRTs,
+    i.e. the set of height vectors inducing all of them. The choices whose
+    cone is solid are exactly the NTFEs. This function returns the
+    inequalities of these cones, either for all choices or for a random
+    sample of `N` distinct choices. The cones are not checked for solidity.
+    See [arXiv:2309.10855](https://arxiv.org/abs/2309.10855) for details.
 
-    **Arguments:**
-    - `require_star`: Whether to also generate the hyperplane inequalities
-        enforcing star-ness. Not recommended unless such cones are of direct
-        interest. If one only cares about NTFE FRSTs, it's more efficient to
-        just enforce starness when making the triangulation by lowering the
-        height of the origin, using Triangulation(..., make_star=True, ...).
-    - `N`: The number of expanded secondary cones (i.e., of NTFEs) to generate.
-        If not set, then *all* expanded secondary cones are generated.
-    - `seed`: If only generating a subset of the expanded secondary cones, use
-        this as the random seed for selecting the subset. If not provided, the
-        current time is used.
-    - `face_ineqs`: The cpl-inequalities associate to each 2-face
-        triangulation. Automatically calculated if not provided.
-    - `face_triangs`: The 2-face triangulation objects. Used if
-        face_ineqs=None. Automatically calculated if not provided.
-    - `max_npts`: The maximum number of points of 2-faces for which we try to
-        enumerate all FRTs (if face_triangs=None). For 2-faces with more
-        points, we only look to sample FRTs.
-    - `N_face_triangs`: For each face with |points|>max_npts, look to sample
-        only #N_face_triangs FRTs (if face_triangs=None).
-    - `triang_method`: For each face with |points|>max_npts, sample FRTs using
-        the specified method (if face_triangs=None). Allowed options are
-        listed in Polytope.face_triangs. Currently, they are "fast", "fair",
-        "grow2d", and "dualgnn".
-    - `as_generator`: Whether to return a generator which iterates over (the
-        hyperplanes of) expanded secondary cones. If False, then a list of all
-        such cones is returned. Use generators if memory is a concern.
-    - `separate_boring`: Whether, when iterating over NTFEs, to group the
-        inequalities associated to each 2-face with only 1 FRT. Only changes
-        the ordering of outputs (may have effects on random sampling).
-    - `verbosity: Verbosity level. Higher means more verbose.
+    This function is attached to [`Polytope`][cytools.polytope.Polytope] as the
+    method `ntfe_hypers`, where `self` is the polytope.
 
-    **Returns:**
-    The (hyperplanes of the) expanded secondary cones.
+    Args:
+        require_star (bool): Whether to also include the inequalities enforcing
+            starness. This is not recommended unless such cones are of direct
+            interest. If one only cares about NTFE FRSTs, it is more efficient
+            to enforce starness when constructing the triangulation, by
+            lowering the height of the origin (i.e. with `make_star=True`).
+        N (int | None): The number of distinct choices of 2-face FRTs (i.e.
+            of candidate NTFEs) to sample uniformly at random. If not
+            specified, or if it is at least the total number of choices, all
+            choices are used.
+        seed (int | None): The random seed used when sampling. If not
+            specified, it is derived from the current time. NumPy's global
+            random state is not affected.
+        face_ineqs (list[list[sp.csr_matrix]] | None): The CPL inequalities of
+            each FRT of each 2-face, as returned by
+            [`triangface_ineqs`][cytools.ntfe.ntfe.triangface_ineqs]. If not
+            specified, they are computed.
+        face_triangs (list[list[Triangulation]] | None): The FRTs of each
+            2-face, as returned by
+            [`face_triangs`][cytools.ntfe.face_triangulations.face_triangs].
+            Only used if `face_ineqs` is not specified. If not specified, they
+            are computed.
+        max_npts (int): The maximum number of lattice points of a 2-face for
+            which all FRTs are enumerated (if `face_triangs` is not
+            specified). For 2-faces with more points, FRTs are only sampled.
+        N_face_triangs (int): The maximum number of FRTs to sample for each
+            2-face with more than `max_npts` points (if `face_triangs` is not
+            specified).
+        triang_method (str): The method used to sample FRTs of 2-faces with
+            more than `max_npts` points (if `face_triangs` is not specified).
+            The options are `"fast"`, `"fair"`, `"grow2d"`, and `"dualgnn"`;
+            see [`face_triangs`][cytools.ntfe.face_triangulations.face_triangs].
+        as_generator (bool): Whether to return a generator instead of a list.
+            Use this if memory is a concern.
+        separate_boring (bool): Whether to merge the inequalities of all
+            2-faces with a single FRT into one block. This only changes the
+            internal ordering of the 2-faces, and hence the order of the
+            outputs and which cones are picked when sampling.
+        verbosity (int): The verbosity level.
+
+    Returns:
+        list[CSR_stack] | Generator[CSR_stack, None, None]: The hyperplanes of
+            each expanded secondary cone, as `CSR_stack` objects (from
+            `cytools.helpers.matrix`) with one inward-facing normal per row
+            and one column per lattice point of the polytope.
+
+    Examples:
+        We compute the hyperplanes of the expanded secondary cones of a
+        polytope whose 2-faces have 36 combinations of FRTs.
+
+        >>> from cytools import Polytope
+        >>> p = Polytope([[1,-1,-2,1],[1,-1,0,-1],[-1,0,1,1],[-1,2,1,-1],[1,0,0,0],
+        ...               [-1,0,0,0],[0,0,0,1],[0,0,1,0],[0,1,0,0],[0,1,1,-1]])
+        >>> hypers = p.ntfe_hypers()
+        >>> len(hypers)
+        36
+        >>> hypers[0]
+        CSR_stack(shape=(11, 13))
     """
     # grab the cpl-cone inequalities
     if face_ineqs is None:
@@ -1169,49 +1424,74 @@ def ntfe_cones(
     separate_boring: bool = True,
     verbosity=0,
 ) -> Union[Generator[Cone, None, None], list[Cone]]:
-    """
-    **Description:**
-    See/cite https://arxiv.org/abs/2309.10855
+    """Return (some of) the expanded secondary cones of the polytope.
 
-    Generate (some of) the expanded-secondary cones for this polytope.
+    Each choice of one FRT per 2-face defines an expanded secondary cone (see
+    [`ntfe_hypers`][cytools.ntfe.ntfe.ntfe_hypers]). The cones are not
+    checked for solidity; the solid ones correspond to the NTFEs. See
+    [arXiv:2309.10855](https://arxiv.org/abs/2309.10855) for details.
 
-    **Arguments:**
-    - `hypers`: The hyperplanes defining the cones. If no hyperplanes are
-        input, these are automatically calculated.
-    - `require_star`: Whether to also generate the hyperplane inequalities
-        enforcing star-ness. Not recommended unless such cones are of direct
-        interest. If one only cares about NTFE FRSTs, it's more efficient to
-        just enforce starness when making the triangulation by lowering the
-        height of the origin, using Triangulation(..., make_star=True, ...).
-    - `N`: The number of expanded secondary cones (i.e., of NTFEs) to generate.
-        If not set, then *all* expanded secondary cones are generated.
-    - `seed`: If only generating a subset of the expanded secondary cones, use
-        this as the random seed for selecting the subset. If not provided, it
-        is initialized either as the system time or using hardware-based
-        random sources.
-    - `face_ineqs`: The cpl-inequalities associate to each 2-face
-        triangulation. Automatically calculated if not provided.
-    - `face_triangs`: The 2-face triangulation objects. Used if
-        face_ineqs=None. Automatically calculated if not provided.
-    - `max_npts`: The maximum number of points of 2-faces for which we try to
-        enumerate all FRTs (if face_triangs=None). For 2-faces with more
-        points, we only look to sample FRTs.
-    - `N_face_triangs`: For each face with |points|>max_npts, look to sample
-        only #N_face_triangs FRTs (if face_triangs=None).
-    - `triang_method`: For each face with |points|>max_npts, sample FRTs using
-        the specified method (if face_triangs=None). Allowed options are
-        listed in Polytope.face_triangs. Currently, they are "fast", "fair",
-        "grow2d", and "dualgnn".
-    - `as_generator`: Whether to return a generator which iterates over (the
-        hyperplanes of) expanded secondary cones. If False, then a list of all
-        such cones is returned. Use generators if memory is a concern.
-    - `separate_boring`: Whether, when iterating over NTFEs, to group the
-        inequalities associated to each 2-face with only 1 FRT. Only changes
-        the ordering of outputs (may have effects on random sampling).
-    - `verbosity: Verbosity level. Higher means more verbose.
+    This function is attached to [`Polytope`][cytools.polytope.Polytope] as the
+    method `ntfe_cones`, where `self` is the polytope.
 
-    **Returns:**
-    The expanded-secondary cones.
+    Args:
+        hypers (list[ArrayLike] | None): The hyperplanes defining the cones,
+            e.g. as returned by [`ntfe_hypers`][cytools.ntfe.ntfe.ntfe_hypers].
+            If not specified, they are computed with `ntfe_hypers`.
+        require_star (bool): Whether to also include the inequalities enforcing
+            starness. This is not recommended unless such cones are of direct
+            interest. If one only cares about NTFE FRSTs, it is more efficient
+            to enforce starness when constructing the triangulation, by
+            lowering the height of the origin (i.e. with `make_star=True`).
+        N (int | None): The number of cones to return. If `hypers` is not
+            specified, this many distinct choices of 2-face FRTs are sampled
+            by `ntfe_hypers`. Otherwise, `N` of the given hyperplanes are
+            picked at random (this is ignored if `as_generator` is true). If
+            not specified, all cones are returned.
+        seed (int | None): The random seed used when sampling. If not
+            specified, Python's default seeding (from system randomness or the
+            current time) is used. Note that this reseeds Python's global
+            `random` module.
+        face_ineqs (list[list[sp.csr_matrix]] | None): The CPL inequalities of
+            each FRT of each 2-face, as returned by
+            [`triangface_ineqs`][cytools.ntfe.ntfe.triangface_ineqs]. If not
+            specified, they are computed.
+        face_triangs (list[list[Triangulation]] | None): The FRTs of each
+            2-face, as returned by
+            [`face_triangs`][cytools.ntfe.face_triangulations.face_triangs].
+            Only used if `face_ineqs` is not specified. If not specified, they
+            are computed.
+        max_npts (int): The maximum number of lattice points of a 2-face for
+            which all FRTs are enumerated (if `face_triangs` is not
+            specified). For 2-faces with more points, FRTs are only sampled.
+        N_face_triangs (int): The maximum number of FRTs to sample for each
+            2-face with more than `max_npts` points (if `face_triangs` is not
+            specified).
+        triang_method (str): The method used to sample FRTs of 2-faces with
+            more than `max_npts` points (if `face_triangs` is not specified).
+            The options are `"fast"`, `"fair"`, `"grow2d"`, and `"dualgnn"`;
+            see [`face_triangs`][cytools.ntfe.face_triangulations.face_triangs].
+        as_generator (bool): Whether to return a generator instead of a list.
+            Use this if memory is a concern.
+        separate_boring (bool): Currently not passed on to `ntfe_hypers`, so
+            it has no effect.
+        verbosity (int): The verbosity level.
+
+    Returns:
+        list[Cone] | Generator[Cone, None, None]: The expanded secondary cones.
+
+    Examples:
+        We compute the expanded secondary cones of a polytope and count how
+        many of them are solid, i.e. how many NTFEs there are.
+
+        >>> from cytools import Polytope
+        >>> p = Polytope([[1,-1,-2,1],[1,-1,0,-1],[-1,0,1,1],[-1,2,1,-1],[1,0,0,0],
+        ...               [-1,0,0,0],[0,0,0,1],[0,0,1,0],[0,1,0,0],[0,1,1,-1]])
+        >>> cones = p.ntfe_cones()
+        >>> len(cones)
+        36
+        >>> sum(c.is_solid() for c in cones)
+        30
     """
     # random seed stuff
     random.seed(seed)
@@ -1328,58 +1608,96 @@ def ntfe_frts(
     heights_only: bool = False,
     verbosity: int = 0,
 ):
-    """
-    **Description:**
-    See https://arxiv.org/abs/2309.10855
+    """Return (some of) the NTFE FR(S)Ts of the polytope.
 
-    Generate (some of) the NTFE FR(S)Ts for this polytope.
+    For each non-two-face-equivalent (NTFE) class, i.e. each solid expanded
+    secondary cone, a height vector in its strict interior is found with an LP
+    solver and used to construct a fine, regular (star) triangulation. See
+    [arXiv:2309.10855](https://arxiv.org/abs/2309.10855) for details.
 
-    If `heights_only=True`, skip building Triangulation objects and just
-    return the height vectors realising each NTFE. Much faster when you
-    only need to count or post-process the heights.
+    If none of `N`, `cones`, and `hypers` is specified, all NTFEs are
+    enumerated by a depth-first search over the choices of 2-face FRTs, which
+    prunes partial choices that are already infeasible using an incremental
+    LP. This is much faster than checking every combination of 2-face FRTs,
+    with identical results. Otherwise, the given (or sampled) cones are
+    checked one by one, and the non-solid ones are skipped, so fewer than `N`
+    triangulations may be returned.
 
-    **Arguments:**
-    - `cones`: The expanded secondary cones corresponding to the NTFEs. If no
-        cones are input, these are automatically calculated.
-    - `hypers`: The hyperplanes defining the expanded secondary cones. Only
-        used if cones=None. If no hyperplanes are input, these are
-        automatically calculated.
-    - `make_star`: Whether to convert the NTFE FRTs into FRSTs (i.e., to make
-        them star).
-    - `N`: The number of expanded secondary cones (i.e., of NTFEs) to generate.
-        If not set, then *all* expanded secondary cones are generated (by
-        depth-first search over the 2-face FRT choices, pruning infeasible
-        prefixes on a warm incremental LP -- much faster than checking
-        every combination in the product of choices, with identical
-        results).
-    - `seed`: If only generating a subset of the expanded secondary cones, use
-        this as the random seed for selecting the subset. If not provided, it
-        is initialized either as the system time or using hardware-based
-        random sources.
-    - `face_ineqs`: The cpl-inequalities associate to each 2-face
-        triangulation. Automatically calculated if not provided.
-    - `face_triangs`: The 2-face triangulation objects. Used if
-        face_ineqs=None. Automatically calculated if not provided.
-    - `max_npts`: The maximum number of points of 2-faces for which we try to
-        enumerate all FRTs (if face_triangs=None). For 2-faces with more
-        points, we only look to sample FRTs.
-    - `N_face_triangs`: For each face with |points|>max_npts, look to sample
-        only #N_face_triangs FRTs (if face_triangs=None).
-    - `triang_method`: For each face with |points|>max_npts, sample FRTs using
-        the specified method (if face_triangs=None). Allowed options are
-        listed in Polytope.face_triangs. Currently, they are "fast", "fair",
-        "grow2d", and "dualgnn".
-    - `as_generator`: Whether to return a generator which iterates over (the
-        hyperplanes of) expanded secondary cones. If False, then a list of all
-        such cones is returned. Use generators if memory is a concern.
-    - `n_jobs`: The number of parallel workers used to find a height vector in
-        each cone. Defaults to 1 (sequential); -1 uses all cores. Only worth
-        raising when there are many cones, as each worker pays pickling
-        overhead.
-    - `verbosity`: Verbosity level. Higher means more verbose.
+    If `heights_only` is true, no [`Triangulation`][cytools.triangulation.Triangulation]
+    objects are constructed and the height vectors realizing each NTFE are
+    returned instead. This is much faster when one only needs to count the
+    NTFEs or post-process the heights.
 
-    **Returns:**
-    The FRTs
+    This function is attached to [`Polytope`][cytools.polytope.Polytope] as the
+    method `ntfe_frts`, where `self` is the polytope.
+
+    Args:
+        cones (list[Cone] | None): The expanded secondary cones to use, e.g.
+            as returned by [`ntfe_cones`][cytools.ntfe.ntfe.ntfe_cones]. If
+            neither `cones` nor `hypers` is specified, the cones are computed.
+        hypers (list[ArrayLike] | None): The hyperplanes defining the expanded
+            secondary cones to use, e.g. as returned by
+            [`ntfe_hypers`][cytools.ntfe.ntfe.ntfe_hypers]. Takes precedence
+            over `cones`.
+        make_star (bool): Whether to make the triangulations star, turning the
+            FRTs into FRSTs.
+        N (int | None): The number of expanded secondary cones (i.e. candidate
+            NTFEs) to sample. If not specified, all of them are used.
+        seed (int | None): The random seed used when sampling. If not
+            specified, Python's default seeding (from system randomness or the
+            current time) is used. Note that this reseeds Python's global
+            `random` module. Unused when enumerating all NTFEs.
+        face_ineqs (list[list[sp.csr_matrix]] | None): The CPL inequalities of
+            each FRT of each 2-face, as returned by
+            [`triangface_ineqs`][cytools.ntfe.ntfe.triangface_ineqs]. If not
+            specified, they are computed.
+        face_triangs (list[list[Triangulation]] | None): The FRTs of each
+            2-face, as returned by
+            [`face_triangs`][cytools.ntfe.face_triangulations.face_triangs].
+            Only used if `face_ineqs` is not specified. If not specified, they
+            are computed.
+        max_npts (int): The maximum number of lattice points of a 2-face for
+            which all FRTs are enumerated (if `face_triangs` is not
+            specified). For 2-faces with more points, FRTs are only sampled.
+        N_face_triangs (int): The maximum number of FRTs to sample for each
+            2-face with more than `max_npts` points (if `face_triangs` is not
+            specified).
+        triang_method (str): The method used to sample FRTs of 2-faces with
+            more than `max_npts` points (if `face_triangs` is not specified).
+            The options are `"fast"`, `"fair"`, `"grow2d"`, and `"dualgnn"`;
+            see [`face_triangs`][cytools.ntfe.face_triangulations.face_triangs].
+        as_generator (bool): Whether to return a generator instead of a list.
+            Use this if memory is a concern.
+        n_jobs (int | None): The number of parallel workers used to find a
+            height vector in each cone. If not specified, 1 is used (i.e. the
+            computation is sequential); -1 uses all cores. This is only worth
+            raising when there are many cones, as each worker pays pickling
+            overhead. Unused when enumerating all NTFEs or when `as_generator`
+            is true.
+        heights_only (bool): Whether to return the height vectors instead of
+            the triangulations.
+        verbosity (int): The verbosity level.
+
+    Returns:
+        list | Generator: The NTFE FR(S)Ts, as
+            [`Triangulation`][cytools.triangulation.Triangulation] objects, or,
+            if `heights_only` is true, the height vectors realizing them, as
+            NumPy arrays with one entry per lattice point of the polytope.
+
+    Examples:
+        We find all NTFE FRTs of a polytope. Only 30 of the 36 combinations of
+        2-face FRTs extend to a triangulation of the polytope.
+
+        >>> from cytools import Polytope
+        >>> p = Polytope([[1,-1,-2,1],[1,-1,0,-1],[-1,0,1,1],[-1,2,1,-1],[1,0,0,0],
+        ...               [-1,0,0,0],[0,0,0,1],[0,0,1,0],[0,1,0,0],[0,1,1,-1]])
+        >>> frts = p.ntfe_frts()
+        >>> len(frts)
+        30
+        >>> frts[0].is_fine(), frts[0].is_regular(), frts[0].is_star()
+        (True, True, False)
+        >>> len(p.ntfe_frts(heights_only=True))
+        30
     """
     # full enumeration -> DFS with prefix pruning
     if (N is None) and (cones is None) and (hypers is None):
@@ -1503,52 +1821,72 @@ def ntfe_frsts(
     heights_only: bool = False,
     verbosity: int = 0,
 ):
-    """
-    **Description:**
-    See https://arxiv.org/abs/2309.10855
+    """Return (some of) the NTFE FRSTs of the polytope.
 
-    Generate (some of) the NTFE FRSTs for this polytope.
+    This is [`ntfe_frts`][cytools.ntfe.ntfe.ntfe_frts] with `make_star=True`;
+    see there for details. See
+    [arXiv:2309.10855](https://arxiv.org/abs/2309.10855) for the algorithm.
 
-    If `heights_only=True`, skip building Triangulation objects and just
-    return the height vectors realising each NTFE.
+    This function is attached to [`Polytope`][cytools.polytope.Polytope] as the
+    method `ntfe_frsts`, where `self` is the polytope.
 
-    **Arguments:**
-    - `hypers`: The expanded secondary cones corresponding to the NTFEs. If no
-        cones are input, these are automatically calculated.
-    - `hypers`: The hyperplanes defining the expanded secondary cones. Only
-        used if cones=None. If no hyperplanes are input, these are
-        automatically calculated.
-    - `N`: The number of expanded secondary cones (i.e., of NTFEs) to generate.
-        If not set, then *all* expanded secondary cones are generated.
-    - `seed`: If only generating a subset of the expanded secondary cones, use
-        this as the random seed for selecting the subset. If not provided, it
-        is initialized either as the system time or using hardware-based
-        random sources.
-    - `face_ineqs`: The cpl-inequalities associate to each 2-face
-        triangulation. Automatically calculated if not provided.
-    - `face_triangs`: The 2-face triangulation objects. Used if
-        face_ineqs=None. Automatically calculated if not provided.
-    - `max_npts`: The maximum number of points of 2-faces for which we try to
-        enumerate all FRTs (if face_triangs=None). For 2-faces with more
-        points, we only look to sample FRTs.
-    - `N_face_triangs`: For each face with |points|>max_npts, look to sample
-        only #N_face_triangs FRTs (if face_triangs=None).
-    - `triang_method`: For each face with |points|>max_npts, sample FRTs using
-        the specified method (if face_triangs=None). Allowed options are
-        listed in Polytope.face_triangs. Currently, they are "fast", "fair",
-        "grow2d", and "dualgnn".
-    - `as_generator`: Whether to return a generator which iterates over (the
-        hyperplanes of) expanded secondary cones. If False, then a list of all
-        such cones is returned. Use generators if memory is a concern.
-    - `separate_boring`: Whether, when iterating over NTFEs, to group the
-        inequalities associated to each 2-face with only 1 FRT. Only changes
-        the ordering of outputs (may have effects on random sampling).
-    - `n_jobs`: The number of parallel workers used to find a height vector in
-        each cone. Defaults to 1 (sequential); -1 uses all cores.
-    - `verbosity: Verbosity level. Higher means more verbose.
+    Args:
+        cones (list[Cone] | None): The expanded secondary cones to use, e.g.
+            as returned by [`ntfe_cones`][cytools.ntfe.ntfe.ntfe_cones]. If
+            neither `cones` nor `hypers` is specified, the cones are computed.
+        hypers (list[ArrayLike] | None): The hyperplanes defining the expanded
+            secondary cones to use, e.g. as returned by
+            [`ntfe_hypers`][cytools.ntfe.ntfe.ntfe_hypers]. Takes precedence
+            over `cones`.
+        N (int | None): The number of expanded secondary cones (i.e. candidate
+            NTFEs) to sample. If not specified, all of them are used.
+        seed (int | None): The random seed used when sampling. If not
+            specified, Python's default seeding is used. Note that this
+            reseeds Python's global `random` module.
+        face_ineqs (list[list[sp.csr_matrix]] | None): The CPL inequalities of
+            each FRT of each 2-face, as returned by
+            [`triangface_ineqs`][cytools.ntfe.ntfe.triangface_ineqs]. If not
+            specified, they are computed.
+        face_triangs (list[list[Triangulation]] | None): The FRTs of each
+            2-face, as returned by
+            [`face_triangs`][cytools.ntfe.face_triangulations.face_triangs].
+            Only used if `face_ineqs` is not specified. If not specified, they
+            are computed.
+        max_npts (int): The maximum number of lattice points of a 2-face for
+            which all FRTs are enumerated (if `face_triangs` is not
+            specified). For 2-faces with more points, FRTs are only sampled.
+        N_face_triangs (int): The maximum number of FRTs to sample for each
+            2-face with more than `max_npts` points (if `face_triangs` is not
+            specified).
+        triang_method (str): The method used to sample FRTs of 2-faces with
+            more than `max_npts` points (if `face_triangs` is not specified).
+            The options are `"fast"`, `"fair"`, `"grow2d"`, and `"dualgnn"`;
+            see [`face_triangs`][cytools.ntfe.face_triangulations.face_triangs].
+        as_generator (bool): Whether to return a generator instead of a list.
+            Use this if memory is a concern.
+        n_jobs (int | None): The number of parallel workers used to find a
+            height vector in each cone. If not specified, 1 is used (i.e. the
+            computation is sequential); -1 uses all cores.
+        heights_only (bool): Whether to return the height vectors instead of
+            the triangulations.
+        verbosity (int): The verbosity level.
 
-    **Returns:**
-    The FRTs
+    Returns:
+        list | Generator: The NTFE FRSTs, as
+            [`Triangulation`][cytools.triangulation.Triangulation] objects, or,
+            if `heights_only` is true, the height vectors realizing them.
+
+    Examples:
+        We find all NTFE FRSTs of a polytope.
+
+        >>> from cytools import Polytope
+        >>> p = Polytope([[1,-1,-2,1],[1,-1,0,-1],[-1,0,1,1],[-1,2,1,-1],[1,0,0,0],
+        ...               [-1,0,0,0],[0,0,0,1],[0,0,1,0],[0,1,0,0],[0,1,1,-1]])
+        >>> frsts = p.ntfe_frsts()
+        >>> len(frsts)
+        30
+        >>> all(t.is_star() for t in frsts)
+        True
     """
     return self.ntfe_frts(
         N=N,

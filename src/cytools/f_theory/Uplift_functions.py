@@ -19,6 +19,19 @@
 #               computations.
 # -----------------------------------------------------------------------------
 
+r"""Helper functions for Calabi-Yau orientifolds and their F-theory uplifts.
+
+This module collects the lower-level toric geometry routines used by
+[`CY_orientifold`][cytools.f_theory.FT_CY.CY_orientifold] and
+[`F_Theory_Uplift`][cytools.f_theory.FT_CY.F_Theory_Uplift]: GLSM charges,
+Newton polytopes and sections of toric divisors, Cartier and nef checks, normal
+fans and their refinements, $\mathbb{Z}_2$ torus actions, Hodge numbers of
+codimension-two complete intersections, and assorted array utilities.
+
+Unless stated otherwise, cones are tuples of one-indexed ray labels, and a toric
+divisor $D = \sum_\rho a_\rho D_\rho$ is given by its coefficient vector
+$(a_\rho)$ in the basis of toric prime divisors, ordered like the rays.
+"""
 
 # 'standard' imports
 from itertools import combinations, combinations_with_replacement, permutations, product
@@ -40,23 +53,37 @@ from cytools.vector_config import VectorConfiguration
 
 
 def compute_partition(divisors, rays):
-    """
-    **Description:**
+    r"""Shift two toric divisors so that they partition the anticanonical divisor.
 
-    Uses linear equivalence to shift a collection of toric divisors into a
-        representation whose coefficients form a partition of the anticanonical divisor,
-        if such a representation exists.
+    Look for characters $m_1, m_2 \in M$ such that the shifted divisors
+    $D_i + \operatorname{div}(\chi^{m_i})$, with coefficients
+    $a_{i,\rho} + \langle m_i, v_\rho \rangle$, are effective and sum to the
+    anticanonical divisor $\sum_\rho D_\rho$. Since the shifted coefficients are
+    non-negative integers that add up to one on every ray, the two divisors then
+    partition the set of toric prime divisors. The characters are found by solving
+    an integer linear program with `scipy.optimize.milp`.
 
-    **Arguments:**
+    Args:
+        divisors (list[np.ndarray]): The coefficient vectors of the two divisors.
+            Exactly two divisors are currently supported.
+        rays (np.ndarray): The ray generators $v_\rho$ of the toric fan, one per
+            row.
 
-    - `divisors (array-like)`: The divisor coefficient vectors.
-    - `rays (numpy.ndarray)`: The primitive ray generators of the toric fan.
+    Returns:
+        tuple[bool, np.ndarray | None]: Whether such a shift exists and, if it does,
+            an integer array of shape `(2, len(rays))` whose rows are the shifted
+            divisor coefficient vectors (otherwise `None`).
 
-    **Returns:**
+    Examples:
+        We shift two divisors on the Hirzebruch surface $\mathbb{F}_1$ into a
+        partition of the anticanonical divisor.
 
-    - `tuple`: A pair `(exists, shifted_divisors)`, where `exists` is a boolean and
-        `shifted_divisors` is the shifted divisor array if it exists, otherwise `None`.
-
+        >>> import numpy as np
+        >>> from cytools.f_theory.Uplift_functions import compute_partition
+        >>> rays = np.array([[1, 0], [0, 1], [-1, 1], [0, -1]])
+        >>> compute_partition([np.array([2, 0, 0, 0]), np.array([-1, 1, 1, 1])], rays)
+        (True, array([[1, 0, 1, 0],
+               [0, 1, 0, 1]]))
     """
 
     linear1 = np.tensordot(np.identity(2, dtype=int), rays, axes=0)
@@ -101,80 +128,66 @@ def compute_partition(divisors, rays):
 
 
 def contains_row(arr: np.array, target: np.array):
-    """
-    **Description:**
+    """Check whether a vector appears as a row of a 2D array.
 
-    Determines whether the one-dimensional array `target` occurs as a row of the
-        two-dimensional array `arr`.
+    Args:
+        arr (np.ndarray): The 2D array to search.
+        target (np.ndarray): The 1D array to look for.
 
-    **Arguments:**
+    Returns:
+        bool: Whether `target` is equal to some row of `arr`.
 
-    - `arr (numpy.ndarray)`: The two-dimensional array to search.
-    - `target (numpy.ndarray)`: The one-dimensional row to find.
-
-    **Returns:**
-
-    - `bool`: `True` if `target` is a row of `arr`, otherwise `False`.
-
+    Examples:
+        >>> import numpy as np
+        >>> from cytools.f_theory.Uplift_functions import contains_row
+        >>> contains_row(np.array([[1, 0], [0, 1]]), np.array([0, 1]))
+        np.True_
     """
     return np.any(np.all(arr == target, axis=1))
 
 
 def contains_rows(arr: np.array, targets: np.array):
-    """
-    **Description:**
+    """Check whether every row of one 2D array appears as a row of another.
 
-    Determines whether every row of `targets` occurs as a row of `arr`.
+    Args:
+        arr (np.ndarray): The 2D array to search.
+        targets (np.ndarray): The 2D array whose rows to look for.
 
-    **Arguments:**
-
-    - `arr (numpy.ndarray)`: The two-dimensional array to search.
-    - `targets (numpy.ndarray)`: The target rows.
-
-    **Returns:**
-
-    - `bool`: `True` if every target row occurs in `arr`, otherwise `False`.
-
+    Returns:
+        bool: Whether every row of `targets` is equal to some row of `arr`.
     """
     return np.any((targets[:, None, :] == arr[None, :, :]).all(axis=2), axis=1).all()
 
 
 def get_same_rows(A: np.array, B: np.array):
-    """
-    **Description:**
+    """Return the rows of `A` that also appear as rows of `B`.
 
-    Computes the rows of `A` that also occur as rows of `B`.
+    The rows are returned in the order in which they appear in `A`. A row of `A` is
+    repeated once for each row of `B` that it matches.
 
-    **Arguments:**
+    Args:
+        A (np.ndarray): The 2D array whose rows are returned.
+        B (np.ndarray): The 2D array to compare against.
 
-    - `A (numpy.ndarray)`: First two-dimensional array.
-    - `B (numpy.ndarray)`: Second two-dimensional array.
-
-    **Returns:**
-
-    - `numpy.ndarray`: The rows of `A` that also occur in `B`.
-
+    Returns:
+        np.ndarray: The rows of `A` that appear in `B`.
     """
     return A[np.where((A[:, None, :] == B[None, :, :]).all(axis=2))[0]]
 
 
 def same_rows(A, B):
-    """
-    **Description:**
+    """Check whether two 2D arrays have the same rows, ignoring order.
 
-    Determines whether `A` and `B` contain the same rows with the same multiplicities,
-        independent of row order.
+    Rows are compared with multiplicity, so each distinct row must appear the same
+    number of times in both arrays.
 
-    **Arguments:**
+    Args:
+        A (np.ndarray): The first 2D array.
+        B (np.ndarray): The second 2D array.
 
-    - `A (numpy.ndarray)`: First two-dimensional array.
-    - `B (numpy.ndarray)`: Second two-dimensional array.
-
-    **Returns:**
-
-    - `bool`: `True` if `A` and `B` have the same rows with the same multiplicities,
-        otherwise `False`.
-
+    Returns:
+        bool: Whether `A` and `B` contain the same rows with the same
+            multiplicities.
     """
     rowsA, countsA = np.unique(A, axis=0, return_counts=True)
     rowsB, countsB = np.unique(B, axis=0, return_counts=True)
@@ -182,42 +195,40 @@ def same_rows(A, B):
 
 
 def dual_face_Cayley_polytope(Cdvert: np.array, f):
-    """
-    **Description:**
+    """Return the face of the dual Cayley polytope dual to a given face.
 
-    Computes the face of the dual Cayley polytope whose vertices pair trivially with all
-        vertices of the input face `f`.
+    The dual face is the convex hull of the vertices of the dual Cayley polytope
+    that pair to zero with every vertex of `f`.
 
-    **Arguments:**
+    Args:
+        Cdvert (np.ndarray): The vertices of the dual Cayley polytope, one per row.
+        f (PolytopeFace): A face of the Cayley polytope.
 
-    - `Cdvert (numpy.ndarray)`: Vertices of the dual Cayley polytope.
-    - `f`: A face of the Cayley polytope.
-
-    **Returns:**
-
-    - `Polytope`: The dual face.
-
+    Returns:
+        Polytope: The dual face.
     """
     return Polytope(Cdvert[np.all(Cdvert @ f.vertices().T == 0, axis=1)])
 
 
 def h11_2_part(Cay: Polytope, Cayd: Polytope, det=False):
-    """
-    **Description:**
+    """Compute $h^{1,1}$ of a Calabi-Yau defined by a two-part nef partition.
 
-    Computes the Hodge number `h^{1,1}` of a complete intersection Calabi-Yau described
-        by a two-part nef partition using the associated Cayley polytope and its dual.
+    The Calabi-Yau is the complete intersection of two hypersurfaces defined by a
+    two-part nef partition, which is encoded by the Cayley polytope `Cay` and its
+    dual `Cayd`. The Hodge number is computed with a combinatorial formula that
+    counts the lattice points of faces of the two Cayley polytopes and of their
+    dilations by a factor of two. Exchanging the two polytopes computes
+    $h^{1,1}$ of the mirror instead, which for Calabi-Yau fourfolds is $h^{3,1}$
+    of the original Calabi-Yau.
 
-    **Arguments:**
+    Args:
+        Cay (Polytope): The Cayley polytope.
+        Cayd (Polytope): The dual Cayley polytope.
+        det (bool): Whether to print the running total after each group of
+            contributions.
 
-    - `Cay (Polytope)`: The Cayley polytope.
-    - `Cayd (Polytope)`: The dual Cayley polytope.
-    - `det (bool)`: Whether to print intermediate contributions. Defaults to `False`.
-
-    **Returns:**
-
-    - `int`: The Hodge number `h^{1,1}`.
-
+    Returns:
+        int: The Hodge number $h^{1,1}$.
     """
     Cdvert = Cayd.vertices()
     n = Cay.dim() - 1
@@ -280,22 +291,23 @@ def h11_2_part(Cay: Polytope, Cayd: Polytope, det=False):
 
 
 def h21_2_part(Cay: Polytope, Cayd: Polytope, det=False):
-    """
-    **Description:**
+    """Compute $h^{2,1}$ of a fourfold defined by a two-part nef partition.
 
-    Computes the Hodge number `h^{2,1}` of a complete intersection Calabi-Yau described
-        by a two-part nef partition in a six-dimensional ambient variety.
+    The Calabi-Yau fourfold is the complete intersection of two hypersurfaces in a
+    six-dimensional toric variety defined by a two-part nef partition, which is
+    encoded by the Cayley polytope `Cay` and its dual `Cayd`. The Hodge number is
+    computed with a combinatorial formula that counts the lattice points of faces
+    of the two Cayley polytopes and of their dilations by a factor of two. The face
+    dimensions that enter the formula are specific to this fourfold case.
 
-    **Arguments:**
+    Args:
+        Cay (Polytope): The Cayley polytope.
+        Cayd (Polytope): The dual Cayley polytope.
+        det (bool): Whether to print the running total after each group of
+            contributions.
 
-    - `Cay (Polytope)`: The Cayley polytope.
-    - `Cayd (Polytope)`: The dual Cayley polytope.
-    - `det (bool)`: Whether to print intermediate contributions. Defaults to `False`.
-
-    **Returns:**
-
-    - `int`: The Hodge number `h^{2,1}`.
-
+    Returns:
+        int: The Hodge number $h^{2,1}$.
     """
     Cdvert = Cayd.vertices()
     h21_ret = 0
@@ -329,58 +341,64 @@ def h21_2_part(Cay: Polytope, Cayd: Polytope, det=False):
 
 
 def get_indices(arr: np.array, targets: np.array):
-    """
-    **Description:**
+    """Return the indices of the rows of `arr` that appear among `targets`.
 
-    Finds the indices of rows of `arr` that also occur among the rows of `targets`.
+    Args:
+        arr (np.ndarray): The 2D array to search.
+        targets (np.ndarray): A single target row (1D array) or several target
+            rows (2D array).
 
-    **Arguments:**
+    Returns:
+        np.ndarray: The sorted indices of the rows of `arr` that are equal to some
+            target row.
 
-    - `arr (numpy.ndarray)`: The two-dimensional array to search.
-    - `targets (numpy.ndarray)`: The target row or rows.
-
-    **Returns:**
-
-    - `numpy.ndarray`: The indices of matching rows in `arr`.
-
+    Examples:
+        >>> import numpy as np
+        >>> from cytools.f_theory.Uplift_functions import get_indices
+        >>> arr = np.array([[1, 0], [0, 1], [1, 1], [0, 1]])
+        >>> get_indices(arr, np.array([[0, 1], [1, 1]]))
+        array([1, 2, 3])
     """
     return np.where(np.any((arr[:, None, :] == targets).all(axis=2), axis=1))[0]
 
 
 def get_index(arr: np.array, target: np.array):
-    """
-    **Description:**
+    """Return the indices of the rows of `arr` equal to `target`.
 
-    Finds the indices of rows of `arr` equal to the one-dimensional array `target`.
+    Args:
+        arr (np.ndarray): The 2D array to search.
+        target (np.ndarray): The 1D target row.
 
-    **Arguments:**
+    Returns:
+        np.ndarray: The sorted indices of the rows of `arr` equal to `target`.
 
-    - `arr (numpy.ndarray)`: The two-dimensional array to search.
-    - `target (numpy.ndarray)`: The target row.
-
-    **Returns:**
-
-    - `numpy.ndarray`: The indices of rows of `arr` equal to `target`.
-
+    Examples:
+        >>> import numpy as np
+        >>> from cytools.f_theory.Uplift_functions import get_index
+        >>> get_index(np.array([[1, 0], [0, 1], [1, 1], [0, 1]]), np.array([0, 1]))
+        array([1, 3])
     """
     return np.where(np.all(arr == target, axis=1))[0]
 
 
 def glsm_from_points(pts):
-    """
-    **Description:**
+    r"""Return a GLSM charge matrix for a point configuration.
 
-    Computes an integral basis of linear relations among the input toric points using
-        Smith normal form.
+    The rows of the returned matrix form a $\mathbb{Z}$-basis of the lattice of
+    integer linear relations $\sum_i q_i v_i = 0$ among the points $v_i$, computed
+    with the Smith normal form. Column $i$ contains the charges of point $i$.
 
-    **Arguments:**
+    Args:
+        pts (ArrayLike): The points $v_i$, one per row.
 
-    - `pts (array-like)`: The toric point configuration.
+    Returns:
+        np.ndarray: The GLSM charge matrix, of shape `(n - r, n)`, where `n` is the
+            number of points and `r` the rank of the configuration.
 
-    **Returns:**
-
-    - `numpy.ndarray`: A GLSM charge matrix for the point configuration.
-
+    Examples:
+        >>> from cytools.f_theory.Uplift_functions import glsm_from_points
+        >>> glsm_from_points([[1, 0], [0, 1], [-1, -1]])
+        array([[1, 1, 1]])
     """
     a, s, t = smith_normal_decomp(Matrix(np.array(pts).T), domain=ZZ)
     aa = np.array(a, dtype=int)
@@ -390,20 +408,27 @@ def glsm_from_points(pts):
 
 
 def points_from_glsm(glsm):
-    """
-    **Description:**
+    r"""Return a point configuration with the given GLSM charges.
 
-    Computes an integral point configuration whose relations are described by the input
-        GLSM charge matrix.
+    This inverts
+    [`glsm_from_points`][cytools.f_theory.Uplift_functions.glsm_from_points] up to
+    a change of lattice basis: the columns of the returned matrix form a
+    $\mathbb{Z}$-basis of the integer kernel of `glsm`, so the rows are points
+    whose integer linear relations are generated by the rows of `glsm`.
 
-    **Arguments:**
+    Args:
+        glsm (ArrayLike): The GLSM charge matrix, with one column per point.
 
-    - `glsm (array-like)`: The GLSM charge matrix.
+    Returns:
+        np.ndarray: The points, one per row, of shape `(n, n - r)`, where `n` is
+            the number of columns of `glsm` and `r` its rank.
 
-    **Returns:**
-
-    - `numpy.ndarray`: A toric point configuration.
-
+    Examples:
+        >>> from cytools.f_theory.Uplift_functions import points_from_glsm
+        >>> points_from_glsm([[1, 1, 1]])
+        array([[-1, -1],
+               [ 1,  0],
+               [ 0,  1]])
     """
     D, U, V = smith_normal_decomp(Matrix(np.array(glsm).T), domain=ZZ)
     DD = np.array(D, dtype=int)
@@ -413,24 +438,28 @@ def points_from_glsm(glsm):
 
 
 def find_trilayer_vertex_polytope(p, as_index=False):
-    """
-    **Description:**
+    """Return the distinguished vertex of a trilayer polytope.
 
-    Uses the GLSM charge matrix of the vertices to identify the vertex corresponding to
-        half the anticanonical class.
+    A polytope is trilayer (see
+    [`Polytope.is_trilayer`][cytools.polytope.Polytope.is_trilayer]) if one of its
+    vertices has GLSM charge equal to half of the anticanonical class of the vertex
+    configuration. This function finds that vertex.
 
-    **Arguments:**
+    Args:
+        p (Polytope): A trilayer polytope.
+        as_index (bool): Whether to return the index of the vertex in
+            `p.vertices()` instead of its coordinates.
 
-    - `p (Polytope)`: The trilayer polytope.
+    Returns:
+        np.ndarray | int: The distinguished vertex, or its index if `as_index` is
+            true.
 
-    - `as_index (bool)`: Whether to return the vertex index rather than the vertex
-        coordinates. Defaults to `False`.
-
-    **Returns:**
-
-    - `numpy.ndarray` or `int`: The distinguished vertex, or its index if
-        `as_index=True`.
-
+    Examples:
+        >>> from cytools import Polytope
+        >>> from cytools.f_theory.Uplift_functions import find_trilayer_vertex_polytope
+        >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[-1,-1,-1,-4],[0,0,0,1]])
+        >>> find_trilayer_vertex_polytope(p)
+        array([0, 0, 0, 1])
     """
     glsm_vert = glsm_from_points(p.vertices())
     half_anticanon = np.sum(glsm_vert, axis=1) // 2
@@ -442,23 +471,19 @@ def find_trilayer_vertex_polytope(p, as_index=False):
 
 
 def find_trilayer_vertex_vertices(V, as_vertex_index=False):
-    """
-    **Description:**
+    """Return the distinguished vertex of a trilayer polytope from its vertices.
 
-    Uses the GLSM charge matrix of the vertex set to identify the vertex corresponding
-        to half the anticanonical class.
+    This is the same as `find_trilayer_vertex_polytope`, but takes the vertices of
+    the polytope as input.
 
-    **Arguments:**
+    Args:
+        V (np.ndarray): The vertices of a trilayer polytope, one per row.
+        as_vertex_index (bool): Whether to return the index of the vertex in `V`
+            instead of its coordinates.
 
-    - `V (array-like)`: The vertices of a trilayer polytope.
-    - `as_vertex_index (bool)`: Whether to return the vertex index rather than the
-        vertex coordinates. Defaults to `False`.
-
-    **Returns:**
-
-    - `numpy.ndarray` or `int`: The distinguished vertex, or its index if
-        `as_vertex_index=True`.
-
+    Returns:
+        np.ndarray | int: The distinguished vertex, or its index if
+            `as_vertex_index` is true.
     """
 
     glsm_vert = glsm_from_points(V)
@@ -471,20 +496,29 @@ def find_trilayer_vertex_vertices(V, as_vertex_index=False):
 
 
 def trilayer_normal_form(p):
-    """
-    **Description:**
+    r"""Bring a trilayer polytope into trilayer normal form.
 
-    Applies an integral change of basis that moves the distinguished trilayer vertex
-        into a standard position.
+    Apply a $GL(n, \mathbb{Z})$ transformation that maps the distinguished vertex
+    (see `find_trilayer_vertex_polytope`) to $(-1, 0, \ldots, 0)$ and all other
+    vertices to points with first coordinate $1$. The lattice points of the
+    resulting polytope then lie in the three layers $x_0 \in \{-1, 0, 1\}$.
 
-    **Arguments:**
+    Args:
+        p (Polytope): A trilayer polytope.
 
-    - `p (Polytope)`: The trilayer polytope.
+    Returns:
+        Polytope: The polytope in trilayer normal form.
 
-    **Returns:**
-
-    - `Polytope`: The polytope in trilayer normal form.
-
+    Examples:
+        >>> from cytools import Polytope
+        >>> from cytools.f_theory.Uplift_functions import trilayer_normal_form
+        >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[-1,-1,-1,-4],[0,0,0,1]])
+        >>> trilayer_normal_form(p).vertices()
+        array([[-1,  0,  0,  0],
+               [ 1, -1, -1, -3],
+               [ 1,  0,  0,  1],
+               [ 1,  0,  1,  1],
+               [ 1,  1,  0,  1]])
     """
     verts = p.vertices()
     index = find_trilayer_vertex_vertices(verts, as_vertex_index=True)
@@ -511,59 +545,72 @@ def trilayer_normal_form(p):
 
 
 def Newton_Polytope(pts, weights):
-    """
-    **Description:**
+    r"""Return the Newton polytope of a toric divisor.
 
-    Constructs the Newton polytope associated with a toric divisor with coefficient
-        vector `weights` on the fan with rays `pts`.
+    For a divisor $D = \sum_\rho a_\rho D_\rho$, this is the polytope
+    $P_D = \{m \in M_\mathbb{R} : \langle m, v_\rho \rangle \geq -a_\rho\}$, whose
+    lattice points correspond to the monomial global sections of
+    $\mathcal{O}(D)$. It is constructed as an
+    [`HPolytope`][cytools.h_polytope.h_polytope.HPolytope], i.e. as the convex hull
+    of the lattice points satisfying the inequalities, so it has no lattice points
+    if $D$ is not effective.
 
-    **Arguments:**
+    Args:
+        pts (ArrayLike): The rays $v_\rho$ of the toric fan, one per row.
+        weights (ArrayLike): The divisor coefficients $a_\rho$.
 
-    - `pts (numpy.ndarray)`: Matrix whose rows are the rays of the toric fan.
-    - `weights (array-like)`: Divisor coefficients in the toric prime divisor basis.
+    Returns:
+        HPolytope: The Newton polytope of the divisor.
 
-    **Returns:**
+    Examples:
+        We construct the Newton polytope of the anticanonical divisor of
+        $\mathbb{P}^2$.
 
-    - `Polytope`: The Newton polytope of the divisor.
-
+        >>> from cytools.f_theory.Uplift_functions import Newton_Polytope
+        >>> Newton_Polytope([[1, 0], [0, 1], [-1, -1]], [1, 1, 1]).vertices()
+        array([[-1, -1],
+               [-1,  2],
+               [ 2, -1]])
     """
     return h_polytope.HPolytope(np.column_stack([pts, weights]).astype(int))
 
 
 def row_difference(A: np.array, B: np.array):
-    """
-    **Description:**
+    """Return the rows of `A` that do not appear as rows of `B`.
 
-    Computes all rows of `A` that do not occur as rows of `B`.
+    The rows are returned in the order in which they appear in `A`, including
+    repeated rows.
 
-    **Arguments:**
+    Args:
+        A (np.ndarray): The 2D array whose rows are returned.
+        B (np.ndarray): The 2D array of rows to exclude.
 
-    - `A (numpy.ndarray)`: First two-dimensional array.
-    - `B (numpy.ndarray)`: Second two-dimensional array.
+    Returns:
+        np.ndarray: The rows of `A` that are not rows of `B`.
 
-    **Returns:**
-
-    - `numpy.ndarray`: Rows of `A` that are not rows of `B`.
-
+    Examples:
+        >>> import numpy as np
+        >>> from cytools.f_theory.Uplift_functions import row_difference
+        >>> row_difference(np.array([[1, 0], [0, 1], [1, 1]]), np.array([[0, 1]]))
+        array([[1, 0],
+               [1, 1]])
     """
     return A[~np.any((A[:, None, :] == B[None, :, :]).all(axis=2), axis=1)]
 
 
 def points_not_interior_to_facets_and_codim2_faces(p: Polytope):
-    """
-    **Description:**
+    """Return the lattice points not interior to faces of codimension one or two.
 
-    Computes the lattice points of a polytope after removing points interior to facets
-        and codimension-two faces.
+    Start from the points not interior to facets (see
+    [`Polytope.pts_not_facets`][cytools.polytope.Polytope.pts_not_facets]) and
+    remove the points interior to codimension-two faces, keeping the order of the
+    remaining points.
 
-    **Arguments:**
+    Args:
+        p (Polytope): The polytope.
 
-    - `p (Polytope)`: The polytope.
-
-    **Returns:**
-
-    - `numpy.ndarray`: The selected lattice points.
-
+    Returns:
+        np.ndarray: The selected lattice points, one per row.
     """
     pts = p.points_not_interior_to_facets()
     for f in p.faces(p.dim() - 2):
@@ -573,41 +620,47 @@ def points_not_interior_to_facets_and_codim2_faces(p: Polytope):
 
 
 def get_lower_dimensional_cones(cones, d):
-    """
-    **Description:**
+    """Return all faces with a given number of rays of a collection of cones.
 
-    Computes all `d`-element faces of the given maximal cones.
+    Every `d`-element subset of the rays of each cone is returned once. Since all
+    subsets are taken, these are exactly the `d`-ray faces only if the cones are
+    simplicial.
 
-    **Arguments:**
+    Args:
+        cones (Iterable[tuple[int, ...]]): The cones, as tuples of ray labels.
+        d (int): The number of rays of the faces.
 
-    - `cones (iterable)`: Collection of cones, each represented by a tuple of
-        one-indexed ray labels.
-    - `d (int)`: Number of rays in the lower-dimensional cones to extract.
+    Returns:
+        list[tuple[int, ...]]: The distinct `d`-ray faces, in arbitrary order.
 
-    **Returns:**
-
-    - `list`: The list of distinct `d`-ray cones.
-
+    Examples:
+        >>> from cytools.f_theory.Uplift_functions import get_lower_dimensional_cones
+        >>> sorted(get_lower_dimensional_cones([(1, 2, 3), (2, 3, 4)], 2))
+        [(1, 2), (1, 3), (2, 3), (2, 4), (3, 4)]
     """
     return list({combo for row in cones for combo in combinations(row, d)})
 
 
 def lattice_refinement(q, denominator=2):
-    """
-    **Description:**
+    r"""Return the change of basis to a refined lattice.
 
-    Returns the smallest integral embedding of the unit lattice into a refined lattice
-        in which `q/denominator` becomes integral.
+    The refined lattice is $N' = \mathbb{Z}^n + \mathbb{Z}\, q/k$, where $k$ is
+    `denominator`. The returned integer matrix $\Lambda$ maps a vector of the
+    original lattice $\mathbb{Z}^n$ to its coordinates with respect to an
+    LLL-reduced basis of $N'$. Its determinant is $\pm[N' : \mathbb{Z}^n]$.
 
-    **Arguments:**
+    Args:
+        q (ArrayLike): The integer vector defining the refinement.
+        denominator (int): The denominator $k$ of the fractional vector $q/k$.
 
-    - `q (array-like)`: Integer vector defining the fractional lattice refinement.
-    - `denominator (int)`: Denominator of the fractional vector. Defaults to `2`.
+    Returns:
+        np.ndarray: The integer matrix $\Lambda$.
 
-    **Returns:**
-
-    - `numpy.ndarray`: The lattice refinement map.
-
+    Examples:
+        >>> from cytools.f_theory.Uplift_functions import lattice_refinement
+        >>> lattice_refinement([1, 1])
+        array([[ 1,  1],
+               [ 1, -1]])
     """
 
     lattice_basis = denominator * np.identity(len(q)).astype(int)
@@ -623,24 +676,32 @@ def lattice_refinement(q, denominator=2):
 
 
 def toric_orbifold(pts_CY_ambient, q, denominator=2):
-    """
-    **Description:**
+    r"""Return the rays of the quotient of a toric variety by a finite torus action.
 
-    Applies the lattice refinement defined by `q/denominator` to the ambient toric rays
-        and returns the primitive orbifold rays together with the ray rescalings.
+    The quotient by the subgroup of the torus generated by $q/k$, where $k$ is
+    `denominator`, has the same fan but with respect to the refined lattice
+    $N' = \mathbb{Z}^n + \mathbb{Z}\, q/k$. The rays are expressed in a basis of
+    $N'$ (see
+    [`lattice_refinement`][cytools.f_theory.Uplift_functions.lattice_refinement])
+    and then made primitive, so each original ray is $v_\rho = r_\rho u_\rho$ with
+    $u_\rho$ primitive in $N'$.
 
-    **Arguments:**
+    Args:
+        pts_CY_ambient (np.ndarray): The rays $v_\rho$ of the toric fan of the
+            Calabi-Yau ambient variety, one per row.
+        q (ArrayLike): The integer vector defining the torus action.
+        denominator (int): The denominator $k$ of the fractional vector $q/k$.
 
-    - `pts_CY_ambient (numpy.ndarray)`: Rays of the original Calabi-Yau ambient toric
-        fan.
-    - `q (array-like)`: Integer vector defining the fractional lattice refinement.
-    - `denominator (int)`: Denominator of the fractional vector. Defaults to `2`.
+    Returns:
+        tuple[np.ndarray, np.ndarray]: The primitive rays $u_\rho$ of the orbifold,
+            one per row, and the rescalings $r_\rho$.
 
-    **Returns:**
-
-    - `tuple`: A pair `(orbifold_points, rescalings)` consisting of primitive orbifold
-        rays and the corresponding edge rescalings.
-
+    Examples:
+        >>> from cytools.f_theory.Uplift_functions import toric_orbifold
+        >>> toric_orbifold([[1, 0], [0, 1], [-1, -1]], [1, 1])
+        (array([[ 1,  1],
+               [ 1, -1],
+               [-1,  0]]), array([1, 1, 2]))
     """
 
     Lambda = lattice_refinement(q, denominator)
@@ -651,26 +712,26 @@ def toric_orbifold(pts_CY_ambient, q, denominator=2):
 
 
 def O3O7_line_bundle(pts_CY_ambient, q, rescalings):
-    """
-    **Description:**
+    r"""Return the orientifold line bundle on the toric orbifold.
 
-    Determines the divisor coefficients of the orientifold line bundle by selecting a
-        projected-in monomial of the Calabi-Yau hypersurface Newton polytope and
-        rescaling divisor classes under the orbifold map.
+    Pick the first lattice point $m$ of the Newton polytope of the anticanonical
+    divisor with $\langle m, q \rangle$ odd, i.e. a monomial of the Calabi-Yau
+    equation that is odd under the $\mathbb{Z}_2$ action. Its exponents
+    $\langle m, v_\rho \rangle + 1$ are divided by the ray rescalings of the
+    orbifold (and rounded to the nearest integer) to obtain the divisor
+    coefficients on the orbifold.
 
-    **Arguments:**
+    Args:
+        pts_CY_ambient (np.ndarray): The rays $v_\rho$ of the toric fan of the
+            Calabi-Yau ambient variety, one per row.
+        q (ArrayLike): The integer vector such that $q/2$ defines the
+            $\mathbb{Z}_2$ action.
+        rescalings (ArrayLike): The ray rescalings of the orbifold, as returned by
+            [`toric_orbifold`][cytools.f_theory.Uplift_functions.toric_orbifold].
 
-    - `pts_CY_ambient (numpy.ndarray)`: Rays of the original Calabi-Yau ambient toric
-        fan.
-    - `q (array-like)`: Integer vector defining the `Z_2` action.
-    - `rescalings (array-like)`: Rescalings of toric divisor classes under the orbifold
-        map.
-
-    **Returns:**
-
-    - `numpy.ndarray` or `None`: The O3/O7 line-bundle coefficients, or `None` if no
-        projected-in monomial is found.
-
+    Returns:
+        np.ndarray | None: The divisor coefficients of the line bundle on the
+            orbifold, or `None` if no monomial is odd under the action.
     """
 
     CY3_equation_newton_polytope = Newton_Polytope(
@@ -693,26 +754,24 @@ def O3O7_line_bundle(pts_CY_ambient, q, rescalings):
 
 
 def Z2_fixed_locus(vc_triangulation, q, cone_dimension=None, denominator=2):
-    """
-    **Description:**
+    """Return the cones whose toric strata are fixed by a finite torus action.
 
-    Finds cones whose associated toric strata are fixed by the lattice refinement
-        defined by `q/denominator`. Optionally restricts to cones of a specified
-        dimension.
+    A cone is selected if the sum of its generators plus $q$ is divisible by
+    `denominator` in every component. If `cone_dimension` is not specified, all
+    proper faces of the maximal cones are considered (the maximal cones themselves
+    are excluded). Faces are enumerated as subsets of the generators, so the fan is
+    assumed to be simplicial.
 
-    **Arguments:**
+    Args:
+        vc_triangulation (Fan): The toric fan of the ambient variety.
+        q (ArrayLike): The integer vector such that $q/k$ generates the action,
+            where $k$ is `denominator`.
+        cone_dimension (int | None): If specified, only cones with this number of
+            rays are considered.
+        denominator (int): The denominator $k$ of the fractional vector $q/k$.
 
-    - `vc_triangulation (Fan)`: The toric fan of the ambient variety.
-    - `q (array-like)`: Integer vector defining the fractional lattice refinement.
-    - `cone_dimension (int or None)`: If specified, only cones with this number of rays
-        are considered. Defaults to `None`.
-
-    - `denominator (int)`: Denominator of the fractional vector. Defaults to `2`.
-
-    **Returns:**
-
-    - `list`: Fixed-locus cones, represented as tuples of one-indexed ray labels.
-
+    Returns:
+        list[tuple[int, ...]]: The fixed cones, as tuples of ray labels.
     """
     if cone_dimension is None:
         all_cones = {
@@ -746,22 +805,32 @@ def Z2_fixed_locus(vc_triangulation, q, cone_dimension=None, denominator=2):
 
 
 def inequivalent_Z2_actions(lattice_symmetries):
-    """
-    **Description:**
+    r"""Return the $\mathbb{Z}_2$ torus actions up to lattice symmetries.
 
-    Enumerates half-integer lattice points defining `Z_2` torus actions modulo the
-        action of the supplied lattice symmetry group.
+    The $\mathbb{Z}_2$ subgroups of the torus are generated by $q/2$ with
+    $q \in \{0, 1\}^n$ nonzero. Two such vectors are equivalent if $s q \equiv q'$
+    modulo 2 for some symmetry $s$. One representative of each equivalence class
+    is returned.
 
-    **Arguments:**
+    Args:
+        lattice_symmetries (list[np.ndarray]): The lattice symmetry group, as square
+            integer matrices acting from the left. It should include the identity,
+            e.g. as returned by
+            [`Polytope.automorphisms`][cytools.polytope.Polytope.automorphisms] with
+            `action="left"`.
 
-    - `lattice_symmetries (array-like)`: List or array of square integer matrices acting
-        from the left.
+    Returns:
+        np.ndarray: The representatives $q$, as 0/1 vectors, one per row.
 
-    **Returns:**
+    Examples:
+        With only the symmetry that exchanges the two coordinates, $(1, 0)$ and
+        $(0, 1)$ are equivalent.
 
-    - `numpy.ndarray`: Inequivalent integer representatives `q` such that `q/2` defines
-        a `Z_2` action.
-
+        >>> import numpy as np
+        >>> from cytools.f_theory.Uplift_functions import inequivalent_Z2_actions
+        >>> inequivalent_Z2_actions([np.eye(2, dtype=int), np.array([[0, 1], [1, 0]])])
+        array([[0, 1],
+               [1, 1]])
     """
 
     dim = lattice_symmetries[0].shape[0]
@@ -788,41 +857,54 @@ def inequivalent_Z2_actions(lattice_symmetries):
 
 
 def linebundle_weights_from_Newton_Polytope(vectors, Newton_polytope: Polytope):
-    """
-    **Description:**
+    r"""Return the divisor coefficients determined by a Newton polytope.
 
-    Recovers the toric divisor coefficients whose Newton polytope is `Newton_polytope`
-        by maximizing the corresponding inequalities over its lattice points.
+    The coefficient of each ray is
+    $a_\rho = \max_m (-\langle m, v_\rho \rangle)$, with $m$ ranging over the
+    lattice points of the polytope. This is the smallest divisor whose Newton
+    polytope contains the given one.
 
-    **Arguments:**
+    Args:
+        vectors (np.ndarray): The rays $v_\rho$ of the toric fan, one per row.
+        Newton_polytope (Polytope): The Newton polytope.
 
-    - `vectors (numpy.ndarray)`: Rays of the toric fan.
-    - `Newton_polytope (Polytope)`: The Newton polytope.
+    Returns:
+        np.ndarray: The divisor coefficients $a_\rho$.
 
-    **Returns:**
-
-    - `numpy.ndarray`: The divisor coefficient vector.
-
+    Examples:
+        >>> import numpy as np
+        >>> from cytools.f_theory.Uplift_functions import (
+        ...     Newton_Polytope,
+        ...     linebundle_weights_from_Newton_Polytope,
+        ... )
+        >>> rays = np.array([[1, 0], [0, 1], [-1, -1]])
+        >>> newton_polytope = Newton_Polytope(rays, [1, 1, 1])
+        >>> linebundle_weights_from_Newton_Polytope(rays, newton_polytope)
+        array([1, 1, 1])
     """
     return np.max(-(vectors @ Newton_polytope.points().T), axis=1)
 
 
 def is_Gorenstein(cone):
-    """
-    **Description:**
+    """Check whether a cone is Gorenstein.
 
-    Determines whether there exists an integral linear functional taking value one on
-        all extremal rays of the cone, and returns that functional when it exists.
+    A cone is Gorenstein if there is an integral linear functional $n$ that takes
+    the value $1$ on the primitive generators of all of its extremal rays. The
+    functional is computed from the Smith normal form of the matrix of extremal
+    rays.
 
-    **Arguments:**
+    Args:
+        cone (Cone): The cone to test.
 
-    - `cone (Cone)`: The cone to test.
+    Returns:
+        tuple[bool, np.ndarray | None]: Whether the cone is Gorenstein and, if it
+            is, the functional $n$ (otherwise `None`).
 
-    **Returns:**
-
-    - `tuple`: A pair `(is_gorenstein, n)`, where `n` is the Gorenstein functional if it
-        exists, otherwise `None`.
-
+    Warning:
+        The candidate functional is currently not checked against all of the
+        equations, so this function can return `True`, together with an invalid
+        functional, for cones that are not Gorenstein (e.g. the cone generated by
+        $(1, 0)$ and $(2, 3)$).
     """
 
     M = cone.extremal_rays()
@@ -843,19 +925,15 @@ def is_Gorenstein(cone):
 
 
 def is_reflexive_Gorenstein(cone):
-    """
-    **Description:**
+    """Check whether a cone and its dual are both Gorenstein.
 
-    Determines whether both the cone and its dual are Gorenstein.
+    See [`is_Gorenstein`][cytools.f_theory.Uplift_functions.is_Gorenstein].
 
-    **Arguments:**
+    Args:
+        cone (Cone): The cone to test.
 
-    - `cone (Cone)`: The cone to test.
-
-    **Returns:**
-
-    - `bool`: `True` if the cone is reflexive Gorenstein, otherwise `False`.
-
+    Returns:
+        bool: Whether the cone is reflexive Gorenstein.
     """
     if is_Gorenstein(cone)[0]:
         dual_cone = cone.dual()
@@ -865,24 +943,27 @@ def is_reflexive_Gorenstein(cone):
 
 
 def Gorenstein_index(cone):
-    """
-    **Description:**
+    r"""Return the index of a reflexive Gorenstein cone.
 
-    Computes the pairing of the Gorenstein generators of a reflexive Gorenstein cone and
-        its dual.
+    This is the pairing $\langle m, n \rangle$ between the Gorenstein functional
+    $n$ of the cone and the Gorenstein functional $m$ of its dual.
 
-    **Arguments:**
+    Args:
+        cone (Cone): A reflexive Gorenstein cone.
 
-    - `cone (Cone)`: The cone to test.
+    Returns:
+        int: The Gorenstein index.
 
-    **Raises:**
+    Raises:
+        ValueError: If the cone is not reflexive Gorenstein.
 
-    - `ValueError`: Raised if the cone is not reflexive Gorenstein.
+    Examples:
+        The cone over a reflexive polygon is reflexive Gorenstein of index 1.
 
-    **Returns:**
-
-    - `int`: The Gorenstein index.
-
+        >>> from cytools import Cone
+        >>> from cytools.f_theory.Uplift_functions import Gorenstein_index
+        >>> Gorenstein_index(Cone([[1, 0, 1], [0, 1, 1], [-1, 0, 1], [0, -1, 1]]))
+        np.int64(1)
     """
     if is_reflexive_Gorenstein(cone):
         dual_cone = cone.dual()
@@ -891,21 +972,28 @@ def Gorenstein_index(cone):
 
 
 def Cartier_index(toric_fan, weights):
-    """
-    **Description:**
+    r"""Return the Cartier index of a toric Weil divisor.
 
-    Computes the smallest positive integer multiple of a Q-Cartier toric Weil divisor
-        that is Cartier. Returns `None` if the divisor is not Q-Cartier.
+    For each maximal cone $\sigma$, solve for the local data $m_\sigma$ with
+    $\langle m_\sigma, v_\rho \rangle = -a_\rho$ for all rays $\rho \in \sigma$
+    (by least squares, in floating point). If there is no solution for some cone,
+    the divisor is not $\mathbb{Q}$-Cartier. Otherwise, the Cartier index is the
+    smallest positive integer $k$ such that all $k\, m_\sigma$ are integral.
 
-    **Arguments:**
+    Args:
+        toric_fan (Fan): The toric fan.
+        weights (ArrayLike): The divisor coefficients $a_\rho$.
 
-    - `toric_fan (Fan)`: The toric fan.
-    - `weights (array-like)`: Divisor coefficients in the toric prime divisor basis.
+    Returns:
+        int | None: The Cartier index, or `None` if the divisor is not
+            $\mathbb{Q}$-Cartier.
 
-    **Returns:**
-
-    - `int` or `None`: The Cartier index, or `None` if the divisor is not Q-Cartier.
-
+    Examples:
+        >>> from cytools.vector_config import VectorConfiguration
+        >>> from cytools.f_theory.Uplift_functions import Cartier_index
+        >>> fan = VectorConfiguration([[1, 0], [1, 2]]).triangulate()
+        >>> Cartier_index(fan, [1, 0])
+        np.int64(2)
     """
 
     weights = np.array(weights)
@@ -926,27 +1014,37 @@ def Cartier_index(toric_fan, weights):
 
 
 def is_Cartier(toric_fan, weights, return_Q_Cartier_data=False, decimals=10):
-    """
-    **Description:**
+    r"""Check whether a toric Weil divisor is Cartier.
 
-    Solves for local Cartier data on each maximal cone and determines whether all local
-        data are integral. Optionally returns rational approximations to Q-Cartier data.
+    For each maximal cone $\sigma$, solve for the local data $m_\sigma$ with
+    $\langle m_\sigma, v_\rho \rangle = -a_\rho$ for all rays $\rho \in \sigma$
+    (by least squares, in floating point). The divisor is Cartier if all of these
+    exist and are integral.
 
-    **Arguments:**
+    Args:
+        toric_fan (Fan): The toric fan.
+        weights (ArrayLike): The divisor coefficients $a_\rho$.
+        return_Q_Cartier_data (bool): Whether to keep going and return the local
+            data if the divisor is not Cartier.
+        decimals (int): The number of decimals to which non-integral local data is
+            rounded.
 
-    - `toric_fan (Fan)`: The toric fan.
-    - `weights (array-like)`: Divisor coefficients in the toric prime divisor basis.
-    - `return_Q_Cartier_data (bool)`: Whether to return local data also for Q-Cartier
-        divisors. Defaults to `False`.
+    Returns:
+        tuple[bool, list | None]: Whether the divisor is Cartier, and a list with
+            the local data $m_\sigma$ for each maximal cone, in the order of
+            `toric_fan.cones()`. If the divisor is not Cartier and
+            `return_Q_Cartier_data` is false, the list is `None`. Otherwise, each
+            entry is an integer array if $m_\sigma$ is integral, a rounded float
+            array if it is non-integral, and `None` if it does not exist.
 
-    - `decimals (int)`: Number of decimals used when storing approximate Q-Cartier data.
-        Defaults to `10`.
-
-    **Returns:**
-
-    - `tuple`: A pair `(is_cartier, cartier_data)`, where `cartier_data` is a list of
-        local Cartier data or `None`.
-
+    Examples:
+        >>> from cytools.vector_config import VectorConfiguration
+        >>> from cytools.f_theory.Uplift_functions import is_Cartier
+        >>> fan = VectorConfiguration([[1, 0], [1, 2]]).triangulate()
+        >>> is_Cartier(fan, [1, 0])
+        (False, None)
+        >>> is_Cartier(fan, [1, 0], return_Q_Cartier_data=True)
+        (False, [array([-1. ,  0.5])])
     """
     weights = np.array(weights)
     cartier_data = []
@@ -973,60 +1071,63 @@ def is_Cartier(toric_fan, weights, return_Q_Cartier_data=False, decimals=10):
 
 
 def is_nef(toric_fan, weights):
-    """
-    **Description:**
+    r"""Check whether a toric divisor is nef.
 
-    Tests whether the divisor coefficient vector lies in the nef cone by pairing with
-        the secondary-cone hyperplanes.
+    The divisor is nef if its coefficient vector lies in the closure of the
+    secondary cone of the fan, i.e. if it pairs non-negatively with all of the
+    secondary cone hyperplanes.
 
-    **Arguments:**
+    Args:
+        toric_fan (Fan): The toric fan.
+        weights (ArrayLike): The divisor coefficients.
 
-    - `toric_fan (Fan)`: The toric fan.
-    - `weights (array-like)`: Divisor coefficients in the toric prime divisor basis.
+    Returns:
+        bool: Whether the divisor is nef.
 
-    **Returns:**
+    Examples:
+        On the Hirzebruch surface $\mathbb{F}_1$, the fiber is nef while the
+        exceptional curve is not.
 
-    - `bool`: `True` if the divisor is nef, otherwise `False`.
-
+        >>> from cytools.vector_config import VectorConfiguration
+        >>> from cytools.f_theory.Uplift_functions import is_nef
+        >>> fan = VectorConfiguration([[1, 0], [0, 1], [-1, 1], [0, -1]]).triangulate()
+        >>> is_nef(fan, [1, 0, 0, 0]), is_nef(fan, [0, 1, 0, 0])
+        (np.True_, np.False_)
     """
     return np.all(np.array(toric_fan.secondary_cone_hyperplanes()) @ weights >= 0)
 
 
 def is_ample(toric_fan, weights):
-    """
-    **Description:**
+    """Check whether a toric divisor is ample.
 
-    Tests whether the divisor coefficient vector lies in the interior of the nef cone by
-        strict pairing with the secondary-cone hyperplanes.
+    The divisor is ample if its coefficient vector lies in the interior of the
+    secondary cone of the fan, i.e. if it pairs positively with all of the
+    secondary cone hyperplanes.
 
-    **Arguments:**
+    Args:
+        toric_fan (Fan): The toric fan.
+        weights (ArrayLike): The divisor coefficients.
 
-    - `toric_fan (Fan)`: The toric fan.
-    - `weights (array-like)`: Divisor coefficients in the toric prime divisor basis.
-
-    **Returns:**
-
-    - `bool`: `True` if the divisor is ample, otherwise `False`.
-
+    Returns:
+        bool: Whether the divisor is ample.
     """
     return np.all(np.array(toric_fan.secondary_cone_hyperplanes()) @ weights > 0)
 
 
 def is_effective(points, weights):
-    """
-    **Description:**
+    """Check whether a toric divisor has a nonzero global section.
 
-    Determines whether the Newton polytope of a divisor has at least one lattice point.
+    This is the case if its Newton polytope (see
+    [`Newton_Polytope`][cytools.f_theory.Uplift_functions.Newton_Polytope])
+    contains a lattice point, i.e. if the divisor is linearly equivalent to an
+    effective torus-invariant divisor.
 
-    **Arguments:**
+    Args:
+        points (np.ndarray): The rays of the toric fan, one per row.
+        weights (ArrayLike): The divisor coefficients.
 
-    - `points (numpy.ndarray)`: Rays of the toric fan.
-    - `weights (array-like)`: Divisor coefficients in the toric prime divisor basis.
-
-    **Returns:**
-
-    - `bool`: `True` if the divisor has a nonzero section, otherwise `False`.
-
+    Returns:
+        bool: Whether the divisor has a nonzero global section.
     """
 
     try:
@@ -1039,20 +1140,19 @@ def is_effective(points, weights):
 
 
 def moving_cone(toric_variety):
-    """
-    **Description:**
+    r"""Return the moving cone of a toric variety.
 
-    Computes the moving cone from the GLSM charges by intersecting the cones obtained
-        after deleting each toric ray.
+    The moving cone is the intersection, over all rays $\rho$, of the cones
+    generated by the classes of the toric prime divisors other than $D_\rho$. The
+    returned cone lives in the space $\mathbb{R}^n$ of divisor coefficients: it is
+    the preimage of the moving cone under the map to the divisor class group, so
+    its lineality space contains the principal divisors.
 
-    **Arguments:**
+    Args:
+        toric_variety (Fan): The toric fan. Only its rays are used.
 
-    - `toric_variety (Fan)`: The toric fan or toric variety object.
-
-    **Returns:**
-
-    - `Cone`: The moving cone.
-
+    Returns:
+        Cone: The moving cone, in the space of divisor coefficients.
     """
 
     rays = toric_variety.vectors()
@@ -1073,23 +1173,20 @@ def moving_cone(toric_variety):
 
 
 def generic_section_factorizes(points, linebundle_weights):
-    """
-    **Description:**
+    r"""Check whether the generic section of a toric divisor factorizes.
 
-    Determines whether the generic section of a toric divisor factorizes by testing
-        whether every toric coordinate appears nontrivially in some section.
+    Compute the exponents of the toric coordinates $x_\rho$ in all monomial
+    sections of the divisor, and return `True` if some coordinate has exponent zero
+    in every section, or if the divisor has no sections at all. Otherwise, return
+    `False`.
 
-    **Arguments:**
+    Args:
+        points (np.ndarray): The rays of the toric fan, one per row.
+        linebundle_weights (np.ndarray): The divisor coefficients.
 
-    - `points (array-like)`: Rays of the toric fan.
-
-    - `linebundle_weights (array-like)`: Divisor coefficients in the toric prime divisor
-        basis.
-
-    **Returns:**
-
-    - `bool`: `True` if the generic section factorizes, otherwise `False`.
-
+    Returns:
+        bool: Whether the generic section factorizes, according to the criterion
+            above.
     """
 
     try:
@@ -1102,24 +1199,26 @@ def generic_section_factorizes(points, linebundle_weights):
 
 
 def attempt_to_make_nef(toric_variety, line_bundle, epsilon=1e-5):
-    """
-    **Description:**
+    r"""Attempt to find a triangulation on which a divisor is nef.
 
-    Perturbs the triangulation heights in the direction of the given line bundle in
-        order to find a triangulation for which the line bundle is nef.
+    The vector configuration of `toric_variety` is triangulated with heights
+    $h = a/\epsilon + h_0 + \epsilon\,(1 + \sin(i + 1))$, where $a$ are the divisor
+    coefficients, $h_0$ the heights of `toric_variety`, and $i$ the index of the
+    vector. The divisor is nef on the regular subdivision induced by the heights
+    $a$ and on its refinements, and for small enough $\epsilon$ the other two
+    terms only refine this subdivision to a triangulation. The result is not
+    checked.
 
-    **Arguments:**
+    Args:
+        toric_variety (Fan): A regular fan. Its heights and its vector
+            configuration are used.
+        line_bundle (ArrayLike): The divisor coefficients $a$, one per vector of
+            the vector configuration.
+        epsilon (float): The size $\epsilon$ of the perturbation.
 
-    - `toric_variety`: A triangulated vector configuration or toric fan with a vector
-        configuration.
-    - `line_bundle (array-like)`: Divisor coefficients in the toric prime divisor basis.
-    - `epsilon (float)`: Magnitude of the perturbation used to obtain a triangulation
-        rather than a subdivision. Defaults to `1e-5`.
-
-    **Returns:**
-
-    - `Fan`: A triangulation of the vector configuration.
-
+    Returns:
+        Fan: The triangulation of the vector configuration. Not all of the vectors
+            are necessarily used.
     """
 
     line_bundle = np.array(line_bundle)
@@ -1132,23 +1231,25 @@ def attempt_to_make_nef(toric_variety, line_bundle, epsilon=1e-5):
 
 
 def basis(points):
-    """
-    **Description:**
+    """Return the indices of rows that form a basis of the row span.
 
-    Returns indices of rows of `points` forming a basis for the row span.
+    The rows are scanned in order, and each row that is linearly independent of the
+    previously selected ones is added, until the rank of the matrix is reached.
 
-    **Arguments:**
+    Args:
+        points (np.ndarray): The 2D array whose rows are considered.
 
-    - `points (numpy.ndarray)`: Matrix whose rows are candidate basis vectors.
+    Returns:
+        list[int]: The indices of the selected rows.
 
-    **Raises:**
+    Raises:
+        ValueError: If no basis could be found (e.g. if `points` has no rows).
 
-    - `ValueError`: Raised if no basis can be found.
-
-    **Returns:**
-
-    - `list`: Indices of basis rows.
-
+    Examples:
+        >>> import numpy as np
+        >>> from cytools.f_theory.Uplift_functions import basis
+        >>> basis(np.array([[1, 0], [2, 0], [0, 1]]))
+        [0, 2]
     """
 
     n = points.shape[0]
@@ -1164,23 +1265,30 @@ def basis(points):
 
 
 def sums_to_anticanonical(pts, L1, L2):
-    """
-    **Description:**
+    r"""Check whether the sum of two toric divisors is linearly equivalent to $-K$.
 
-    Determines whether `L1 + L2` is linearly equivalent to the anticanonical divisor
-        and, if so, returns the character implementing the equivalence.
+    Look for a character $m$ such that $L_1 + L_2 + \operatorname{div}(\chi^m)$ is
+    the anticanonical divisor $\sum_\rho D_\rho$, i.e.
+    $\langle m, v_\rho \rangle = 1 - L_{1,\rho} - L_{2,\rho}$ for all rays. The
+    system is solved by least squares, and the rounded solution is then checked
+    exactly.
 
-    **Arguments:**
+    Args:
+        pts (np.ndarray): The rays $v_\rho$ of the toric fan, one per row.
+        L1 (ArrayLike): The coefficients of the first divisor.
+        L2 (ArrayLike): The coefficients of the second divisor.
 
-    - `pts (numpy.ndarray)`: Rays of the toric fan.
-    - `L1 (array-like)`: First divisor coefficient vector.
-    - `L2 (array-like)`: Second divisor coefficient vector.
+    Returns:
+        tuple[bool, np.ndarray | None]: Whether the sum is linearly equivalent to
+            the anticanonical divisor and, if it is, the character $m$ (otherwise
+            `None`).
 
-    **Returns:**
-
-    - `tuple`: A pair `(sums_to_anticanonical, character)`, where `character` is the
-        linear-equivalence shift if it exists, otherwise `None`.
-
+    Examples:
+        >>> import numpy as np
+        >>> from cytools.f_theory.Uplift_functions import sums_to_anticanonical
+        >>> rays = np.array([[1, 0], [0, 1], [-1, 1], [0, -1]])
+        >>> sums_to_anticanonical(rays, [0, 1, 1, 0], [0, 0, 1, 1])
+        (True, array([1, 0]))
     """
     pts_float = np.array(pts, dtype=float)
     b_float = (1 - np.array(L1) - np.array(L2)).astype(float)
@@ -1203,22 +1311,35 @@ def sums_to_anticanonical(pts, L1, L2):
 
 
 def is_partition(points, L1, L2):
-    """
-    **Description:**
+    r"""Check whether two toric divisors can be shifted to a partition of $-K$.
 
-    Determines whether two toric divisors can be shifted by principal divisors so that
-        their coefficients are in `{0,1}` and their sum is the anticanonical divisor.
+    Look for characters $m_1, m_2$ such that the shifted divisors
+    $L_i + \operatorname{div}(\chi^{m_i})$, with coefficients
+    $L_{i,\rho} + \langle m_i, v_\rho \rangle$, have all coefficients in
+    $\{0, 1\}$ and sum to the anticanonical divisor $\sum_\rho D_\rho$. First, a
+    character $m$ with $L_1 + L_2 + \operatorname{div}(\chi^m) = -K$ is found with
+    [`sums_to_anticanonical`][cytools.f_theory.Uplift_functions.sums_to_anticanonical].
+    Then $m_2$ is searched for by prescribing each of the two allowed values of
+    $\langle m_2, v_\rho \rangle$ on a basis of rays (see
+    [`basis`][cytools.f_theory.Uplift_functions.basis]), and $m_1 = m - m_2$.
 
-    **Arguments:**
+    Args:
+        points (np.ndarray): The rays $v_\rho$ of the toric fan, one per row.
+        L1 (np.ndarray): The coefficients of the first divisor.
+        L2 (np.ndarray): The coefficients of the second divisor.
 
-    - `points (numpy.ndarray)`: Rays of the toric fan.
-    - `L1 (array-like)`: First divisor coefficient vector.
-    - `L2 (array-like)`: Second divisor coefficient vector.
+    Returns:
+        tuple[bool, bool, np.ndarray, np.ndarray]: A tuple
+            `(is_partition, sums_to_anticanonical, m1, m2)`. If the sum is not
+            linearly equivalent to $-K$, `m1` and `m2` are zero. If it is but no
+            partition is found, `m1` is zero and `m2` is $m$.
 
-    **Returns:**
-
-    - `tuple`: A tuple `(is_partition, sums_to_anticanonical, shift_L1, shift_L2)`.
-
+    Examples:
+        >>> import numpy as np
+        >>> from cytools.f_theory.Uplift_functions import is_partition
+        >>> rays = np.array([[1, 0], [0, 1], [-1, 1], [0, -1]])
+        >>> is_partition(rays, np.array([2, 0, 0, 0]), np.array([-1, 1, 1, 1]))
+        (True, True, array([-1,  0]), array([1, 0]))
     """
 
     sta = sums_to_anticanonical(points, L1, L2)
@@ -1275,23 +1396,24 @@ def is_partition(points, L1, L2):
 
 
 def attempt_to_make_Cartier(tri, D):
-    """
-    **Description:**
+    """Attempt to refine a fan so that a divisor becomes Cartier and nef.
 
-    If the divisor is not Cartier on the given fan, this function adds rays from the
-        Newton-polytope inequalities and attempts to triangulate the refined
-        configuration so that the divisor becomes Cartier and nef.
+    If the divisor is already Cartier, the inputs are returned unchanged.
+    Otherwise, the facet normals of its Newton polytope that are not yet rays of
+    the fan are added as new vectors, with coefficients given by the constant terms
+    of the corresponding facet inequalities (so that the Newton polytope does not
+    change). The enlarged vector configuration is triangulated, and the result is
+    passed to
+    [`attempt_to_make_nef`][cytools.f_theory.Uplift_functions.attempt_to_make_nef].
+    The result is not checked.
 
-    **Arguments:**
+    Args:
+        tri (Fan): The toric fan.
+        D (ArrayLike): The divisor coefficients.
 
-    - `tri (Fan)`: The initial toric fan.
-    - `D (array-like)`: Divisor coefficients in the toric prime divisor basis.
-
-    **Returns:**
-
-    - `tuple`: A pair `(new_fan, new_D)` consisting of the refined fan and the updated
-        divisor coefficients.
-
+    Returns:
+        tuple[Fan, np.ndarray]: The new fan and the divisor coefficients on it, with
+            the coefficients of the new vectors appended after the original ones.
     """
     if is_Cartier(tri, D)[0]:
         return (tri, D)
@@ -1308,43 +1430,64 @@ def attempt_to_make_Cartier(tri, D):
 
 
 def BL(fan, lb):
-    """
-    **Description:**
+    r"""Return the base locus of a toric divisor.
 
-    Computes sections of the divisor with weights `lb` and returns the corresponding
-        base locus in the given fan.
+    This computes the sections of the divisor with
+    [`sections`][cytools.f_theory.Uplift_functions.sections] and passes them to
+    [`base_locus`][cytools.f_theory.Uplift_functions.base_locus], restricting to
+    the cones of `fan`. The divisor must have at least one section.
 
-    **Arguments:**
+    Args:
+        fan (Fan): The toric fan.
+        lb (np.ndarray): The divisor coefficients.
 
-    - `fan (Fan)`: The toric fan.
-    - `lb (array-like)`: Divisor coefficients in the toric prime divisor basis.
+    Returns:
+        list[tuple[int, ...]]: The minimal cones $\sigma$ of the fan such that all
+            sections vanish on the orbit closure $V(\sigma)$. The base locus is the
+            union of these orbit closures.
 
-    **Returns:**
+    Examples:
+        On the Hirzebruch surface $\mathbb{F}_1$, the exceptional curve $D_2$ is
+        its own base locus, while the fiber $D_1$ is base point free.
 
-    - `list`: Cones defining the base locus.
-
+        >>> import numpy as np
+        >>> from cytools.vector_config import VectorConfiguration
+        >>> from cytools.f_theory.Uplift_functions import BL
+        >>> fan = VectorConfiguration([[1, 0], [0, 1], [-1, 1], [0, -1]]).triangulate()
+        >>> BL(fan, np.array([0, 1, 0, 0])), BL(fan, np.array([1, 0, 0, 0]))
+        ([(2,)], [])
     """
     return base_locus(sections(fan.vectors(), lb), cones=fan.cones())
 
 
 def base_locus(sections, cones=None, dim=4):
-    """
-    **Description:**
+    r"""Return the minimal sets of toric coordinates on which all sections vanish.
 
-    Computes minimal coordinate strata on which all sections vanish. If cones are
-        provided, the search is restricted to strata of the corresponding toric fan.
+    All sections vanish on the locus $\{x_\rho = 0 : \rho \in S\}$ if every section
+    contains some $x_\rho$ with $\rho \in S$ with a positive exponent. The minimal
+    such sets $S$ are found by checking candidate sets of increasing size and
+    skipping supersets of sets already found.
 
-    **Arguments:**
+    Args:
+        sections (np.ndarray): The exponent matrix of the sections, with one row
+            per coordinate and one column per section, as returned by
+            [`sections`][cytools.f_theory.Uplift_functions.sections].
+        cones (list[tuple[int, ...]] | None): The maximal cones of a simplicial
+            fan. If specified, only faces of these cones are considered as
+            candidate sets. If not specified, all sets of at most `dim` coordinates
+            are considered.
+        dim (int): The maximum number of coordinates in a candidate set when
+            `cones` is not specified.
 
-    - `sections (numpy.ndarray)`: Section exponent matrix.
-    - `cones (iterable or None)`: Cones of the toric fan. If `None`, all coordinate
-        strata up to dimension `dim` are considered. Defaults to `None`.
-    - `dim (int)`: Dimension used when `cones=None`. Defaults to `4`.
+    Returns:
+        list[tuple[int, ...]]: The minimal sets, as tuples of one-indexed ray
+            labels, in order of increasing size.
 
-    **Returns:**
-
-    - `list`: Cones defining the base locus.
-
+    Examples:
+        >>> import numpy as np
+        >>> from cytools.f_theory.Uplift_functions import base_locus
+        >>> base_locus(np.array([[1, 1], [1, 0], [0, 1]]))
+        [(1,), (2, 3)]
     """
     num_coords, num_sections = sections.shape
     B = sections > 0
@@ -1376,35 +1519,67 @@ def normal_fan(
     triangulate_refinement=False,
     return_unrefined_fan=False,
 ):
-    """
-    **Description:**
+    r"""Construct the normal fan of a polytope or of a Minkowski sum of polytopes.
 
-    Constructs the normal fan of a lattice polytope, or of the Minkowski sum of a list
-        of lattice polytopes. Optionally constructs a maximal refinement subject to the
-        specified inequalities.
+    The rays of the normal fan are the inward facet normals $u$ of the polytope
+    $P$ (or of the Minkowski sum $P = P_0 + P_1 + \cdots$ if a list of polytopes
+    is given), and there is one maximal cone for each vertex of $P$, generated by
+    the normals of the facets containing it. The weight of a ray $u$ for a
+    polytope $P_j$ is $w_j(u) = -\min_{m \in P_j} \langle m, u \rangle$, so that
+    $P_j$ is the Newton polytope of the divisor $\sum_u w_j(u) D_u$ on the toric
+    variety of the normal fan.
 
-    **Arguments:**
+    If `maximal_refinement` is true, the normal fan of a list of two polytopes is
+    also refined using `inequalities` $= (a_0, a_1, c)$. If some ray of the normal
+    fan does not satisfy $0 \leq a_0 (1 - w_0(u)) - w_1(u) < c$, only `None`
+    values are returned. Otherwise, the primitive vectors along all lattice points
+    $u \neq 0$ of the support of the normal fan with
+    $a_0 w_0(u) + a_1 w_1(u) \leq c$ are added as new rays.
 
-    - `polytopes (Polytope or list[Polytope])`: A lattice polytope, or a list of lattice
-        polytopes whose Minkowski sum is used.
-    - `inequalities (array-like or None)`: Inequality data used for maximal refinement.
-        Required if `maximal_refinement=True`. Defaults to `None`.
-    - `maximal_refinement (bool)`: Whether to construct the maximal refinement. Defaults
-        to `False`.
-    - `triangulate_refinement (bool)`: Whether to triangulate the refined vector
-        configuration. Defaults to `False`.
-    - `return_unrefined_fan (bool)`: Whether to also return the unrefined normal fan.
-        Defaults to `False`.
+    Args:
+        polytopes (Polytope | list[Polytope]): A lattice polytope, or a list of
+            lattice polytopes whose Minkowski sum is used.
+        inequalities (ArrayLike | None): The coefficients $(a_0, a_1, c)$ that
+            define the refinement. Required if `maximal_refinement` is true.
+        maximal_refinement (bool): Whether to construct the refinement. This
+            requires `polytopes` to be a list of two polytopes.
+        triangulate_refinement (bool): Whether to return the refined fan, obtained
+            by star subdividing a simplicial refinement of the normal fan at the
+            new rays, instead of only its rays. Only used if `maximal_refinement`
+            is true.
+        return_unrefined_fan (bool): Whether to also return the normal fan. Only
+            used if `maximal_refinement` is true.
 
-    **Raises:**
+    Returns:
+        tuple: If `maximal_refinement` is false, a tuple `(fan, weights, cones)`
+            with the normal fan, the ray weights, and its maximal cones as lists of
+            one-indexed ray labels. The weights form a 1D array for a single
+            polytope, and an array of shape `(num_rays, len(polytopes))` for a
+            list. If `maximal_refinement` is true, a tuple `(rays, weights)` with
+            the rays of the refinement (the rays of the normal fan first) and
+            their weights. If `triangulate_refinement` is true, `rays` is replaced
+            by the refined fan, and if `return_unrefined_fan` is true, the normal
+            fan is appended to the tuple. If the check above fails, all entries are
+            `None`.
 
-    - `Exception`: Raised if `maximal_refinement=True` but no inequalities are provided.
+    Raises:
+        Exception: If `maximal_refinement` is true but `inequalities` is not
+            specified.
 
-    **Returns:**
+    Examples:
+        We construct the normal fan of the unit square, whose Newton polytope
+        weights are those of the divisor $D_3 + D_4$.
 
-    - `tuple`: The normal fan or refined vector data, together with line-bundle weights
-        and optionally the unrefined normal fan.
-
+        >>> from cytools import Polytope
+        >>> from cytools.f_theory.Uplift_functions import normal_fan
+        >>> fan, weights, cones = normal_fan(Polytope([[0, 0], [1, 0], [0, 1], [1, 1]]))
+        >>> fan.vectors()
+        array([[ 1,  0],
+               [ 0,  1],
+               [-1,  0],
+               [ 0, -1]])
+        >>> weights
+        array([0, 0, 1, 1])
     """
 
     if isinstance(polytopes, list):
@@ -1558,22 +1733,25 @@ def normal_fan(
 
 
 def nested_sum(lists, depth=0, acc=0):
-    """
-    **Description:**
+    """Return all sums of one element from each list, as a nested list.
 
-    Recursively forms all sums obtained by choosing one element from each list in
-        `lists`.
+    The entry at position `[i_0][i_1]...` of the result is
+    `acc + lists[depth][i_0] + lists[depth + 1][i_1] + ...`.
 
-    **Arguments:**
+    Args:
+        lists (list): The lists (or arrays) whose elements are summed.
+        depth (int): The index of the first list to use. This is used for the
+            recursion.
+        acc (Any): The partial sum accumulated so far. This is used for the recursion.
 
-    - `lists (list)`: A list of lists or arrays whose elements are to be summed.
-    - `depth (int)`: Recursion depth. Defaults to `0`.
-    - `acc`: Accumulated partial sum. Defaults to `0`.
+    Returns:
+        list: The sums, as a list nested `len(lists) - depth` levels deep. If
+            `depth` equals `len(lists)`, `acc` itself is returned.
 
-    **Returns:**
-
-    - `list`: The nested list of sums.
-
+    Examples:
+        >>> from cytools.f_theory.Uplift_functions import nested_sum
+        >>> nested_sum([[1, 2], [10, 20]])
+        [[11, 21], [12, 22]]
     """
 
     if depth == len(lists):
@@ -1582,20 +1760,22 @@ def nested_sum(lists, depth=0, acc=0):
 
 
 def flatten(lst, depth):
-    """
-    **Description:**
+    """Flatten a nested list by a given number of levels.
 
-    Recursively flattens a nested list by the specified number of levels.
+    Only elements of type `list` are flattened; other elements, such as tuples or
+    arrays, are kept as they are.
 
-    **Arguments:**
+    Args:
+        lst (list): The nested list.
+        depth (int): The number of levels to flatten.
 
-    - `lst (list)`: The nested list to flatten.
-    - `depth (int)`: Number of nesting levels to flatten.
+    Returns:
+        list: The flattened list.
 
-    **Returns:**
-
-    - `list`: The flattened list.
-
+    Examples:
+        >>> from cytools.f_theory.Uplift_functions import flatten
+        >>> flatten([[1, [2]], [3]], 1)
+        [1, [2], 3]
     """
 
     if depth == 0:
@@ -1610,22 +1790,18 @@ def flatten(lst, depth):
 
 
 def O7_cones(vc_orbifold, O7_labels, d):
-    """
-    **Description:**
+    """Return the cones with a given number of rays whose rays are all O7-planes.
 
-    Computes the `d`-ray cones of a toric fan whose rays are all contained in the set of
-        O7-plane labels.
+    Args:
+        vc_orbifold (Fan): The toric fan of the orbifold. It is assumed to be
+            simplicial.
+        O7_labels (Iterable[int]): The labels of the rays whose divisors are
+            O7-planes.
+        d (int): The number of rays of the cones.
 
-    **Arguments:**
-
-    - `vc_orbifold (Fan)`: The toric fan of the orbifold.
-    - `O7_labels (array-like)`: One-indexed labels of the O7 divisors.
-    - `d (int)`: Number of rays in the cones to consider.
-
-    **Returns:**
-
-    - `list`: Cones whose rays are contained in `O7_labels`.
-
+    Returns:
+        list[tuple[int, ...]]: The `d`-ray cones of the fan whose rays are all in
+            `O7_labels`, in arbitrary order.
     """
     d_cones = get_lower_dimensional_cones(vc_orbifold.cones(), d)
     relevant_d_cones = [t for t in d_cones if set(t).issubset(O7_labels)]
@@ -1633,24 +1809,29 @@ def O7_cones(vc_orbifold, O7_labels, d):
 
 
 def basis_H2_toric_fan(toric_fan):
-    """
-    **Description:**
+    r"""Return ray labels whose divisor classes form a basis of the class group.
 
-    Finds a smooth maximal cone and returns the complementary ray labels, giving a
-        convenient GLSM or curve-homology basis.
+    Find the first smooth maximal cone $\sigma$ of the fan. Since its generators
+    form a basis of the lattice, every divisor is linearly equivalent to a unique
+    integral combination of the toric prime divisors $D_\rho$ with
+    $\rho \notin \sigma$, so their classes form a $\mathbb{Z}$-basis of the divisor
+    class group. The rays are assumed to be labeled $1, \ldots, n$.
 
-    **Arguments:**
+    Args:
+        toric_fan (Fan): The toric fan.
 
-    - `toric_fan (Fan)`: The toric fan.
+    Returns:
+        np.ndarray: The labels of the rays not in $\sigma$, in increasing order.
 
-    **Raises:**
+    Raises:
+        ValueError: If the fan has no smooth maximal cone.
 
-    - `ValueError`: Raised if no smooth maximal cone is found.
-
-    **Returns:**
-
-    - `numpy.ndarray`: One-indexed ray labels forming the basis.
-
+    Examples:
+        >>> from cytools.vector_config import VectorConfiguration
+        >>> from cytools.f_theory.Uplift_functions import basis_H2_toric_fan
+        >>> fan = VectorConfiguration([[1, 0], [0, 1], [-1, 1], [0, -1]]).triangulate()
+        >>> basis_H2_toric_fan(fan)
+        array([3, 4])
     """
     for c in toric_fan.cones():
         if Cone(toric_fan.vectors(c)).is_smooth():
@@ -1662,26 +1843,39 @@ def basis_H2_toric_fan(toric_fan):
 
 
 def trilayer_5d_Ftheory_uplift(p, verbosity=1):
-    """
-    **Description:**
+    r"""Construct the polytope of the F-theory uplift of a trilayer orientifold.
 
-    Constructs the five-dimensional polytope associated with the F-theory uplift of a
-        trilayer orientifold in the limit where all mid-layer divisors are blown down.
+    The polytope is first brought to trilayer normal form (see
+    [`trilayer_normal_form`][cytools.f_theory.Uplift_functions.trilayer_normal_form]).
+    The lattice points of its top layer (first coordinate $1$), with the first
+    coordinate dropped, are the rays of the toric base $B$. The exceptional
+    divisors corresponding to the points of the middle layer (first coordinate
+    $0$) that are not interior to facets are blown down.
 
-    **Arguments:**
+    The rays of the base are then taken to be the primitive vectors along the
+    lattice points $u$ of the normal fan of the Newton polytope of $-2K_B$ with
+    weight $1 \leq w(u) \leq 2$ (see
+    [`normal_fan`][cytools.f_theory.Uplift_functions.normal_fan]). The O7-plane
+    divisors are the base divisors on which all sections of $-2K_B$ vanish, with
+    some section vanishing to first order. The uplift polytope is the convex hull
+    of the base rays lifted to $(u, 0, 1)$, the rays $v_x = (0, 3, 1)$,
+    $v_y = (0, -2, -1)$, and $v_z = (0, 0, 1)$ of the $\mathbb{P}_{2,3,1}$ fiber
+    (where $0$ denotes the origin of the base lattice),
+    and the rays $\hat{u} + v_x + 2 v_y$ and $2 \hat{u} + 2 v_x + 3 v_y$ for each
+    lifted O7-plane ray $\hat{u}$, which resolve the $D_4$ singularities over the
+    O7-planes.
 
-    - `p (Polytope)`: The reflexive trilayer polytope.
-    - `verbosity (int)`: Verbosity level controlling printed blowdown information.
-        Defaults to `1`.
+    Args:
+        p (Polytope): A reflexive trilayer polytope.
+        verbosity (int): The verbosity level. If positive, the number of blown-down
+            exceptional divisors is printed.
 
-    **Raises:**
+    Returns:
+        Polytope: The uplift polytope, of dimension `p.dim() + 1` (five for a
+            four-dimensional `p`).
 
-    - `Exception`: Raised if `p` is not trilayer.
-
-    **Returns:**
-
-    - `Polytope`: The five-dimensional F-theory uplift polytope.
-
+    Raises:
+        Exception: If `p` is not trilayer.
     """
 
     if not p.is_trilayer():
@@ -1760,22 +1954,32 @@ def trilayer_5d_Ftheory_uplift(p, verbosity=1):
 
 
 def sections(points, weights):
-    """
-    **Description:**
+    r"""Return the exponent vectors of the monomial sections of a toric divisor.
 
-    Computes the exponent vectors of all monomial sections of the divisor with
-        coefficient vector `weights` on the fan with rays `points`.
+    Each lattice point $m$ of the Newton polytope (see
+    [`Newton_Polytope`][cytools.f_theory.Uplift_functions.Newton_Polytope])
+    corresponds to the section
+    $\prod_\rho x_\rho^{\langle m, v_\rho \rangle + a_\rho}$.
 
-    **Arguments:**
+    Args:
+        points (np.ndarray): The rays $v_\rho$ of the toric fan, one per row.
+        weights (np.ndarray): The divisor coefficients $a_\rho$.
 
-    - `points (numpy.ndarray)`: Rays of the toric fan.
-    - `weights (array-like)`: Divisor coefficients in the toric prime divisor basis.
+    Returns:
+        np.ndarray: The exponent matrix, with one row per ray and one column per
+            section. If the divisor has no sections, an empty 1D array is
+            returned.
 
-    **Returns:**
+    Examples:
+        The divisor $D_1$ on $\mathbb{P}^2$ has the sections $x_3$, $x_2$, and
+        $x_1$.
 
-    - `numpy.ndarray`: Matrix of section exponents, or an empty array if there are no
-        sections.
-
+        >>> import numpy as np
+        >>> from cytools.f_theory.Uplift_functions import sections
+        >>> sections(np.array([[1, 0], [0, 1], [-1, -1]]), np.array([1, 0, 0]))
+        array([[0, 0, 1],
+               [0, 1, 0],
+               [1, 0, 0]])
     """
     NP = Newton_Polytope(points, weights)
     if len(NP.points()) == 0:
@@ -1785,22 +1989,26 @@ def sections(points, weights):
 
 
 def solve_over_integers(M, b):
-    """
-    **Description:**
+    r"""Find an integer solution of the linear system $M x = -b$.
 
-    Uses Smith normal form to determine whether the equation `Mx=b` has an integral
-        solution, and returns one if it exists.
+    The system is solved with the Smith normal form of $M$. Note the sign: the
+    system that is solved is $M x = -b$, not $M x = b$. If an inconsistent equation
+    of the form $0 = c$ with $c \neq 0$ is encountered, `PROBLEM` is printed.
 
-    **Arguments:**
+    Args:
+        M (ArrayLike): The integer matrix $M$.
+        b (ArrayLike): The integer vector $b$.
 
-    - `M (array-like)`: Integer matrix.
-    - `b (array-like)`: Integer inhomogeneous term.
+    Returns:
+        tuple[bool, np.ndarray | None]: Whether an integer solution exists and, if
+            it does, a solution $x$ (otherwise `None`).
 
-    **Returns:**
-
-    - `tuple`: A pair `(has_solution, x)`, where `x` is an integral solution if one
-        exists, otherwise `None`.
-
+    Examples:
+        >>> from cytools.f_theory.Uplift_functions import solve_over_integers
+        >>> solve_over_integers([[1, 0], [0, 2]], [3, 4])
+        (True, array([-3, -2]))
+        >>> solve_over_integers([[1, 0], [0, 2]], [3, 3])
+        (False, None)
     """
     A, S, T = smith_normal_decomp(Matrix(M), domain=ZZ)
     a = np.array(A, dtype=int)
@@ -1821,20 +2029,19 @@ def solve_over_integers(M, b):
 
 
 def make_simplicial(fan):
-    """
-    **Description:**
+    """Return a simplicial refinement of a fan.
 
-    Replaces non-simplicial cones by cones obtained from a fine triangulation of the
-        corresponding vector configuration, leaving simplicial cones unchanged.
+    Each maximal cone with more rays than the dimension of the fan is replaced by
+    the cones of a fine triangulation of its generators, and the simplicial cones
+    are kept. The cones are triangulated independently of each other, so the
+    result is only guaranteed to be a fan if non-simplicial cones do not share
+    non-simplicial faces.
 
-    **Arguments:**
+    Args:
+        fan (Fan): The toric fan.
 
-    - `fan (Fan)`: The toric fan to refine.
-
-    **Returns:**
-
-    - `Fan`: A simplicial refinement of the fan.
-
+    Returns:
+        Fan: The simplicial refinement, with the same vector configuration.
     """
 
     new_cones = set(fan.cones())
@@ -1850,23 +2057,35 @@ def make_simplicial(fan):
 
 
 def refine_fan(fan, blowups_or_all_vectors=None):
-    """
-    **Description:**
+    r"""Insert new rays into a simplicial fan by star subdivisions.
 
-    Adds new rays to a fan and star-subdivides the cones containing them. If no new
-        vectors are given, the vector configuration of the fan is used to detect rays
-        not already present in the fan.
+    If `blowups_or_all_vectors` is specified, its rows that are not yet in the
+    vector configuration of the fan are appended to it, keeping the cones of the
+    fan. Then, each vector of the vector configuration that is not a ray of the fan
+    is inserted: the smallest cone $\tau$ containing it is found, and every cone
+    $\tau \cup c$, with $c$ in the link of $\tau$, is replaced by the cones
+    $\tau' \cup c \cup \{\rho\}$, where $\rho$ is the new ray and $\tau'$
+    ranges over the facets of $\tau$.
 
-    **Arguments:**
+    Args:
+        fan (Fan): The simplicial toric fan.
+        blowups_or_all_vectors (np.ndarray | None): The new rays, one per row, or a
+            full vector configuration containing both the old and the new rays. If
+            not specified, the vectors of the vector configuration of `fan` that
+            are not rays of the fan are inserted.
 
-    - `fan (Fan)`: The toric fan to refine.
-    - `blowups_or_all_vectors (numpy.ndarray or None)`: Blowup rays or a full vector
-        configuration containing the old rays and new rays. Defaults to `None`.
+    Returns:
+        Fan: The refined fan.
 
-    **Returns:**
+    Examples:
+        We blow up the torus-fixed point of the first cone of $\mathbb{F}_1$.
 
-    - `Fan`: The refined toric fan.
-
+        >>> import numpy as np
+        >>> from cytools.vector_config import VectorConfiguration
+        >>> from cytools.f_theory.Uplift_functions import refine_fan
+        >>> fan = VectorConfiguration([[1, 0], [0, 1], [-1, 1], [0, -1]]).triangulate()
+        >>> refine_fan(fan, np.array([[1, 1]])).cones()
+        ((1, 4), (1, 5), (2, 3), (2, 5), (3, 4))
     """
 
     if blowups_or_all_vectors is not None:
@@ -1907,24 +2126,27 @@ def refine_fan(fan, blowups_or_all_vectors=None):
 
 
 def find_cone_general(new_ray, current_cones, all_vectors):
-    """
-    **Description:**
+    """Return the face of a cone that contains a given vector.
 
-    Searches the current cones for a minimal set of one-indexed ray labels whose
-        strictly positive linear combination gives `new_ray`.
+    For each cone in turn, solve for non-negative coefficients expressing
+    `new_ray` in terms of the generators of the cone (with
+    `scipy.optimize.nnls`). For the first cone where this succeeds, return the
+    labels of the generators with positive coefficients. Unlike
+    [`find_cone`][cytools.f_theory.Uplift_functions.find_cone], this also works for
+    cones that are not simplicial or not full-dimensional, but for non-simplicial
+    cones the returned labels need not generate the smallest face containing the
+    vector.
 
-    **Arguments:**
+    Args:
+        new_ray (np.ndarray): The vector to locate.
+        current_cones (Iterable[tuple[int, ...]]): The cones, as tuples of
+            one-indexed labels.
+        all_vectors (np.ndarray): The vectors, where the vector with label `i` is
+            in row `i - 1`.
 
-    - `new_ray (numpy.ndarray)`: The ray to locate.
-    - `current_cones (iterable)`: Current cones, represented by tuples of one-indexed
-        ray labels.
-    - `all_vectors (numpy.ndarray)`: Full ray matrix.
-
-    **Returns:**
-
-    - `frozenset` or `None`: The carrier face labels, or `None` if no carrier cone is
-        found.
-
+    Returns:
+        frozenset[int] | None: The labels of the generators, or `None` if no cone
+            contains the vector.
     """
     for cone in current_cones:
         cone_list = list(cone)
@@ -1944,23 +2166,25 @@ def find_cone_general(new_ray, current_cones, all_vectors):
 
 
 def array_to_latex(arr):
-    """
-    **Description:**
+    r"""Convert a 2D array into a LaTeX `pmatrix`.
 
-    Converts a two-dimensional NumPy array into a LaTeX `pmatrix` string.
+    Args:
+        arr (np.ndarray): The 2D array.
 
-    **Arguments:**
+    Returns:
+        str: The LaTeX code of the matrix.
 
-    - `arr (numpy.ndarray)`: The two-dimensional array to convert.
+    Raises:
+        ValueError: If `arr` has more than two dimensions.
 
-    **Raises:**
-
-    - `ValueError`: Raised if `arr` is not two-dimensional.
-
-    **Returns:**
-
-    - `str`: A LaTeX `pmatrix` representation of the array.
-
+    Examples:
+        >>> import numpy as np
+        >>> from cytools.f_theory.Uplift_functions import array_to_latex
+        >>> print(array_to_latex(np.array([[1, 2], [3, 4]])))
+        \begin{pmatrix}
+          1 & 2 \\
+          3 & 4 \\
+        \end{pmatrix}
     """
     if len(arr.shape) > 2:
         raise ValueError("Only 2D matrices are supported.")
@@ -1970,25 +2194,35 @@ def array_to_latex(arr):
 
 
 def integral_gale_transform(points):
-    """
-    **Description:**
+    r"""Return an integral Gale transform of a point configuration.
 
-    Lifts the input points by appending a column of ones, computes the rational
-        nullspace exactly using SymPy, and clears denominators to obtain an integral
-        Gale transform.
+    The points are lifted by appending a coordinate equal to $1$, and a basis of
+    the rational nullspace of the lifted configuration is computed with SymPy and
+    scaled to be integral. The rows of the result form a basis of the affine
+    dependencies $\sum_i c_i p_i = 0$, $\sum_i c_i = 0$ among the points $p_i$,
+    and its columns are the Gale vectors of the points.
 
-    **Arguments:**
+    Args:
+        points (ArrayLike): The points, one per row, as an array of shape
+            `(n, d)`.
 
-    - `points (array-like)`: Point configuration with shape `(n, d)`.
+    Returns:
+        np.ndarray: The Gale transform, of shape `(n - d - 1, n)` if the points
+            affinely span $\mathbb{R}^d$.
 
-    **Raises:**
+    Raises:
+        ValueError: If there are not more than `d + 1` points.
 
-    - `ValueError`: Raised if the number of points is not greater than `d+1`.
+    Warning:
+        The nullspace is currently computed from a floating-point matrix, so its
+        non-integral entries are truncated instead of being scaled to integers.
+        This gives incorrect results whenever the nullspace basis found by SymPy
+        has non-integral entries.
 
-    **Returns:**
-
-    - `numpy.ndarray`: The integral Gale transform.
-
+    Examples:
+        >>> from cytools.f_theory.Uplift_functions import integral_gale_transform
+        >>> integral_gale_transform([[0, 0], [1, 0], [0, 1], [1, 1]])
+        array([[ 1, -1, -1,  1]])
     """
     points = np.array(points)
     n, d = points.shape
@@ -2019,25 +2253,33 @@ def integral_gale_transform(points):
 
 
 def find_cone(new_ray, current_cones, all_vectors, tol=1e-10):
-    """
-    **Description:**
+    """Return the face of a simplicial cone that contains a given vector.
 
-    Lifts the input points by appending a column of ones, computes the rational
-        nullspace exactly using SymPy, and clears denominators to obtain an integral
-        Gale transform.
+    For each cone in turn, the coefficients expressing `new_ray` in terms of the
+    generators of the cone are computed. For the first cone where they are all
+    non-negative (up to `tol`), return the labels of the generators with positive
+    coefficients, which generate the smallest face of the cone containing the
+    vector. The cones must be simplicial and full-dimensional.
 
-    **Arguments:**
+    Args:
+        new_ray (np.ndarray): The vector to locate.
+        current_cones (Iterable[tuple[int, ...]]): The cones, as tuples of
+            one-indexed labels.
+        all_vectors (np.ndarray): The vectors, where the vector with label `i` is
+            in row `i - 1`.
+        tol (float): The numerical tolerance for the signs of the coefficients.
 
-    - `points (array-like)`: Point configuration with shape `(n, d)`.
+    Returns:
+        frozenset[int] | None: The labels of the generators of the face, or `None`
+            if no cone contains the vector.
 
-    **Raises:**
-
-    - `ValueError`: Raised if the number of points is not greater than `d+1`.
-
-    **Returns:**
-
-    - `numpy.ndarray`: The integral Gale transform.
-
+    Examples:
+        >>> import numpy as np
+        >>> from cytools.vector_config import VectorConfiguration
+        >>> from cytools.f_theory.Uplift_functions import find_cone
+        >>> fan = VectorConfiguration([[1, 0], [0, 1], [-1, 1], [0, -1]]).triangulate()
+        >>> find_cone(np.array([1, 1]), fan.cones(), fan.vectors())
+        frozenset({1, 2})
     """
     for cone in current_cones:
         numpy_indices = np.array(cone) - 1
@@ -2053,25 +2295,37 @@ def find_cone(new_ray, current_cones, all_vectors, tol=1e-10):
 
 
 def divisor_intersections(fan, intersection_dict, divisors, basis_set, as_LLL=True):
-    """
-    **Description:**
+    r"""Compute the classes of the toric curves on a complete intersection.
 
-    Computes the curve classes obtained by intersecting a list of divisors with toric
-        strata, expressed in a chosen basis of curve homology.
+    Let $X$ be the $d$-dimensional toric variety of `fan` and
+    $Y = D_1 \cap \cdots \cap D_k$ the complete intersection of the given
+    divisors. For each cone $s$ with $d - k - 1$ rays,
+    $C_s = V(s) \cdot D_1 \cdots D_k$ is a curve on $Y$, and its class is
+    recorded by the intersection numbers $D_i \cdot C_s$ with the basis divisors
+    $i \in$ `basis_set` (e.g. obtained with
+    [`basis_H2_toric_fan`][cytools.f_theory.Uplift_functions.basis_H2_toric_fan]).
+    These are computed from `intersection_dict` by expanding each $D_a$ in terms
+    of the toric prime divisors in the star of $s$. If some $D_a$ has no nonzero
+    coefficient on these prime divisors, or none of them is a basis divisor, the
+    row is left as zero.
 
-    **Arguments:**
+    Args:
+        fan (Fan): The toric fan.
+        intersection_dict (dict[tuple[int, ...], float]): The intersection
+            numbers of the toric variety, with sorted tuples of ray labels as
+            keys, as returned by the
+            [`intersection_numbers`][cytools.vector_config.fan.Fan.intersection_numbers]
+            method of the fan.
+        divisors (list[np.ndarray]): The coefficient vectors of the divisors $D_a$.
+        basis_set (set[int]): The labels of the basis divisors.
+        as_LLL (bool): Whether to return an LLL-reduced basis of the lattice
+            generated by the curve classes instead of the classes themselves.
 
-    - `fan (Fan)`: The toric fan.
-    - `intersection_dict (dict)`: Dictionary of toric intersection numbers.
-    - `divisors (list)`: List of divisor coefficient vectors.
-    - `basis_set (set)`: Set of one-indexed ray labels used as the homology basis.
-    - `as_LLL (bool)`: Whether to LLL-reduce the resulting lattice basis. Defaults to
-        `True`.
-
-    **Returns:**
-
-    - `numpy.ndarray`: The divisor-intersection curve classes, optionally LLL-reduced.
-
+    Returns:
+        np.ndarray: If `as_LLL` is false, the curve classes, with one row per cone
+            $s$ (in arbitrary order) and one column per basis divisor (in the
+            iteration order of `basis_set`). If `as_LLL` is true, the nonzero rows
+            of the LLL reduction of this matrix.
     """
 
     codim_cicy = len(divisors)

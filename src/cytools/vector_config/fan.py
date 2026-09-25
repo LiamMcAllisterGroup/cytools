@@ -19,6 +19,15 @@
 #               configurations and their triangulations.
 # -----------------------------------------------------------------------------
 
+"""Fans over vector configurations.
+
+This module defines the [`Fan`][cytools.vector_config.fan.Fan] class, which
+describes a subdivision of a vector configuration into cones, together with
+helper functions to compute intersection numbers and to track them through flops.
+Importing it also adds `vc` and `fan` methods to
+[`Triangulation`][cytools.triangulation.Triangulation].
+"""
+
 # external imports
 import collections
 import itertools
@@ -44,44 +53,55 @@ _INTERSECTION_NUMBERS_DEFAULT_DIGITS = 10
 
 
 class Fan(regfans.fan.Fan):
-    """
-    This class handles definition/operations on fans. It is analogous to the
-    Triangulation class. It also has toric methods, like intersection numbers.
+    """A fan over a vector configuration.
 
-    **Description:**
-    Constructs a `Fan` object describing a fan over a lattice vector
-    configuration. This is handled by the hidden [`__init__`](#__init__)
-    function.
+    This is the analogue of [`Triangulation`][cytools.triangulation.Triangulation]
+    for vector configurations. Besides the combinatorial methods inherited from the
+    `Fan` class of the [regfans](https://github.com/natemacfadden/regfans) package, it
+    provides toric methods such as intersection numbers and Mori and Kähler cones.
+    Most of these assume that the fan is a triangulation (i.e. simplicial) and, for
+    the methods involving a basis of divisors or the Calabi-Yau hypersurface, that
+    the convex hull of the vectors is a reflexive 4D polytope.
 
-    NOTE: This is not intended to be called directly. This is instead meant to
-    be constructed from `VectorConfiguration.triangulate`, which is also
-    available under the alias `VectorConfiguration.subdivide`.
+    This class is not intended to be constructed directly. Instead, use
+    [`VectorConfiguration.triangulate`][cytools.vector_config.vectorconfiguration.VectorConfiguration.triangulate]
+    (also available as `subdivide`) or `Triangulation.fan` (see
+    [`fan`][cytools.vector_config.fan.fan]). The constructor is inherited from
+    regfans and takes the following arguments:
 
-    *Arguments:**
-    - `vc`:      The ambient vector configuration that this fan is over.
-    - `cones`:   The cones defining the fan. Each cone is a collection of
-                 integer labels.
-    - `heights`: The heights defining the fan, if it is regular. Can be
-                 computed later.
+    - `vc` (`VectorConfiguration`): The vector configuration that the fan is over.
+    - `cones` (`list[list[int]]`): The maximal cones of the fan, each given by the
+      labels of its vectors.
+    - `heights` (`ArrayLike | None`): Heights defining the fan, if it is regular.
+      If not specified, they are computed when needed.
 
-    **Returns:**
-    Nothing.
+    Examples:
+        We construct a fan from a triangulation of a reflexive polytope and find its
+        cones.
+
+        >>> from cytools import Polytope
+        >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        >>> f = p.triangulate().fan()
+        >>> len(f.cones())
+        9
+        >>> f.cones()[:3]
+        ((1, 2, 3, 4), (1, 2, 3, 5), (1, 2, 4, 6))
     """
 
     # read from regfans type
     @classmethod
     def from_regfans(cls, fan: "regfans.Fan") -> "Fan":
-        """
-        **Description:**
-        Convert a `regfans.Fans` object to a object of the CYTools Fan class.
-        This is used when calling the CYTools VectorConfiguration.triangulate
-        method (also available under the alias `subdivide`).
+        """Convert a regfans `Fan` object into a CYTools `Fan` object.
 
-        **Arguments:**
-        - `fan`: The `regfans.Fan` object.
+        The new object shares the state of the input (a shallow copy of its attributes
+        is made). This is used by
+        [`VectorConfiguration.triangulate`][cytools.vector_config.vectorconfiguration.VectorConfiguration.triangulate].
 
-        **Returns:**
-        The CYTools Fan object.
+        Args:
+            fan (regfans.Fan): The regfans fan.
+
+        Returns:
+            Fan: The CYTools fan.
         """
         obj = cls.__new__(cls)  # allocate new instance
         obj.__dict__ = fan.__dict__.copy()  # copy state
@@ -97,28 +117,44 @@ class Fan(regfans.fan.Fan):
         as_inds: bool = False,
         ind_offset: int = 0,
     ) -> Union[tuple[tuple[int]], list["Cone"]]:
-        """
-        **Description:**
-        Returns the cones in the fan, each cone specified either by
-            - (default) a tuple of labels
-            - (formal=True) as a formal Cone object.
-            - (as_inds=True) as a tuple of indices
+        """Return the cones of the fan.
 
-        By default the maximal cones are returned. If `dim` is set, then return
-        the `dim`-dimensional cones (faces of the maximal ones). Only
-        implemented for simplicial fans currently.
+        By default, the maximal cones are returned, each as a sorted tuple of labels. If
+        `dim` is set, the `dim`-dimensional faces of the maximal cones are returned
+        instead, in no particular order.
 
-        **Arguments:**
-        - `dim`:        If set, return the `dim`-dimensional sub-cones (faces of
-                        the maximal cones). Only implemented for simplicial fans
-                        currently.
-        - `formal`:     Whether to return the cones as formal Cone objects.
-        - `as_hyps`:    Whether to return the cones as their hyperplanes.
-        - `as_inds`:    Whether to return the cones as indices (not labels).
-        - `ind_offset`: Additive offset to the indices
+        Also available as `simplices` and `simps`.
 
-        **Returns:**
-        The cones in the fan (maximal, or `dim`-dimensional if `dim` is set).
+        Args:
+            dim (int | None): If set, return the `dim`-dimensional cones (faces of the
+                maximal cones). Only implemented for simplicial fans.
+            formal (bool): Whether to return the cones as
+                [`Cone`][cytools.cone.Cone] objects. If true, the remaining format
+                options are ignored.
+            as_hyps (bool): Whether to return each cone by its hyperplane inequalities.
+            as_inds (bool): Whether to return each cone by the indices of its vectors
+                instead of their labels.
+            ind_offset (int): An offset added to the indices when `as_inds` is true.
+
+        Returns:
+            tuple[tuple[int, ...], ...] | list: The cones, as tuples of labels,
+                tuples of indices, lists of hyperplane inequalities, or
+                [`Cone`][cytools.cone.Cone] objects (the latter in a tuple).
+
+        Raises:
+            ValueError: If more than one of `as_hyps` and `as_inds` is set, or if `dim`
+                is set for a non-simplicial fan.
+
+        Examples:
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> f = p.triangulate().fan()
+            >>> f.cones()[:2]
+            ((1, 2, 3, 4), (1, 2, 3, 5))
+            >>> f.cones(as_inds=True)[:2]
+            ((0, 1, 2, 3), (0, 1, 2, 4))
+            >>> f.cones(formal=True)[0]
+            A 4-dimensional rational polyhedral cone in RR^4 generated by 4 rays
         """
         if formal:
             return tuple([self.vc.cone(c) for c in super(Fan, self).cones(dim=dim)])
@@ -134,19 +170,33 @@ class Fan(regfans.fan.Fan):
     def restricted_simps(
         self, to_dim: int = 2, padded: bool = False, as_face_inds: bool = False
     ):
-        """
-        **Description:**
-        Restrict input simplices to the to_dim-faces of the underlying polytope.
+        """Restrict the cones of the fan to the faces of the polytope.
 
-        **Arguments:**
-        - `to_dim`:       The dimension of the faces to restrict to.
-        - `padded`:       Whether to pad simplices that have <=to_dim points in
-                          the restriction
-        - `as_face_inds`: Whether to return the simplices as face-inds, not
-                          labels.
+        For each `to_dim`-dimensional face of the convex hull of the vectors, each
+        maximal cone is intersected with the face (as sets of labels), and the maximal
+        such intersections with at least two elements are kept. For a fine star
+        triangulation of a polytope, this gives the restriction of the triangulation to
+        each face.
 
-        **Returns:**
-        The restricted simplices
+        Args:
+            to_dim (int): The dimension of the faces to restrict to.
+            padded (bool): Whether to pad restricted simplices consisting of two points
+                by repeating their last point, so that they have three entries.
+            as_face_inds (bool): Whether to specify the points by their indices within
+                the labels of each face instead of by their labels.
+
+        Returns:
+            list[list[list[int]]]: For each `to_dim`-dimensional face (in the
+                order given by [`Polytope.faces`][cytools.polytope.Polytope.faces]),
+                the sorted list of restricted simplices, each a sorted list of labels
+                (or of face indices).
+
+        Examples:
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> f = p.triangulate().fan()
+            >>> f.restricted_simps()[5]
+            [[1, 4, 6], [1, 5, 6], [4, 5, 6]]
         """
         p = self.vc.conv()
         simps = self.simps()
@@ -203,17 +253,35 @@ class Fan(regfans.fan.Fan):
     def get_pc_triangulation(
         self, check: bool = True, verbosity: int = 0
     ) -> "Triangulation":
-        """
-        **Description:**
-        If the fan respects the point configuration, get the associated point
-        configuration triangulation.
+        """Return the triangulation of the point configuration associated to the fan.
 
-        **Arguments:**
-        - `check`:     Whether the fan respects the point configuration.
-        - `verbosity`: The verbosity level. Higher is more verbose.
+        This requires that the fan respects the point configuration, i.e. that it is the
+        fan over a star triangulation of the convex hull of the vectors (with the origin
+        labelled 0). For regular fans, the triangulation is obtained by lifting the
+        points by the heights of the fan, with the origin at height 0; otherwise, it is
+        constructed from the cones of the fan, with the origin added to each of them.
 
-        **Returns:**
-        The restricted simplices
+        Also available as `triang`.
+
+        Args:
+            check (bool): Whether to check that the fan respects the point configuration
+                and, for regular fans, that the heights generate the triangulation.
+            verbosity (int): The verbosity level. Currently unused.
+
+        Returns:
+            Triangulation: The corresponding star triangulation.
+
+        Raises:
+            ValueError: If `check` is true and the fan does not respect the point
+                configuration, or if the heights of a regular fan are negative.
+            NotImplementedError: If `check` is true and the fan is not regular.
+
+        Examples:
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> t.fan().get_pc_triangulation() == t
+            True
         """
         # check if this makes sense
         if check:
@@ -257,36 +325,43 @@ class Fan(regfans.fan.Fan):
         project_lineality: bool = False,
         verbosity: int = 0,
     ):
-        """
-        **Description:**
-        Compute the hyperplanes of the secondary cone associated to this fan.
-        This cone has the interpretation:
-            for a regular fan, a height h generates the fan iff it is in the
-            relative interior of the secondary cone.
+        """Compute the secondary cone of the fan.
 
-        Irregular fans do not have heights generating them and thus do not have
-        secondary cones. One way to check regularity of a simplicial fan (i.e.,
-        a triangulation) is to attempt to construct the secondary cone. This
-        should be solid (i.e., full-dimensional). If the output cone is
-        non-solid, then the fan is irregular.
+        For a regular fan, a height vector generates the fan if and only if it lies in
+        the relative interior of the secondary cone. Irregular fans are not generated by
+        any heights, so they do not have secondary cones. When computed by local folding
+        (`via_circuits=False`), the resulting cone is solid (full-dimensional) if and
+        only if the fan is regular, so this can be used to check regularity. The result
+        is cached separately for each value of `via_circuits`.
 
-        IRREGULARITY CHECKING ONLY WORKS IF `via_circuits=False`. WHEN
-        ATTEMPTING TO COMPUTE THE SECONDARY CONE OF AN IRREGULAR FAN USING
-        CIRCUITS, ONE CAN GET A FULL-DIMENSIONAL CONE!!!
+        Args:
+            via_circuits (bool): Whether to compute the cone from the circuits of the
+                fan instead of by local folding. This is correct for regular fans, but
+                it can give a full-dimensional cone for an irregular fan, so it must not
+                be used to check regularity.
+            project_lineality (bool): Whether to project out the lineality space (the
+                linear height functions) by mapping the rays with the Gale transform.
+                This gives the corresponding cone in the chamber complex, of dimension
+                $n-d$. For a fine regular star triangulation of a reflexive polytope,
+                this is the Kähler cone of the toric variety.
+            verbosity (int): The verbosity level.
 
-        **Arguments:**
-        - `via_circuits`:      Whether to use circuits to compute the secondary
-                               cone. Should always be correct if the fan is
-                               regular but dangerous/not correct for checking
-                               irregularity... Alternative is local folding.
-        - `project_lineality`: Secondary cones have linear subspaces ('lineality
-                               spaces'). These can be projected out without
-                               loss of information, giving a cone in the
-                               chamber complex.
-        - `verbosity`:         The verbosity level. Higher is more verbose.
+        Returns:
+            Cone: The secondary cone, in the $n$-dimensional space of heights, or its
+                projection if `project_lineality` is true.
 
-        **Returns:**
-        The secondary/chamber cone.
+        Warning:
+            Irregularity can only be detected with `via_circuits=False`.
+
+        Examples:
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> f = p.triangulate().fan()
+            >>> f.secondary_cone()
+            A rational polyhedral cone in RR^6 defined by 18 hyperplanes
+            >>> f.secondary_cone(project_lineality=True).rays()
+            array([[3, 1],
+                   [1, 0]])
         """
         # the circuits-based and the folding-based cones can differ (see the
         # warning above), so they must be cached separately
@@ -320,35 +395,65 @@ class Fan(regfans.fan.Fan):
         copy: bool = True,
         verbosity: int = 0,
     ) -> Union[dict, "ArrayLike"]:
-        """
-        **Description:**
-        Compute the intersection numbers of the toric variety defined by the
-        cones
-            cones = [Cone(p.points(which=simp)) for simp in simps]
+        r"""Compute the intersection numbers of the toric variety defined by the fan.
 
-        **Arguments:**
-        - `pushed_down`: Whether to push down the intersection numbers.
-        - `in_basis`:    Whether to put the intersection numbers in basis.
-        - `symmetrize`:  Whether to give all intersection numbers, using the
-                         symmetry of the intersection numbers. Otherwise, just
-                         give components kappa[i,j,k] for i<=j<=k.
-        - `as_np_array`: Whether to format the intersection numbers as a NumPy
-                         array.
-        - `eps`:         Compatibility-only tolerance for filtering near-zero
-                         output entries. This does not affect the cached
-                         tensor and should normally be left at the default.
-        - `digits`:      Compatibility-only rounding for the returned values.
-                         This does not affect the cached tensor and should
-                         normally be left at the default.
-        - `copy`:        Whether to return a copy of the cached view
-                         (dict or ndarray). True is the safe default; set to
-                         False when the caller guarantees the result is
-                         treated as read-only, which avoids re-allocating the
-                         dict/ndarray on each call.
-        - `verbosity`:   The verbosity level. Higher is more verbose.
+        The intersection numbers are returned in a sparse format: a dictionary whose
+        keys are sorted tuples of indices $(i_1 \le \dots \le i_d)$ and whose values are
+        the corresponding intersection numbers $D_{i_1} \cdots D_{i_d}$, where
+        $D_1, \dots, D_n$ are the prime toric divisors (index $i$ corresponding to the
+        vector with label $i$) and $D_0 = K = -\sum_i D_i$ is the canonical divisor. The
+        numbers are computed as floating-point values. With `pushed_down`, they are the
+        intersection numbers of the anticanonical hypersurface (the Calabi-Yau for a
+        reflexive 4D polytope), $\kappa_{ijk} = -D_0 D_i D_j D_k$.
 
-        **Returns:**
-        The intersection numbers.
+        The full set of ambient intersection numbers is computed once and cached, as are
+        the formatted outputs for `pushed_down` or `in_basis`.
+
+        Also available as `int_nums` and `kappa`.
+
+        Args:
+            pushed_down (bool): Whether to return the intersection numbers of the
+                anticanonical hypersurface instead of those of the toric variety.
+            in_basis (bool): Whether to only return the intersection numbers of the
+                divisors in
+                [`divisor_basis`][cytools.vector_config.vectorconfiguration.VectorConfiguration.divisor_basis].
+                Indices then refer to positions in the basis.
+            symmetrize (bool): Whether to include all permutations of the indices,
+                instead of only sorted ones.
+            as_np_array (bool): Whether to return the intersection numbers as a dense
+                NumPy array. This implies `symmetrize=True`. Without `in_basis`, the
+                array is indexed by the labels, together with 0 for the canonical
+                divisor, when `pushed_down` is false, and by the labels minus one when
+                it is true.
+            eps (float): Entries with absolute value below this are dropped. Only used
+                when neither `pushed_down` nor `in_basis` is set, and it does not affect
+                the cached values.
+            digits (int | None): The number of decimal digits the values are rounded to
+                (`None` for no rounding). Only used when neither `pushed_down` nor
+                `in_basis` is set, and it does not affect the cached values.
+            copy (bool): Whether to return a copy of the cached output when
+                `pushed_down` or `in_basis` is set. Set it to false only if the result
+                will not be modified, to avoid copying it on every call.
+            verbosity (int): The verbosity level.
+
+        Returns:
+            dict[tuple[int, ...], float] | np.ndarray: The intersection numbers.
+
+        Raises:
+            ValueError: If the fan is not a triangulation.
+
+        Examples:
+            We compute the intersection numbers of a Calabi-Yau hypersurface, which
+            agree with those computed by
+            [`CalabiYau.intersection_numbers`][cytools.calabiyau.CalabiYau.intersection_numbers]
+            up to rounding.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> f = p.triangulate().fan()
+            >>> kappa = f.intersection_numbers(pushed_down=True, in_basis=True)
+            >>> {k: round(v) for k, v in kappa.items()}
+            {(0, 0, 1): 1, (0, 1, 1): -3, (1, 1, 1): 9}
         """
         if not hasattr(self, "_kappa"):
             # a plain dict (not a defaultdict) so that a missing key is an
@@ -725,18 +830,32 @@ class Fan(regfans.fan.Fan):
     kappa = intersection_numbers
 
     def c2(self, eps: float = 1e-4, digits: int = 4) -> "ArrayLike":
-        """
-        **Description:**
-        Compute the second chern class associated to the fan.
+        r"""Compute the second Chern class of the anticanonical hypersurface.
 
-        **Arguments:**
-        - `eps`:    The tolerance for rejecting 0 intersection numbers in the
-                    `Fan.intersection_numbers` method.
-        - `digits`: The number of digits to use in the intersection number
-                    computations.
+        The second Chern class is returned as its integrals $\int c_2 \wedge D_a$
+        over the prime toric divisors, computed as $\sum_{\{i,j\}} \kappa_{ija}$ where
+        the sum runs over the 2-dimensional cones of the fan. This assumes a
+        4-dimensional fan, so that the hypersurface is a Calabi-Yau threefold.
 
-        **Returns:**
-        The second chern class.
+        Args:
+            eps (float): Passed to
+                [`intersection_numbers`][cytools.vector_config.fan.Fan.intersection_numbers].
+                Currently it has no effect, since the pushed-down intersection numbers
+                are used.
+            digits (int): Passed to
+                [`intersection_numbers`][cytools.vector_config.fan.Fan.intersection_numbers].
+                Currently it has no effect, since the pushed-down intersection numbers
+                are used.
+
+        Returns:
+            list[int]: The integrals of $c_2$ over the divisors with labels
+                $1, 2, \dots$, up to the largest label used by the fan.
+
+        Examples:
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> p.triangulate().fan().c2()
+            [36, 306, 204, 36, 36, -6]
         """
         # get the 2-cones
         max_ind = -1
@@ -762,16 +881,23 @@ class Fan(regfans.fan.Fan):
         return out
 
     def mori_rays(self) -> "ArrayLike":
-        """
-        **Description:**
-        Compute the rays of the Mori cone of the toric variety defined by the
-        fan.
+        """Compute the generators of the Mori cone of the toric variety.
 
-        **Arguments:**
-        None.
+        The generators are the torus-invariant curves corresponding to the
+        $(d-1)$-dimensional cones of the fan, each given by its intersection numbers
+        with the divisors. The first column corresponds to the origin (the canonical
+        divisor) and column $i$ to the prime toric divisor with label $i$.
 
-        **Returns:**
-        The rays defining the Mori cone.
+        Returns:
+            np.ndarray: The generators of the Mori cone, one per row.
+
+        Examples:
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> p.triangulate().fan().mori_rays()
+            array([[  0,   1,   0,   0,   1,   1,  -3],
+                   [-18,   1,   9,   6,   1,   1,   0],
+                   [ -6,   0,   3,   2,   0,   0,   1]])
         """
         intnums = self.intersection_numbers(in_basis=False)
         dim = self.dim
@@ -806,17 +932,31 @@ class Fan(regfans.fan.Fan):
     def mori_cone(
         self, pushed_down: bool = False, in_basis: bool = False, verbosity: int = 0
     ) -> "Cone":
-        """
-        **Description:**
-        Compute the Mori cone of the toric variety defined by the fan.
+        """Compute the Mori cone of the toric variety.
 
-        **Arguments:**
-        - `pushed_down`: Whether to push down the Mori cone.
-        - `in_basis`:    Whether to put the Mori cone in basis.
-        - `verbosity`:   The verbosity level. Higher is more verbose.
+        The rays of the cone are given by
+        [`mori_rays`][cytools.vector_config.fan.Fan.mori_rays].
 
-        **Returns:**
-        The Mori cone.
+        Args:
+            pushed_down (bool): Whether to drop the coordinate corresponding to the
+                origin (the canonical divisor). Ignored if `in_basis` is true.
+            in_basis (bool): Whether to use the basis of curves dual to
+                [`divisor_basis`][cytools.vector_config.vectorconfiguration.VectorConfiguration.divisor_basis].
+            verbosity (int): The verbosity level. Currently unused.
+
+        Returns:
+            Cone: The Mori cone.
+
+        Examples:
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> f = p.triangulate().fan()
+            >>> f.mori_cone()
+            A 2-dimensional rational polyhedral cone in RR^7 generated by 3 rays
+            >>> f.mori_cone(in_basis=True).rays()
+            array([[ 1, -3],
+                   [ 1,  0],
+                   [ 0,  1]])
         """
         include_origin = not pushed_down
 
@@ -836,47 +976,62 @@ class Fan(regfans.fan.Fan):
         return Cone(new_rays, check=len(basis.shape) == 2)
 
     def kahler_cone(self, pushed_down=False, in_basis=False, verbosity=0):
-        """
-        **Description:**
-        Compute the Kahler cone of the toric variety defined by the fan.
+        """Compute the Kähler cone of the toric variety.
 
-        **Arguments:**
-        - `pushed_down`: Whether to push down the Mori cone.
-        - `in_basis`:    Whether to put the Mori cone in basis.
-        - `verbosity`:   The verbosity level. Higher is more verbose.
+        This is the dual of the
+        [`mori_cone`][cytools.vector_config.fan.Fan.mori_cone].
 
-        **Returns:**
-        The Kahler cone.
+        Args:
+            pushed_down (bool): Whether to drop the coordinate corresponding to the
+                origin (the canonical divisor). Ignored if `in_basis` is true.
+            in_basis (bool): Whether to use
+                [`divisor_basis`][cytools.vector_config.vectorconfiguration.VectorConfiguration.divisor_basis].
+            verbosity (int): The verbosity level. Currently unused.
+
+        Returns:
+            Cone: The Kähler cone.
+
+        Examples:
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> p.triangulate().fan().kahler_cone(in_basis=True).rays()
+            array([[3, 1],
+                   [1, 0]])
         """
         return self.mori_cone(
             pushed_down=pushed_down, in_basis=in_basis, verbosity=verbosity
         ).dual()
 
     def newton_polytope(self, divisor, dilate=False):
-        """
-        **Description:**
-        Returns the Newton polytope associated to a divisor on a toric variety
-        with 1-cones $Sigma(1)$ given by the points (not interior to facets) of
-        a polytope, expressed as a linear combination of the prime toric
-        divisors inherited by the CY hypersurface.
+        r"""Compute the polytope of a torus-invariant divisor.
 
-        **Arguments:**
-        - `divisor`: A list of indices with length equal to the Picard group of
-                     the CY hypersurface (assuming favorability), or the number
-                     of points not interior to facets of the polytope. This can
-                     be interpreted as a torus-invariant divisor, the set of
-                     which overparameterize the Class group. Alternatively,
-                     this is the obvious multidegree of a monomial in the Cox
-                     ring, mapped to the Class group multidegree by multiplying
-                     by the GLSM charge matrix.
-        - `dilate`:  Whether to dilate the Newton polytope into a normally
-                     equivalent integer polytope or not. If False, then just
-                     compute the integer hull (convex hull of contained lattice
-                     points) instead.
+        For the divisor $D = \sum_\rho a_\rho D_\rho$, where $D_\rho$ are the prime
+        toric divisors corresponding to the rays $u_\rho$ of the fan, this is the
+        polytope
+        $P_D = \{m : \langle m, u_\rho \rangle + a_\rho \geq 0 \ \forall \rho\}$,
+        whose lattice points correspond to the monomials of the Cox ring of degree $[D]$
+        (the multidegree being obtained by multiplying the coefficients by the GLSM
+        charge matrix). If $P_D$ is not a lattice polytope, it is converted into one as
+        described in [`HPolytope`][cytools.h_polytope.h_polytope.HPolytope].
 
+        Args:
+            divisor (list[int]): The coefficients $a_\rho$ of the divisor, one for each
+                ray of the fan, in the order of `used_labels`.
+            dilate (bool): Whether to rescale $P_D$ so that it becomes a lattice
+                polytope, instead of taking its integer hull.
 
-        **Returns:**
-        The Newton polytope for the passed divisor
+        Returns:
+            HPolytope: The polytope of the divisor.
+
+        Examples:
+            The polytope of the anticanonical divisor is the polar dual of the convex
+            hull of the rays.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> f = p.triangulate().fan()
+            >>> f.newton_polytope([1]*6).is_reflexive()
+            True
         """
 
         return HPolytope(
@@ -891,14 +1046,40 @@ class Fan(regfans.fan.Fan):
         )
 
     def is_gorenstein_fano(self):
+        r"""Return whether the polytope of the anticanonical divisor is reflexive.
+
+        The anticanonical polytope is
+        [`newton_polytope`][cytools.vector_config.fan.Fan.newton_polytope] of
+        $-K = \sum_\rho D_\rho$. Its reflexivity is necessary for the toric variety to
+        be Gorenstein Fano, and sufficient when the fan is the face fan of the convex
+        hull of its rays. Note that the fan itself is not checked.
+
+        Returns:
+            bool: Whether the anticanonical polytope is reflexive.
+        """
         # idea: self.conv().is_reflexive() should be equivalent
         return self.newton_polytope([1] * len(self.used_labels)).is_reflexive()
 
     def h21_cy(self):
-        """
-        h21 of the anticanonical CY hypersurface. The Hodge numbers are
-        determined by the polytope alone (a birational invariant), so they are
-        the same for every FRST/vex fan of it; this returns the polytope's h21.
+        """Return $h^{2,1}$ of the anticanonical Calabi-Yau hypersurface.
+
+        The Hodge numbers are determined by the polytope alone (they are birational
+        invariants), so they are the same for every fine regular star triangulation of
+        it, and this returns $h^{2,1}$ of the convex hull of the vectors.
+
+        Returns:
+            int: The Hodge number $h^{2,1}$.
+
+        Raises:
+            NotImplementedError: If
+                [`is_gorenstein_fano`][cytools.vector_config.fan.Fan.is_gorenstein_fano]
+                is false.
+
+        Examples:
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> p.triangulate().fan().h21_cy()
+            272
         """
         if not self.is_gorenstein_fano():
             raise NotImplementedError()
@@ -908,6 +1089,28 @@ class Fan(regfans.fan.Fan):
     # generalize flip_linear
     # ----------------------
     def flop_linear(self, *args, **kwargs):
+        """Flip along a linear path of heights, tracking the intersection numbers.
+
+        This calls regfans' `Fan.flip_linear` (which performs all the flips along the
+        linear homotopy of heights from this fan to a target), with hooks that keep
+        track of the intersection numbers of the Calabi-Yau hypersurface. The initial
+        fan and every fan reached after a flip get an attribute `_kappa_np` holding the
+        pushed-down intersection numbers in the divisor basis, as a NumPy array. These
+        are computed directly for the initial fan and then updated through each flop
+        with [`flop`][cytools.vector_config.fan.flop], instead of being recomputed.
+
+        Args:
+            *args (Any): Positional arguments passed to `flip_linear`.
+            **kwargs (Any): Keyword arguments passed to `flip_linear`, such as
+                `h_target`, `direction`, `h_init`, `max_N_flips`, and `verbosity`.
+                They must not include `hook_init` or `hook_flip`.
+
+        Returns:
+            list: The output of `flip_linear`: the status of the homotopy (1 on success,
+                or the exception raised), the final heights, the final fan, the
+                hyperplanes of its secondary cone, and the number of flips (plus any
+                requested records).
+        """
         # define the hooks
         # (the intersection numbers are stashed as `_kappa_np`; using `kappa`
         #  would shadow the `kappa`/`intersection_numbers` method on these
@@ -931,6 +1134,23 @@ class Fan(regfans.fan.Fan):
 # kernels
 # (See Fan.intersection_numbers)
 def kappa_solve_nxn(pts, known, r):
+    """Solve for unknown intersection numbers from linear relations.
+
+    Helper for
+    [`Fan.intersection_numbers`][cytools.vector_config.fan.Fan.intersection_numbers].
+    Finds the least-squares solution $x$ of `pts.T @ [x, known] = 0`, i.e. of
+    $M x = b$ with `M = pts[:r].T` and `b = -pts[r:].T @ known`, via the normal
+    equations.
+
+    Args:
+        pts (np.ndarray): The vectors, one per row. The first `r` rows correspond to
+            the unknowns and the rest to the known values.
+        known (np.ndarray): The known intersection numbers, as a column vector.
+        r (int): The number of unknowns.
+
+    Returns:
+        np.ndarray: The `r` unknown intersection numbers.
+    """
     # alternative methods (slower)
     # -------------------
     # solutions, res, *_ = np.linalg.lstsq(
@@ -949,6 +1169,22 @@ def kappa_solve_nxn(pts, known, r):
 
 @njit
 def kappa_solve_1x1(pts, known):
+    """Solve for one unknown intersection number from linear relations.
+
+    Specialization of [`kappa_solve_nxn`][cytools.vector_config.fan.kappa_solve_nxn]
+    for `r=1`, compiled with Numba.
+
+    Args:
+        pts (np.ndarray): The vectors, one per row. The first row corresponds to the
+            unknown and the rest to the known values.
+        known (np.ndarray): The known intersection numbers, as a column vector.
+
+    Returns:
+        list[float]: The unknown intersection number.
+
+    Raises:
+        ValueError: If the normal equations are singular.
+    """
     # solve M@x=b
     # solution x = a/b
     b = -pts[1:, :].T @ known
@@ -967,6 +1203,22 @@ def kappa_solve_1x1(pts, known):
 
 @njit
 def kappa_solve_2x2(pts, known):
+    """Solve for two unknown intersection numbers from linear relations.
+
+    Specialization of [`kappa_solve_nxn`][cytools.vector_config.fan.kappa_solve_nxn]
+    for `r=2`, compiled with Numba.
+
+    Args:
+        pts (np.ndarray): The vectors, one per row. The first two rows correspond to
+            the unknowns and the rest to the known values.
+        known (np.ndarray): The known intersection numbers, as a column vector.
+
+    Returns:
+        list[float]: The two unknown intersection numbers.
+
+    Raises:
+        ValueError: If the normal equations are singular.
+    """
     # solve M@x=b
     b = -pts[2:, :].T @ known
     M = pts[0:2, :].T
@@ -990,6 +1242,22 @@ def kappa_solve_2x2(pts, known):
 
 @njit
 def kappa_solve_3x3(pts, known):
+    """Solve for three unknown intersection numbers from linear relations.
+
+    Specialization of [`kappa_solve_nxn`][cytools.vector_config.fan.kappa_solve_nxn]
+    for `r=3`, compiled with Numba.
+
+    Args:
+        pts (np.ndarray): The vectors, one per row. The first three rows correspond
+            to the unknowns and the rest to the known values.
+        known (np.ndarray): The known intersection numbers, as a column vector.
+
+    Returns:
+        list[float]: The three unknown intersection numbers.
+
+    Raises:
+        ValueError: If the normal equations are singular.
+    """
     # solve M@x=b
     b = -pts[3:, :].T @ known
     M = pts[0:3, :].T
@@ -1030,6 +1298,18 @@ def kappa_solve_3x3(pts, known):
 
 # flops
 def minface_dim(config, labels):
+    """Return the dimension of the smallest face of the polytope containing some points.
+
+    The polytope is the convex hull of the vector configuration.
+
+    Args:
+        config (VectorConfiguration): The vector configuration.
+        labels (set[int]): The labels of the points.
+
+    Returns:
+        int: The dimension of the smallest face of the convex hull of `config` whose
+            labels include all of `labels`.
+    """
     # get dim (face must have at least this dimension)
     p = config.conv()
     A = config.vectors(labels)
@@ -1043,6 +1323,31 @@ def minface_dim(config, labels):
 
 
 def curve_to_gv(fan, kappa, circ, verbosity=0):
+    """Compute the GV invariant of the curve contracted in a flop.
+
+    The circuit describes a flop between two triangulations of a 4D reflexive
+    polytope, and the returned value is the genus-zero Gopakumar-Vafa invariant of
+    the flopping curve class of the Calabi-Yau hypersurface. It is determined by the
+    signature of the circuit and the dimension of the smallest face of the polytope
+    containing it: for signature $(3,2)$ it is 1 if that face is the whole polytope
+    and 0 otherwise, while for signature $(2,2)$ it is the triple intersection number
+    of the three divisors spanning a cone on one side of the circuit.
+
+    Args:
+        fan (Fan): The fan before the flop.
+        kappa (np.ndarray): The pushed-down intersection numbers of `fan` in the
+            divisor basis, as a dense array.
+        circ (regfans.circuits.Circuit): The flopped circuit.
+        verbosity (int): The verbosity level.
+
+    Returns:
+        int | float: The GV invariant.
+
+    Raises:
+        ValueError: If the circuit does not describe a flop (i.e. both sides of its
+            signature are not at least 2), or if the flop is not of a supported
+            type.
+    """
     config = fan.vc
 
     # check that the signature is of the right type
@@ -1089,6 +1394,23 @@ def curve_to_gv(fan, kappa, circ, verbosity=0):
 
 
 def flop(fan, kappa, circ, verbosity=0):
+    r"""Compute the intersection numbers after flopping a circuit.
+
+    Under the flop of a curve class $C$ with GV invariant $n_C$ (see
+    [`curve_to_gv`][cytools.vector_config.fan.curve_to_gv]), the intersection
+    numbers transform as $\kappa_{ijk} \to \kappa_{ijk} - n_C\, q_i q_j q_k$, where
+    $q$ is the normal vector of the circuit restricted to the divisor basis.
+
+    Args:
+        fan (Fan): The fan before the flop.
+        kappa (np.ndarray): The pushed-down intersection numbers of `fan` in the
+            divisor basis, as a dense array.
+        circ (regfans.circuits.Circuit): The flopped circuit.
+        verbosity (int): The verbosity level.
+
+    Returns:
+        np.ndarray: The intersection numbers after the flop, as a new array.
+    """
     # get GV
     gv = curve_to_gv(fan, kappa, circ, verbosity - 1)
     if verbosity >= 1:
@@ -1116,16 +1438,27 @@ def flop(fan, kappa, circ, verbosity=0):
 # ----
 # give Triangulation a method to directly generate VCs/Fans
 def vc(self, include_points_interior_to_facets=None):
-    """
-    **Description:**
-    Construct the VectorConfiguration associated to the triangulation.
+    """Return the vector configuration associated to the triangulation.
 
-    **Arguments:**
-    - `include_points_interior_to_facets`: Whether to include points interior
-        to facets
+    This is the (cached) vector configuration returned by `Polytope.vc` for the
+    polytope of the triangulation.
 
-    **Returns:**
-    The associated VectorConfiguration.
+    This function is attached to [`Triangulation`][cytools.triangulation.Triangulation]
+    as `Triangulation.vc` when `cytools.vector_config` is imported.
+
+    Args:
+        include_points_interior_to_facets (bool | None): Whether to include the
+            points interior to facets. If not specified, they are included if and
+            only if the triangulation uses any of them.
+
+    Returns:
+        VectorConfiguration: The associated vector configuration.
+
+    Examples:
+        >>> from cytools import Polytope
+        >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        >>> p.triangulate().vc().labels
+        (1, 2, 3, 4, 5, 6)
     """
     # default to the vc that contains every point the triangulation uses
     if include_points_interior_to_facets is None:
@@ -1145,16 +1478,38 @@ Triangulation.vc = vc
 
 
 def fan(self, include_points_interior_to_facets=None):
-    """
-    **Description:**
-    Construct the Fan associated to the triangulation.
+    """Return the fan associated to the triangulation.
 
-    **Arguments:**
-    - `include_points_interior_to_facets`: Whether to include points interior
-        to facets
+    The fan consists of the cones over the simplices of the triangulation that
+    contain the origin (i.e. the star of the origin), as a fan over the vector
+    configuration of the polytope. For a star triangulation, this is the complete
+    fan defining the toric variety.
 
-    **Returns:**
-    The associated Fan.
+    This function is attached to [`Triangulation`][cytools.triangulation.Triangulation]
+    as `Triangulation.fan` when `cytools.vector_config` is imported.
+
+    Args:
+        include_points_interior_to_facets (bool | None): Whether to include the
+            points interior to facets in the vector configuration. If not specified,
+            they are included if and only if the triangulation uses any of them.
+
+    Returns:
+        Fan: The associated fan.
+
+    Raises:
+        ValueError: If the origin is not a lattice point of the polytope, if the
+            triangulation does not use the origin or has no simplex containing it,
+            or if the triangulation uses points interior to facets but
+            `include_points_interior_to_facets` is false.
+
+    Examples:
+        >>> from cytools import Polytope
+        >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        >>> f = p.triangulate().fan()
+        >>> f.is_fine(), f.is_regular()
+        (True, True)
+        >>> f.cones()[:3]
+        ((1, 2, 3, 4), (1, 2, 3, 5), (1, 2, 4, 6))
     """
     # the fan is the star of the origin, so the triangulation must contain it.
     # note that triangulating without the origin is legal (it just silently

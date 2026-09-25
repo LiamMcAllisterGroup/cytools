@@ -18,6 +18,14 @@
 # Description:  This module contains tools designed to perform cone
 #               computations.
 # -----------------------------------------------------------------------------
+"""Rational polyhedral cones.
+
+This module provides the [`Cone`][cytools.cone.Cone] class, which handles
+computations with rational polyhedral cones such as duality, extremal rays,
+faces, interior and lattice points, and Hilbert bases, as well as a few
+standalone helper functions used by it.
+"""
+
 from __future__ import annotations
 
 # 'standard' imports
@@ -71,9 +79,16 @@ from cytools import utils
 
 
 def _rank(arr) -> int:
-    """
-    Rank of a set of rays. numpy's matrix_rank raises on a (0, d) array, which
-    is how a cone with no rays is represented, and whose span is trivial.
+    """Return the rank of a set of rays.
+
+    Unlike `np.linalg.matrix_rank`, this also accepts an empty `(0, d)` array,
+    which is how a cone with no rays is represented, and returns 0 for it.
+
+    Args:
+        arr (ArrayLike): The rays, one per row.
+
+    Returns:
+        int: The dimension of the linear span of the rays.
     """
     arr = np.asarray(arr)
     if arr.size == 0:
@@ -82,15 +97,17 @@ def _rank(arr) -> int:
 
 
 class _LazyModule:
-    """
-    **Description:**
-    A stand-in for a module that is only imported when it is first used. It
-    forwards every attribute access to the real module, so `mod.attr` works
+    """A stand-in for a module that is only imported when it is first used.
+
+    It forwards every attribute access to the real module, so `mod.attr` works
     exactly as it would after a plain `import`.
 
     This is used for the OR-Tools solvers, which are only needed by a handful
     of methods but which are expensive to import (`ortools.sat` alone pulls in
     pandas, costing ~1 s of `import cytools` time).
+
+    Args:
+        name (str): The fully-qualified name of the module to import lazily.
     """
 
     def __init__(self, name: str):
@@ -112,51 +129,70 @@ pywraplp = _LazyModule("ortools.linear_solver.pywraplp")
 
 
 class Cone:
-    """
+    r"""Rational polyhedral cone.
+
     This class handles all computations relating to rational polyhedral cones,
-    such cone duality and extremal ray computations. It is mainly used for the
-    study of Kähler and Mori cones.
+    such as cone duality and extremal ray computations. It is mainly used for
+    the study of Kähler and Mori cones. A cone can be specified either by a set
+    of generating rays $r_i$, in which case it is the set of non-negative
+    linear combinations $\sum_i \lambda_i r_i$ with $\lambda_i\geq 0$, or by a
+    set of inward-pointing hyperplane normals $h_j$, in which case it is the
+    set of points $x$ with $h_j\cdot x\geq 0$ for all $j$. The other
+    description is computed on demand.
 
-    :::important warning
-    This class is primarily tailored to pointed (i.e. strongly convex) cones.
-    There are a few computations, such as finding extremal rays, that may
-    produce some unexpected results when working with non-pointed cones.
-    :::
+    The input rays or hyperplane normals are stored as integer vectors.
+    Floating-point input is converted by dividing each row by the (numerical)
+    GCD of its entries and rounding. This class is also available at the root
+    of the package, so it can be imported with `from cytools import Cone`.
 
-    ## Constructor
+    Args:
+        rays (ArrayLike | None): The rays that generate the cone, one per row.
+            If it is not specified, then `hyperplanes` must be specified.
+        hyperplanes (ArrayLike | None): The inward-pointing normals to the
+            hyperplanes that define the cone, one per row. If it is not
+            specified, then `rays` must be specified. An empty list defines the
+            whole ambient space.
+        parse_inputs (bool): Whether to parse and normalize the input. If
+            false, `hyperplanes` must be a 2D NumPy array of integers, and it is
+            stored as is. This is only supported when constructing a cone from
+            hyperplanes.
+        check (bool): Whether to divide each integer input row by the GCD of
+            its entries, dropping rows of zeros (with a warning). Floating-point
+            input is always normalized this way. Recommended when constructing
+            a cone directly.
+        copy (bool): Whether to copy the input data. If false, the input
+            array may be used directly when no conversion is needed.
+            Recommended.
+        ambient_dim (int | None): The dimension of the ambient space. It is
+            only used when `hyperplanes` is empty, in which case it must be
+            specified unless it can be inferred from the shape of the input.
 
-    ### `cytools.cone.Cone`
+    Raises:
+        ValueError: If not exactly one of `rays` or `hyperplanes` is specified,
+            if the input is not a 2D matrix, if the ambient dimension is zero,
+            or if `hyperplanes` is empty and `ambient_dim` is missing or
+            inconsistent with its shape.
+        NotImplementedError: If `parse_inputs` is false and `rays` are given,
+            or if the input has an unsupported data type.
+        Exception: If arbitrary-precision (`fmpz` or `fmpq`) input is given
+            without enabling the experimental features.
 
-    **Description:**
-    Constructs a `Cone` object. This is handled by the hidden
-    [`__init__`](#__init__) function.
+    Warning:
+        This class is primarily tailored to pointed (i.e. strongly convex)
+        cones. There are a few computations, such as finding extremal rays,
+        that may produce some unexpected results when working with non-pointed
+        cones.
 
-    **Arguments:**
-    - `rays`: A list of rays that generates the cone. If it is not specified then
-        the hyperplane normals must be specified.
-    - `hyperplanes` *(array_like, optional)*: A list of inward-pointing
-        hyperplane normals that define the cone. If it is not specified then the
-        generating rays must be specified.
-    - `check` *(bool, optional, default=True)*: Whether to check the input.
-        Recommended if constructing a cone directly.
+    Examples:
+        We construct a cone in two different ways, first from a list of rays and
+        then from a list of hyperplane normals, and verify that the two inputs
+        result in the same cone.
 
-    :::note
-    Exactly one of `rays` or `hyperplanes` must be specified. Otherwise an
-    exception is raised.
-    :::
-
-    **Example:**
-    We construct a cone in two different ways. First from a list of rays then
-    from a list of hyperplane normals. We verify that the two inputs result in
-    the same cone.
-    ```python {2,3}
-    from cytools import Cone
-    # Create a cone using rays. It can also be done with Cone(rays=[[0,1],[1,1]])
-    c1 = Cone([[0,1],[1,1]])
-    c2 = Cone(hyperplanes=[[1,0],[-1,1]]) # Create a cone using hyperplane normals.
-    c1 == c2 # We verify that the two cones are the same.
-    # True
-    ```
+        >>> from cytools import Cone
+        >>> c1 = Cone([[0,1],[1,1]])  # equivalently, Cone(rays=[[0,1],[1,1]])
+        >>> c2 = Cone(hyperplanes=[[1,0],[-1,1]])
+        >>> c1 == c2
+        True
     """
 
     def __init__(
@@ -168,44 +204,6 @@ class Cone:
         copy: bool = True,
         ambient_dim: int = None,
     ):
-        """
-        **Description:**
-        Initializes a `Cone` object.
-
-        **Arguments:**
-        - `rays`: A list of rays that generates the cone. If it is not
-            specified then the hyperplane normals must be specified.
-        - `hyperplanes`: A list of inward-pointing hyperplane normals that
-            define the cone. If it is not specified then the generating rays
-            must be specified.
-        - `check`: Whether to check the input. Recommended if constructing a
-            cone directly.
-        - `copy`: Whether to ensure we copy the input rays/hyperplanes.
-            Recommended.
-        - `ambient_dim`: The ambient dimension of the cone, if not inferrable.
-
-        :::note
-        Exactly one of `rays` or `hyperplanes` must be specified. Otherwise, an
-        exception is raised.
-        :::
-
-        **Returns:**
-        Nothing.
-
-        **Example:**
-        This is the function that is called when creating a new `Cone` object.
-        We construct a cone in two different ways. First from a list of rays
-        then from a list of hyperplane normals. We verify that the two inputs
-        result in the same cone.
-        ```python {2,3}
-        from cytools import Cone
-        # Create a cone using rays. It can also be done with Cone(rays=[[0,1],[1,1]])
-        c1 = Cone([[0,1],[1,1]])
-        c2 = Cone(hyperplanes=[[1,0],[-1,1]]) # Create a cone using hyperplane normals.
-        c1 == c2 # We verify that the two cones are the same.
-        # True
-        ```
-        """
         # check whether rays or hyperplanes were input
         if not ((rays is None) ^ (hyperplanes is None)):
             raise ValueError(
@@ -368,29 +366,24 @@ class Cone:
             self._dim = None
 
     def clear_cache(self):
-        """
-        **Description:**
-        Clears the cached results of any previous computation.
+        """Clear the cached results of any previous computation.
 
-        **Arguments:**
-        None.
+        The input data (rays or hyperplane normals, whichever was used to
+        construct the cone) is kept, while everything that was derived from it,
+        including the other description of the cone, is discarded.
 
-        **Returns:**
-        Nothing.
+        Examples:
+            We construct a cone, compute its extremal rays, clear the cache and
+            then compute them again.
 
-        **Example:**
-        We construct a cone, compute its extremal rays, clear the cache and
-        then compute them again.
-        ```python {5}
-        c = Cone([[1,0],[1,1],[0,1]])
-        c.extremal_rays()
-        # array([[0, 1],
-        #        [1, 0]])
-        c.clear_cache() # Clears the cached result
-        c.extremal_rays() # The extremal rays recomputed
-        # array([[0, 1],
-        #        [1, 0]])
-        ```
+            >>> c = Cone([[1,0],[1,1],[0,1]])
+            >>> c.extremal_rays()
+            array([[1, 0],
+                   [0, 1]])
+            >>> c.clear_cache()  # clears the cached result
+            >>> c.extremal_rays()  # the extremal rays are recomputed
+            array([[1, 0],
+                   [0, 1]])
         """
         self._hash = None
         self._dual = None
@@ -407,25 +400,25 @@ class Cone:
             self._rays = None
 
     def __repr__(self):
-        """
-        **Description:**
-        Returns a string describing the cone.
+        """Return a string describing the cone.
 
-        **Arguments:**
-        None.
+        If the rays of the cone are known, the string states the dimension of
+        the cone and the number of generating rays. Otherwise, it states the
+        number of defining hyperplanes.
 
-        **Returns:**
-        *(str)* A string describing the cone.
+        Returns:
+            str: A string describing the cone.
 
-        **Example:**
-        This function can be used to convert the Cone to a string or to print
-        information about the cone.
-        ```python {2,3}
-        c = Cone([[1,0],[1,1],[0,1]])
-        cone_info = str(c) # Converts to string
-        print(c) # Prints cone info
-        # A 2-dimensional rational polyhedral cone in RR^2 generated by 3 rays
-        ```
+        Examples:
+            This function can be used to convert the cone to a string or to print
+            information about the cone.
+
+            >>> c = Cone([[1,0],[1,1],[0,1]])
+            >>> cone_info = str(c)  # converts to string
+            >>> print(c)  # prints cone info
+            A 2-dimensional rational polyhedral cone in RR^2 generated by 3 rays
+            >>> print(Cone(hyperplanes=[[1,0],[-1,1]]))
+            A rational polyhedral cone in RR^2 defined by 2 hyperplanes
         """
         if self._rays is not None:
             return (
@@ -439,29 +432,28 @@ class Cone:
         )
 
     def __eq__(self, other):
-        """
-        **Description:**
-        Implements comparison of cones with ==.
+        """Compare two cones with `==`.
 
-        :::note
-        The comparison of cones that are not pointed, and whose duals are also
-        not pointed, is not supported.
-        :::
+        Two cones are equal if they define the same set of points. The cones are
+        first compared by their input data. If that is inconclusive, they are
+        compared by their extremal rays if they are pointed, or by the extremal
+        rays of their duals if the duals are pointed. As a last resort, it is
+        checked whether the rays of each cone are contained in the other.
 
-        **Arguments:**
-        - `other` *(Cone)*: The other cone that is being compared.
+        Args:
+            other (Cone): The other cone that is being compared.
 
-        **Returns:**
-        *(bool)* The truth value of the cones being equal.
+        Returns:
+            bool: The truth value of the cones being equal. If `other` is not a
+                `Cone`, `NotImplemented` is returned.
 
-        **Example:**
-        We construct two cones and compare them.
-        ```python {3}
-        c1 = Cone([[0,1],[1,1]])
-        c2 = Cone(hyperplanes=[[1,0],[-1,1]])
-        c1 == c2
-        # True
-        ```
+        Examples:
+            We construct two cones and compare them.
+
+            >>> c1 = Cone([[0,1],[1,1]])
+            >>> c2 = Cone(hyperplanes=[[1,0],[-1,1]])
+            >>> c1 == c2
+            True
         """
         if not isinstance(other, Cone):
             return NotImplemented
@@ -509,59 +501,52 @@ class Cone:
         return self_contained_in_other and other_contained_in_self
 
     def __ne__(self, other):
-        """
-        **Description:**
-        Implements comparison of cones with !=.
+        """Compare two cones with `!=`.
 
-        :::note
-        The comparison of cones that are not pointed, and whose duals are also
-        not pointed, is not supported.
-        :::
+        This is the negation of `==`.
 
-        **Arguments:**
-        - `other` *(Cone)*: The other cone that is being compared.
+        Args:
+            other (Cone): The other cone that is being compared.
 
-        **Returns:**
-        *(bool)* The truth value of the cones being different.
+        Returns:
+            bool: The truth value of the cones being different. If `other` is not
+                a `Cone`, `NotImplemented` is returned.
 
-        **Example:**
-        We construct two cones and compare them.
-        ```python {3}
-        c1 = Cone([[0,1],[1,1]])
-        c2 = Cone(hyperplanes=[[1,0],[-1,1]])
-        c1 != c2
-        # False
-        ```
+        Examples:
+            We construct two cones and compare them.
+
+            >>> c1 = Cone([[0,1],[1,1]])
+            >>> c2 = Cone(hyperplanes=[[1,0],[-1,1]])
+            >>> c1 != c2
+            False
         """
         if not isinstance(other, Cone):
             return NotImplemented
         return not self == other
 
     def __hash__(self):
-        """
-        **Description:**
-        Implements the ability to obtain hash values from cones.
+        """Return the hash value of the cone.
 
-        :::note
-        Cones that are not pointed, and whose duals are also not pointed, are
-        not supported.
-        :::
+        For pointed cones, the hash is computed from the extremal rays. For
+        cones whose dual is pointed, it is computed from the extremal rays of
+        the dual cone (with a sign flip, so that a cone and its dual do not
+        share the same hash). The result is cached.
 
-        **Arguments:**
-        None.
+        Returns:
+            int: The hash value of the cone.
 
-        **Returns:**
-        *(int)* The hash value of the cone.
+        Warning:
+            Cones that are not pointed and whose duals are also not pointed are
+            all assigned a hash value of 0, and a warning is issued.
 
-        **Example:**
-        We compute the hash value of a cone. Also, we construct a set and a
-        dictionary with a cone, which make use of the hash function.
-        ```python {2,3,4}
-        c = Cone([[0,1],[1,1]])
-        h = hash(c) # Obtain hash value
-        d = {c: 1} # Create dictionary with cone keys
-        s = {c} # Create a set of cones
-        ```
+        Examples:
+            We compute the hash value of a cone. Also, we construct a set and a
+            dictionary with a cone, which make use of the hash function.
+
+            >>> c = Cone([[0,1],[1,1]])
+            >>> h = hash(c)  # obtain hash value
+            >>> d = {c: 1}  # create dictionary with cone keys
+            >>> s = {c}  # create a set of cones
         """
         if self._hash is not None:
             return self._hash
@@ -583,26 +568,19 @@ class Cone:
         return 0
 
     def ambient_dimension(self):
-        """
-        **Description:**
-        Returns the dimension of the ambient lattice.
+        """Return the dimension of the ambient lattice.
 
-        **Arguments:**
-        None.
+        Also available as `ambient_dim`.
 
-        **Returns:**
-        *(int)* The dimension of the ambient lattice.
+        Returns:
+            int: The dimension of the ambient lattice.
 
-        **Aliases:**
-        `ambient_dim`.
+        Examples:
+            We construct a cone and find the dimension of the ambient lattice.
 
-        **Example:**
-        We construct a cone and find the dimension of the ambient lattice.
-        ```python {2}
-        c = Cone([[0,1,0],[1,1,0]])
-        c.ambient_dimension()
-        # 3
-        ```
+            >>> c = Cone([[0,1,0],[1,1,0]])
+            >>> c.ambient_dimension()
+            3
         """
         return self._ambient_dim
 
@@ -610,26 +588,23 @@ class Cone:
     ambient_dim = ambient_dimension
 
     def dimension(self):
-        """
-        **Description:**
-        Returns the dimension of the cone.
+        """Return the dimension of the cone.
 
-        **Arguments:**
-        None.
+        This is the dimension of the linear span of the cone. If the cone was
+        constructed from hyperplanes and is not solid, its rays are computed
+        first, which can be expensive. The result is cached.
 
-        **Returns:**
-        *(int)* The dimension of the cone.
+        Also available as `dim`.
 
-        **Aliases:**
-        `dim`.
+        Returns:
+            int: The dimension of the cone.
 
-        **Example:**
-        We construct a cone and find its dimension.
-        ```python {2}
-        c = Cone([[0,1,0],[1,1,0]])
-        c.dimension()
-        # 2
-        ```
+        Examples:
+            We construct a cone and find its dimension.
+
+            >>> c = Cone([[0,1,0],[1,1,0]])
+            >>> c.dimension()
+            2
         """
         if self._dim is not None:
             return self._dim
@@ -650,30 +625,35 @@ class Cone:
     dim = dimension
 
     def rays(self, use_extremal_hyperplanes: bool = False, verbosity: int = 0):
-        """
-        **Description:**
-        Returns the (not necessarily extremal) rays that generate the cone.
+        r"""Return the (not necessarily extremal) rays that generate the cone.
 
-        **Arguments:**
-        - `use_extremal_hyperplanes`: Whether to use extremal hyperplanes in
-            this computation, or just any hyperplanes.
-        - `verbosity`: The verbosity level.
+        If the cone was constructed from rays, these are returned (after the
+        normalization done at construction). Otherwise, they are computed from
+        the hyperplane normals with PPL and cached. In that case, a lineality
+        space is represented by pairs of opposite rays $\pm v$. This can be
+        slow for cones in more than about 12 dimensions.
 
-        **Returns:**
-        *(numpy.ndarray)* The list of rays that generate the cone.
+        Args:
+            use_extremal_hyperplanes (bool): Whether to first compute the
+                extremal hyperplanes and use them in this computation, instead of
+                all the defining hyperplanes. Only relevant if the rays are not
+                already known.
+            verbosity (int): The verbosity level.
 
-        **Example:**
-        We construct two cones and find their generating rays.
-        ```python {3,6}
-        c1 = Cone([[0,1],[1,1]])
-        c2 = Cone(hyperplanes=[[0,1],[1,1]])
-        c1.rays()
-        # array([[0, 1],
-        #        [1, 1]])
-        c2.rays()
-        # array([[ 1,  0],
-        #        [-1,  1]])
-        ```
+        Returns:
+            np.ndarray: A copy of the rays that generate the cone, one per row.
+
+        Examples:
+            We construct two cones and find their generating rays.
+
+            >>> c1 = Cone([[0,1],[1,1]])
+            >>> c2 = Cone(hyperplanes=[[0,1],[1,1]])
+            >>> c1.rays()
+            array([[0, 1],
+                   [1, 1]])
+            >>> c2.rays()
+            array([[ 1,  0],
+                   [-1,  1]])
         """
         if self._rays is not None:
             return np.array(self._rays)
@@ -703,32 +683,37 @@ class Cone:
         return np.array(self._rays)
 
     def hyperplanes(self, use_extremal_rays: bool = False, verbosity: int = 0):
-        """
-        **Description:**
-        Returns the inward-pointing normals to the hyperplanes that define the
-        cone.
+        r"""Return the inward-pointing normals to the hyperplanes that define the cone.
 
-        **Arguments:**
-        - `use_extremal_rays` :Whether to use extremal rays in this
-            computation, or just any rays.
-        - `verbosity`: The verbosity level.
+        The cone is the set of points $x$ such that $h\cdot x\geq 0$ for every
+        returned normal $h$. If the cone was constructed from hyperplane
+        normals, these are returned (after the normalization done at
+        construction). Otherwise, they are computed from the rays with PPL and
+        cached. In that case, if the cone is not solid, the linear subspace it
+        spans is cut out by pairs of opposite normals $\pm h$. This can be slow
+        for cones in more than about 12 dimensions.
 
-        **Returns:**
-        *(numpy.ndarray)* The list of inward-pointing normals to the
-        hyperplanes that define the cone.
+        Args:
+            use_extremal_rays (bool): Whether to first compute the extremal rays
+                and use them in this computation, instead of all the generating
+                rays. Only relevant if the hyperplanes are not already known.
+            verbosity (int): The verbosity level.
 
-        **Example:**
-        We construct two cones and find their hyperplane normals.
-        ```python {3,6}
-        c1 = Cone([[0,1],[1,1]])
-        c2 = Cone(hyperplanes=[[0,1],[1,1]])
-        c1.hyperplanes()
-        # array([[ 1,  0],
-        #        [-1,  1]])
-        c2.hyperplanes()
-        # array([[0, 1],
-        #        [1, 1]])
-        ```
+        Returns:
+            np.ndarray: A copy of the inward-pointing hyperplane normals, one per
+                row.
+
+        Examples:
+            We construct two cones and find their hyperplane normals.
+
+            >>> c1 = Cone([[0,1],[1,1]])
+            >>> c2 = Cone(hyperplanes=[[0,1],[1,1]])
+            >>> c1.hyperplanes()
+            array([[ 1,  0],
+                   [-1,  1]])
+            >>> c2.hyperplanes()
+            array([[0, 1],
+                   [1, 1]])
         """
         if self._hyperplanes is not None:
             return np.array(self._hyperplanes)
@@ -756,18 +741,40 @@ class Cone:
         return np.array(self._hyperplanes)
 
     def contains(self, other, eps: float = 0) -> bool:
-        """
-        **Description:**
-        Checks if a point is in the (strict) interior.
+        r"""Check whether points, or another cone, are contained in the cone.
 
-        **Arguments:**
-        - `other`: The object to check containment of. Can be a 1D array, which
-            is treated as a point. Can be a 2D array, which is treated as a
-            list of points. Can be a Cone.
-        - `eps`: Check H@pt >= eps.
+        A point $x$ is considered to be contained if $h\cdot x\geq \epsilon$ for
+        every hyperplane normal $h$ returned by
+        [`hyperplanes`][cytools.cone.Cone.hyperplanes]. With the default
+        $\epsilon=0$ this checks membership in the (closed) cone, while a
+        positive $\epsilon$ can be used to check whether a point is in the
+        strict interior. A cone is contained if all of its generating rays are.
 
-        **Returns:**
-        Whether pt is in the (strict) interior.
+        Args:
+            other (ArrayLike | Cone): The object to check. A 1D array is treated
+                as a single point, a 2D array as a list of points (one per row),
+                and a `Cone` is checked through its rays.
+            eps (float): The minimum value that $h\cdot x$ must attain for
+                every hyperplane normal $h$.
+
+        Returns:
+            bool | tuple[bool, ...]: Whether the point or the cone is contained.
+                If a 2D array is given, a tuple with one truth value per point is
+                returned.
+
+        Examples:
+            We construct a cone and check whether some points and a cone are
+            contained in it.
+
+            >>> c = Cone([[1,0],[0,1]])
+            >>> bool(c.contains([1,1]))
+            True
+            >>> [bool(b) for b in c.contains([[1,1],[-1,0]])]
+            [True, False]
+            >>> bool(c.contains([1,0], eps=1))  # on the boundary
+            False
+            >>> c.contains(Cone([[1,1],[1,2]]))
+            True
         """
         if isinstance(other, Cone):
             # just check if we contain all of other's rays...
@@ -799,29 +806,27 @@ class Cone:
             return contained[0]
 
     def dual_cone(self):
-        """
-        **Description:**
-        Returns the dual cone.
+        r"""Return the dual cone.
 
-        **Arguments:**
-        None.
+        The dual cone is the set of points $y$ such that $y\cdot x\geq 0$ for
+        all points $x$ in the cone. It is constructed by using the rays of this
+        cone as the hyperplane normals of the dual (or vice versa), and it is
+        cached. The dual of the returned cone is this cone.
 
-        **Returns:**
-        *(Cone)* The dual cone.
+        Also available as `dual`.
 
-        **Aliases:**
-        `dual`.
+        Returns:
+            Cone: The dual cone.
 
-        **Example:**
-        We construct a cone and find its dual cone.
-        ```python {2,4}
-        c = Cone([[0,1],[1,1]])
-        c.dual_cone()
-        # A rational polyhedral cone in RR^2 defined by 2 hyperplanes normals
-        c.dual_cone().rays()
-        # array([[ 1,  0],
-        #        [-1,  1]])
-        ```
+        Examples:
+            We construct a cone and find its dual cone.
+
+            >>> c = Cone([[0,1],[1,1]])
+            >>> c.dual_cone()
+            A rational polyhedral cone in RR^2 defined by 2 hyperplanes
+            >>> c.dual_cone().rays()
+            array([[ 1,  0],
+                   [-1,  1]])
         """
         if self._dual is None:
             if self._rays is not None:
@@ -841,42 +846,61 @@ class Cone:
         method: str = "extremalrays",
         verbose: bool = False,
     ) -> "ArrayLike":
-        """
-        **Description:**
-        Returns the extremal rays of the cone.
+        """Return the extremal rays of the cone.
 
-        :::note
-        By default, this function will use as many CPU threads as there are
-        available. To fix the number of threads, you can set the `n_threads`
-        variable in the `config` submodule.
-        :::
+        A ray is extremal if it cannot be written as a non-negative linear
+        combination of the other rays. For pointed cones, the extremal rays form
+        the unique minimal generating set of the cone. For non-pointed cones
+        there is no such unique set, and the behaviour depends on `minimal`.
 
-        **Arguments:**
-        - `tol`: Specifies the tolerance for deciding whether a ray is extremal
-            or not. Only used if method=="nnls".
-        - `minimal`: Whether to return a minimal generating set of rays. For
-            pointed cones, there is a unique minimal generating set -- the
-            extremal rays. For non-pointed cones, one can have a collection of
-            extremal rays generating the cone that is not minimal with respect
-            to ray count.
-        - `method`: The backend used to prune the rays. One of
-            "extremalrays" (default; needs a pointed cone and the extremalrays
-            package, else falls back to "legacy"), "legacy", or "nnls". "lp"
-            is a synonym for "legacy".
-        - verbose: When set to True it show the progress while finding the
-            extremal rays.
+        Duplicate rays are removed first, and the order of the returned rays
+        need not match the order of the input rays. The result is cached
+        separately for each value of `minimal` (the cache does not depend on
+        `method` or `tol`). If the cone was constructed from hyperplanes, the
+        extremal rays are also stored as its generating rays.
 
-        **Returns:**
-        The list of extremal rays of the cone.
+        Args:
+            tol (float): The tolerance for deciding whether a ray is extremal.
+                Only used if `method` is `"nnls"`.
+            minimal (bool): Whether to return a minimal generating set of rays.
+                This only matters for non-pointed cones. If true, the cone is
+                decomposed into its lineality space and its pointed part (see
+                [`lineality_space`][cytools.cone.Cone.lineality_space] and
+                [`pointed_space`][cytools.cone.Cone.pointed_space]), and the
+                extremal rays of both are returned together, so the result need
+                not be a subset of the generating rays. If false, the generating
+                rays that are not non-negative combinations of the others are
+                returned, which need not form a minimal generating set.
+            method (str): The backend used to prune the rays. The options are:
+                `"extremalrays"`, which uses the `extremalrays` package and falls
+                back to `"legacy"` if the package is not installed (with a warning)
+                or if the cone is not pointed; `"legacy"` (or its synonym `"lp"`),
+                which checks each ray by solving a linear program; and `"nnls"`,
+                which checks each ray by solving a non-negative least-squares
+                problem.
+            verbose (bool): Whether to print the progress of the computation.
 
-        **Example:**
-        We construct a cone and find its extremal_rays.
-        ```python {2}
-        c = Cone([[0,1],[1,1],[1,0]])
-        c.extremal_rays()
-        # array([[0, 1],
-        #        [1, 0]])
-        ```
+        Returns:
+            np.ndarray: The extremal rays of the cone, one per row.
+
+        Raises:
+            ValueError: If `method` is not one of the allowed options.
+            RuntimeError: If the check of a ray fails repeatedly with the
+                `"legacy"` or `"nnls"` backends.
+
+        Note:
+            The `"legacy"` and `"nnls"` backends check the rays in parallel for
+            pointed cones with at least 32 rays, using as many CPU threads as are
+            available. To fix the number of threads, you can set the
+            `n_threads` variable in the `cytools.config` module.
+
+        Examples:
+            We construct a cone and find its extremal rays.
+
+            >>> c = Cone([[0,1],[1,1],[1,0]])
+            >>> c.extremal_rays()
+            array([[0, 1],
+                   [1, 0]])
         """
         if self._ext_rays[minimal] is not None:
             return np.array(self._ext_rays[minimal])
@@ -1064,25 +1088,35 @@ class Cone:
         method="extremalrays",
         verbose: bool = False,
     ) -> "ArrayLike":
-        """
-        **Description:**
-        Returns the extremal hyperplanes of the cone.
+        """Return the extremal hyperplanes of the cone.
 
-        **Arguments:**
-        - `tol`: Specifies the tolerance for deciding whether a hyperplane is
-            extremal or not. Only used if method=="nnls".
-        - `minimal`: Whether to return a minimal generating set of hyperplane.
-            For duals of pointed cones, there is a unique minimal generating
-            set -- the extremal hyperplanes. For non-pointed cones, one can
-            have a collection of extremal hyperplanes defining the cone that is
-            not minimal with respect to hyperplane count.
-        - `method`: The backend used to prune the hyperplanes; see
-            `extremal_rays`, to which this delegates on the dual cone.
-        - verbose: When set to True it show the progress while finding the
-            extremal hyperplanes.
+        These are the extremal rays of the dual cone, i.e. a set of
+        inward-pointing hyperplane normals that define the cone and are not
+        redundant. This is computed with
+        [`extremal_rays`][cytools.cone.Cone.extremal_rays] on the dual cone, so
+        see its documentation for details.
 
-        **Returns:**
-        The list of extremal hyperplanes of the cone.
+        Args:
+            tol (float): The tolerance for deciding whether a hyperplane is
+                extremal. Only used if `method` is `"nnls"`.
+            minimal (bool): Whether to return a minimal set of hyperplanes. This
+                only matters when the dual cone is not pointed, i.e. when the cone
+                is not solid.
+            method (str): The backend used to prune the hyperplanes. The options
+                are `"extremalrays"`, `"legacy"` (or its synonym `"lp"`), and
+                `"nnls"`.
+            verbose (bool): Whether to print the progress of the computation.
+
+        Returns:
+            np.ndarray: The extremal hyperplane normals of the cone, one per row.
+
+        Examples:
+            We construct a cone and find its extremal hyperplanes.
+
+            >>> c = Cone([[0,1],[1,1],[1,0]])
+            >>> c.extremal_hyperplanes()
+            array([[0, 1],
+                   [1, 0]])
         """
         return self.dual().extremal_rays(
             tol=tol, minimal=minimal, method=method, verbose=verbose
@@ -1091,24 +1125,48 @@ class Cone:
     def faces(
         self, codim: int = None, include_self: bool = False, verbosity: int = 0
     ) -> tuple[tuple[Cone]] | tuple[Cone]:
-        """
-        **Description:**
-        Computes the positive-dimensional faces of a pointed cone.
+        """Return the faces of the cone, organized by codimension.
 
-        The faces are organized in a tuple of increasing codim. This method is
-        distinct from `facets` since this will be a lot slower for high-dim
-        H-cones.
+        The faces are found from the incidences between the extremal rays and
+        the extremal hyperplanes of the cone. Each face of positive dimension is
+        returned as a `Cone` generated by its extremal rays, while the
+        zero-dimensional face (the origin) is returned as a `Cone` defined by
+        hyperplanes. The result is cached.
 
-        **Arguments:**
-        - `codim`: Optional codim of the desired faces. When set to `0`, returns
-            the cone itself.
-        - `include_self`: Whether to include the codim-0 face when returning all
-            faces.
-        - `verbosity`: The verbosity level.
+        Only pointed cones are currently supported. This computation can be
+        expensive for high-dimensional cones, and it is slower than
+        [`facets`][cytools.cone.Cone.facets] if only the facets are needed.
 
-        **Returns:**
-        A tuple of `Cone` objects of codimension `codim`, if specified.
-        Otherwise, a tuple of tuples of cone faces.
+        Args:
+            codim (int | None): The codimension of the desired faces. If not
+                specified, the faces of all codimensions are returned. When set to
+                0, the cone itself is returned.
+            include_self (bool): Whether to include the cone itself (the
+                codimension-0 face) when returning the faces of all codimensions.
+            verbosity (int): The verbosity level.
+
+        Returns:
+            tuple[Cone, ...] | tuple[tuple[Cone, ...], ...]: If `codim` is
+                specified, the faces of that codimension. Otherwise, a tuple with
+                one tuple of faces per codimension, in increasing order, from
+                codimension 1 (or 0 if `include_self` is true) up to the dimension
+                of the cone.
+
+        Raises:
+            ValueError: If `codim` is negative or larger than the dimension of the
+                cone.
+            NotImplementedError: If the cone is not pointed.
+
+        Examples:
+            We construct a simplicial cone and find the number of faces of each
+            codimension, as well as the rays of one of its facets.
+
+            >>> c = Cone([[1,0,0],[0,1,0],[0,0,1]])
+            >>> [len(f) for f in c.faces()]
+            [3, 3, 1]
+            >>> c.faces(codim=1)[0].rays()
+            array([[1, 0, 0],
+                   [0, 0, 1]])
         """
         dim = self.dim()
 
@@ -1222,21 +1280,31 @@ class Cone:
         )
 
     def facets(self, verbosity: int = 0):
-        """
-        **Description:**
-        Get the facets of the cone.
+        """Return the facets of the cone.
 
-        This is easy if:
-            -) the cone is simplicial OR
-            -) the cone is solid and the extremal hyperplanes can be computed.
-        Otherwise, the computation uses both rays and hyperplanes... this is
-        semi-expensive to compute...
+        The facets are the faces of codimension 1. If the cone is simplicial,
+        they are the cones generated by each subset of all but one of the
+        extremal rays. Otherwise, they are computed by saturating, one at a time,
+        each extremal hyperplane that does not vanish on the whole cone, which
+        requires computing the extremal hyperplanes. In this case, the facets are
+        returned as cones defined by hyperplanes. The result is not cached.
 
-        **Arguments:**
-        - `verbosity`: The verbosity level.
+        Args:
+            verbosity (int): The verbosity level.
 
-        **Returns:**
-        The facets of the cone.
+        Returns:
+            list[Cone]: The facets of the cone.
+
+        Examples:
+            We construct a non-simplicial cone and find its facets.
+
+            >>> c = Cone([[1,0,1],[0,1,1],[-1,0,1],[0,-1,1]])
+            >>> f = c.facets()
+            >>> len(f)
+            4
+            >>> f[0].extremal_rays()
+            array([[-1,  0,  1],
+                   [ 0,  1,  1]])
         """
         # ray-based computation
         if self.is_simplicial():
@@ -1288,62 +1356,69 @@ class Cone:
         show_hints=True,
         verbose=False,
     ):
-        r"""
-        **Description:**
-        Finds the tip of the stretched cone. The stretched cone is defined as
-        the convex polyhedral region inside the cone that is at least a
-        distance `c` from any of its defining hyperplanes. Its tip is defined
-        as the point in this region with the smallest norm.
+        r"""Find the tip of the stretched cone.
 
-        :::note
-        This is a problem that requires quadratic programming since the norm of
-        a vector is being minimized. For dimensions up to around 25, this can
-        easily be done with open-source solvers like OSQP or CVXOPT, however
-        for higher dimensions this becomes a difficult task that only the Mosek
-        optimizer is able to handle. However, Mosek is closed-source and
-        requires a license. For this reason we preferentially use ORTools,
-        which is open-source, to solve a linear problem and find a good
-        approximation of the tip. Nevertheless, if Mosek is activated then it
-        uses Mosek as it is faster and more accurate.
-        :::
+        The stretched cone is the region of points $x$ in the cone such that
+        $h\cdot x\geq c$ for every hyperplane normal $h$ returned by
+        [`hyperplanes`][cytools.cone.Cone.hyperplanes]. Its tip is the point in
+        this region with the smallest (Euclidean) norm. Note that the normals
+        are integral vectors that are not normalized, so $c$ is not literally a
+        distance to the hyperplanes.
 
-        **Arguments:**
-        - `c` *(float)*: A real positive number specifying the stretching of
-            the cone (i.e. the minimum distance to the defining hyperplanes).
-        - `backend` *(str, optional, default=None)*: String that specifies the
-            optimizer to use. Options are "mosek", "osqp", "cvxopt", "highs",
-            and "glop". If it is not specified then for $d<25$ it uses "osqp" by
-            default. For $d\geq25$ it uses "mosek" if it is activated, or
-            "highs" otherwise.
-        - `check` *(bool, optional, default=True)*: Flag that specifies whether
-            to check if the output of the optimizer is consistent and satisfies
-            `constraint_error_tol`.
-        - `constraint_error_tol` *(float, optional, default=5e-2)*: Error
-            tolerance for the linear constraints.
-        - `max_iter` *(int, optional, default=10**6)*: The maximum number of
-            iterations allowed for the non-LP backends. If this function is
-            returning None, then increasing this parameter (maximum
-            permissible value: 2**31-1) might resolve the issue. For the LP
-            backends ("highs"/"glop"), this does nothing.
-        - `show_hints`: Whether to show hints about odd backend behavior.
-        - `verbose` *(boolean, optional)*: Whether to print extra diagnostic
-            information (True) or not (False).
+        If the cone has no defining hyperplanes (i.e. it is the whole space), a
+        vector of ones is returned.
 
-        **Returns:**
-        *(numpy.ndarray)* The vector specifying the location of the tip. If it
-            could not be found then None is returned.
+        Args:
+            c (float): A positive number specifying the stretching of the cone.
+            backend (str | None): The optimizer to use. The options are
+                `"mosek"`, `"osqp"`, and `"cvxopt"`, which solve the quadratic
+                program, and `"highs"` and `"glop"`, which solve a linear program
+                whose solution is only an approximation of the tip (see
+                [`find_interior_point`][cytools.cone.Cone.find_interior_point]).
+                If not specified, `"osqp"` is used for ambient dimension $d<25$.
+                For $d\geq 25$, `"mosek"` is used if it is activated, and
+                `"highs"` otherwise.
+            check (bool): Whether to check that the output of the optimizer
+                satisfies the constraints within `constraint_error_tol`.
+            constraint_error_tol (float): The error tolerance for the linear
+                constraints.
+            max_iter (int): The maximum number of iterations allowed for the
+                quadratic programming backends. If this function is returning
+                `None`, then increasing this parameter (up to $2^{31}-1$) might
+                resolve the issue. It is ignored by the `"highs"` and `"glop"`
+                backends.
+            show_hints (bool): Whether to print hints about possible reasons for
+                failure when no solution is found.
+            verbose (bool): Whether to print extra diagnostic information.
 
-        **Example:**
-        We construct two cones and find the locations of the tips of the
-        stretched cones.
-        ```python {3,5}
-        c1 = Cone([[1,0],[0,1]])
-        c2 = Cone([[3,2],[5,3]])
-        c1.tip_of_stretched_cone(1)
-        # array([1., 1.])
-        c2.tip_of_stretched_cone(1)
-        # array([8., 5.])
-        ```
+        Returns:
+            np.ndarray | None: The location of the tip. If it could not be found,
+                or if it does not pass the check, then `None` is returned.
+
+        Raises:
+            ValueError: If an invalid backend is specified.
+            Exception: If `"mosek"` is specified but Mosek is not activated.
+
+        Note:
+            Finding the tip requires quadratic programming, since the norm of a
+            vector is being minimized. For dimensions up to around 25, this can
+            easily be done with open-source solvers like OSQP or CVXOPT. For
+            higher dimensions this becomes a difficult task that only the Mosek
+            optimizer handles well. However, Mosek is closed-source and requires a
+            license. For this reason, when Mosek is not activated, the default for
+            high dimensions is to solve a linear problem with HiGHS, which finds a
+            good approximation of the tip.
+
+        Examples:
+            We construct two cones and find the locations of the tips of the
+            stretched cones.
+
+            >>> c1 = Cone([[1,0],[0,1]])
+            >>> c2 = Cone([[3,2],[5,3]])
+            >>> c1.tip_of_stretched_cone(1)
+            array([1., 1.])
+            >>> c2.tip_of_stretched_cone(1)
+            array([8., 5.])
         """
         # set the backend
         backends = (None, "mosek", "osqp", "cvxopt", "highs", "glop")
@@ -1451,30 +1526,33 @@ class Cone:
         return solution
 
     def find_grading_vector(self, backend=None):
-        r"""
-        **Description:**
-        Finds a grading vector for the cone, i.e. a vector $\mathbf{v}$ such
-        that any non-zero point in the cone $\mathbf{p}$ has a positive dot
-        product $\mathbf{v}\cdot\mathbf{p}>0$. Thus, the grading vector must be
-        strictly interior to the dual cone, so it is only defined for pointed
-        cones. This function returns an integer grading vector.
+        r"""Find a grading vector for the cone.
 
-        **Arguments:**
-        - `backend` *(str, optional, default=None)*: String that specifies the
-            optimizer to use. The options are the same as for the
-            [`find_interior_point`](#find_interior_point) function.
+        A grading vector is a vector $v$ such that $v\cdot p>0$ for every
+        non-zero point $p$ in the cone. Thus, it must be in the strict interior
+        of the dual cone, so it only exists for pointed cones. This function
+        returns an integral grading vector, found with
+        [`find_interior_point`][cytools.cone.Cone.find_interior_point] on the
+        dual cone.
 
-        **Returns:**
-        *(numpy.ndarray)* A grading vector. If it could not be found then None
-            is returned.
+        Args:
+            backend (str | None): The optimizer to use. The options are the same
+                as for [`find_interior_point`][cytools.cone.Cone.find_interior_point].
+                If not specified, the default of that function is used.
 
-        **Example:**
-        We construct a cone and find a grading vector.
-        ```python {2}
-        c = Cone([[3,2],[5,3]])
-        c.find_grading_vector()
-        # array([-1,  2])
-        ```
+        Returns:
+            np.ndarray | None: An integral grading vector. If it could not be
+                found, then `None` is returned.
+
+        Raises:
+            Exception: If the cone is not pointed.
+
+        Examples:
+            We construct a cone and find a grading vector.
+
+            >>> c = Cone([[3,2],[5,3]])
+            >>> c.find_grading_vector()
+            array([-1,  2])
         """
         if not self.is_pointed():
             raise Exception("Grading vectors are only defined for pointed cones.")
@@ -1490,40 +1568,61 @@ class Cone:
         show_hints: bool = False,
         verbose: bool = False,
     ) -> "ArrayLike":
-        r"""
-        **Description:**
-        Finds a point in the strict interior of the cone. If no point is found
-        then None is returned.
+        r"""Find a point in the strict interior of the cone.
 
-        **Arguments:**
-        - `c`: A real positive number specifying the stretching of the cone
-            (i.e. the minimum distance to the defining hyperplanes). Only used
-            if rays are not known.
-        - `lower`: A lower bound on the components of the interior point.
-        - `integral`: A flag that specifies whether the point should have
-            integral coordinates.
-        - `backend`: String that specifies the optimizer to use. The LP options
-            are "highs" (LP via HiGHS) and "glop" (LP via ORTools); the others
-            are "scip", "cpsat", "mosek", "osqp", and "cvxopt". If it is not
-            specified then "highs" is used by default. For $d\geq25$ it uses
-            "mosek" if it is activated.
-        - `check`: Whether to verify that the point is inside the cone.
-        - `show_hints`: Whether to show hints about odd backend behavior.
-        - `verbose`: Whether to print diagnostic information.
+        If the rays of the cone are known and neither `backend` nor `lower` is
+        specified, this simply returns the sum of the rays divided by their GCD
+        (and, unless `integral` is true, divided by the number of rays), or
+        `None` if the cone is not solid. In this case, `c` and `check` are
+        ignored.
 
-        **Returns:**
-        A point in the strict interior of the cone. If no point is found then
-        None is returned.
+        Otherwise, an optimization problem is solved to find a point $x$ with
+        $h\cdot x\geq c$ for every hyperplane normal $h$ returned by
+        [`hyperplanes`][cytools.cone.Cone.hyperplanes]. The LP and integer
+        programming backends minimize the average of the $h\cdot x$ (see
+        [`feasibility`][cytools.cone.feasibility]), while the quadratic
+        programming backends find the tip of the stretched cone (see
+        [`tip_of_stretched_cone`][cytools.cone.Cone.tip_of_stretched_cone]).
 
-        **Example:**
-        We construct a cone and find some interior points.
-        ```python {2,4}
-        c = Cone([[3,2],[5,3]])
-        c.find_interior_point()
-        # array([4. , 2.5])
-        c.find_interior_point(integral=True)
-        # array([8, 5])
-        ```
+        Args:
+            c (float): A positive number specifying the stretching of the cone,
+                i.e. the minimum value of $h\cdot x$ for each hyperplane normal
+                $h$. Not used if the point is obtained from the rays.
+            lower (float | None): A lower bound on each of the coordinates of
+                the point. It is not supported by the `"mosek"`, `"osqp"`, and
+                `"cvxopt"` backends.
+            integral (bool): Whether the point should have integral coordinates.
+                If the optimizer returns a non-integral point, its multiples are
+                rounded until one that is strictly interior is found.
+            backend (str | None): The optimizer to use. The options are `"highs"`
+                (an LP via HiGHS), `"glop"` (an LP via OR-Tools), `"scip"` (an
+                integer program via OR-Tools), `"cpsat"` (an integer program via
+                OR-Tools CP-SAT), and `"mosek"`, `"osqp"`, and `"cvxopt"` (quadratic
+                programs). If not specified and the rays are not known, `"mosek"`
+                is used if it is activated and the ambient dimension is at least
+                25, and `"highs"` otherwise.
+            check (bool): Whether to verify that the point found by the optimizer
+                is in the strict interior of the cone.
+            show_hints (bool): Whether to print hints about possible reasons for
+                failure of the quadratic programming backends.
+            verbose (bool): Whether to print extra diagnostic information.
+
+        Returns:
+            np.ndarray | None: A point in the strict interior of the cone. If no
+                point is found, then `None` is returned.
+
+        Raises:
+            ValueError: If an invalid backend is specified, or if `lower` is
+                specified with a backend that does not support it.
+
+        Examples:
+            We construct a cone and find some interior points.
+
+            >>> c = Cone([[3,2],[5,3]])
+            >>> c.find_interior_point()
+            array([4. , 2.5])
+            >>> c.find_interior_point(integral=True)
+            array([8, 5])
         """
         backends = (None, "highs", "glop", "scip", "cpsat", "mosek", "osqp", "cvxopt")
         if backend not in backends:
@@ -1627,89 +1726,120 @@ class Cone:
         max_B=10000,
         verbose=False,
     ):
-        """
-        **Description:**
-        Finds lattice points in the cone. The points are found in the region
-        bounded by the cone, and by a cutoff surface given by the grading
-        vector. Note that this requires the cone to be pointed. The minimum
-        number of points to find can be specified, or if working with a
-        preferred grading vector it is possible to specify the maximum degree.
+        r"""Find lattice points in the cone.
 
-        **Arguments:**
-        - `min_points` *(int, optional)*: Specifies the minimum number of points
-            to find. The degree will be increased until this minimum number is
-            achieved.
-        - `max_deg` *(int, optional)*: The maximum degree of the points to
-            find. This is useful when working with a preferred grading.
-        - `grading_vector` *(array_like, optional)*: The grading vector that
-            will be used. If it is not specified then it is computed.
-        - `c` *(numeric or array_like, optional)*: The minimum allowed
-            stretching. Can be a single number or a stretching per each
-            hyperplane (applied in the order of self.hyperplanes()).
-        - `max_coord` *(int, optional)*: The maximum magnitude of the
-            coordinates of the points. When not specified, the CP-SAT search
-            uses its largest supported integer bound.
-        - `deg_window` *(int, optional)*: If using min_points, search for
-            lattice points with degrees in range [n*(deg_window+1),
-            n*(deg_window+1)+deg_window] for 0<=n
-        - `filter_function` *(function, optional)*: A function to use as a
-            filter of the points that will be kept. It should return a boolean
-            indicating whether to keep the point. Note that `min_points` does
-            not take the filtering into account.
-        - `process_function` *(function, optional)*: A function to process the
-            points as they are found. This is useful to avoid first constructing
-            a large list of points and then processing it.
-        - `fast_mode` *(bool, optional)*: Allow quicker lattice point
-            computations for small cones. Doesn't use degree-based methods.
-            Instead uses Linf norm. This shortcut is only taken when
-            `min_points` is set and none of `max_deg`, `grading_vector`,
-            `filter_function`, or `process_function` are used, since it cannot
-            honor them.
-        - `max_B`: *(int, optional)*: Max Linf norm allowed in fast_mode.
-        - `verbose` *(boolean, optional)*: Whether to print extra diagnostic
-            information (True) or not (False).
+        The lattice points $x$ that are found satisfy $h\cdot x\geq c$ for every
+        hyperplane normal $h$ returned by
+        [`hyperplanes`][cytools.cone.Cone.hyperplanes], so with the default
+        `c=0` they are the lattice points of the cone. Either the minimum number
+        of points to find or the maximum degree of the points must be
+        specified. There are two algorithms:
 
-        **Returns:**
-        *(numpy.ndarray)* The list of points.
+        - A fast mode, which is used when `fast_mode` is true, `min_points` is
+          specified, the ambient dimension is at most 10, and none of `max_deg`,
+          `grading_vector`, `filter_function`, or `process_function` are given.
+          It enumerates the lattice points in boxes of increasing size (i.e.
+          bounded by the $L^\infty$ norm) using the `latticepts` package, and it
+          returns at least `min_points` points, unless the box size reaches
+          `max_B`. In this mode, `max_coord` and `deg_window` are ignored, and
+          `c` is converted to integers.
+        - The general algorithm, which requires the cone to be pointed. It uses
+          OR-Tools CP-SAT to find the points whose degree, i.e. their dot product
+          with the grading vector, is at most `max_deg`. If `max_deg` is not
+          given, it instead searches in windows of `deg_window + 1` consecutive
+          degrees, starting from degree 0, until at least `min_points` points
+          are found. All the points in the last window are kept, so more than
+          `min_points` points may be returned. If both `max_deg` and
+          `min_points` are given, `min_points` is ignored. The points are
+          returned sorted by degree, and lexicographically within each degree.
 
-        **Example:**
-        We construct a cone and find at least 20 lattice points in it.
-        ```python {2}
-        c = Cone([[3,2],[5,3]])
-        pts = c.find_lattice_points(min_points=20)
-        print(len(pts)) # We see that it found 21 points
-        # 21
-        ```
-        Let's also give an example where we use a function to apply some
-        filtering. This can be something very complicated, but here we just
-        pick the points where all coordinates are odd.
-        ```python {5}
-        def filter_function(pt):
-            return all(c%2 for c in pt)
+        Args:
+            min_points (int | None): The minimum number of points to find. Note
+                that this count does not take `filter_function` into account.
+            max_deg (int | None): The maximum degree of the points to find. This
+                is useful when working with a preferred grading vector.
+            grading_vector (ArrayLike | None): The grading vector that will be
+                used. If not specified, then it is computed with
+                [`find_grading_vector`][cytools.cone.Cone.find_grading_vector].
+            c (float | ArrayLike): The minimum allowed stretching. It can be a
+                single number, or one number per hyperplane, in the order of
+                [`hyperplanes`][cytools.cone.Cone.hyperplanes].
+            max_coord (int | None): The maximum absolute value of the coordinates
+                of the points in the general algorithm. If not specified, the
+                largest bound supported by CP-SAT is used.
+            deg_window (int): The number of additional degrees that are searched
+                at a time when using `min_points` in the general algorithm. The
+                searched windows are the degrees from $n(w+1)$ to $n(w+1)+w$, for
+                $n=0,1,2,\dots$ and $w$ equal to `deg_window`.
+            filter_function (Callable | None): A function that takes a point (as
+                a tuple of integers) and returns a boolean indicating whether to
+                keep it.
+            process_function (Callable | None): A function that is called on each
+                point (as a tuple of integers) as it is found. This is useful to
+                avoid first constructing a large list of points and then
+                processing it. When it is specified, nothing is returned.
+            fast_mode (bool): Whether to allow the fast mode described above.
+            max_B (int): The maximum box size (i.e. $L^\infty$ norm) allowed in
+                the fast mode.
+            verbose (bool): Whether to print extra diagnostic information.
 
-        c = Cone([[3,2],[5,3]])
-        pts = c.find_lattice_points(min_points=20, filter_function=filter_function)
-        print(len(pts)) # Now we get only 6 points instead of 21
-        # 6
-        ```
-        Finally, let's give an example where we process the data as it comes
-        instead of first constructing a list. In this simple example we just
-        print each point with odd coordinates, but in general it can be a
-        complex algorithm.
-        ```python {6}
-        def process_function(pt):
-            if all(c%2 for c in pt):
-                print(f"Processing point {pt}")
+        Returns:
+            np.ndarray | None: The lattice points, one per row. `None` is returned
+                if `process_function` is specified, or if the search with `max_deg`
+                was unsuccessful (in which case a message is printed).
 
-        c = Cone([[3,2],[5,3]])
-        c.find_lattice_points(min_points=20, process_function=process_function)
-        # Processing point (5, 3)
-        # Processing point (11, 7)
-        # Processing point (15, 9)
-        # Processing point (17, 11)
-        # Processing point (21, 13)
-        # Processing point (25, 15)
-        ```
+        Raises:
+            Exception: If neither `min_points` nor `max_deg` is specified, if both
+                `filter_function` and `process_function` are specified, if the
+                general algorithm is used on a cone that is not pointed, or if the
+                grading vector is not valid.
+            ValueError: If `max_coord` is specified and not enough points can be
+                found within the corresponding box.
+
+        Examples:
+            We construct a cone and find at least 20 lattice points in it.
+
+            >>> c = Cone([[3,2],[5,3]])
+            >>> pts = c.find_lattice_points(min_points=20)
+            >>> len(pts)
+            20
+
+            We can also find all the points up to a given degree. Here the grading
+            vector is computed automatically.
+
+            >>> c.find_lattice_points(max_deg=2)
+            array([[ 0,  0],
+                   [ 3,  2],
+                   [ 5,  3],
+                   [ 6,  4],
+                   [ 8,  5],
+                   [10,  6]])
+
+            Let's also give an example where we use a function to apply some
+            filtering. This can be something very complicated, but here we just
+            pick the points where all coordinates are odd.
+
+            >>> def odd_coords(pt):
+            ...     return all(c%2 for c in pt)
+            >>> pts = c.find_lattice_points(min_points=20, filter_function=odd_coords)
+            >>> len(pts)  # now we get only 6 points
+            6
+
+            Finally, let's give an example where we process the data as it comes
+            instead of first constructing a list. In this simple example we just
+            print each point with odd coordinates, but in general it can be a
+            complex algorithm.
+
+            >>> def process_function(pt):
+            ...     if all(c%2 for c in pt):
+            ...         print(f"Processing point {pt}")
+            >>> c.find_lattice_points(min_points=20, process_function=process_function)
+            Processing point (5, 3)
+            Processing point (11, 7)
+            Processing point (15, 9)
+            Processing point (17, 11)
+            Processing point (21, 13)
+            Processing point (25, 15)
         """
         # initial checks
         if max_deg is None and min_points is None:
@@ -1940,45 +2070,44 @@ class Cone:
         return np.vstack(out)
 
     def is_solid(self, backend=None):
-        """
-        **Description:**
-        Returns True if the cone is solid, i.e. if it is full-dimensional.
+        """Return whether the cone is solid, i.e. whether it is full-dimensional.
 
-        :::note
-        If the generating rays are known then this can simply be checked by
-        computing the dimension of the linear space that they span. However,
-        when only the hyperplane inequalities are known this can be a difficult
-        problem. When using PPL as the backend, the convex hull is explicitly
-        constructed and checked. The other backends try to find a point in the
-        strict interior of the cone, which fails if the cone is not solid. The
-        latter approach is much faster, but there could be extremely narrow
-        cones where the optimization fails and this function returns a false
-        negative.
-        :::
+        If the generating rays are known, this is simply checked by computing
+        the dimension of the linear space that they span, and `backend` is
+        ignored. When only the hyperplane inequalities are known this can be a
+        more difficult problem. When using PPL as the backend, the cone is
+        explicitly constructed and its dimension is checked. The other backends
+        try to find a point in the strict interior of the cone with
+        [`find_interior_point`][cytools.cone.Cone.find_interior_point], which
+        fails if the cone is not solid. The latter approach is much faster, but
+        there could be extremely narrow cones where the optimization fails and
+        this function returns a false negative. The result is cached.
 
-        **Arguments:**
-        - `backend` *(str, optional)*: Specifies which backend to use. Available
-            options are "ppl", and any backends available for the
-            [`find_interior_point`](#find_interior_point) function. If not
-            specified, it uses the default backend of the
-            [`find_interior_point`](#find_interior_point) function.
+        Also available as `is_full_dimensional`.
 
-        **Returns:**
-        *(bool)* The truth value of the cone being solid.
+        Args:
+            backend (str | None): The backend to use when the rays are not
+                known. The options are `"ppl"`, and any of the backends of
+                [`find_interior_point`][cytools.cone.Cone.find_interior_point]. If
+                not specified, the default backend of
+                [`find_interior_point`][cytools.cone.Cone.find_interior_point] is
+                used.
 
-        **Aliases:**
-        `is_full_dimensional`.
+        Returns:
+            bool: The truth value of the cone being solid.
 
-        **Example:**
-        We construct two cones and check if they are solid.
-        ```python {3,5}
-        c1 = Cone([[1,0],[0,1]])
-        c2 = Cone([[1,0,0],[0,1,0]])
-        c1.is_solid()
-        # True
-        c2.is_solid()
-        # False
-        ```
+        Raises:
+            ValueError: If an invalid backend is specified.
+
+        Examples:
+            We construct two cones and check if they are solid.
+
+            >>> c1 = Cone([[1,0],[0,1]])
+            >>> c2 = Cone([[1,0,0],[0,1,0]])
+            >>> c1.is_solid()
+            True
+            >>> c2.is_solid()
+            False
         """
         # check for cached answer or if we have rays... makes calc is easy
         if self._is_solid is not None:
@@ -2023,48 +2152,49 @@ class Cone:
     is_full_dimensional = is_solid
 
     def is_pointed(self, backend: str = "dual", tol: float = 1e-7) -> bool:
-        """
-        **Description:**
-        Returns True if the cone is pointed (i.e. strongly convex). A cone is
-        pointed if no x exists such that both x and -x are in the cone.
+        r"""Return whether the cone is pointed (i.e. strongly convex).
 
-        If one has hyperplanes, this check is as simple as `not full_rank(H)`
-        since, if H is not full rank, then some x has H@x==0. I.e., H@(+x)>=0
-        and H@(-x)>=0.
+        A cone is pointed if it contains no line, i.e. if there is no non-zero
+        $x$ such that both $x$ and $-x$ are in the cone. The available backends
+        are:
 
-        If one has rays, this check can be done either via
-            1) finding some psi such that psi.r > 0 for all rays r
-            2) checking if some lmbda!=0 exist such that R.T@lmbda = 0
+        - `"dual"`: checks whether the dual cone is solid (see
+          [`is_solid`][cytools.cone.Cone.is_solid]). This works for any cone.
+        - `"null"`: checks whether the matrix of hyperplane normals $H$ has full
+          rank, since otherwise any non-zero $x$ with $Hx=0$ spans a line in the
+          cone. This requires the hyperplanes to be known.
+        - `"lp"` and `"nnls"`: check whether there are non-negative coefficients
+          $\lambda\neq 0$ such that $\sum_i\lambda_i r_i=0$ for the generating
+          rays $r_i$, using a linear program or non-negative least squares,
+          respectively. These can only be used when the hyperplanes are not
+          known.
 
+        The result is cached, regardless of the backend used.
 
-        The backends are, in order of preference,
-            1) (backend='dual') check if dual is solid
-            2) (backend='null') hyperplane rank
-            3) (backend='lp')   rays@lmbda=0 via LP
-            4) (backend='nnls') rays@lmbda=0 via nnls
+        Also available as `is_strongly_convex`.
 
-        **Arguments:**
-        - `backend`: Specifies which backend to use. Available options are
-            "dual", "null", "lp", and "nnls".
-        - `tol`: The tolerance for determining when a linear subspace is found.
-            This is only used for the NNLS backend.
+        Args:
+            backend (str): The backend to use. The options are `"dual"`, `"null"`,
+                `"lp"`, and `"nnls"`, as described above.
+            tol (float): The tolerance for determining when a linear subspace is
+                found. This is only used by the `"nnls"` backend.
 
-        **Returns:**
-        The truth value of the cone being pointed.
+        Returns:
+            bool: The truth value of the cone being pointed.
 
-        **Aliases:**
-        `is_strongly_convex`.
+        Raises:
+            ValueError: If the backend is unknown, or if it cannot be used with
+                the known description of the cone.
 
-        **Example:**
-        We construct two cones and check if they are pointed.
-        ```python {3,5}
-        c1 = Cone([[1,0],[0,1]])
-        c2 = Cone([[1,0],[0,1],[-1,0]])
-        c1.is_pointed()
-        # True
-        c2.is_pointed()
-        # False
-        ```
+        Examples:
+            We construct two cones and check if they are pointed.
+
+            >>> c1 = Cone([[1,0],[0,1]])
+            >>> c2 = Cone([[1,0],[0,1],[-1,0]])
+            >>> c1.is_pointed()
+            True
+            >>> c2.is_pointed()
+            False
         """
         if self._is_pointed is not None:
             return self._is_pointed
@@ -2112,31 +2242,26 @@ class Cone:
     is_strongly_convex = is_pointed
 
     def is_simplicial(self):
-        """
-        **Description:**
-        Returns True if the cone is simplicial.
+        """Return whether the cone is simplicial.
 
-        N.B.: if c is solid, then c is simplicial <=> c.dual() is simplicial.
+        A cone is simplicial if its extremal rays are linearly independent, i.e.
+        if the number of extremal rays equals the dimension of the cone. If the
+        rays are not known and the cone is solid, it is instead checked whether
+        the number of extremal hyperplanes equals the dimension, which is
+        equivalent in that case. The result is cached.
 
-        A sometimes-simpler check if c is solid, then, is to check if
-        #(extremal hyperplanes) = dim.
+        Returns:
+            bool: The truth value of the cone being simplicial.
 
-        **Arguments:**
-        None.
+        Examples:
+            We construct two cones and check if they are simplicial.
 
-        **Returns:**
-        *(bool)* The truth value of the cone being simplicial.
-
-        **Example:**
-        We construct two cones and check if they are simplicial.
-        ```python {3,5}
-        c1 = Cone([[1,0,0],[0,1,0],[0,0,1]])
-        c2 = Cone([[1,0,0],[0,1,0],[0,0,1],[1,1,-1]])
-        c1.is_simplicial()
-        # True
-        c2.is_simplicial()
-        # False
-        ```
+            >>> c1 = Cone([[1,0,0],[0,1,0],[0,0,1]])
+            >>> c2 = Cone([[1,0,0],[0,1,0],[0,0,1],[1,1,-1]])
+            >>> c1.is_simplicial()
+            True
+            >>> c2.is_simplicial()
+            False
         """
         if self._is_simplicial is not None:
             return self._is_simplicial
@@ -2156,34 +2281,52 @@ class Cone:
         certificate: bool = False,
         verbosity: int = 0,
     ):
-        """
-        **Description:**
-        Checks if a cone {x : H@x>=0} is degenerate. I.e., does any x in this
-        cone saturate >=d+1 hyperplanes simultaneously, for d the ambient dim?
-        If so, the cone is degenerate.
+        r"""Check whether the cone is degenerate.
 
-        This is representation-sensitive. Just because the cone is degenerate
-        for a certain representation matrix, H, doesn't mean that it's
-        degenerate for all representation matrices. Probably best to use H as
-        the *extremal hyperplanes*.
+        For a cone $\{x : Hx\geq 0\}$ in $d$ ambient dimensions, this checks
+        whether some non-zero $x$ in the cone saturates (i.e. satisfies
+        $h\cdot x=0$) at least $d+1$ of the hyperplanes $h$ simultaneously. If
+        so, the cone is considered degenerate. It is more difficult to compute
+        the rays of a degenerate cone.
 
+        This is representation-sensitive: a cone may be degenerate for a certain
+        matrix of hyperplane normals $H$ but not for another one that defines
+        the same cone. It is therefore best to use the extremal hyperplanes.
 
-        Application: It is more difficult to compute the (extremal or not) rays
-        of a degenerate cone.
+        The check first tries $x=(1,\ldots,1)$, and otherwise searches for such
+        an $x$ among the integer vectors with OR-Tools CP-SAT.
 
-        **Arguments:**
-        - `use_extremal_hyperplanes`: Whether the check the extremal hyperplanes
-            for degeneracy. If False, the naive self.hyperplanes() will be used.
-        - `M`: The (absolute value of the) bounds on variables considered.
-        - `certificate`: Whether to return a certificate x as well as the
-            hyperplanes the solver claims it saturates
-        - `verbosity`: The verbosity level.
+        Args:
+            use_extremal_hyperplanes (bool): Whether to check the extremal
+                hyperplanes for degeneracy. If false, the hyperplanes returned by
+                [`hyperplanes`][cytools.cone.Cone.hyperplanes] are used.
+            M (int | None): The bound on the absolute value of the coordinates of
+                $x$ in the search. If not specified, the largest bound supported by
+                CP-SAT is used.
+            certificate (bool): Whether to also return the point $x$ that was
+                found and the hyperplanes that the solver claims it saturates.
+            verbosity (int): The verbosity level.
 
-        **Returns:**
-        The maximum number of hyperplanes that a single x can saturate
-        simultaneously.
+        Returns:
+            bool | tuple | None: Whether the cone is degenerate, or `None` if
+                the solver failed. If `certificate` is true, a tuple
+                `(degenerate, (x, z))` is returned instead, where `x` is the
+                point that was found and `z` is an array of 0s and 1s indicating
+                which hyperplanes it saturates (both can be `None` if no point
+                was found).
 
-        If certificate==True, also return (x,z)
+        Examples:
+            We construct a cone over a square and a cone over a pyramid with a
+            pentagonal base, and check whether they are degenerate. The apex of the
+            pyramid lies on five facets.
+
+            >>> c1 = Cone([[1,0,1],[0,1,1],[-1,0,1],[0,-1,1]])
+            >>> bool(c1.is_degenerate())
+            False
+            >>> c2 = Cone([[1,0,0,1],[0,1,0,1],[-1,1,0,1],[-1,0,0,1],[0,-1,0,1],
+            ...            [0,0,1,1]])
+            >>> bool(c2.is_degenerate())
+            True
         """
         if use_extremal_hyperplanes:
             H = self.extremal_hyperplanes()
@@ -2212,27 +2355,24 @@ class Cone:
             return degen
 
     def is_smooth(self):
-        """
-        **Description:**
-        Returns True if the cone is smooth, i.e. its extremal rays either form a
-        basis of the ambient lattice, or they can be extended into one.
+        """Return whether the cone is smooth.
 
-        **Arguments:**
-        None.
+        A cone is smooth if it is simplicial and its extremal rays either form a
+        basis of the ambient lattice, or they can be extended into one. The
+        result is cached.
 
-        **Returns:**
-        *(bool)* The truth value of the cone being smooth.
+        Returns:
+            bool: The truth value of the cone being smooth.
 
-        **Example:**
-        We construct two cones and check if they are smooth.
-        ```python {3,5}
-        c1 = Cone([[1,0,0],[0,1,0],[0,0,1]])
-        c2 = Cone([[2,0,1],[0,1,0],[1,0,2]])
-        c1.is_smooth()
-        # True
-        c2.is_smooth()
-        # False
-        ```
+        Examples:
+            We construct two cones and check if they are smooth.
+
+            >>> c1 = Cone([[1,0,0],[0,1,0],[0,0,1]])
+            >>> c2 = Cone([[2,0,1],[0,1,0],[1,0,2]])
+            >>> c1.is_smooth()
+            np.True_
+            >>> c2.is_smooth()
+            np.False_
         """
         if self._is_smooth is not None:
             return self._is_smooth
@@ -2249,19 +2389,26 @@ class Cone:
         return self._is_smooth
 
     def lineality_space(self):
-        """
-        **Description:**
-        Returns the lineality space as a formal cone object.
+        """Return the lineality space of the cone as a `Cone` object.
 
-        This Cone object a bit odd since, by definition, the lineality space is
-        the largest *linear subspace* in the cone, so it allows coefficients of
-        any sign. Regardless, it's convenient to package this as a Cone
+        The lineality space is the largest linear subspace contained in the
+        cone, i.e. the set of $x$ such that $Hx=0$, where $H$ is the matrix of
+        hyperplane normals. Since it is a linear subspace, packaging it as a
+        cone is somewhat formal: it is returned as the cone generated by an
+        integral basis of the subspace together with minus the sum of the basis
+        vectors, and these rays are also set as its extremal rays. For a pointed
+        cone, the lineality space is the origin.
 
-        **Arguments:**
-        None.
+        Returns:
+            Cone: The lineality space of the cone.
 
-        **Returns:**
-        *(Cone)* A cone defining the lineality space.
+        Examples:
+            We construct a cone that is a half-plane and find its lineality space.
+
+            >>> c = Cone([[1,0],[0,1],[-1,0]])
+            >>> c.lineality_space().rays()
+            array([[ 1,  0],
+                   [-1,  0]])
         """
         H = self.hyperplanes()
 
@@ -2292,20 +2439,23 @@ class Cone:
         return lin
 
     def pointed_space(self):
-        """
-        **Description:**
-        A cone can be decomposed into its lineality space and its pointed
-        component.
+        """Return the pointed part of the cone.
 
-        The pointed component is obtained by intersection of the cone with the
-        orthogonal complement of the lineality space. I.e., want to impose
-        H@x=0 for any x in the lineality space.
+        A cone can be decomposed as the sum of its lineality space (see
+        [`lineality_space`][cytools.cone.Cone.lineality_space]) and a pointed
+        cone. The pointed part is obtained by intersecting the cone with the
+        orthogonal complement of the lineality space, and it is returned as a
+        cone defined by hyperplanes.
 
-        **Arguments:**
-        None.
+        Returns:
+            Cone: The pointed part of the cone.
 
-        **Returns:**
-        *(Cone)* The pointed part of the cone.
+        Examples:
+            We construct a cone that is a half-plane and find its pointed part.
+
+            >>> c = Cone([[1,0],[0,1],[-1,0]])
+            >>> c.pointed_space().rays()
+            array([[0, 1]])
         """
         H = self.hyperplanes()
 
@@ -2323,27 +2473,29 @@ class Cone:
         return pointed
 
     def hilbert_basis(self):
-        """
-        **Description:**
-        Returns the Hilbert basis of the cone. Normaliz is used for the
-        computation.
+        """Return the Hilbert basis of the cone.
 
-        **Arguments:**
-        None.
+        The Hilbert basis is the minimal set of lattice points that generate
+        all the lattice points in the cone as non-negative integer
+        combinations. [Normaliz](https://www.normaliz.uni-osnabrueck.de/) is
+        used for the computation, so its `normaliz` executable must be installed
+        and available on the `PATH`. The result is cached.
 
-        **Returns:**
-        *(numpy.ndarray)* The list of vectors forming the Hilbert basis.
+        Returns:
+            np.ndarray: The vectors forming the Hilbert basis, one per row.
 
-        **Example:**
-        We compute the Hilbert basis of a two-dimensional cone.
-        ```python {2}
-        c = Cone([[1,3],[2,1]])
-        c.hilbert_basis()
-        # array([[1, 1],
-        #        [1, 2],
-        #        [1, 3],
-        #        [2, 1]])
-        ```
+        Raises:
+            RuntimeError: If the `normaliz` executable is not found.
+
+        Examples:
+            We compute the Hilbert basis of a two-dimensional cone.
+
+            >>> c = Cone([[1,3],[2,1]])
+            >>> c.hilbert_basis()
+            array([[1, 1],
+                   [1, 2],
+                   [1, 3],
+                   [2, 1]])
         """
         if self._hilbert_basis is not None:
             return np.array(self._hilbert_basis)
@@ -2413,27 +2565,31 @@ class Cone:
         return np.array(self._hilbert_basis)
 
     def intersection(self, other):
-        """
-        **Description:**
-        Computes the intersection with another cone, or with a list of cones.
+        """Compute the intersection with another cone, or with a list of cones.
 
-        **Arguments:**
-        - `other` *(Cone or array_like)*: The other cone that is being
-            intersected, or a list of cones to intersect with.
+        The resulting cone is defined by the combined hyperplane normals of all
+        the cones.
 
-        **Returns:**
-        *(Cone)* The cone that results from the intersection.
+        Args:
+            other (Cone | Iterable[Cone]): The other cone that is being
+                intersected, or a list of cones to intersect with.
 
-        **Example:**
-        We construct two cones and find their intersection.
-        ```python {3}
-        c1 = Cone([[1,0],[1,2]])
-        c2 = Cone([[0,1],[2,1]])
-        c3 = c1.intersection(c2)
-        c3.rays()
-        # array([[2, 1],
-        #        [1, 2]])
-        ```
+        Returns:
+            Cone: The cone that results from the intersection.
+
+        Raises:
+            ValueError: If `other` is a list containing objects that are not
+                cones, or cones with a different ambient dimension.
+
+        Examples:
+            We construct two cones and find their intersection.
+
+            >>> c1 = Cone([[1,0],[1,2]])
+            >>> c2 = Cone([[0,1],[2,1]])
+            >>> c3 = c1.intersection(c2)
+            >>> c3.rays()
+            array([[2, 1],
+                   [1, 2]])
         """
         if isinstance(other, Cone):
             return Cone(
@@ -2451,24 +2607,38 @@ class Cone:
 
 
 def dualize(M, verbosity=0):
-    """
-    **Description:**
-    Converts between hyperplanes and rays of a cone. Output isn't guaranteed to
-    be extremal.
+    r"""Convert between the hyperplane and ray descriptions of a cone.
 
-    Internal to this function, we treat M as the hyperplanes since that seems
-    to be faster.
+    The matrix `M` can be interpreted as the inward-pointing hyperplane
+    normals of the cone $\{x : Mx\geq 0\}$, in which case the returned
+    matrix $R$ contains rays that generate it, i.e. the cone is
+    $\{R^T\lambda : \lambda\geq 0\}$. Equivalently, by cone duality, `M`
+    can be interpreted as the generating rays of the cone
+    $\{M^T\lambda : \lambda\geq 0\}$, in which case the returned matrix
+    contains the hyperplane normals that define it. The computation is done
+    with PPL, treating `M` as hyperplanes.
 
-    **Arguments:**
-    - `M`: The matrix defining the cone.
-        Can be thought of as the hyperplanes cone = {x: M@x>=0} in which case we
-        return the rays cone = {dualize(M).T@lmbda: lmbda>=0}.
-        Can also be thought of as the rays cone = {M.T@lmbda: lmbda>=0} in
-        which case we return the hypeplanes cone = {x: dualize(M)@x>=0}.
-    - `verbosity`: The verbosity level.
+    The output is a minimized description, but it is not guaranteed to
+    consist of extremal rays. In particular, a lineality space is
+    represented by pairs of opposite vectors $\pm v$.
 
-    **Returns:**
-    The dual description
+    Args:
+        M (ArrayLike): The matrix defining the cone, one vector per row.
+        verbosity (int): The verbosity level.
+
+    Returns:
+        np.ndarray: The dual description of the cone, one vector per row. If
+            there are no vectors, an empty array of shape `(0, M.shape[1])` is
+            returned.
+
+    Examples:
+        We find the rays of the cone defined by $x_1\geq 0$ and
+        $x_1+x_2\geq 0$.
+
+        >>> from cytools.cone import dualize
+        >>> dualize([[1,0],[1,1]])
+        array([[ 0,  1],
+               [ 1, -1]])
     """
     M = np.asarray(M)
 
@@ -2512,34 +2682,44 @@ def is_extremal(
     method: str = "lp",
     tol: float = 1e-4,
 ) -> (int, bool, "Exception"):
-    """
-    **Description:**
-    Auxiliary function that is used to find the extremal rays of cones. Returns
-    True if the ray is extremal and False otherwise. It has additional
-    parameters that are used when parallelizing.
+    """Check whether a ray is extremal among a set of rays.
 
-    **Arguments:**
-    - `R`: A matrix whose rows are the rays of the cone.
-    - `i`: The index of the ray to check for extremality.
-    - `extFlags`: A list of flags indicating if the rays r in R are possibly
-        extremal. If a ray is known non-extremal, delete it.
-    - `method`: The method to check extremality. Can be "lp" or "nnls".
-        Reccomendation is "lp".
-    - `tol`: The tolerance for determining whether a ray is extremal.
+    This is an auxiliary function used by
+    [`Cone.extremal_rays`][cytools.cone.Cone.extremal_rays]. The ray `R[i]`
+    is extremal if it cannot be written as a non-negative linear combination
+    of the other rays. The output includes the index of the ray and any
+    exception that was raised, so that it can be used when parallelizing.
 
-    **Returns:**
-    *(bool or None)* The truth value of the ray being extremal.
+    Args:
+        R (ArrayLike): A matrix whose rows are the rays of the cone.
+        i (int): The index of the ray to check for extremality.
+        extFlags (list[bool] | None): Flags indicating which rays are possibly
+            extremal. Rays whose flag is false are known to be non-extremal
+            and are excluded from the comparison. If not specified, all the
+            other rays are used.
+        method (str): The method used to check extremality. The options are
+            `"lp"` (a linear program, recommended) and `"nnls"` (non-negative
+            least squares).
+        tol (float): The tolerance for determining whether a ray is extremal.
+            Only used if `method` is `"nnls"`.
 
-    **Example:**
-    This function is not meant to be directly used by the end user. Instead it
-    is used by the [`extremal_rays`](#extremal_rays) function. We construct a
-    cone and find its extremal_rays.
-    ```python {2}
-    c = Cone([[0,1],[1,1],[1,0]])
-    c.extremal_rays()
-    # array([[0, 1],
-    #        [1, 0]])
-    ```
+    Returns:
+        tuple[int, bool | None, Exception | None]: The index `i`, the truth
+            value of the ray being extremal, and `None`. If an exception was
+            raised during the computation, the truth value is `None` and the
+            exception is returned as the third element.
+
+    Examples:
+        This function is not meant to be directly used by the end user. We
+        check whether two rays are extremal.
+
+        >>> import numpy as np
+        >>> from cytools.cone import is_extremal
+        >>> R = np.array([[0,1],[1,1],[1,0]])
+        >>> is_extremal(R, 0)
+        (0, True, None)
+        >>> is_extremal(R, 1)
+        (1, False, None)
     """
     try:
         # the ray to check if it's extremal
@@ -2577,21 +2757,40 @@ def feasibility(
     lower_bound: float = None,
     verbose: bool = False,
 ):
-    """
-    **Description:**
-    Solve a feasibility problem Ax>=c.
+    r"""Solve the feasibility problem $Ax\geq c$.
 
-    **Arguments:**
-    - `hyperplanes`: The constraining hyperplanes, A.
-    - `c`: The 'stretching'.
-    - `ambient_dim`: The ambient dimension... A.shape[1].
-    - `backend`: The backend to use. Options are "highs" (LP, on HiGHS),
-        "glop" (LP, on ORTools), "scip", or "cpsat".
-    - `lower_bound`: An optional lower bound on each of the variables.
-    - `verbose`: Whether to print extra diagnostic info.
+    A point $x$ is found such that $a\cdot x\geq c$ for each row $a$ of
+    $A$, minimizing the average of the $a\cdot x$ (so that the point tends
+    to lie close to the tip of the cone), and optionally subject to a lower
+    bound on each coordinate.
 
-    **Returns:**
-    A feasible point, if it exists. Else, None.
+    Args:
+        hyperplanes (ArrayLike): The constraining hyperplanes, $A$, one per
+            row. The rows can also be sparse, given as objects whose `items()`
+            method yields `(index, value)` pairs.
+        c (float): The "stretching", i.e. the minimum value of $a\cdot x$ for
+            each row $a$.
+        ambient_dim (int): The ambient dimension, i.e. the number of columns
+            of $A$.
+        backend (str): The backend to use. The options are `"highs"` (an LP
+            via HiGHS), `"glop"` (an LP via OR-Tools), `"scip"` (an integer
+            program via OR-Tools), and `"cpsat"` (an integer program via
+            OR-Tools CP-SAT).
+        lower_bound (float | None): A lower bound on each of the variables. If
+            not specified, the variables are unbounded below.
+        verbose (bool): Whether to print extra diagnostic information.
+
+    Returns:
+        np.ndarray | None: A feasible point, if one was found, or `None`
+            otherwise. If there are no hyperplanes, a vector of ones is
+            returned.
+
+    Examples:
+        We find a point satisfying $x_1\geq 1$ and $-x_1+x_2\geq 1$.
+
+        >>> from cytools.cone import feasibility
+        >>> feasibility([[1,0],[-1,1]], c=1, ambient_dim=2, backend="highs")
+        array([1., 2.])
     """
     if isinstance(hyperplanes, (list, np.ndarray)):
         hyperplanes = np.asarray(hyperplanes)
@@ -2769,16 +2968,16 @@ def feasibility(
 # ---------------
 @functools.cache
 def _early_stop_callback_cls():
-    """
-    **Description:**
-    Builds (and caches) the CP-SAT callback that stops the search once the
-    objective reaches a given threshold.
+    """Build (and cache) a CP-SAT callback that stops the search early.
 
-    It is defined in a function rather than at module scope because its base
-    class lives in `ortools.sat`, which is imported lazily.
+    The callback stops the search once the objective reaches a given
+    threshold. It is defined in a function rather than at module scope
+    because its base class lives in `ortools.sat`, which is imported
+    lazily.
 
-    **Returns:**
-    The `EarlyStopCallback` class.
+    Returns:
+        type: The `EarlyStopCallback` class, whose constructor takes the
+            objective threshold and the solver.
     """
 
     class EarlyStopCallback(cp_model.CpSolverSolutionCallback):
@@ -2796,6 +2995,17 @@ def _early_stop_callback_cls():
 
 
 def __getattr__(name):
+    """Return module attributes that are built on demand.
+
+    Args:
+        name (str): The name of the requested attribute.
+
+    Returns:
+        type: The `EarlyStopCallback` class, if `name` is `"EarlyStopCallback"`.
+
+    Raises:
+        AttributeError: If the module has no attribute `name`.
+    """
     # keeps `cytools.cone.EarlyStopCallback` working now that the class is
     # only built on demand (see PEP 562)
     if name == "EarlyStopCallback":
@@ -2809,34 +3019,31 @@ def _is_degenerate(
     certificate: bool = False,
     verbosity: int = 0,
 ) -> bool:
-    """
-    **Description:**
-    Checks if a cone {x : H@x>=0} is degenerate. I.e., does any x in this cone
-    saturate >=d+1 hyperplanes simultaneously, for d the ambient dim? If so, the
-    cone is degenerate.
+    r"""Check whether the cone $\{x : Hx\geq 0\}$ is degenerate.
 
-    This is representation-sensitive. Just because the cone is degenerate for a
-    certain representation matrix, H, doesn't mean that it's degenerate for all
-    representation matrices. Probably best to use H as the *extremal
-    hyperplanes*.
+    The cone is considered degenerate if some non-zero integer $x$ in the
+    cone saturates (i.e. satisfies $h\cdot x=0$) at least $d+1$ of the
+    hyperplanes $h$ simultaneously, where $d$ is the ambient dimension. The
+    search is done with OR-Tools CP-SAT, and it stops as soon as such an $x$
+    is found. See [`Cone.is_degenerate`][cytools.cone.Cone.is_degenerate]
+    for more details.
 
-    Uses CP-SAT from OR-Tools.
+    Args:
+        H (ArrayLike): The inward-pointing hyperplane normals defining the
+            cone, one per row.
+        M (int | None): The bound on the absolute value of the coordinates of
+            $x$ in the search. If not specified, the largest bound supported by
+            CP-SAT is used.
+        certificate (bool): Whether to also return the point $x$ that was
+            found and the hyperplanes that the solver claims it saturates.
+        verbosity (int): The verbosity level.
 
-
-    Application: It is more difficult to compute the (extremal or not) rays of
-    a degenerate cone.
-
-    **Arguments:**
-    - `H`: The inwards-facing hyperplanes defining the cone.
-    - `M`: The (absolute value of the) bounds on variables considered.
-    - `certificate`: Whether to return a certificate x as well as the
-        hyperplanes the solver claims it saturates
-    - `verbosity`: The verbosity level.
-
-    **Returns:**
-    Whether the cone {x : H@x>=0} is degenerate.
-
-    If certificate==True, also return (x,z)
+    Returns:
+        bool | tuple | None: Whether the cone is degenerate, or `None` if the
+            solver failed. If `certificate` is true, a tuple
+            `(degenerate, (x, z))` is returned instead, where `x` is the point
+            that was found and `z` is an array of 0s and 1s indicating which
+            hyperplanes it saturates (both can be `None`).
     """
     H = np.asarray(H)
 
