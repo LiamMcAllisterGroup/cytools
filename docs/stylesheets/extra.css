@@ -51,11 +51,20 @@
   text-align: center;
 }
 
+/* The animated title image has extra room on both sides for the mascot to walk
+ * in from, so it is wider than the mascot itself. Size it so that the mascot
+ * has the same width as in titleimage.svg (the viewBox is 441.03 units wide,
+ * of which the original image is the middle 121.03), and center it. */
+.md-typeset .cy-hero {
+  --cy-mascot-width: min(420px, 80vw);
+  overflow: hidden;
+}
+
 .md-typeset .cy-hero__image {
   display: block;
-  width: min(420px, 80%);
-  margin: 0 auto;
-  animation: cy-zoom-in-down 1s both;
+  width: calc(var(--cy-mascot-width) * 441.02761 / 121.02761);
+  max-width: none;
+  margin-left: calc(50% - var(--cy-mascot-width) * 441.02761 / 121.02761 / 2);
 }
 
 .md-typeset .cy-hero__tagline {
@@ -147,19 +156,6 @@
   }
 }
 
-@keyframes cy-zoom-in-down {
-  from {
-    opacity: 0;
-    transform: scale3d(0.1, 0.1, 0.1) translate3d(0, -1000px, 0);
-    animation-timing-function: cubic-bezier(0.55, 0.055, 0.675, 0.19);
-  }
-  60% {
-    opacity: 1;
-    transform: scale3d(0.475, 0.475, 0.475) translate3d(0, 60px, 0);
-    animation-timing-function: cubic-bezier(0.175, 0.885, 0.32, 1);
-  }
-}
-
 @keyframes cy-fade-in-up {
   from {
     opacity: 0;
@@ -172,7 +168,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .md-typeset .cy-hero__image,
+  /* The static titleimage.svg is shown instead (see index.md), which doesn't
+   * have the extra room for walking in. */
+  .md-typeset .cy-hero__image {
+    width: var(--cy-mascot-width);
+    margin: 0 auto;
+  }
+
   .md-typeset .cy-hero__tagline,
   .md-typeset .cy-hero .md-button.cy-hero__button {
     animation: none;
