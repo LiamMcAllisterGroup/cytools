@@ -18,6 +18,12 @@
 # Description:  This module contains various basic geometry helpers
 # -----------------------------------------------------------------------------
 
+"""Basic 2D geometry helpers.
+
+Importing this module also adds a `get_bdry` method to
+[`Polytope`][cytools.polytope.Polytope].
+"""
+
 # 'standard' imports
 from collections import Counter
 
@@ -30,31 +36,28 @@ from numpy.typing import ArrayLike
 
 
 def get_bdry(self) -> set:
-    """
-    **Description:**
-    Calculate the boundary edges.
+    """Compute the boundary edges of a 2-dimensional polytope.
 
-    Currently calculated via stepping through a triangulation. There might be
-    a better way to do this.
+    The edges are found from the default triangulation of the polytope (see
+    [`Polytope.triangulate`][cytools.polytope.Polytope.triangulate]): an edge is on
+    the boundary if and only if it belongs to exactly one triangle. Consequently,
+    only points used by that triangulation appear; in particular, points interior to
+    facets (i.e. to boundary edges) are excluded by default. This could be
+    generalized to higher dimensions by using the facets of each simplex.
 
-    Trivial to generalize to 3+ dimension (get the facets of each simplex,
-    find those only contained in 1 simplex)
+    This function is attached to [`Polytope`][cytools.polytope.Polytope] as
+    `Polytope.get_bdry` when `cytools.helpers.basic_geometry` is imported.
 
-    **Arguments:**
-    None
+    Returns:
+        set[frozenset[int]]: The boundary edges, each given as a frozenset with the
+            labels of its two endpoints.
 
-    **Returns:**
-    The boundary edges. Specified as a set of frozensets, each of which
-    contains the labels of the points defining a boundary edge.
-
-    **Example:**
-    ```python {3}
-    from cytools import Polytope
-    import lib.geom.elementary
-    p = Polytope([[0,0],[3,1],[2,2]])
-    p.get_bdry()
-    # {frozenset({2, 4}), frozenset({1, 4}), frozenset({1, 3}), frozenset({2, 3})}
-    ```
+    Examples:
+        >>> from cytools import Polytope
+        >>> import cytools.helpers.basic_geometry
+        >>> p = Polytope([[0,0],[3,1],[2,2]])
+        >>> sorted(sorted(int(i) for i in edge) for edge in p.get_bdry())
+        [[1, 2], [1, 3], [2, 3]]
     """
     simps = self.triangulate().simplices()
     edges = matrix.flatten_top(
@@ -75,58 +78,53 @@ Polytope.get_bdry = get_bdry
 
 
 def ccw(A: list, B: list, C: list) -> bool:
-    """
-    **Description:**
-    Check if the line AC is CCW from the line AB.
+    """Check whether three points are in counterclockwise order.
 
-    (from stackoverflow 3838329)
+    That is, whether the ray from $A$ to $C$ is strictly counterclockwise from the
+    ray from $A$ to $B$ (see
+    [this Stack Overflow question](https://stackoverflow.com/questions/3838329)).
+    Collinear points give `False`.
 
-    **Arguments:**
-    - `A`: One point
-    - `B`: Another point
-    - `C`: The final point
+    Args:
+        A (list): The first point, in 2D.
+        B (list): The second point, in 2D.
+        C (list): The third point, in 2D.
 
-    **Returns:**
-    True iff AC is CCW from AB.
+    Returns:
+        bool: Whether $A$, $B$, $C$ are in strictly counterclockwise order.
 
-    **Example:**
-    ```python {3}
-    ccw([0,0],[1,1],[2,1])
-    # False
-    ccw([0,0],[2,1],[1,1])
-    # True
-    ```
+    Examples:
+        >>> from cytools.helpers.basic_geometry import ccw
+        >>> ccw([0,0],[1,1],[2,1])
+        False
+        >>> ccw([0,0],[2,1],[1,1])
+        True
     """
     return (B[0] - A[0]) * (C[1] - A[1]) > (B[1] - A[1]) * (C[0] - A[0])
 
 
 def intersect(A: list, B: list, C: list, D: list) -> bool:
-    """
-    **Description:**
-    Check if the line segments AB and CD intersect in the strict interior
-    of both segments.
+    """Check whether two line segments in the plane cross each other.
 
-    N.B. Fails if AB is parallel to CD.
+    Segments sharing an endpoint are reported as not intersecting. Degenerate
+    configurations, such as collinear segments or an endpoint of one segment lying
+    on the other segment, are not handled reliably.
 
-    **Arguments:**
-    - `A`: One point
-    - `B`: Another point
-    - `C`: Another point
-    - `D`: The final point
+    Args:
+        A (list): The first endpoint of the first segment.
+        B (list): The second endpoint of the first segment.
+        C (list): The first endpoint of the second segment.
+        D (list): The second endpoint of the second segment.
 
-    **Returns:**
-    True iff AB intersects CD. (Fails if AB is parallel to CD).
+    Returns:
+        bool: Whether the segments $AB$ and $CD$ intersect.
 
-    **Example:**
-    ```python {3}
-    from lib.geom.elementary import intersect
-    intersect([0,0],[0,1],[0,0],[1,0])
-    # False
-    intersect([0,0],[0,1],[0,0.5],[1,0.5])
-    # False
-    intersect([0,0],[0,1],[-1,0.5],[1,0.5])
-    # True
-    ```
+    Examples:
+        >>> from cytools.helpers.basic_geometry import intersect
+        >>> intersect([0,0],[0,1],[0,0],[1,0])
+        False
+        >>> intersect([0,0],[0,1],[-1,0.5],[1,0.5])
+        True
     """
     if (
         (A[0] == C[0] and A[1] == C[1])
@@ -141,28 +139,28 @@ def intersect(A: list, B: list, C: list, D: list) -> bool:
 
 
 def triangle_area_2x(pts: "ArrayLike") -> float:
-    """
-    **Description:**
-    Calculate **twice** the area of the triangle defined by the convex hull of
-    the points.
+    r"""Compute twice the area of a triangle.
 
-    Uses the Shoelace formula https://en.wikipedia.org/wiki/Shoelace_formula
+    The area is computed with the [shoelace
+    formula](https://en.wikipedia.org/wiki/Shoelace_formula), so the result is an
+    integer for lattice triangles.
 
-    **Arguments:**
-    - `pts`: The 3x2 array whose rows are points defining the triangle.
+    Args:
+        pts (ArrayLike): A $3 \times 2$ array whose rows are the vertices of the
+            triangle.
 
-    **Returns:**
-    Twice the area of conv(pts).
+    Returns:
+        float: Twice the area of the triangle. It has the same type as the
+            coordinates (e.g. an `int` for integer coordinates).
 
-    **Example:**
-    ```python {3}
-    triangle_area_2x([[0,0],[0,1],[1,0]])
-    # 1
-    triangle_area_2x([[0,0],[0,1],[1.5,0]])
-    # 1.5
-    triangle_area_2x([[0,1],[1,1],[2,1]])
-    # 0
-    ```
+    Examples:
+        >>> from cytools.helpers.basic_geometry import triangle_area_2x
+        >>> triangle_area_2x([[0,0],[0,1],[1,0]])
+        1
+        >>> triangle_area_2x([[0,0],[0,1],[1.5,0]])
+        1.5
+        >>> triangle_area_2x([[0,1],[1,1],[2,1]])
+        0
     """
     x0, y0 = pts[0]
     x1, y1 = pts[1]

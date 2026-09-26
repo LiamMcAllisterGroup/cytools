@@ -14,6 +14,23 @@
 # CYTools. If not, see <https://www.gnu.org/licenses/>.
 # =============================================================================
 
+"""Vector configurations and fans.
+
+This subpackage provides
+[`VectorConfiguration`][cytools.vector_config.vectorconfiguration.VectorConfiguration],
+a configuration of integral vectors (analogous to
+[`Polytope`][cytools.polytope.Polytope] for point configurations), and
+[`Fan`][cytools.vector_config.fan.Fan], a subdivision of a vector configuration into
+cones (analogous to [`Triangulation`][cytools.triangulation.Triangulation]), with
+toric methods such as intersection numbers and Mori and Kähler cones. Both classes
+build on the [regfans](https://github.com/natemacfadden/regfans) package.
+
+Importing this subpackage also adds `vc` methods to
+[`Polytope`][cytools.polytope.Polytope], [`Cone`][cytools.cone.Cone] and
+[`Triangulation`][cytools.triangulation.Triangulation], and a `fan` method to
+[`Triangulation`][cytools.triangulation.Triangulation].
+"""
+
 from cytools.vector_config.fan import Fan
 from cytools.vector_config.vectorconfiguration import VectorConfiguration
 

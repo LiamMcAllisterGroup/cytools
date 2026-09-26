@@ -1,0 +1,228 @@
+/* CYTools brand colors (same blue as the previous site). */
+:root {
+  --cy-blue: #3578e5;
+  --cy-blue-dark: #1d68e1;
+  --cy-blue-light: #5a91ea;
+  --md-primary-fg-color: var(--cy-blue);
+  --md-primary-fg-color--light: var(--cy-blue-light);
+  --md-primary-fg-color--dark: var(--cy-blue-dark);
+  --md-accent-fg-color: var(--cy-blue-dark);
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #4984e4;
+  --md-primary-fg-color--light: #709fea;
+  --md-primary-fg-color--dark: #2f72e0;
+  --md-accent-fg-color: #709fea;
+  --md-typeset-a-color: #709fea;
+}
+
+/* ---------------------------------------------------------------------------
+ * Home page
+ * ------------------------------------------------------------------------- */
+
+/* Let the hero banner span the full width of the window and sit flush against
+ * the header. */
+.md-container:has(.cy-hero) {
+  overflow-x: clip;
+}
+
+.md-content__inner:has(.cy-hero) {
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.md-content__inner:has(.cy-hero)::before,
+.md-content__inner:has(.cy-hero) > h1 {
+  display: none;
+}
+
+.md-main__inner:has(.cy-hero) {
+  margin-top: 0;
+}
+
+.md-typeset .cy-hero {
+  margin: 0 calc(50% - 50vw) 2rem;
+  padding: 3rem 1rem 3.5rem;
+  background-color: var(--cy-blue);
+  color: #fff;
+  text-align: center;
+}
+
+/* The animated title image has extra room on both sides for the mascot to walk
+ * in from, so it is wider than the mascot itself. Size it so that the mascot
+ * has the same width as in titleimage.svg (the viewBox is 441.03 units wide,
+ * of which the original image is the middle 121.03), and center it. */
+.md-typeset .cy-hero {
+  --cy-mascot-width: min(420px, 80vw);
+  overflow: hidden;
+}
+
+.md-typeset .cy-hero__image {
+  display: block;
+  width: calc(var(--cy-mascot-width) * 441.02761 / 121.02761);
+  max-width: none;
+  margin-left: calc(50% - var(--cy-mascot-width) * 441.02761 / 121.02761 / 2);
+}
+
+.md-typeset .cy-hero__tagline {
+  margin: 1.5rem 0;
+  font-size: 1.5rem;
+  line-height: 1.3;
+  animation: cy-fade-in-up 1s 0.7s both;
+}
+
+.md-typeset .cy-hero .md-button.cy-hero__button {
+  padding: 0.6em 2em;
+  border: none;
+  border-radius: 0.3rem;
+  background-color: #ebedf0;
+  color: #1c1e21;
+  font-size: 1rem;
+  font-weight: 700;
+  animation: cy-fade-in-up 1s 0.7s both;
+}
+
+.md-typeset .cy-hero .md-button.cy-hero__button:hover,
+.md-typeset .cy-hero .md-button.cy-hero__button:focus {
+  background-color: #fff;
+  color: #1c1e21;
+}
+
+.md-typeset .cy-features {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2rem;
+  text-align: center;
+}
+
+@media screen and (max-width: 60em) {
+  .md-typeset .cy-features {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.md-typeset .cy-feature h3 {
+  margin: 1rem 0 0.5rem;
+  font-weight: 700;
+}
+
+.md-typeset .cy-feature__image {
+  width: 200px;
+  height: 200px;
+}
+
+.md-typeset .cy-links {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 3rem calc(50% - 50vw) 0;
+  padding: 1.5rem max(1rem, calc(50vw - 30rem)) 1rem;
+  background-color: #303846;
+  color: #ebedf0;
+}
+
+.md-typeset .cy-links h4 {
+  margin: 0 0 0.5rem;
+  color: #fff;
+}
+
+.md-typeset .cy-links ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.md-typeset .cy-links ul li {
+  margin: 0 0 0.4rem;
+  padding: 0;
+}
+
+.md-typeset .cy-links a {
+  color: #ebedf0;
+  text-decoration: none;
+}
+
+.md-typeset .cy-links a:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+@media screen and (max-width: 30em) {
+  .md-typeset .cy-links {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@keyframes cy-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 100%, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The static titleimage.svg is shown instead (see index.md), which doesn't
+   * have the extra room for walking in. */
+  .md-typeset .cy-hero__image {
+    width: var(--cy-mascot-width);
+    margin: 0 auto;
+  }
+
+  .md-typeset .cy-hero__tagline,
+  .md-typeset .cy-hero .md-button.cy-hero__button {
+    animation: none;
+  }
+}
+
+/* Centered button rows used on the overview pages. */
+.md-typeset .cy-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.md-typeset .cy-buttons .md-button {
+  margin: 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * API reference
+ * ------------------------------------------------------------------------- */
+
+/* Long method names in the table of contents: truncate instead of breaking
+ * them in the middle of a word, and give the sidebar a bit more room on wide
+ * screens. */
+.md-nav--secondary .md-nav__link .md-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media screen and (min-width: 76.25em) {
+  .md-sidebar--secondary {
+    width: 14rem;
+  }
+}
+
+/* "Source on GitHub" links rendered by docs/.templates. */
+.md-typeset .cy-source-link {
+  margin: 0.5rem 0 1rem;
+  font-size: 0.7rem;
+}
+
+.md-typeset .cy-source-link a {
+  color: var(--md-default-fg-color--light);
+}
+
+.md-typeset .cy-source-link a:hover {
+  color: var(--md-accent-fg-color);
+}

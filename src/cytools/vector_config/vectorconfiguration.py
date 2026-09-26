@@ -19,6 +19,15 @@
 #               configuration computations.
 # -----------------------------------------------------------------------------
 
+"""Vector configurations.
+
+This module defines the
+[`VectorConfiguration`][cytools.vector_config.vectorconfiguration.VectorConfiguration]
+class. Importing it also adds a `vc` method to
+[`Polytope`][cytools.polytope.Polytope] and [`Cone`][cytools.cone.Cone] that
+constructs the associated vector configuration.
+"""
+
 # external imports
 from collections.abc import Iterable
 import numpy as np
@@ -41,45 +50,60 @@ if TYPE_CHECKING:
 
 
 class VectorConfiguration(regfans.VectorConfiguration):
-    """
-    This class handles definition/operations on vector configurations. It is
-    analogous to the Polytope class. This object can be triangulated,
-    making a simplicial fan.
+    r"""A configuration of integral vectors.
 
-    **Description:**
-    Constructs a `VectorConfiguration` object describing a lattice vector
-    configuration. This is handled by the hidden [`__init__`](#__init__)
-    function.
+    This is the analogue of [`Polytope`][cytools.polytope.Polytope] (which describes
+    a point configuration) for vector configurations. A vector configuration can be
+    triangulated, giving a simplicial [`Fan`][cytools.vector_config.fan.Fan].
 
-    **Arguments:**
-    - `vectors`:    The vectors defining the VC.
-    - `labels`:     A list of labels for the vectors. Only integral labels are
-                    allowed.
-    - `eps`:        Threshold for checking for non-integral vectors.
-    - `gale_basis`: An optional basis for the gale transform. If provided, then
-                    the gale transform will be put a basis such that the
-                    submatrix given by these labels equals the identity.
+    This class extends `VectorConfiguration` from the
+    [regfans](https://github.com/natemacfadden/regfans) package, and all arguments are
+    passed to its constructor. These are, in order:
 
-    **Returns:**
-    Nothing.
+    - `vectors` (`ArrayLike`): The vectors, one per row. They must be integral (up
+      to the tolerance `eps`). Zero vectors are removed with a warning.
+    - `labels` (`Iterable[int] | None`): Integer labels for the vectors. If not
+      specified, the vectors are labelled $1, \dots, n$ (label 0 is reserved for the
+      origin).
+    - `eps` (`float`): The tolerance used to check that the vectors are integral.
+      Defaults to `1e-4`.
+    - `gale_basis` (`Iterable[int] | None`): The labels of the vectors defining the
+      basis of the Gale transform, i.e. such that the rows of
+      [`gale`][cytools.vector_config.vectorconfiguration.VectorConfiguration.gale]
+      corresponding to these labels form the identity matrix. They must index a
+      unimodular submatrix. If not specified and the convex hull of the vectors is
+      reflexive, the GLSM basis of the convex hull is used (see
+      [`is_reflexive`][cytools.vector_config.vectorconfiguration.VectorConfiguration.is_reflexive]).
+
+    Typically, a vector configuration is constructed from a reflexive polytope with
+    `Polytope.vc`, in which case its vectors are the lattice points of the polytope
+    (other than the origin) with the same labels.
+
+    Args:
+        *args (Any): Positional arguments passed to the regfans constructor (see
+            above).
+        **kwargs (Any): Keyword arguments passed to the regfans constructor (see
+            above).
+
+    Raises:
+        ValueError: If the vectors are not integral or the labels are not integers.
+
+    Examples:
+        We construct a vector configuration, compute its Gale transform, and
+        triangulate it.
+
+        >>> from cytools.vector_config import VectorConfiguration
+        >>> vc = VectorConfiguration([[1,0],[0,1],[-1,-1]])
+        >>> vc.labels
+        (1, 2, 3)
+        >>> vc.gale()
+        array([[1],
+               [1],
+               [1]])
+        >>> vc.triangulate().cones()
+        ((1, 2), (1, 3), (2, 3))
     """
     def __init__(self, *args, **kwargs):
-        """
-        **Description:**
-        Initializes a `VectorConfiguration` object.
-
-        **Arguments:**
-        - `vectors`:    The vectors defining the VC.
-        - `labels`:     A list of integer labels for the vectors. Only integral
-                        labels are allowed.
-        - `eps`:        Threshold for checking for non-integral vectors.
-        - `gale_basis`: An optional basis for the gale transform. If provided,
-                        then the gale transform will be put a basis such that
-                        the submatrix given by these labels equals the identity.
-
-        **Returns:**
-        Nothing.
-        """
         # call regfans' initializer
         super().__init__(*args, **kwargs)
 
@@ -92,20 +116,26 @@ class VectorConfiguration(regfans.VectorConfiguration):
     # hulls
     # -----
     def conical_hull(self, which: Union[int, Iterable[int]] = None) -> Cone:
-        """
-        **Description:**
-        Compute the positive/conical hull of (some) vectors of the VC.
+        """Compute the conical (positive) hull of some or all of the vectors.
 
-        If which = None, then the support over the entire VC is calculated.
+        This is the natural hull to take for a vector configuration, as opposed to the
+        convex hull.
 
-        This is the most natural hull (i.e., not the convex hull) to take.
+        Also available as `positive_hull`, `pos`, `coni`, and `cone`.
 
-        **Arguments:**
-        - `which`: Either a single label, for which the single corresponding
-            vector will be returned, or a list of labels.
+        Args:
+            which (Iterable[int] | None): The labels of the vectors to use. If not
+                specified, all vectors are used, giving the support of the
+                configuration.
 
-        **Returns:**
-        The associated conical hull.
+        Returns:
+            Cone: The cone generated by the vectors.
+
+        Examples:
+            >>> from cytools.vector_config import VectorConfiguration
+            >>> vc = VectorConfiguration([[1,0],[0,1],[-1,-1]])
+            >>> vc.conical_hull([1,2])
+            A 2-dimensional rational polyhedral cone in RR^2 generated by 2 rays
         """
         return Cone(rays=self.vectors(which=which))
 
@@ -116,21 +146,29 @@ class VectorConfiguration(regfans.VectorConfiguration):
     cone = conical_hull
 
     def convex_hull(self, which: Union[int, Iterable[int]] = None) -> Polytope:
-        """
-        **Description:**
-        Compute the convex hull of (some) vectors of the VC.
+        """Compute the convex hull of some or all of the vectors.
 
-        If which = None, then the support over the entire VC is calculated.
+        This hull is not very natural from the point of view of vector configurations,
+        but it connects them to polytopes and point configurations. In the resulting
+        [`Polytope`][cytools.polytope.Polytope], the chosen vectors keep their labels,
+        while its other lattice points (such as the origin) are assigned new labels.
+        The polytope is cached for each choice of `which`.
 
-        This hull is not very natural from a VC perspective... mainly used to
-        connect to polytopes/point configurations.
+        Also available as `conv` and `polytope`.
 
-        **Arguments:**
-        - `which`: Either a single label, for which the single corresponding
-            vector will be returned, or a list of labels.
+        Args:
+            which (Iterable[int] | None): The labels of the vectors to use. If not
+                specified, all vectors are used.
 
-        **Returns:**
-        The associated convex hull.
+        Returns:
+            Polytope: The convex hull of the vectors, with the vectors keeping their
+                labels.
+
+        Examples:
+            >>> from cytools.vector_config import VectorConfiguration
+            >>> vc = VectorConfiguration([[1,0],[0,1],[-1,-1]])
+            >>> vc.convex_hull().is_reflexive()
+            True
         """
         if which is None:
             which = self.labels
@@ -150,15 +188,17 @@ class VectorConfiguration(regfans.VectorConfiguration):
     # --------------------
     @property
     def is_reflexive(self) -> bool:
-        """
-        **Description:**
-        Return whether or not the convex hull is reflexive.
+        """Return whether the convex hull of the vectors is reflexive.
 
-        **Arguments:**
-        None.
+        Translations are not allowed, i.e. the origin must be the unique interior
+        lattice point. The result is cached. If the convex hull is reflexive and no Gale
+        basis was specified, this also sets the Gale basis (and thus the
+        [`divisor_basis`][cytools.vector_config.vectorconfiguration.VectorConfiguration.divisor_basis])
+        to the GLSM basis of the convex hull, computed without points interior to
+        facets.
 
-        **Returns:**
-        True if the convex hull is reflexive. False otherwise.
+        Returns:
+            bool: Whether the convex hull is reflexive.
         """
         if self._is_reflexive is None:
             p = self.convex_hull()
@@ -173,17 +213,23 @@ class VectorConfiguration(regfans.VectorConfiguration):
 
     @property
     def divisor_basis(self) -> Iterable[int]:
-        """
-        **Description:**
-        Return the divisor basis corresponding to the Polytope class.
+        """Return the basis of divisors, as labels.
 
-        As labels.
+        This is the basis in which the Gale transform is written, which for a vector
+        configuration obtained from a polytope agrees with
+        [`Polytope.glsm_basis`][cytools.polytope.Polytope.glsm_basis].
 
-        **Arguments:**
-        None.
+        Returns:
+            Iterable[int]: The labels of the vectors whose divisors form the basis.
 
-        **Returns:**
-        The divisor basis, as labels.
+        Raises:
+            NotImplementedError: If the convex hull of the vectors is not reflexive.
+
+        Examples:
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> p.vc().divisor_basis
+            array([5, 6])
         """
         if not self.is_reflexive:
             raise NotImplementedError(
@@ -195,17 +241,19 @@ class VectorConfiguration(regfans.VectorConfiguration):
 
     @property
     def divisor_basis_inds(self) -> Iterable[int]:
-        """
-        **Description:**
-        Return the divisor basis corresponding to the Polytope class.
+        r"""Return the basis of divisors, as indices.
 
-        As labels.
+        This is
+        [`divisor_basis`][cytools.vector_config.vectorconfiguration.VectorConfiguration.divisor_basis]
+        with every label shifted down by one, so it assumes that the vectors are
+        labelled $1, \dots, n$ (as is the case for configurations constructed from
+        polytopes).
 
-        **Arguments:**
-        None.
+        Returns:
+            np.ndarray: The indices of the vectors whose divisors form the basis.
 
-        **Returns:**
-        The divisor basis, as indices.
+        Raises:
+            NotImplementedError: If the convex hull of the vectors is not reflexive.
         """
         # map labels to inds
         # (this assumes the labels are the contiguous range 1, ..., n, which
@@ -217,37 +265,54 @@ class VectorConfiguration(regfans.VectorConfiguration):
     # misc regularity methods
     # -----------------------
     def central_fan(self) -> "Fan":
-        """
-        **Description:**
-        Generate the central fan of the vector configuration. Can be defined
-        as lifting each vector by a height of 1.
+        """Compute the central fan of the vector configuration.
 
-        **Arguments:**
-        None.
+        This is the regular subdivision obtained by lifting every vector to height 1.
+        When the origin is in the interior of the convex hull of the vectors, its
+        cones are the cones over the proper faces of the convex hull. It need not be
+        simplicial or fine.
 
-        **Returns:**
-        The central fan.
+        Returns:
+            Fan: The central fan.
+
+        Examples:
+            >>> from cytools.vector_config import VectorConfiguration
+            >>> vc = VectorConfiguration([[1,1],[1,-1],[-1,1],[-1,-1],[1,0]])
+            >>> vc.central_fan().cones()
+            ((1, 2, 5), (1, 3), (2, 4), (3, 4))
         """
         return self.subdivide(heights=[1 for _ in self.labels])
 
     def gale(self, set_basis: bool = None, **kwargs) -> "ArrayLike":
-        """
-        **Description:**
-        Compute the gale transform of the config.
+        r"""Compute the Gale transform of the vector configuration.
 
-        I.e., a basis of the null-space of the vectors.
+        This is a basis of the integral linear relations among the vectors, i.e. of the
+        kernel of the matrix whose columns are the vectors. It is returned as an
+        $n \times (n-d)$ matrix, where $n$ is the number of vectors and $d$ is the
+        dimension, whose $i$-th row is the Gale vector (the GLSM charges) of the $i$-th
+        vector. When it is written in a basis, the rows corresponding to the labels in
+        [`divisor_basis`][cytools.vector_config.vectorconfiguration.VectorConfiguration.divisor_basis]
+        form the identity matrix. The result is cached.
 
-        Will automatically be put in the divisor basis iff the associated
-        polytope is reflexive.
+        Args:
+            set_basis (bool | None): Whether to write the Gale transform in the chosen
+                basis. If not specified, it is written in the basis if and only if the
+                convex hull of the vectors is reflexive.
+            **kwargs (Any): Additional keyword arguments passed to the regfans method.
 
-        **Arguments:**
-        - `set_basis`: Whether to put the gale transform in the divisor basis.
-                       If left as None, this defaults to whether the associated
-                       polytope is reflexive.
-        - `**kwargs`:  Additional arguments, passed to the parent method.
+        Returns:
+            np.ndarray: The Gale transform.
 
-        **Returns:**
-        The gale transform.
+        Examples:
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> p.vc().gale()
+            array([[1, 0],
+                   [9, 3],
+                   [6, 2],
+                   [1, 0],
+                   [1, 0],
+                   [0, 1]])
         """
         if set_basis is None:
             set_basis = self.is_reflexive
@@ -257,19 +322,29 @@ class VectorConfiguration(regfans.VectorConfiguration):
     def moving_cone(self, 
                     pushed_down: bool = False,
                     verbosity: int = 0) -> Cone:
-        """
-        **Description:**
-        Compute the moving cone of the vector configuration.
+        """Compute the moving cone of the vector configuration.
 
-        Equiv to the support of the subfan of fine, regular triangulations.
+        This is the intersection, over all vectors, of the cones generated by the Gale
+        vectors of all other vectors. It is the support of the part of the secondary fan
+        corresponding to fine regular triangulations.
 
-        **Arguments:**
-        - `pushed_down`: Whether to give the moving cone in h11-dim space or
-        (h11+4)-dim space.
-        - `verbosity`: The verbosity level.
+        Args:
+            pushed_down (bool): Whether to return the cone in the space of the Gale
+                transform, of dimension $n-d$ ($h^{1,1}$ for a configuration from a
+                favorable reflexive 4D polytope), instead of the $n$-dimensional space
+                of heights. In the latter case, the cone contains the linear height
+                functions as a lineality space.
+            verbosity (int): The verbosity level.
 
-        **Returns:**
-        The moving cone.
+        Returns:
+            Cone: The moving cone.
+
+        Examples:
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> p.vc().moving_cone(pushed_down=True).rays()
+            array([[3, 1],
+                   [1, 0]])
         """
         glsm = self.gale().T
 
@@ -292,20 +367,39 @@ class VectorConfiguration(regfans.VectorConfiguration):
     # override lifting to give CYTools Fan object
     # -------------------------------------------
     def triangulate(self, *args, **kwargs):
-        """
-        **Description:**
-        Subdivide the vector configuration either by specified cells/simplices
-        or by heights.
+        """Subdivide the vector configuration, either by heights or by specified cells.
 
-        **Arguments:**
-        - `heights`:   The heights to lift the vectors by.
-        - `cells`:     The cells to use in the triangulation.
-        - `backend`:   The lifting backend. Use 'qhull'.
-        - `tol`:       Numerical tolerance used.
-        - `verbosity`: The verbosity level. Higher is more verbose
+        This calls the regfans method of the same name and converts the result into a
+        CYTools [`Fan`][cytools.vector_config.fan.Fan]. If neither heights nor cells are
+        given, a fine triangulation is computed from Delaunay-like heights.
 
-        **Returns:**
-        The resultant subdivision.
+        Also available as `subdivide`.
+
+        Args:
+            *args (Any): Positional arguments passed to the regfans method.
+            **kwargs (Any): Keyword arguments passed to the regfans method. These are:
+                `heights` (`ArrayLike | None`), the heights to lift the vectors by;
+                `cells` (`ArrayLike | None`), the cones of the fan, each given by the
+                labels of its vectors; `tol` (`float`), the numerical tolerance used
+                when curing heights; `backend` (`str | None`), the lifting backend,
+                either `"cgal"` or `"ppl"` (the default is CGAL when no heights are
+                given and PPL otherwise); `make_fine` (`bool | None`), whether to make
+                the triangulation fine (the default is true only when no heights are
+                given); `check_heights` (`bool`), whether to check that the heights lie
+                in the secondary cone of the output; `cure_heights` (`bool`), whether to
+                try to cure heights that do not; and `verbosity` (`int`), the verbosity
+                level.
+
+        Returns:
+            Fan: The resulting subdivision.
+
+        Examples:
+            >>> from cytools.vector_config import VectorConfiguration
+            >>> vc = VectorConfiguration([[1,1],[1,-1],[-1,1],[-1,-1],[1,0]])
+            >>> vc.triangulate().cones()
+            ((1, 3), (1, 5), (2, 4), (2, 5), (3, 4))
+            >>> vc.triangulate(heights=[1,1,1,1,2]).cones()
+            ((1, 2), (1, 3), (2, 4), (3, 4))
         """
         fan = super().subdivide(*args, **kwargs)
         fan = Fan.from_regfans(fan) # cast to CYTools type
@@ -318,16 +412,37 @@ class VectorConfiguration(regfans.VectorConfiguration):
 # give Polytope a method to directly generate its VC
 def vc(self,
     include_points_interior_to_facets: bool = False) -> "VectorConfiguration":
-    """
-    **Description:**
-    Construct the VectorConfiguration associated to the polytope.
+    """Construct the vector configuration associated to the polytope.
 
-    **Arguments:**
-    - `include_points_interior_to_facets`: Whether to include points interior
-        to facets
+    Its vectors are the lattice points of the polytope other than the origin, with
+    the same labels, and its Gale transform is written in the GLSM basis of the
+    polytope (see [`Polytope.glsm_basis`][cytools.polytope.Polytope.glsm_basis]). The
+    polytope is expected to be reflexive. The result is cached, and its convex hull
+    is set to the polytope itself.
 
-    **Returns:**
-    The associated VectorConfiguration.
+    This function is attached to [`Polytope`][cytools.polytope.Polytope] as
+    `Polytope.vc` when `cytools.vector_config` is imported.
+
+    Args:
+        include_points_interior_to_facets (bool): Whether to include the points
+            interior to facets.
+
+    Returns:
+        VectorConfiguration: The associated vector configuration.
+
+    Examples:
+        >>> from cytools import Polytope
+        >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        >>> vc = p.vc()
+        >>> vc.labels
+        (1, 2, 3, 4, 5, 6)
+        >>> vc.vectors()
+        array([[-1, -1, -6, -9],
+               [ 0,  0,  0,  1],
+               [ 0,  0,  1,  0],
+               [ 0,  1,  0,  0],
+               [ 1,  0,  0,  0],
+               [ 0,  0, -2, -3]])
     """
     # see if we already know the answer
     if include_points_interior_to_facets:
@@ -367,15 +482,20 @@ Polytope.vc = vc
 
 # give Cone a method to directly generate its VC
 def vc(self):
-    """
-    **Description:**
-    Construct the VectorConfiguration associated to the cone.
+    r"""Construct the vector configuration given by the rays of the cone.
 
-    **Arguments:**
-    None.
+    This function is attached to [`Cone`][cytools.cone.Cone] as `Cone.vc` when
+    `cytools.vector_config` is imported.
 
-    **Returns:**
-    The associated VectorConfiguration.
+    Returns:
+        VectorConfiguration: The vector configuration whose vectors are the rays of
+            the cone, labelled $1, \dots, n$.
+
+    Examples:
+        >>> from cytools import Cone
+        >>> Cone([[1,0],[0,1]]).vc().vectors()
+        array([[1, 0],
+               [0, 1]])
     """
     return VectorConfiguration(self.rays())
 Cone.vc = vc

@@ -1,0 +1,10 @@
+{% extends "_base/function.html.jinja" %}
+
+{#- Link to the source code on GitHub instead of embedding it. -#}
+{% block source scoped %}
+  {% if config.show_source and function.relative_filepath and function.lineno %}
+    <p class="cy-source-link">
+      <a href="{{ config.extra.source_url }}/{{ function.relative_filepath.as_posix() }}#L{{ function.lineno }}-L{{ function.endlineno or function.lineno }}">Source on GitHub</a>
+    </p>
+  {% endif %}
+{% endblock source %}

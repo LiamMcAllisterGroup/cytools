@@ -1,6 +1,6 @@
 # Installing CYTools
 
-Full documentation is available on the [CYTools website](https://liammcallistergroup.github.io/cytools/).
+Full documentation is available on the [CYTools website](https://cy.tools).
 
 CYTools runs on Linux and Apple Silicon (M-series) macOS. Intel-based Macs are not supported.
 

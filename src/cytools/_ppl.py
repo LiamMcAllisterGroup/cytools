@@ -18,6 +18,14 @@
 # Description:  Imports ppl and undoes its side effect on the FPU.
 # -----------------------------------------------------------------------------
 
+"""Import `ppl` and undo its side effect on the floating-point rounding mode.
+
+Loading `ppl` changes the FPU rounding mode of the whole process, which
+silently alters the results of unrelated floating-point computations. Modules
+that need `ppl` import it from here (`from cytools._ppl import ppl`), so that
+the rounding mode is reset to round-to-nearest right after it is loaded.
+"""
+
 # ppl sets the FPU rounding mode when it loads, which silently changes the
 # result of unrelated floating-point work elsewhere in the process. Importing it
 # here, and resetting the mode immediately, confines that to one place: modules
