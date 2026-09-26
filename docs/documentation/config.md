@@ -32,6 +32,20 @@ import cytools
 cytools.config.n_threads = 1
 ```
 
+## Mosek license
+
+By default, Mosek looks for its license file at `~/mosek/mosek.lic`, or at the
+path given by the `MOSEKLM_LICENSE_FILE` environment variable. If the license
+file is stored somewhere else, you can specify its location as follows.
+
+```python
+import cytools
+cytools.config.set_mosek_path("/path/to/mosek.lic")
+```
+
+See the [advanced usage](../getting-started/advanced.md#mosek) page for
+instructions on how to obtain a license.
+
 ## Reference
 
 ::: cytools.config

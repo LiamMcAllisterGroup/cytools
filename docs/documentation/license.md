@@ -10,11 +10,9 @@ All original CYTools code is open-source and is licensed under the
 Parts of the CYTools code are based on code snippets from the
 [SageMath](https://www.sagemath.org/) software package, and are redistributed
 under the [GNU GPLv2+ license](https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt).
-These snippets are annotated clearly within the code. We also include a modified
-version of [TOPCOM](http://www.rambau.wm.uni-bayreuth.de/TOPCOM/). The original
-TOPCOM code by Jörg Rambau and the patch based on a
-[Debian package](https://packages.debian.org/sid/topcom)
-[[src](https://sources.debian.org/src/topcom/0.17.8+ds-2/)] by Doug Torrance are
-licensed under the [GPLv2+ license](https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt).
-Further TOPCOM modifications are licensed under the
-[GPLv3 license](https://www.gnu.org/licenses/gpl-3.0.txt).
+These snippets are clearly annotated within the code.
+
+CYTools also relies on a number of other open-source software packages, such as
+TOPCOM, CGAL, and PALP (see the [About](../about.md#acknowledgements) page for a
+more complete list). These are not part of CYTools, and they are distributed
+separately under their own licenses.

@@ -4,20 +4,19 @@ title: Windows
 
 # Windows
 
-The installation of CYTools on Windows is exclusively done using the Windows
-Subsystem for Linux (WSL). Except for this, the installation is identical to
-that for a Linux/macOS system.
+CYTools is installed on Windows through the Windows Subsystem for Linux (WSL).
+Apart from this, the installation is identical to that for a Linux system.
 
 ## Requirements
 
 - A recent version of Windows 10 or 11.
-- Any modern x86-64 processor with hardware virtualization enabled. Other
-  architectures might work with emulation, but there could be problems.
+- A modern x86-64 or arm64 processor with hardware virtualization enabled
+  (required by WSL 2).
 - A WSL installation.
 
 ## Installation instructions
 
-1. Install Windows Subsystem for Linux (WSL), if not already installed.
+1. Install the Windows Subsystem for Linux (WSL), if not already installed.
    Installation instructions can be found
    [here](https://learn.microsoft.com/en-us/windows/wsl/install).
 
@@ -26,11 +25,11 @@ that for a Linux/macOS system.
    [here](https://github.com/conda-forge/miniforge?tab=readme-ov-file#windows-subsystem-for-linux-wsl).
    Then source your `.bashrc` (or simply reopen the terminal).
 
-3. Follow the [Linux/macOS](linuxmacos.md) installation in this terminal.
-   Namely, run the following command.
+3. Follow the [Linux/macOS](linuxmacos.md) installation instructions in this
+   terminal. Namely, run the following command.
 
     ```bash
-    curl https://cy.tools/install.sh | bash
+    curl -fsSL https://cy.tools/install.sh | bash
     ```
 
 4. Enjoy CYTools! :tada:
@@ -45,10 +44,15 @@ creates a conda environment from this file.
 The CYTools environment will be named `cytools`. To enter this environment, type
 `conda activate cytools` in the WSL terminal. In this environment, `cytools` can
 be imported in the same way as any other Python package such as NumPy, SciPy,
-Matplotlib, etc. By default, JupyterLab is installed, which can simply be opened
-with `jupyter lab` (note: the webpage might not be automatically opened; simply
-enter the URL in your browser). To exit the conda environment, simply call
-`conda deactivate`.
+Matplotlib, etc. JupyterLab is installed by default, and it can be opened with
+`jupyter lab` (the webpage might not open automatically, in which case you can
+copy the URL printed in the terminal into your browser). To exit the conda
+environment, simply run `conda deactivate`.
+
+## Updating
+
+To update CYTools to the latest version, open the WSL terminal, activate the
+`cytools` environment, and run `pip install --upgrade cytools`.
 
 ## Removal
 
@@ -57,7 +61,7 @@ terminal, run `conda env remove --name cytools`.
 
 ## Troubleshooting
 
-Since most of the testing for CYTools is done on Linux, it is possible that our
+Since most of the testing of CYTools is done on Linux, it is possible that our
 installation scripts don't always work on WSL. If this is the case, please let
 us know by emailing us at [support@cy.tools](mailto:support@cy.tools) or by
 opening an issue on [GitHub](https://github.com/LiamMcAllisterGroup/cytools/issues).
