@@ -14,6 +14,14 @@
 # CYTools. If not, see <https://www.gnu.org/licenses/>.
 # =============================================================================
 
+"""Polytopes defined by hyperplane inequalities.
+
+This subpackage provides [`HPolytope`][cytools.h_polytope.h_polytope.HPolytope], which
+constructs a lattice polytope from an H-representation (a list of linear
+inequalities), either as the integer hull of the possibly rational polytope or by
+rescaling it into a lattice polytope.
+"""
+
 from cytools.h_polytope.h_polytope import HPolytope
 
 __all__ = ["HPolytope"]

@@ -18,6 +18,26 @@
 # Description:  Methods for generating/sampling face triangulations
 # -----------------------------------------------------------------------------
 
+"""Generation and sampling of triangulations of polytope faces.
+
+This module provides the functions that produce the 2-face triangulations used
+by the NTFE machinery in [`cytools.ntfe`][cytools.ntfe]:
+
+- [`face_triangs`][cytools.ntfe.face_triangulations.face_triangs] enumerates
+  (or, for large faces, samples) the fine triangulations of each face of a
+  polytope.
+- [`n_2face_triangs`][cytools.ntfe.face_triangulations.n_2face_triangs] counts
+  the combinations of 2-face triangulations.
+- [`grow_ft`][cytools.ntfe.face_triangulations.grow_ft] and
+  [`grow_frt`][cytools.ntfe.face_triangulations.grow_frt] randomly grow fine
+  (regular) triangulations of a polygon, one unimodular triangle at a time.
+
+Importing this module (which happens on `import cytools`) attaches these
+functions to [`Polytope`][cytools.polytope.Polytope] as methods of the same
+name (`n_2face_triangs` is also available as `num_2face_triangs`), which is how
+they are normally called. In each of them, `self` is the polytope.
+"""
+
 # 'standard' imports
 import importlib
 import math
@@ -44,7 +64,12 @@ _DUALGNN_HINT = (
 
 
 def _is_interactive() -> bool:
-    """Whether a human is plausibly at the controls (REPL, Jupyter, tty)."""
+    """Return whether a human is plausibly at the controls.
+
+    Returns:
+        bool: Whether the session is interactive (a REPL, a Jupyter kernel, or
+            a terminal attached to standard input).
+    """
     return (
         hasattr(sys, "ps1")
         or "ipykernel" in sys.modules
@@ -53,10 +78,19 @@ def _is_interactive() -> bool:
 
 
 def _import_dualgnn():
-    """
-    Import dualgnn, returning (sample_frts, DualGNN). If it's missing and the
-    session is interactive, offer to pip-install it (never install without
-    explicit consent).
+    """Import the optional `dualgnn` package.
+
+    If the package is missing and the session is interactive, the user is asked
+    whether to install it with pip. It is never installed without explicit
+    consent.
+
+    Returns:
+        tuple: The `dualgnn.sample_frts` function and the
+            `dualgnn.model.DualGNN` class.
+
+    Raises:
+        ImportError: If `dualgnn` is not installed and either the session is not
+            interactive or the user declines to install it.
     """
     try:
         from dualgnn import sample_frts
@@ -102,24 +136,33 @@ def _dualgnn_face_triangs(
     seed: int = None,
     verbosity: int = 0,
 ) -> list:
-    """
-    **Description:**
-    Sample (up to) N distinct FRTs of a 2-face using the dualGNN sampler,
-    https://arxiv.org/abs/2605.27770. Helper for face_triangs.
+    """Sample up to `N` distinct FRTs of a 2-face with the dualGNN sampler.
 
-    **Arguments:**
-    - `face`: The 2-face (PolytopeFace) of interest.
-    - `face_poly`: The 2-face as a Polytope (i.e., face.as_poly()).
-    - `N`: The number of triangulations to sample (with replacement, so
-        fewer may be returned after deduplication and regularity filtering).
-    - `model`: A dualgnn.model.DualGNN instance, or a path to a model
-        checkpoint. If not provided, the default checkpoint shipped with the
-        dualgnn package is used (cached by dualgnn).
-    - `seed`: Random seed for the GNN sampler.
-    - `verbosity`: Verbosity level.
+    The sampler is described in
+    [arXiv:2605.27770](https://arxiv.org/abs/2605.27770). This is a helper for
+    [`face_triangs`][cytools.ntfe.face_triangulations.face_triangs].
 
-    **Returns:**
-    List of (unique, regular) Triangulation objects.
+    Args:
+        face (PolytopeFace): The 2-face of interest.
+        face_poly (Polytope): The 2-face as a polytope, i.e. `face.as_poly()`.
+        N (int): The number of triangulations to sample. Sampling is done with
+            replacement, so fewer may be returned after deduplication and
+            regularity filtering.
+        model (DualGNN | str | None): A `dualgnn.model.DualGNN` instance, or a
+            path to a model checkpoint. If not specified, the default
+            checkpoint shipped with the `dualgnn` package (and cached by it) is
+            used.
+        seed (int | None): Random seed for the GNN sampler.
+        verbosity (int): The verbosity level. The sampler is verbose if it is
+            at least 2.
+
+    Returns:
+        list[Triangulation]: The distinct fine, regular triangulations of
+            `face_poly` that were found.
+
+    Raises:
+        ImportError: If the `dualgnn` package is not available (see
+            `_import_dualgnn`).
     """
     sample_frts, DualGNN = _import_dualgnn()
 
@@ -164,35 +207,73 @@ def face_triangs(
     seed: int = None,
     verbosity: int = 0,
 ):
-    """
-    **Description:**
-    For each dim-face of a given polytope, generate the list of all fine
-    dim-face triangulations of it.
+    """Return the fine triangulations of each `dim`-dimensional face.
 
-    **Arguments:**
-    - `poly`: Polytope of interset.
-    - `dim`: The dimension of the faces to generate triangulations for.
-    - `only_regular`: Whether to only generate the regular 2-face
-        triangulations.
-    - `max_npts`: The maximum number of points in a 2-face s.t. we try to get
-        all triangulations.
-    - `N_face_triangs`: If we aren't trying to get all triangulations, how
-        many to grab per face (upper bound).
-    - `triang_method`: The method to generate random triangulations. Allowed
-        are "fast", "fair", "grow2d", and "dualgnn". The "dualgnn" method
-        samples FRTs with a graph neural network
-        (https://arxiv.org/abs/2605.27770) and requires the optional dualgnn
-        package.
-    - `dualgnn_model`: Only used if triang_method="dualgnn". A
-        dualgnn.model.DualGNN instance, or a path to a model checkpoint. If
-        not provided, the default checkpoint shipped with the dualgnn package
-        is used.
-    - `seed`: Random seed if grabbing only some triangulations.
-    - `verbosity`: Verbosity level.
+    For each `dim`-face of the polytope, all of its fine triangulations are
+    enumerated with TOPCOM (see
+    [`Polytope.all_triangulations`][cytools.polytope.Polytope.all_triangulations]).
+    If `max_npts` is specified, faces with more than `max_npts` lattice points
+    are instead sampled: up to `N_face_triangs` fine, regular triangulations
+    are generated with the method given by `triang_method`. All lattice points
+    of each face are used, and the triangulations are never made star.
 
-    **Returns:**
-    List of faces. Each face is a list of Triangulation. May have different
-    order than in the input (i.e., faces.)
+    This function is attached to [`Polytope`][cytools.polytope.Polytope] as the
+    method `face_triangs`, where `self` is the polytope.
+
+    Args:
+        dim (int): The dimension of the faces to triangulate. The `"grow2d"`
+            and `"dualgnn"` sampling methods only work for 2-faces.
+        which (int | list[int] | None): The index, or list of indices, of the
+            faces to triangulate, as positions in `self.faces(dim)`. If not
+            specified, all `dim`-faces are triangulated.
+        only_regular (bool): Whether to only enumerate regular triangulations.
+            This only affects faces that are fully enumerated; sampled
+            triangulations are always regular.
+        max_npts (int | None): The maximum number of lattice points of a face
+            for which all triangulations are enumerated. Faces with more points
+            are sampled instead. If not specified, all triangulations of every
+            face are enumerated.
+        N_face_triangs (int): The maximum number of triangulations to sample
+            for each face with more than `max_npts` points. Fewer may be
+            returned.
+        triang_method (str): The method used to sample triangulations of faces
+            with more than `max_npts` points. The options are `"fast"` and
+            `"fair"` (which use the
+            [fast][cytools.polytope.Polytope.random_triangulations_fast] and
+            [fair][cytools.polytope.Polytope.random_triangulations_fair]
+            random triangulation samplers of `Polytope`), `"grow2d"` (see
+            [`grow_frt`][cytools.ntfe.face_triangulations.grow_frt]), and
+            `"dualgnn"`, which samples FRTs with a graph neural network
+            ([arXiv:2605.27770](https://arxiv.org/abs/2605.27770)) and requires
+            the optional `dualgnn` package.
+        dualgnn_model (DualGNN | str | None): Only used if
+            `triang_method="dualgnn"`. A `dualgnn.model.DualGNN` instance, or a
+            path to a model checkpoint. If not specified, the default
+            checkpoint shipped with the `dualgnn` package is used.
+        seed (int | None): The random seed used when sampling triangulations.
+        verbosity (int): The verbosity level.
+
+    Returns:
+        list[list[Triangulation]]: One list of triangulations per face, in the
+            same order as `self.faces(dim)` (or as `which`, if specified).
+
+    Raises:
+        ValueError: If `triang_method` is not one of the allowed options.
+
+    Examples:
+        We find the fine, regular triangulations of each 2-face of a polytope
+        and count them. Most of its 2-faces have a unique FRT.
+
+        >>> from cytools import Polytope
+        >>> p = Polytope([[1,-1,-2,1],[1,-1,0,-1],[-1,0,1,1],[-1,2,1,-1],[1,0,0,0],
+        ...               [-1,0,0,0],[0,0,0,1],[0,0,1,0],[0,1,0,0],[0,1,1,-1]])
+        >>> ft = p.face_triangs()
+        >>> [len(f) for f in ft]
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 3, 2, 2, 1, 1]
+        >>> ft[19][0].simplices()  # one of the FRTs of a 2-face with 3 FRTs
+        array([[ 3,  7,  9],
+               [ 3,  9, 12],
+               [ 4,  9, 12]], dtype=uint8)
     """
 
     # check input for generating triangulations
@@ -298,15 +379,32 @@ Polytope.face_triangs = face_triangs
 
 
 def n_2face_triangs(self, only_regular: bool = True) -> int:
-    """
-    **Description:**
-    Return the count of all 2-face triangulations of the input polytope
+    """Return the number of combinations of fine 2-face triangulations.
 
-    **Arguments:**
-    - `only_regular`: Whether to restrict to just regular triangulations.
+    This is the product, over the 2-faces of the polytope, of the number of
+    fine triangulations of each 2-face. It is an upper bound on the number of
+    NTFEs, since not every combination extends to a triangulation of the full
+    polytope (see [`ntfe_frts`][cytools.ntfe.ntfe.ntfe_frts]). All
+    triangulations of every 2-face are enumerated, which can be slow for large
+    2-faces.
 
-    **Returns:**
-    *(integer)* The count of distinct sets of 2-face triangulations
+    This function is attached to [`Polytope`][cytools.polytope.Polytope] as the
+    methods `n_2face_triangs` and `num_2face_triangs`, where `self` is the
+    polytope.
+
+    Args:
+        only_regular (bool): Whether to only count regular 2-face
+            triangulations.
+
+    Returns:
+        int: The number of combinations of fine 2-face triangulations.
+
+    Examples:
+        >>> from cytools import Polytope
+        >>> p = Polytope([[1,-1,-2,1],[1,-1,0,-1],[-1,0,1,1],[-1,2,1,-1],[1,0,0,0],
+        ...               [-1,0,0,0],[0,0,0,1],[0,0,1,0],[0,1,0,0],[0,1,1,-1]])
+        >>> p.n_2face_triangs()
+        36
     """
     triangs = self.face_triangs(dim=2, only_regular=only_regular)
     return math.prod([len(f) for f in triangs])
@@ -317,20 +415,21 @@ Polytope.num_2face_triangs = n_2face_triangs
 
 
 def _as_2d_poly(poly: "Polytope", verbosity: int = 0) -> "Polytope":
-    """
-    **Description:**
-    Return a 2D-ambient representation of a 2D polytope, *preserving the point
-    labels*. This matters because the labels of 2-face triangulations are used
-    as column indices into the height space of the ambient (4D) polytope; see
-    `cytools.ntfe.ntfe._2d_frt_cone_ineqs`.
+    r"""Return a representation of a 2D polytope in a 2D ambient lattice.
 
-    **Arguments:**
-    - `poly`: The polytope of interest. Assumed 2D.
-    - `verbosity`: Verbosity level.
+    The point labels are preserved. This matters because the labels of 2-face
+    triangulations are used as column indices into the height space of the
+    ambient (4D) polytope; see `cytools.ntfe.ntfe._2d_frt_cone_ineqs`.
 
-    **Returns:**
-    `poly` itself if it already lives in a 2D ambient space, else an
-    equivalent polytope in ZZ^2 carrying the same labels.
+    Args:
+        poly (Polytope): The polytope of interest. It is assumed to be
+            2-dimensional.
+        verbosity (int): The verbosity level.
+
+    Returns:
+        Polytope: `poly` itself if its ambient lattice is already 2D.
+            Otherwise, an equivalent polytope in $\mathbb{Z}^2$ (built from
+            the optimal coordinates of the points) carrying the same labels.
     """
     if poly.ambient_dim() == 2:
         return poly
@@ -350,19 +449,51 @@ def grow_ft(
     seed: int = None,
     verbosity: int = 0,
 ) -> "Triangulation":
-    """
-    **Description:**
-    Grow a fine triangulation (FT) of a polygon
+    r"""Randomly grow a fine triangulation (FT) of a polygon.
 
-    **Arguments:**
-    - `bdry`: The collection of boundary edges, each given as an iterable of
-        point *labels* (as returned by `Polytope.get_bdry`). Calculated if not
-        provided.
-    - `seed`: The seed for the random number generator
-    - `verbosity`: Verbosity level.
+    Starting from a random unimodular triangle (one with no lattice points
+    other than its vertices), unimodular triangles are repeatedly glued onto
+    random non-boundary edges until no such edges are left. Since every
+    triangle is unimodular, the result is fine. It need not be regular; see
+    [`grow_frt`][cytools.ntfe.face_triangulations.grow_frt] for that.
 
-    **Returns:**
-    The fine triangulation of poly, or None if the growth got stuck.
+    If the polytope does not live in a 2D ambient lattice, the triangulation is
+    built on an equivalent polytope in $\mathbb{Z}^2$ with the same point
+    labels.
+
+    This function is attached to [`Polytope`][cytools.polytope.Polytope] as the
+    method `grow_ft`, where `self` is the polygon.
+
+    Args:
+        bdry (Iterable[Iterable[int]] | None): The boundary edges of the
+            polygon, each given as an iterable of the labels of its two
+            endpoints (as returned by `Polytope.get_bdry`). If not specified,
+            they are computed.
+        seed (int | None): The seed for the random number generator. If not
+            specified, it is derived from the current time.
+        verbosity (int): The verbosity level.
+
+    Returns:
+        Triangulation | None: The fine triangulation, or `None` (with a
+            warning) if the growth got stuck.
+
+    Raises:
+        NotImplementedError: If the polytope is not 2-dimensional.
+
+    Examples:
+        We grow a fine triangulation of one of the 2-faces of a polytope.
+
+        >>> from cytools import Polytope
+        >>> p = Polytope([[1,-1,-2,1],[1,-1,0,-1],[-1,0,1,1],[-1,2,1,-1],[1,0,0,0],
+        ...               [-1,0,0,0],[0,0,0,1],[0,0,1,0],[0,1,0,0],[0,1,1,-1]])
+        >>> f = p.faces(2)[19].as_poly()
+        >>> t = f.grow_ft(seed=0)
+        >>> t.simplices()
+        array([[ 3,  7, 12],
+               [ 4,  9, 12],
+               [ 7,  9, 12]], dtype=uint8)
+        >>> t.is_fine()
+        True
     """
     if seed is None:
         seed = time.time_ns() % (2**32)
@@ -592,23 +723,48 @@ def grow_frt(
     backend: str = None,
     verbosity: int = 0,
 ) -> Union["Triangulation", set]:
-    """
-    **Description:**
-    Grow a fine, regular triangulation of a polygon
+    """Randomly grow fine, regular triangulations (FRTs) of a polygon.
 
-    **Arguments:**
-    - `N`: The number of distinct FRTs to grow.
-    - `max_N_tries`: The maximum number of growth attempts. Defaults to 100*N.
-    - `bdry`: The collection of boundary edges, each given as an iterable of
-        point *labels* (as returned by `Polytope.get_bdry`). Calculated once
-        (and reused across attempts) if not provided.
-    - `seed`: The seed for the random number generator
-    - `backend`: The backend used to check regularity. See
-        `Triangulation.is_regular`.
-    - `verbosity`: Verbosity level.
+    Fine triangulations are repeatedly grown with
+    [`grow_ft`][cytools.ntfe.face_triangulations.grow_ft] (incrementing the
+    seed after each attempt), and the regular ones are kept, until `N`
+    distinct FRTs are found or `max_N_tries` attempts have been made.
 
-    **Returns:**
-    The FRT of poly.
+    This function is attached to [`Polytope`][cytools.polytope.Polytope] as the
+    method `grow_frt`, where `self` is the polygon.
+
+    Args:
+        N (int): The number of distinct FRTs to grow.
+        max_N_tries (int | None): The maximum number of growth attempts. If not
+            specified, `100*N` is used.
+        bdry (Iterable[Iterable[int]] | None): The boundary edges of the
+            polygon, each given as an iterable of the labels of its two
+            endpoints (as returned by `Polytope.get_bdry`). If not specified,
+            they are computed once and reused across attempts.
+        seed (int | None): The seed for the random number generator. If not
+            specified, it is derived from the current time.
+        backend (str | None): The backend used to check regularity. See
+            [`is_regular`][cytools.triangulation.Triangulation.is_regular].
+        verbosity (int): The verbosity level.
+
+    Returns:
+        Triangulation | set[Triangulation]: If exactly one distinct FRT was
+            found, that triangulation. Otherwise, the set of FRTs that were
+            found, which contains at most `N` elements and may be empty.
+
+    Raises:
+        NotImplementedError: If the polytope is not 2-dimensional.
+
+    Examples:
+        We grow three distinct FRTs of one of the 2-faces of a polytope.
+
+        >>> from cytools import Polytope
+        >>> p = Polytope([[1,-1,-2,1],[1,-1,0,-1],[-1,0,1,1],[-1,2,1,-1],[1,0,0,0],
+        ...               [-1,0,0,0],[0,0,0,1],[0,0,1,0],[0,1,0,0],[0,1,1,-1]])
+        >>> f = p.faces(2)[19].as_poly()
+        >>> frts = f.grow_frt(N=3, seed=0)
+        >>> len(frts)
+        3
     """
     # input checking
     if self.dim() != 2:

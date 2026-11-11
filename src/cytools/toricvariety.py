@@ -19,6 +19,13 @@
 #               computations.
 # -----------------------------------------------------------------------------
 
+"""Toric varieties defined by star triangulations of polytopes.
+
+This module provides the [`ToricVariety`][cytools.toricvariety.ToricVariety]
+class, which handles computations such as GLSM charge matrices, bases of divisors
+and curves, intersection numbers, and Mori and Kähler cones.
+"""
+
 # 'standard' imports
 from collections import Counter, defaultdict
 import copy
@@ -48,78 +55,50 @@ from cytools.utils import (
 
 
 class ToricVariety:
-    r"""
+    r"""A toric variety defined by a star triangulation of a polytope.
+
     This class handles various computations relating to toric varieties. It can
     be used to compute intersection numbers and the Kähler cone, among other
     things.
 
-    :::important
-    Generally, objects of this class should not be constructed directly by the
-    end user. Instead, they should be created by the
-    [`get_toric_variety`](./triangulation#get_toric_variety) function of the
-    [`Triangulation`](./triangulation) class.
-    :::
+    Warning:
+        Generally, objects of this class should not be constructed directly by
+        the end user. Instead, they should be created with the
+        [`get_toric_variety`][cytools.triangulation.Triangulation.get_toric_variety]
+        method of [`Triangulation`][cytools.triangulation.Triangulation].
 
-    :::tip experimental features
-    Only star triangulations of reflexive polytopes are fully supported. There
-    is experimental support for other kinds of triangulations, but they may not
-    always work. See [experimental features](./experimental) for more details.
-    :::
+    Tip:
+        Only star triangulations of reflexive polytopes are fully supported.
+        There is experimental support for other kinds of triangulations, but
+        they may not always work. See
+        [experimental features](experimental.md) for more details.
 
-    ## Constructor
+    Args:
+        triang (Triangulation): A star triangulation. Regularity is not
+            checked.
 
-    ### `cytools.toricvariety.ToricVariety`
+    Raises:
+        ValueError: If the triangulation is not star.
+        Exception: If the polytope is not reflexive, or if the resulting
+            variety is not compact, and the experimental features are not
+            enabled.
 
-    **Description:**
-    Constructs a `ToricVariety` object. This is handled by the hidden
-    [`__init__`](#__init__) function.
+    Examples:
+        We construct a toric variety from a regular, star triangulation of a
+        reflexive polytope. Since this class is not intended to be initialized
+        by the end user, we create it with the
+        [`get_toric_variety`][cytools.triangulation.Triangulation.get_toric_variety]
+        method of [`Triangulation`][cytools.triangulation.Triangulation]. In this
+        example we obtain $\mathbb{P}^4$.
 
-    **Arguments:**
-    - `triang` *(Triangulation)*: A star triangulation.
-
-    **Example:**
-    We construct a ToricVariety from a regular, star triangulation of a
-    reflexive polytope. Since this class is not intended to be initialized by
-    the end user, we create it via the
-    [`get_toric_variety`](./triangulation#get_toric_variety) function of the
-    [`Triangulation`](./triangulation) class. In this example we obtain
-    $\mathbb{P}^4$.
-    ```python {4}
-    from cytools import Polytope
-    p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-    t = p.triangulate()
-    v = t.get_toric_variety()
-    # A smooth compact 4-dimensional toric variety with 5 affine patches
-    ```
+        >>> from cytools import Polytope
+        >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        >>> t = p.triangulate()
+        >>> t.get_toric_variety()
+        A smooth compact 4-dimensional toric variety with 5 affine patches
     """
 
     def __init__(self, triang):
-        r"""
-        **Description:**
-        Initializes a `ToricVariety` object.
-
-        **Arguments:**
-        - `triang` *(Triangulation)*: A star triangulation.
-
-        **Returns:**
-        Nothing.
-
-        **Example:**
-        This is the function that is called when creating a new `ToricVariety`
-        object. We construct a ToricVariety from a regular, star triangulation
-        of a reflexive polytope. Since this class is not intended to be
-        initialized by the end user, we create it via the
-        [`get_toric_variety`](./triangulation#get_toric_variety) function of the
-        [`Triangulation`](./triangulation) class. In this example we obtain
-        $\mathbb{P}^4$.
-        ```python {4}
-        from cytools import Polytope
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        # A smooth compact 4-dimensional toric variety with 5 affine patches
-        ```
-        """
         # We first make sure that the input triangulation is appropriate.
         # Regularity is not checked since it is generally slow.
         if not triang.is_star():
@@ -158,33 +137,34 @@ class ToricVariety:
             )
 
     def clear_cache(self, recursive=False, only_in_basis=False):
-        """
-        **Description:**
-        Clears the cached results of any previous computation.
+        """Clear the cached results of any previous computation.
 
-        **Arguments:**
-        - `recursive` *(bool, optional, default=False)*: Whether to also
-            clear the cache of the defining triangulation and polytope. This is
-            ignored when only_in_basis=True.
-        - `only_in_basis` *(bool, optional, default=False)*: Only clears the
-            cache of computations that depend on a choice of basis.
+        Note that a full cache clear (`only_in_basis=False`) also discards any
+        basis of divisors or curves that was previously set, so the default
+        basis is used afterwards.
 
-        **Returns:**
-        Nothing.
+        Args:
+            recursive (bool): Whether to also clear the cache of the defining
+                triangulation and polytope. This is ignored when
+                `only_in_basis=True`.
+            only_in_basis (bool): Whether to only clear the cache of
+                computations that depend on the choice of basis (the Mori cone
+                in the current basis, the effective cone, and the intersection
+                numbers in the current basis).
 
-        **Example:**
-        We construct a toric variety, compute its Mori cone, clear the cache and
-        then compute it again.
-        ```python {6}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        v.mori_cone()
-        # A 2-dimensional rational polyhedral cone in RR^7 generated by 3 rays
-        v.clear_cache() # Clears the cached result
-        v.mori_cone() # The Mori cone is recomputed
-        # A 2-dimensional rational polyhedral cone in RR^7 generated by 3 rays
-        ```
+        Examples:
+            We construct a toric variety, compute its Mori cone, clear the cache
+            and then compute it again.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> v = t.get_toric_variety()
+            >>> v.mori_cone()
+            A 2-dimensional rational polyhedral cone in RR^7 generated by 3 rays
+            >>> v.clear_cache()  # Clears the cached result
+            >>> v.mori_cone()  # The Mori cone is recomputed
+            A 2-dimensional rational polyhedral cone in RR^7 generated by 3 rays
         """
         self._mori_cone[2] = None
         self._eff_cone = None
@@ -212,27 +192,26 @@ class ToricVariety:
                 self._triang.clear_cache(recursive=True)
 
     def __repr__(self):
-        """
-        **Description:**
-        Returns a string describing the toric variety.
+        """Return a string describing the toric variety.
 
-        **Arguments:**
-        None.
+        The string states whether the variety is smooth or only simplicial,
+        whether it is compact, its dimension, and its number of affine patches
+        (i.e. the number of simplices in the triangulation).
 
-        **Returns:**
-        *(str)* A string describing the toric variety.
+        Returns:
+            str: A string describing the toric variety.
 
-        **Example:**
-        This function can be used to convert the toric variety to a string or to
-        print information about the toric variety.
-        ```python {4,5}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        var_info = str(v) # Converts to string
-        print(v) # Prints toric variety info
-        # A smooth compact 4-dimensional toric variety with 5 affine patches
-        ```
+        Examples:
+            This function can be used to convert the toric variety to a string
+            or to print information about the toric variety.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+            >>> t = p.triangulate()
+            >>> v = t.get_toric_variety()
+            >>> var_info = str(v)  # Converts to string
+            >>> print(v)  # Prints toric variety info
+            A smooth compact 4-dimensional toric variety with 5 affine patches
         """
         out_str = (
             f"A {'smooth' if self.is_smooth() else 'simplicial'} "
@@ -243,84 +222,83 @@ class ToricVariety:
         return out_str
 
     def __eq__(self, other):
-        """
-        **Description:**
-        Implements comparison of toric varieties with ==.
+        """Compare two toric varieties with `==`.
 
-        **Arguments:**
-        - `other` *(ToricVariety)*: The other toric variety that is being
-            compared.
+        Two toric varieties are considered equal if their defining
+        triangulations are equal.
 
-        **Returns:**
-        *(bool)* The truth value of the toric varieties being equal.
+        Args:
+            other (ToricVariety): The other toric variety that is being
+                compared.
 
-        **Example:**
-        We construct two toric varieties and compare them.
-        ```python {6}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        t1 = p.triangulate(backend="qhull")
-        v1 = t1.get_toric_variety()
-        t2 = p.triangulate(backend="topcom")
-        v2 = t2.get_toric_variety()
-        v1 == v2
-        # True
-        ```
+        Returns:
+            bool: Whether the toric varieties are equal. If `other` is not a
+                `ToricVariety`, `NotImplemented` is returned instead.
+
+        Examples:
+            We construct two toric varieties and compare them.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+            >>> t1 = p.triangulate(backend="qhull")
+            >>> v1 = t1.get_toric_variety()
+            >>> t2 = p.triangulate(backend="topcom")
+            >>> v2 = t2.get_toric_variety()
+            >>> v1 == v2
+            True
         """
         if not isinstance(other, ToricVariety):
             return NotImplemented
         return self.triangulation() == other.triangulation()
 
     def __ne__(self, other):
-        """
-        **Description:**
-        Implements comparison of toric varieties with !=.
+        """Compare two toric varieties with `!=`.
 
-        **Arguments:**
-        - `other` *(ToricVariety)*: The other toric variety that is being
-            compared.
+        Args:
+            other (ToricVariety): The other toric variety that is being
+                compared.
 
-        **Returns:**
-        *(bool)* The truth value of the toric varieties being different.
+        Returns:
+            bool: Whether the toric varieties are different. If `other` is not
+                a `ToricVariety`, `NotImplemented` is returned instead.
 
-        **Example:**
-        We construct two toric varieties and compare them.
-        ```python {6}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        t1 = p.triangulate(backend="qhull")
-        v1 = t1.get_toric_variety()
-        t2 = p.triangulate(backend="topcom")
-        v2 = t2.get_toric_variety()
-        v1 != v2
-        # False
-        ```
+        Examples:
+            We construct two toric varieties and compare them.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+            >>> t1 = p.triangulate(backend="qhull")
+            >>> v1 = t1.get_toric_variety()
+            >>> t2 = p.triangulate(backend="topcom")
+            >>> v2 = t2.get_toric_variety()
+            >>> v1 != v2
+            False
         """
         if not isinstance(other, ToricVariety):
             return NotImplemented
         return not (self == other)
 
     def __hash__(self):
-        """
-        **Description:**
-        Implements the ability to obtain hash values from toric varieties.
+        """Return the hash value of the toric variety.
 
-        **Arguments:**
-        None.
+        The hash is computed from the hash of the defining triangulation and is
+        cached.
 
-        **Returns:**
-        *(int)* The hash value of the toric variety.
+        Returns:
+            int: The hash value of the toric variety.
 
-        **Example:**
-        We compute the hash value of a toric variety. Also, we construct a set
-        and a dictionary with a toric variety, which make use of the hash
-        function.
-        ```python {4,5,6}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        h = hash(v) # Obtain hash value
-        d = {v: 1} # Create dictionary with toric variety keys
-        s = {v} # Create a set of toric varieties
-        ```
+        Examples:
+            We compute the hash value of a toric variety. Also, we construct a
+            set and a dictionary with a toric variety, which make use of the
+            hash function.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+            >>> t = p.triangulate()
+            >>> v = t.get_toric_variety()
+            >>> h = hash(v)  # Obtain hash value
+            >>> d = {v: 1}  # Create dictionary with toric variety keys
+            >>> s = {v}  # Create a set of toric varieties
         """
         if self._hash is not None:
             return self._hash
@@ -328,25 +306,24 @@ class ToricVariety:
         return self._hash
 
     def is_compact(self):
-        """
-        **Description:**
-        Returns True if the variety is compact and False otherwise.
+        """Return whether the toric variety is compact.
 
-        **Arguments:**
-        None.
+        The variety is compact when the origin is an interior point of the
+        polytope, so that the fan defined by the star triangulation is
+        complete.
 
-        **Returns:**
-        *(bool)* The truth value of the variety being compact.
+        Returns:
+            bool: Whether the toric variety is compact.
 
-        **Example:**
-        We construct a toric variety and check if it is compact.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        v.is_compact()
-        # True
-        ```
+        Examples:
+            We construct a toric variety and check if it is compact.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+            >>> t = p.triangulate()
+            >>> v = t.get_toric_variety()
+            >>> v.is_compact()
+            True
         """
         if self._is_compact is not None:
             return self._is_compact
@@ -356,78 +333,62 @@ class ToricVariety:
         return self._is_compact
 
     def triangulation(self):
-        """
-        **Description:**
-        Returns the triangulation giving rise to the toric variety.
+        """Return the triangulation giving rise to the toric variety.
 
-        **Arguments:**
-        None.
+        Returns:
+            Triangulation: The triangulation giving rise to the toric variety.
 
-        **Returns:**
-        *(Triangulation)* The triangulation giving rise to the toric variety.
+        Examples:
+            We construct a toric variety and check that the triangulation that
+            this function returns is the same as the one we used to construct
+            it.
 
-        **Example:**
-        We construct a toric variety and check that the triangulation that this
-        function returns is the same as the one we used to construct it.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        v.triangulation() is t
-        # True
-        ```
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+            >>> t = p.triangulate()
+            >>> v = t.get_toric_variety()
+            >>> v.triangulation() is t
+            True
         """
         return self._triang
 
     def polytope(self):
-        """
-        **Description:**
-        Returns the polytope whose triangulation gives rise to the toric
-        variety.
+        """Return the polytope whose triangulation gives rise to the toric variety.
 
-        **Arguments:**
-        None.
+        Returns:
+            Polytope: The polytope whose triangulation gives rise to the toric
+                variety.
 
-        **Returns:**
-        *(Polytope)* The polytope whose triangulation gives rise to the toric
-            variety.
+        Examples:
+            We construct a toric variety and check that the polytope that this
+            function returns is the same as the one we used to construct it.
 
-        **Example:**
-        We construct a toric variety and check that the polytope that this
-        function returns is the same as the one we used to construct it.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        v.polytope() is p
-        # True
-        ```
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+            >>> t = p.triangulate()
+            >>> v = t.get_toric_variety()
+            >>> v.polytope() is p
+            True
         """
         return self._triang.polytope()
 
     def dimension(self):
-        """
-        **Description:**
-        Returns the complex dimension of the toric variety.
+        """Return the complex dimension of the toric variety.
 
-        **Arguments:**
-        None.
+        Also available as `dim`.
 
-        **Returns:**
-        *(int)* The complex dimension of the toric variety.
+        Returns:
+            int: The complex dimension of the toric variety.
 
-        **Aliases:**
-        `dim`.
+        Examples:
+            We construct a toric variety and find its dimension.
 
-        **Example:**
-        We construct a toric variety and find its dimension.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        v.dimension()
-        # 4
-        ```
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+            >>> t = p.triangulate()
+            >>> v = t.get_toric_variety()
+            >>> print(v.dimension())
+            4
         """
         return self.triangulation().dim()
 
@@ -435,53 +396,60 @@ class ToricVariety:
     dim = dimension
 
     def sr_ideal(self):
-        """
-        **Description:**
-        Returns the Stanley–Reisner ideal of the toric variety.
+        """Return the generators of the Stanley–Reisner ideal of the toric variety.
 
-        **Arguments:**
-        None.
+        This is computed by
+        [`Triangulation.sr_ideal`][cytools.triangulation.Triangulation.sr_ideal].
+        Each generator is a set of prime toric divisors (given by the labels of
+        the corresponding points) that do not all lie in a common simplex of the
+        triangulation, and that is minimal with this property.
 
-        **Returns:**
-        *(tuple)* The Stanley–Reisner ideal of the toric variety.
+        Returns:
+            tuple[tuple[int, ...], ...]: The generators of the Stanley–Reisner
+                ideal, each given as a sorted tuple of point labels. The
+                generators are sorted by length and then lexicographically.
 
-        **Example:**
-        We construct a toric variety and find its SR ideal.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        v.sr_ideal()
-        # array([[1, 4, 5],
-        #        [2, 3, 6]])
-        ```
+        Examples:
+            We construct a toric variety and find its SR ideal. Here we convert
+            the labels to plain integers for readability.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> v = t.get_toric_variety()
+            >>> [tuple(int(i) for i in gen) for gen in v.sr_ideal()]
+            [(1, 4, 5), (2, 3, 6)]
         """
         return self.triangulation().sr_ideal()
 
     def glsm_charge_matrix(self, include_origin=True):
-        """
-        **Description:**
-        Computes the GLSM charge matrix of the theory resulting from this
-        toric variety.
+        """Compute the GLSM charge matrix of the theory resulting from this variety.
 
-        **Arguments:**
-        - `include_origin` *(bool, optional, default=True)*: Indicates whether
-            to use the origin in the calculation. This corresponds to the
-            inclusion of the canonical divisor.
+        The columns correspond to the points of the triangulation, in the same
+        order as
+        [`Triangulation.points`][cytools.triangulation.Triangulation.points].
+        The first column corresponds to the origin (i.e. the canonical divisor)
+        and the remaining ones to the prime toric divisors. The result is
+        cached, and a copy is returned.
 
-        **Returns:**
-        *(numpy.ndarray)* The GLSM charge matrix.
+        Args:
+            include_origin (bool): Whether to include the column corresponding
+                to the origin (i.e. the canonical divisor).
 
-        **Example:**
-        We construct a toric variety and find the GLSM charge matrix.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        v.glsm_charge_matrix()
-        # array([[-18,   1,   9,   6,   1,   1,   0],
-        #        [ -6,   0,   3,   2,   0,   0,   1]])
-        ```
+        Returns:
+            np.ndarray: The GLSM charge matrix, with one row per independent
+                $U(1)$ charge.
+
+        Examples:
+            We construct a toric variety and find the GLSM charge matrix.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> v = t.get_toric_variety()
+            >>> v.glsm_charge_matrix()
+            array([[-18,   1,   9,   6,   1,   1,   0],
+                   [ -6,   0,   3,   2,   0,   0,   1]])
         """
         if self._glsm_charge_matrix is not None:
             return np.array(self._glsm_charge_matrix)[:, (0 if include_origin else 1) :]
@@ -492,40 +460,45 @@ class ToricVariety:
         return np.array(self._glsm_charge_matrix)[:, (0 if include_origin else 1) :]
 
     def glsm_linear_relations(self, include_origin=True):
-        """
-        **Description:**
-        Computes the linear relations of the GLSM charge matrix.
+        r"""Compute the linear relations among the columns of the GLSM charge matrix.
 
-        **Arguments:**
-        - `include_origin` *(bool, optional, default=True)*: Indicates whether
-            to use the origin in the calculation. This corresponds to the
-            inclusion of the canonical divisor.
+        Each row is a vector of coefficients $r$ such that
+        $\sum_j r_j Q_{\cdot j} = 0$, where $Q$ is the GLSM charge matrix
+        returned by
+        [`glsm_charge_matrix`][cytools.toricvariety.ToricVariety.glsm_charge_matrix].
+        The columns follow the same ordering as the columns of the charge
+        matrix. The result is cached, and a copy is returned.
 
-        **Returns:**
-        *(numpy.ndarray)* A matrix of linear relations of the columns of the
-            GLSM charge matrix.
+        Args:
+            include_origin (bool): Whether to include the origin (i.e. the
+                canonical divisor). If false, the first row and the first
+                column of the matrix are removed.
 
-        **Example:**
-        We construct a toric variety and find its GLSM charge matrix and linear
-        relations.
-        ```python {4,10}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        v.glsm_linear_relations()
-        # array([[ 1,  1,  1,  1,  1,  1,  1],
-        #        [ 0,  9, -1,  0,  0,  0,  3],
-        #        [ 0,  6,  0, -1,  0,  0,  2],
-        #        [ 0,  1,  0,  0, -1,  0,  0],
-        #        [ 0,  1,  0,  0,  0, -1,  0]])
-        # By definition this product must be zero
-        v.glsm_linear_relations().dot(p.glsm_charge_matrix().T)
-        # array([[0, 0],
-        #        [0, 0],
-        #        [0, 0],
-        #        [0, 0],
-        #        [0, 0]])
-        ```
+        Returns:
+            np.ndarray: A matrix whose rows are linear relations among the
+                columns of the GLSM charge matrix.
+
+        Examples:
+            We construct a toric variety and find the linear relations of its
+            GLSM charge matrix. By definition, their product with the transposed
+            charge matrix must vanish.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> v = t.get_toric_variety()
+            >>> v.glsm_linear_relations()
+            array([[ 1,  0,  0,  0,  0, 18,  6],
+                   [ 0,  1,  0,  0,  0, -1,  0],
+                   [ 0,  0,  1,  0,  0, -9, -3],
+                   [ 0,  0,  0,  1,  0, -6, -2],
+                   [ 0,  0,  0,  0,  1, -1,  0]])
+            >>> v.glsm_linear_relations().dot(v.glsm_charge_matrix().T)
+            array([[0, 0],
+                   [0, 0],
+                   [0, 0],
+                   [0, 0],
+                   [0, 0]])
         """
         if self._glsm_linrels is not None:
             return np.array(self._glsm_linrels)[
@@ -540,43 +513,49 @@ class ToricVariety:
         ]
 
     def divisor_basis(self, include_origin=True, as_matrix=False):
-        """
-        **Description:**
-        Returns the current basis of divisors of the toric variety.
+        """Return the current basis of divisors of the toric variety.
 
-        **Arguments:**
-        - `include_origin` *(bool, optional, default=True)*: Whether to include
-            the origin in the indexing of the vector, or in the basis matrix.
-        - `as_matrix` *(bool, optional, default=False)*: Indicates whether to
-            return the basis as a matrix instead of a list of indices of prime
-            toric divisors. Note that if a matrix basis was specified, then it
-            will always be returned as a matrix.
+        If no basis has been set, a default integral basis of prime toric
+        divisors is chosen and set. A different basis can be set with
+        [`set_divisor_basis`][cytools.toricvariety.ToricVariety.set_divisor_basis]
+        or [`set_curve_basis`][cytools.toricvariety.ToricVariety.set_curve_basis].
 
-        **Returns:**
-        *(numpy.ndarray)* A list of column indices that form a basis. If a more
-            generic basis has been specified with the
-            [`set_divisor_basis`](#set_divisor_basis) or
-            [`set_curve_basis`](#set_curve_basis) functions then it returns a
-            matrix where the rows are the basis elements specified as a linear
-            combination of the canonical divisor and the prime toric divisors.
+        Args:
+            include_origin (bool): Whether the indexing of the returned vector
+                (or the columns of the returned matrix) includes the origin,
+                i.e. the canonical divisor at index 0.
+            as_matrix (bool): Whether to return the basis as a matrix instead of
+                a vector of indices of prime toric divisors. If a generic
+                (matrix) basis was set, then it is always returned as a matrix.
 
-        **Example:**
-        We consider a simple toric variety with two independent divisors. If no
-        basis has been set, then this function finds one. If a basis has been
-        set, then this function returns it.
-        ```python {4,7,9}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        v.divisor_basis() # We haven't set any basis
-        # array([5, 6])
-        v.set_divisor_basis([5,6]) # Here we set a basis
-        v.divisor_basis() # We get the basis we set
-        # array([5, 6])
-        v.divisor_basis(as_matrix=True) # We get the basis in matrix form
-        # array([[0, 0, 0, 0, 0, 1, 0],
-        #        [0, 0, 0, 0, 0, 0, 1]])
-        ```
+        Returns:
+            np.ndarray: A vector of the indices of the prime toric divisors
+                that form the basis. If `as_matrix` is true, or if a generic
+                (matrix) basis has been set, a matrix is returned instead, where
+                each row is a basis element expressed as a linear combination
+                of the canonical divisor and the prime toric divisors.
+
+        Raises:
+            Exception: If `include_origin=False` but the current basis includes
+                the canonical divisor.
+
+        Examples:
+            We consider a simple toric variety with two independent divisors. If
+            no basis has been set, then this function finds one. If a basis has
+            been set, then this function returns it.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> v = t.get_toric_variety()
+            >>> v.divisor_basis()  # We haven't set any basis
+            array([5, 6])
+            >>> v.set_divisor_basis([5,6])  # Here we set a basis
+            >>> v.divisor_basis()  # We get the basis we set
+            array([5, 6])
+            >>> v.divisor_basis(as_matrix=True)  # We get the basis in matrix form
+            array([[0, 0, 0, 0, 0, 1, 0],
+                   [0, 0, 0, 0, 0, 0, 1]])
         """
         if self._divisor_basis is None:
             self.set_divisor_basis(
@@ -602,92 +581,112 @@ class ToricVariety:
         return np.array(self._divisor_basis[:, (0 if include_origin else 1) :])
 
     def set_divisor_basis(self, basis, include_origin=True):
-        """
-        **Description:**
-        Specifies a basis of divisors of the toric variety. This can be done
-        with a vector specifying the indices of the prime toric divisors.
+        """Set a basis of divisors of the toric variety.
 
-        :::note
-        Only integral bases are supported by CYTools, meaning that all prime
-        toric divisors must be able to be written as an integral linear
-        combination of the basis divisors.
-        :::
+        This also sets the dual basis of curves. The basis can be specified
+        with a vector of indices of prime toric divisors or, if the experimental
+        features are enabled, with a matrix whose rows are linear combinations
+        of the canonical divisor and the prime toric divisors. Cached results
+        that depend on the choice of basis are cleared.
 
-        **Arguments:**
-        - `basis` *(array_like)*: Vector or matrix specifying a basis. When a
-            vector is used, the entries will be taken as the indices of points
-            of the polytope or prime divisors of the toric variety. When a
-            matrix is used, the rows are taken as linear combinations of the
-            aforementioned divisors.
-        - `include_origin` *(bool, optional, default=True)*: Whether to
-            interpret the indexing specified by the input vector as including
-            the origin.
+        Note:
+            Only integral bases are supported by CYTools, meaning that all prime
+            toric divisors must be able to be written as an integral linear
+            combination of the basis divisors.
 
-        **Returns:**
-        Nothing.
+        Args:
+            basis (ArrayLike): Vector or matrix specifying a basis. When a
+                vector is used, its entries are taken as the indices of the
+                prime toric divisors (i.e. of the points of the triangulation,
+                with the origin, corresponding to the canonical divisor, at
+                index 0); the indices are sorted before being stored. When a
+                matrix is used, its rows are taken as linear combinations of
+                the aforementioned divisors. The matrix may omit the column of
+                the canonical divisor, in which case its coefficient is set to
+                zero.
+            include_origin (bool): Whether to interpret the indices in the
+                input vector as including the origin at index 0. This is only
+                used when `basis` is a vector.
 
-        **Example:**
-        We consider a simple toric variety with two independent divisors. We
-        first find the default basis it picks and then we set a basis of our
-        choice.
-        ```python {6}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        v.divisor_basis() # We haven't set any basis
-        # array([5, 6])
-        v.set_divisor_basis([5,6]) # Here we set a basis
-        v.divisor_basis() # We get the basis we set
-        # array([5, 6])
-        v.divisor_basis(as_matrix=True) # We get the basis in matrix form
-        # array([[0, 0, 0, 0, 0, 1, 0],
-        #        [0, 0, 0, 0, 0, 0, 1]])
-        ```
-        An example for more generic basis choices can be found in the
-        [experimental features](./experimental) section.
+        Raises:
+            ValueError: If the input does not specify a valid integral basis.
+            Exception: If a matrix is given and the experimental features are
+                not enabled.
+
+        Examples:
+            We consider a simple toric variety with two independent divisors. We
+            first find the default basis it picks and then we set a basis of our
+            choice.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> v = t.get_toric_variety()
+            >>> v.divisor_basis()  # We haven't set any basis
+            array([5, 6])
+            >>> v.set_divisor_basis([5,6])  # Here we set a basis
+            >>> v.divisor_basis()  # We get the basis we set
+            array([5, 6])
+            >>> v.divisor_basis(as_matrix=True)  # We get the basis in matrix form
+            array([[0, 0, 0, 0, 0, 1, 0],
+                   [0, 0, 0, 0, 0, 0, 1]])
+
+            An example with more generic basis choices can be found in the
+            [experimental
+            features](experimental.md#generic-bases-for-divisors-and-curves)
+            section.
         """
         # This is handled by a function in utils since the functionality is
         # shared with the CalabiYau class.
         set_divisor_basis(self, basis, include_origin=include_origin)
 
     def curve_basis(self, include_origin=True, as_matrix=False):
-        """
-        **Description:**
-        Returns the current basis of curves of the toric variety.
+        """Return the current basis of curves of the toric variety.
 
-        **Arguments:**
-        - `include_origin` *(bool, optional, default=True)*: Whether to include
-            the origin in the indexing of the vector, or in the basis matrix.
-        - `as_matrix` *(bool, optional, default=False)*: Indicates whether to
-            return the basis as a matrix instead of a list of indices of prime
-            toric divisors. Note that if a matrix basis was specified, then it
-            will always be returned as a matrix.
+        If no basis has been set, a default integral basis of divisors is
+        chosen and set, and its dual basis of curves is returned. A different
+        basis can be set with
+        [`set_curve_basis`][cytools.toricvariety.ToricVariety.set_curve_basis]
+        or
+        [`set_divisor_basis`][cytools.toricvariety.ToricVariety.set_divisor_basis].
 
-        **Returns:**
-        *(numpy.ndarray)* A list of column indices that form a basis. If a more
-        generic basis has been specified with the
-        [`set_divisor_basis`](#set_divisor_basis) or
-        [`set_curve_basis`](#set_curve_basis) functions then it returns a matrix
-        where the rows are the basis elements specified as a linear combination
-        of the canonical divisor and the prime toric divisors.
+        Args:
+            include_origin (bool): Whether the indexing of the returned vector
+                (or the columns of the returned matrix) includes the origin,
+                i.e. the canonical divisor at index 0.
+            as_matrix (bool): Whether to return the basis as a matrix instead of
+                a vector of indices. If a generic (matrix) basis was set, then
+                it is always returned as a matrix.
 
-        **Example:**
-        We consider a simple toric variety with two independent curves. If no
-        basis has been set, then this function finds one. If a basis has been
-        set, then this function returns it.
-        ```python {4,7,9}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        v.curve_basis() # We haven't set any basis
-        # array([5, 6])
-        v.set_curve_basis([5,6]) # Here we set a basis
-        v.curve_basis() # We get the basis we set
-        # array([5, 6])
-        v.curve_basis(as_matrix=True) # We get the basis in matrix form
-        # array([[-18,   1,   9,   6,   1,   1,   0],
-        #        [ -6,   0,   3,   2,   0,   0,   1]])
-        ```
+        Returns:
+            np.ndarray: A vector of indices of the standard basis of the lattice
+                dual to the lattice of prime toric divisors that form the basis
+                of curves. If `as_matrix` is true, or if a generic (matrix)
+                basis has been set, a matrix is returned instead, where each
+                row gives the intersection numbers of a basis curve with the
+                canonical divisor and the prime toric divisors.
+
+        Raises:
+            Exception: If `include_origin=False` but the current basis includes
+                the index of the canonical divisor.
+
+        Examples:
+            We consider a simple toric variety with two independent curves. If
+            no basis has been set, then this function finds one. If a basis has
+            been set, then this function returns it.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> v = t.get_toric_variety()
+            >>> v.curve_basis()  # We haven't set any basis
+            array([5, 6])
+            >>> v.set_curve_basis([5,6])  # Here we set a basis
+            >>> v.curve_basis()  # We get the basis we set
+            array([5, 6])
+            >>> v.curve_basis(as_matrix=True)  # We get the basis in matrix form
+            array([[-18,   1,   9,   6,   1,   1,   0],
+                   [ -6,   0,   3,   2,   0,   0,   1]])
         """
         if self._curve_basis is None:
             self.set_divisor_basis(
@@ -713,55 +712,66 @@ class ToricVariety:
         return np.array(self._curve_basis[:, (0 if include_origin else 1) :])
 
     def set_curve_basis(self, basis, include_origin=True):
-        """
-        **Description:**
-        Specifies a basis of curves of the toric variety, which in turn induces
-        a basis of divisors. This can be done with a vector specifying the
-        indices of the standard basis of the lattice dual to the lattice of
-        prime toric divisors. Note that this case is equivalent to using the
-        same vector in the [`set_divisor_basis`](#set_divisor_basis) function.
+        """Set a basis of curves of the toric variety.
 
-        :::note
-        Only integral bases are supported by CYTools, meaning that all toric
-        curves must be able to be written as an integral linear combination of
-        the basis curves.
-        :::
+        This in turn induces the dual basis of divisors. The basis can be
+        specified with a vector of indices of the standard basis of the lattice
+        dual to the lattice of prime toric divisors, which is equivalent to
+        passing the same vector to
+        [`set_divisor_basis`][cytools.toricvariety.ToricVariety.set_divisor_basis].
+        If the experimental features are enabled, it can also be specified
+        with a matrix whose rows give the intersection numbers of each basis
+        curve with the canonical divisor and the prime toric divisors. Cached
+        results that depend on the choice of basis are cleared.
 
-        **Arguments:**
-        - `basis` *(array_like)*: Vector or matrix specifying a basis. When a
-            vector is used, the entries will be taken as indices of the standard
-            basis of the dual to the lattice of prime toric divisors. When a
-            matrix is used, the rows are taken as linear combinations of the
-            aforementioned elements.
-        - `include_origin` *(bool, optional, default=True)*: Whether to
-            interpret the indexing specified by the input vector as including
-            the origin.
+        Note:
+            Only integral bases are supported by CYTools, meaning that all toric
+            curves must be able to be written as an integral linear combination
+            of the basis curves.
 
-        **Returns:**
-        Nothing.
+        Args:
+            basis (ArrayLike): Vector or matrix specifying a basis. When a
+                vector is used, its entries are taken as indices of the standard
+                basis of the lattice dual to the lattice of prime toric divisors
+                (with index 0 corresponding to the canonical divisor). When a
+                matrix is used, its rows are taken as linear combinations of the
+                aforementioned elements. The matrix may omit the column of the
+                canonical divisor, in which case it is computed as minus the sum
+                of the other entries of the row.
+            include_origin (bool): Whether to interpret the indices in the
+                input vector as including the origin at index 0. This is only
+                used when `basis` is a vector.
 
-        **Example:**
-        We consider a simple toric variety with two independent curves. We first
-        find the default basis of curves it picks and then set a basis of our
-        choice.
-        ```python {6}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        v.curve_basis() # We haven't set any basis
-        # array([5, 6])
-        v.set_curve_basis([5,6]) # Here we set a basis
-        v.curve_basis() # We get the basis we set
-        # array([5, 6])
-        v.curve_basis(as_matrix=True) # We get the basis in matrix form
-        # array([[-18,   1,   9,   6,   1,   1,   0],
-        #        [ -6,   0,   3,   2,   0,   0,   1]])
-        ```
-        Note that when setting a curve basis in this way, the function behaves
-        exactly the same as [`set_divisor_basis`](#set_divisor_basis). For a
-        more advanced example involving generic bases these two functions
-        differ. An example can be found in the
-        [experimental features](./experimental) section.
+        Raises:
+            ValueError: If the input does not specify a valid integral basis.
+            Exception: If a matrix is given and the experimental features are
+                not enabled.
+
+        Examples:
+            We consider a simple toric variety with two independent curves. We
+            first find the default basis of curves it picks and then set a basis
+            of our choice.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> v = t.get_toric_variety()
+            >>> v.curve_basis()  # We haven't set any basis
+            array([5, 6])
+            >>> v.set_curve_basis([5,6])  # Here we set a basis
+            >>> v.curve_basis()  # We get the basis we set
+            array([5, 6])
+            >>> v.curve_basis(as_matrix=True)  # We get the basis in matrix form
+            array([[-18,   1,   9,   6,   1,   1,   0],
+                   [ -6,   0,   3,   2,   0,   0,   1]])
+
+            Note that when setting a curve basis with a vector, this function
+            behaves exactly the same as
+            [`set_divisor_basis`][cytools.toricvariety.ToricVariety.set_divisor_basis].
+            The two functions differ for generic (matrix) bases. An example can
+            be found in the [experimental
+            features](experimental.md#generic-bases-for-divisors-and-curves)
+            section.
         """
         # This is handled by a function in utils since the functionality is
         # shared with the CalabiYau class.
@@ -773,39 +783,44 @@ class ToricVariety:
         include_origin=True,
         from_intersection_numbers=False,
     ):
-        """
-        **Description:**
-        Returns the Mori cone of the toric variety.
+        """Return the Mori cone of the toric variety.
 
-        **Arguments:**
-        - `in_basis` *(bool, optional, default=False)*: Use the current basis of
-            curves, which is dual to the basis returned by the
-            [`divisor_basis`](#divisor_basis) function.
-        - `include_origin` *(bool, optional, default=True)*: Includes the origin
-            of the polytope in the computation, which corresponds to the
-            canonical divisor. This parameter is ignored when `in_basis=True`.
-        - `from_intersection_numbers` *(bool, optional, default=False)*: Compute
-            the rays of the Mori cone using the intersection numbers of the
-            variety. This can be faster if they are already computed. The set of
-            rays may be different, but they define the same cone.
+        By default, the Mori cone is computed as the dual of the secondary cone
+        of the triangulation. Without a choice of basis, each ray is given by
+        the intersection numbers of a curve with the canonical divisor and the
+        prime toric divisors. The results are cached.
 
-        **Returns:**
-        *(Cone)* The Mori cone of the toric variety.
+        Args:
+            in_basis (bool): Whether to use the current basis of curves, which
+                is dual to the basis returned by
+                [`divisor_basis`][cytools.toricvariety.ToricVariety.divisor_basis].
+            include_origin (bool): Whether to include the coordinate
+                corresponding to the origin of the polytope, i.e. the canonical
+                divisor. This parameter is ignored when `in_basis=True`.
+            from_intersection_numbers (bool): Whether to compute the rays of the
+                Mori cone using the intersection numbers of the variety. This
+                can be faster if they are already computed. The set of rays may
+                be different, but they define the same cone. This parameter only
+                has an effect the first time the Mori cone is computed, since
+                the result is cached.
 
-        **Example:**
-        We construct a toric variety and find its Mori cone in an $h^{1,1}+d+1$
-        dimensional lattice (i.e. without a particular choice of basis) and in
-        an $h^{1,1}$ dimensional lattice (i.e. after picking a basis of curves).
-        ```python {4,6}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        v.mori_cone() # By default it does not use a basis of curves.
-        # A 2-dimensional rational polyhedral cone in RR^7 generated by 3 rays
-        # It uses the dual basis of curves to the current divisor basis
-        v.mori_cone(in_basis=True)
-        # A 2-dimensional rational polyhedral cone in RR^2 generated by 3 rays
-        ```
+        Returns:
+            Cone: The Mori cone of the toric variety.
+
+        Examples:
+            We construct a toric variety and find its Mori cone in an
+            $h^{1,1}+d+1$ dimensional lattice (i.e. without a particular choice
+            of basis) and in an $h^{1,1}$ dimensional lattice (i.e. after
+            picking a basis of curves).
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> v = t.get_toric_variety()
+            >>> v.mori_cone()  # By default it does not use a basis of curves
+            A 2-dimensional rational polyhedral cone in RR^7 generated by 3 rays
+            >>> v.mori_cone(in_basis=True)  # Uses the dual of the divisor basis
+            A 2-dimensional rational polyhedral cone in RR^2 generated by 3 rays
         """
         if self._mori_cone[0] is None:
             if from_intersection_numbers:
@@ -837,43 +852,40 @@ class ToricVariety:
         return self._mori_cone[args_id]
 
     def _compute_mori_rays_from_intersections(self):
-        """
-        **Description:**
-        Computes the Mori cone rays of the variety using intersection numbers.
+        """Compute the Mori cone rays of the variety using intersection numbers.
 
-        :::note
-        This function should generally not be called by the user. Instead, it is
-        called by the [`mori_cone`](#mori_cone) function when the user wants to
-        save some time if the intersection numbers were already computed.
-        :::
+        Each torus-invariant curve, given by the intersection of $d-1$ distinct
+        prime toric divisors (where $d$ is the dimension of the variety),
+        yields a ray whose entries are the intersection numbers of the curve
+        with the prime toric divisors, divided by their greatest common
+        divisor. The entry corresponding to the canonical divisor is fixed to
+        minus the sum of the other entries.
 
-        **Arguments:**
-        None.
+        Note:
+            This function should generally not be called by the user. Instead,
+            it is called by
+            [`mori_cone`][cytools.toricvariety.ToricVariety.mori_cone] when
+            `from_intersection_numbers=True` and the variety is not
+            4-dimensional.
 
-        **Returns:**
-        *(numpy.ndarray)* The list of generating rays of the Mori cone of the
-            toric variety.
+        Returns:
+            np.ndarray: The generating rays of the Mori cone of the toric
+                variety, one per row, including the coordinate corresponding to
+                the canonical divisor. The set of rays is not necessarily
+                minimal.
 
-        **Example:**
-        This function is not intended to be directly used, but it is used in the
-        following example. We construct a toric variety and compute the Mori
-        cone using its intersection numbers.
-        ```python {4}
-        p = Polytope(
-            [
-                [1, 0, 0, 0, 0],
-                [0, 1, 0, 0, 0],
-                [0, 0, 1, 0, 0],
-                [0, 0, 0, 1, 0],
-                [0, 0, 0, 0, 1],
-                [-1, -1, -6, -9, -18],
-            ]
-        )
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        v.mori_cone(from_intersection_numbers=True)
-        # A 5-dimensional rational polyhedral cone in RR^11 generated by 14 rays
-        ```
+        Examples:
+            This function is not intended to be directly used, but it is used
+            in the following example. We construct a 5-dimensional toric variety
+            and compute the Mori cone using its intersection numbers.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],
+            ...               [0,0,0,0,1],[-1,-1,-6,-9,-18]])
+            >>> t = p.triangulate()
+            >>> v = t.get_toric_variety()
+            >>> v.mori_cone(from_intersection_numbers=True)
+            A 5-dimensional rational polyhedral cone in RR^11 generated by 14 rays
         """
         intnums = self.intersection_numbers(in_basis=False)
         dim = self.dim()
@@ -904,36 +916,39 @@ class ToricVariety:
         return mori_rays
 
     def _compute_mori_rays_from_intersections_4d(self):
-        """
-        **Description:**
-        Computes the Mori cone rays of the variety using intersection numbers.
+        """Compute the Mori cone rays of a 4D variety using intersection numbers.
 
-        :::note notes
-        - This function should generally not be called by the user. Instead,
-            this is called by the [`mori_cone`](#mori_cone) function when the
-            user wants to save some time if the intersection numbers were
-            already computed.
-        - This function is a more optimized version for 4D toric varieties.
-        :::
+        This is an optimized version of `_compute_mori_rays_from_intersections`
+        for 4-dimensional toric varieties. Each torus-invariant curve, given by
+        the intersection of three distinct prime toric divisors, yields a ray
+        whose entries are the intersection numbers of the curve with the prime
+        toric divisors, divided by the absolute value of their greatest common
+        divisor. The entry corresponding to the canonical divisor is fixed to
+        minus the sum of the other entries.
 
-        **Arguments:**
-        None.
+        Note:
+            This function should generally not be called by the user. Instead,
+            it is called by
+            [`mori_cone`][cytools.toricvariety.ToricVariety.mori_cone] when
+            `from_intersection_numbers=True` and the variety is 4-dimensional.
 
-        **Returns:**
-        *(numpy.ndarray)* The list of generating rays of the Mori cone of the
-            toric variety.
+        Returns:
+            np.ndarray: The generating rays of the Mori cone of the toric
+                variety, one per row, including the coordinate corresponding to
+                the canonical divisor. The set of rays is not necessarily
+                minimal.
 
-        **Example:**
-        This function is not intended to be directly used, but it is used in the
-        following example. We construct a toric variety and compute the Mori
-        cone using its intersection numbers.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        v.mori_cone(from_intersection_numbers=True)
-        # A 2-dimensional rational polyhedral cone in RR^7 generated by 3 rays
-        ```
+        Examples:
+            This function is not intended to be directly used, but it is used
+            in the following example. We construct a toric variety and compute
+            the Mori cone using its intersection numbers.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> v = t.get_toric_variety()
+            >>> v.mori_cone(from_intersection_numbers=True)
+            A 2-dimensional rational polyhedral cone in RR^7 generated by 3 rays
         """
         intnums = self.intersection_numbers(in_basis=False)
         num_divs = self.glsm_charge_matrix().shape[1]
@@ -1031,55 +1046,56 @@ class ToricVariety:
         return mori_rays
 
     def kahler_cone(self):
-        """
-        **Description:**
-        Returns the Kähler cone of the toric variety in the current basis of
-        divisors.
+        """Return the Kähler cone of the toric variety in the current divisor basis.
 
-        **Arguments:**
-        None.
+        It is computed as the dual of the Mori cone in the current basis of
+        curves (see [`mori_cone`][cytools.toricvariety.ToricVariety.mori_cone]).
 
-        **Returns:**
-        *(Cone)* The Kähler cone of the toric variety.
+        Returns:
+            Cone: The Kähler cone of the toric variety.
 
-        **Example:**
-        We construct a toric variety and find its Kahler cone.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        v.kahler_cone()
-        # A rational polyhedral cone in RR^2 defined by 3 hyperplanes normals
-        ```
+        Examples:
+            We construct a toric variety and find its Kähler cone.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> v = t.get_toric_variety()
+            >>> v.kahler_cone()
+            A rational polyhedral cone in RR^2 defined by 3 hyperplanes
         """
         return self.mori_cone(in_basis=True).dual()
 
     def _construct_intnum_equations_4d(self):
-        """
-        **Description:**
-        Auxiliary function used to compute the intersection numbers of the toric
-        variety. This function is optimized for 4D varieties.
+        """Construct the linear system for the intersection numbers of a 4D variety.
 
-        **Arguments:**
-        None.
+        This is an auxiliary function used by
+        [`intersection_numbers`][cytools.toricvariety.ToricVariety.intersection_numbers]
+        and is optimized for 4-dimensional varieties. The intersection numbers of
+        distinct prime toric divisors that span a simplex of the triangulation
+        are computed directly from the simplex volumes. The remaining possibly
+        nonzero intersection numbers (those with repeated indices) are the
+        unknowns of the linear system $M x + C = 0$, which is obtained from the
+        linear relations among the divisors.
 
-        **Returns:**
-        *(tuple)* A tuple where the first component is a sparse matrix M, the
-            second is a vector C, which are used to solve the system M*X=C, the
-            third is the list of intersection numbers not including
-            self-intersections, and the fourth is the list of intersection
-            numbers that are used as variables in the equation.
+        Returns:
+            tuple[csr_matrix, np.ndarray, list, list]: A tuple containing the
+                sparse matrix $M$, the vector $C$, the list of intersection
+                numbers of distinct divisors (each given as a list of four
+                divisor indices followed by the intersection number), and the
+                list of index tuples of the intersection numbers that are used
+                as variables of the linear system.
 
-        **Example:**
-        This function is not intended to be directly used, but it is used in the
-        following example. We construct a toric variety and compute its
-        intersection numbers.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        intnums = v.intersection_numbers()
-        ```
+        Examples:
+            This function is not intended to be directly used, but it is used
+            in the following example. We construct a toric variety and compute
+            its intersection numbers.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> v = t.get_toric_variety()
+            >>> intnums = v.intersection_numbers()
         """
         points = self.triangulation().points()
         simps = self.triangulation().simplices(as_indices=True)
@@ -1209,40 +1225,37 @@ class ToricVariety:
         return Mat, C, distintnum_array, variable_array
 
     def _construct_intnum_equations(self):
-        """
-        **Description:**
-        Auxiliary function used to compute the intersection numbers of the toric
-        variety.
+        """Construct the linear system for the intersection numbers of the variety.
 
-        **Arguments:**
-        None.
+        This is an auxiliary function used by
+        [`intersection_numbers`][cytools.toricvariety.ToricVariety.intersection_numbers]
+        for varieties of any dimension (a more optimized version is used for
+        4-dimensional varieties). The intersection numbers of distinct prime
+        toric divisors that span a simplex of the triangulation are computed
+        directly from the simplex volumes. The remaining possibly nonzero
+        intersection numbers (those with repeated indices) are the unknowns of
+        the linear system $M x + C = 0$, which is obtained from the linear
+        relations among the divisors.
 
-        **Returns:**
-        *(tuple)* A tuple where the first component is a sparse matrix M, the
-            second is a vector C, which are used to solve the system M*X=C, the
-            third is the list of intersection numbers not including
-            self-intersections, and the fourth is the list of intersection
-            numbers that are used as variables in the equation.
+        Returns:
+            tuple[csr_matrix, np.ndarray, list, list]: A tuple containing the
+                sparse matrix $M$, the vector $C$, the list of intersection
+                numbers of distinct divisors (each given as a list of $d$
+                divisor indices followed by the intersection number), and the
+                list of index tuples of the intersection numbers that are used
+                as variables of the linear system.
 
-        **Example:**
-        This function is not intended to be directly used, but it is used in the
-        following example. We construct a toric variety and compute its
-        intersection numbers.
-        ```python {4}
-        p = Polytope(
-            [
-                [1, 0, 0, 0, 0],
-                [0, 1, 0, 0, 0],
-                [0, 0, 1, 0, 0],
-                [0, 0, 0, 1, 0],
-                [0, 0, 0, 0, 1],
-                [-1, -1, -6, -9, -18],
-            ]
-        )
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        intnums = v.intersection_numbers()
-        ```
+        Examples:
+            This function is not intended to be directly used, but it is used
+            in the following example. We construct a 5-dimensional toric
+            variety and compute its intersection numbers.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],
+            ...               [0,0,0,0,1],[-1,-1,-6,-9,-18]])
+            >>> t = p.triangulate()
+            >>> v = t.get_toric_variety()
+            >>> intnums = v.intersection_numbers()
         """
         dim = self.dim()
         pts_ext = np.empty((self.triangulation().points().shape[0], dim + 1), dtype=int)
@@ -1360,116 +1373,123 @@ class ToricVariety:
         verbose=0,
         exact_arithmetic=False,
     ):
-        """
-        **Description:**
-        Returns the intersection numbers of the toric variety.
+        """Return the intersection numbers of the toric variety.
 
-        :::tip experimental feature
-        The intersection numbers are computed as floating-point numbers by
-        default, but there is the option to turn them into rationals. The
-        process is fairly quick, but it is unreliable at large $h^{1,1}$.
-        Furthermore, verifying that they are correct becomes very slow at large
-        $h^{1,1}$.
-        :::
+        The intersection numbers of distinct prime toric divisors spanning a
+        simplex of the triangulation are computed from the simplex volumes, and
+        the rest are found by solving a sparse linear system obtained from the
+        linear relations among the divisors. Intersection numbers involving the
+        canonical divisor (index 0) are then computed from these. If the
+        variety is smooth, all intersection numbers are rounded to integers,
+        and if its canonical divisor is smooth (see
+        `canonical_divisor_is_smooth`), the ones involving the canonical divisor
+        exactly once are rounded to integers. Otherwise, they are floating-point
+        numbers.
 
-        **Arguments:**
-        - `in_basis` *(bool, optional, default=False)*: Return the intersection
-            numbers in the current basis of divisors.
-        - `format` *(str, optional, default="dok")*: The output format of the
-            intersection numbers. The options are "dok", "coo", and "dense".
-            When set to "dok" (Dictionary Of Keys), it returns a dictionary
-            where the keys are divisor indices in ascending order and the
-            corresponding value is their intersection number. When set to "coo"
-            (COOrdinate format), it returns a numpy array in the format
-            [[a,b,...,c,K_ab...c],...], i.e. all but the last entry of each row
-            correspond to divisor indices in ascending order, with the last
-            entry of the row being their intersection number. Lastly, when set
-            to "dense", it returns the full dense array of intersection numbers.
-        - `zero_as_anticanonical` *(bool, optional, default=False)*: Treat the
-            zeroth index as corresponding to the anticanonical divisor instead
-            of the canonical divisor.
-        - `backend` *(str, optional, default="all")*: The sparse linear solver
-            to use. Options are "all", "sksparse" and "scipy". When set to "all"
-            every solver is tried in order until one succeeds.
-        - `check` *(bool, optional, default=True)*: Whether to explicitly check
-            the solution to the linear system.
-        - `backend_error_tol` *(float, optional, default=1e-3)*: Error tolerance
-            for the solution of the linear system.
-        - `round_to_zero_threshold` *(float, optional, default=1e-3)*:
-            Intersection numbers with magnitude smaller than this threshold are
-            rounded to zero.
-        - `round_to_integer_error_tol` *(float, optional, default=5e-2)*: All
-            intersection numbers of the Calabi-Yau hypersurface must be integers
-            up to errors less than this value, when the CY is smooth.
-        - `verbose` *(int, optional, default=0)*: The verbosity level.
-            - verbose = 0: Do not print anything.
-            - verbose = 1: Print linear backend warnings.
-        - `exact_arithmetic` *(bool, optional, default=False)*: Converts the
-            intersection numbers into exact rational fractions.
+        Only the nonzero intersection numbers are stored, and the results are
+        cached for each combination of `in_basis`, `format`,
+        `zero_as_anticanonical`, and `exact_arithmetic`. The remaining
+        parameters only affect the first computation.
 
-        **Returns:**
-        *(dict or numpy.array)* When `format` is set to "dok" (Dictionary Of
-            Keys), it returns a dictionary where the keys are divisor indices in
-            ascending order and the corresponding value is their intersection
-            number. When `format` is set to "coo" (COOrdinate format), it
-            returns a numpy array in the format [[a,b,...,c,K_ab...c],...],
-            i.e. all but the last entry of each row correspond to divisor
-            indices in ascending order, with the last entry of the row being
-            their intersection number. Lastly, when set to "dense", it returns
-            the full dense array of intersection numbers.
+        Tip:
+            The intersection numbers are computed as floating-point numbers by
+            default, but there is the experimental option to turn them into
+            exact rationals with `exact_arithmetic=True`. The process is fairly
+            quick, but it is unreliable at large $h^{1,1}$. Furthermore,
+            verifying that they are correct becomes very slow at large
+            $h^{1,1}$.
 
-        **Example:**
-        We construct a toric variety and compute its intersection numbers We
-        demonstrate the usage of the `in_basis` flag and the different available
-        output formats.
-        ```python {5,15,23,29}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        # By default this function computes the intersection numbers of the canonical
-        # and prime toric divisors
-        intnum_nobasis = v.intersection_numbers()
-        # Let's print the output and see how to interpret it
-        print(intnum_nobasis)
-        # {(1, 2, 3, 4): 1.0, (1, 2, 3, 5): 1.0, (1, 2, 4, 6): 0.5, (1, 2, 5, 6):...
-        # The above output means that the intersection number of divisors 1, 2, 3, 4  is
-        # 1, and so on
-        # Let us now compute the intersection numbers in a given basis of divisors
-        # First, let's check the current basis of divisors
-        v.divisor_basis()
-        # array([5, 6])
-        # Now, setting in_basis=True we only compute the intersection numbers of
-        # divisors 1 and 6
-        intnum_basis = v.intersection_numbers(in_basis=True)
-        # Let's print the output and see how to interpret it
-        print(intnum_basis)
-        # {(0, 0, 1, 1): 0.16666666666667923, (0, 1, 1, 1): -1.0000000000000335, (1...
-        # Here, the indices correspond to indices of the basis divisors
-        # So the intersection of 1, 1, 6, 6 is 0.1666, and so on
-        # Now, let's look at the different output formats. The default one is the "dok"
-        # (Dictionary Of Keys) format shown above
-        # There is also the "coo" (COOrdinate format)
-        print(v.intersection_numbers(in_basis=True, format="coo"))
-        # [[ 0.          0.          1.          1.          0.16666667]
-        #  [ 0.          1.          1.          1.         -1.        ]
-        #  [ 1.          1.          1.          1.          4.5       ]]
-        # In this format, all but the last entry of each row are the indices and the
-        # last entry of the row is the intersection number
-        # Lastrly, there is the "dense" format where it outputs the full dense array
-        print(v.intersection_numbers(in_basis=True, format="dense"))
-        # [[[[ 0.          0.        ]
-        #    [ 0.          0.16666667]]
-        #
-        #   [[ 0.          0.16666667]
-        #    [ 0.16666667 -1.        ]]]
-        #
-        #
-        #  [[[ 0.          0.16666667]
-        #    [ 0.16666667 -1.        ]]
-        #
-        #   [[ 0.16666667 -1.        ]
-        #    [-1.          4.5       ]]]]
-        ```
+        Args:
+            in_basis (bool): Whether to return the intersection numbers in the
+                current basis of divisors (see
+                [`divisor_basis`][cytools.toricvariety.ToricVariety.divisor_basis]).
+                In this case, the indices refer to the basis elements.
+            format (str): The output format of the intersection numbers. The
+                options are `"dok"`, `"coo"`, and `"dense"`. When set to `"dok"`
+                (Dictionary Of Keys), a dictionary is returned where the keys
+                are tuples of divisor indices in ascending order and the values
+                are the corresponding intersection numbers. When set to `"coo"`
+                (COOrdinate format), a numpy array is returned with rows of the
+                form `[a, b, ..., c, K_ab...c]`, i.e. all but the last entry of
+                each row are divisor indices in ascending order, and the last
+                entry is their intersection number. When set to `"dense"`, the
+                full dense array of intersection numbers is returned.
+            zero_as_anticanonical (bool): Whether to treat the zeroth index as
+                corresponding to the anticanonical divisor instead of the
+                canonical divisor. This is ignored when `in_basis=True`.
+            backend (str): The sparse linear solver to use. Options are
+                `"all"`, `"sksparse"`, and `"scipy"`. When set to `"all"`, every
+                solver is tried in order until one succeeds.
+            check (bool): Whether to explicitly check the solution to the linear
+                system.
+            backend_error_tol (float): Error tolerance for the solution of the
+                linear system.
+            round_to_zero_threshold (float): Intersection numbers with magnitude
+                smaller than this threshold are rounded to zero (i.e. dropped).
+            round_to_integer_error_tol (float): Maximum allowed distance from an
+                integer for intersection numbers that are expected to be
+                integral, i.e. all of them when the variety is smooth, and those
+                involving the canonical divisor exactly once when the canonical
+                divisor is smooth.
+            verbose (int): The verbosity level. If 0, nothing is printed. If 1
+                or higher, warnings from the linear backends are printed.
+            exact_arithmetic (bool): Whether to convert the intersection
+                numbers into exact rational numbers (`flint.fmpq`). This
+                requires the experimental features to be enabled.
+
+        Returns:
+            dict[tuple[int, ...], float] | np.ndarray: The intersection numbers
+                in the requested format: a dictionary for `"dok"`, a 2D array
+                for `"coo"`, or a dense array of rank equal to the dimension of
+                the variety for `"dense"`. A shallow copy of the cached result
+                is returned.
+
+        Raises:
+            ValueError: If `format` or `backend` is not a valid option, or if
+                `exact_arithmetic=True` and the experimental features are not
+                enabled.
+            RuntimeError: If the linear system could not be solved, if the
+                conversion to rational numbers failed, or if non-integer
+                intersection numbers are found where integers are expected.
+
+        Examples:
+            We construct a toric variety and compute its intersection numbers.
+            By default, the intersection numbers of the canonical divisor (index
+            0) and the prime toric divisors are returned as a dictionary whose
+            keys are the divisor indices in ascending order.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> v = t.get_toric_variety()
+            >>> intnums = v.intersection_numbers()
+            >>> print(intnums[(1, 2, 3, 4)])
+            1.0
+            >>> print(intnums[(1, 2, 4, 6)])
+            0.5
+            >>> print(intnums[(0, 1, 2, 3)])
+            -18
+
+            We can also compute the intersection numbers in the current basis
+            of divisors. In this case, the indices refer to the basis elements,
+            so the key `(0, 0, 1, 1)` corresponds to the intersection of the
+            divisors 5, 5, 6, and 6.
+
+            >>> v.divisor_basis()
+            array([5, 6])
+            >>> intnums_basis = v.intersection_numbers(in_basis=True)
+            >>> print(round(intnums_basis[(0, 0, 1, 1)], 6))
+            0.166667
+
+            The intersection numbers can also be obtained in the `"coo"` and
+            `"dense"` formats.
+
+            >>> print(v.intersection_numbers(in_basis=True, format="coo"))
+            [[ 0.          0.          1.          1.          0.16666667]
+             [ 0.          1.          1.          1.         -1.        ]
+             [ 1.          1.          1.          1.          4.5       ]]
+            >>> v.intersection_numbers(in_basis=True, format="dense").shape
+            (2, 2, 2, 2)
         """
         if format not in ("dok", "coo", "dense"):
             raise ValueError('Options for format are "dok", "coo", "dense".')
@@ -1715,27 +1735,26 @@ class ToricVariety:
         return copy.copy(self._intersection_numbers[args_id])
 
     def prime_toric_divisors(self):
-        """
-        **Description:**
-        Returns the list of point indices corresponding to prime toric divisors.
-        This list simply corresponds to the indices of the boundary points that
-        are used in the triangulation.
+        """Return the point indices corresponding to the prime toric divisors.
 
-        **Arguments:**
-        None
+        These are the indices (with respect to the points of the polytope) of
+        the points used in the triangulation, excluding the origin at index 0.
+        The result is cached.
 
-        **Returns:**
-        *(tuple)* The point indices corresponding to prime toric divisors.
+        Returns:
+            tuple[int, ...]: The point indices corresponding to prime toric
+                divisors.
 
-        **Example:**
-        We construct a toric variety and find the list of prime toric divisors.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        v.prime_toric_divisors()
-        # (1, 2, 3, 4, 5, 6)
-        ```
+        Examples:
+            We construct a toric variety and find the list of prime toric
+            divisors.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> v = t.get_toric_variety()
+            >>> v.prime_toric_divisors()
+            (1, 2, 3, 4, 5, 6)
         """
         if self._prime_divs is None:
             tri_ind = list(
@@ -1748,29 +1767,27 @@ class ToricVariety:
         return self._prime_divs
 
     def is_smooth(self):
-        """
-        **Description:**
-        Returns True if the toric variety is smooth.
+        """Return whether the toric variety is smooth.
 
-        **Arguments:**
-        None.
+        The variety is smooth if every simplex of the triangulation (i.e. every
+        maximal cone of the fan) is unimodular. The result is cached.
 
-        **Returns:**
-        *(bool)* The truth value of the toric variety being smooth.
+        Returns:
+            bool: Whether the toric variety is smooth.
 
-        **Example:**
-        We construct two toric varieties and check if they are smooth.
-        ```python {4,8}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t1 = p.triangulate()
-        v1 = t1.get_toric_variety()
-        v1.is_smooth()
-        # False
-        t2 = p.triangulate(include_points_interior_to_facets=True)
-        v2 = t2.get_toric_variety()
-        v2.is_smooth()
-        # True
-        ```
+        Examples:
+            We construct two toric varieties and check if they are smooth.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t1 = p.triangulate()
+            >>> v1 = t1.get_toric_variety()
+            >>> v1.is_smooth()
+            False
+            >>> t2 = p.triangulate(include_points_interior_to_facets=True)
+            >>> v2 = t2.get_toric_variety()
+            >>> v2.is_smooth()
+            True
         """
         if self._is_smooth is not None:
             return self._is_smooth
@@ -1781,26 +1798,29 @@ class ToricVariety:
         return self._is_smooth
 
     def canonical_divisor_is_smooth(self):
-        """
-        **Description:**
-        Returns True if the canonical divisor is smooth.
+        """Return whether the canonical divisor is smooth.
 
-        **Arguments:**
-        None.
+        More precisely, this checks whether a generic anticanonical
+        hypersurface (i.e. the Calabi-Yau hypersurface) is smooth. This is
+        done by verifying that all lattice points of the polytope not interior
+        to facets are used in the triangulation and, for varieties of
+        dimension greater than 4, that all $(d-1)$-dimensional cones of the fan
+        lying in $(d-2)$-dimensional faces of the polytope are smooth, where
+        $d$ is the dimension of the variety. The result is cached.
 
-        **Returns:**
-        *(bool)* The truth value of the canonical divisor being smooth.
+        Returns:
+            bool: Whether the canonical divisor is smooth.
 
-        **Example:**
-        We construct a toric variety and check if its canonical divisor is
-        smooth.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        v.canonical_divisor_is_smooth()
-        # True
-        ```
+        Examples:
+            We construct a toric variety and check if its canonical divisor is
+            smooth.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> v = t.get_toric_variety()
+            >>> v.canonical_divisor_is_smooth()
+            True
         """
         if self._canon_div_is_smooth is not None:
             return self._canon_div_is_smooth
@@ -1820,26 +1840,24 @@ class ToricVariety:
         return self._canon_div_is_smooth
 
     def effective_cone(self):
-        """
-        **Description:**
-        Returns the cone of effective divisors, aka the effective cone, of the
-        toric variety.
+        """Return the cone of effective divisors of the toric variety.
 
-        **Arguments:**
-        None.
+        The effective cone is generated by the classes of the prime toric
+        divisors, expressed in the current basis of divisors. The result is
+        cached.
 
-        **Returns:**
-        *(Cone)* The effective cone of the toric variety.
+        Returns:
+            Cone: The effective cone of the toric variety.
 
-        **Example:**
-        We construct a toric variety and find its effective cone.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        v.effective_cone()
-        # A 2-dimensional rational polyhedral cone in RR^2 generated by 6 rays
-        ```
+        Examples:
+            We construct a toric variety and find its effective cone.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> v = t.get_toric_variety()
+            >>> v.effective_cone()
+            A 2-dimensional rational polyhedral cone in RR^2 generated by 6 rays
         """
         if self._eff_cone is not None:
             return self._eff_cone
@@ -1847,34 +1865,44 @@ class ToricVariety:
         return self._eff_cone
 
     def fan_cones(self, d=None, face_dim=None):
-        """
-        **Description:**
-        It returns the cones forming a fan defined by a star triangulation of a
-        reflexive polytope. The dimension of the desired cones can be specified,
-        and one can also restrict to cones that lie in faces of a particular
-        dimension.
+        """Return the cones of the fan defined by the star triangulation.
 
-        **Arguments:**
-        - `d` *(int, optional)*: The dimension of the desired cones. If not
-            specified, it returns the full-dimensional cones.
-        - `face_dim` *(int, optional)*: Restricts to cones that lie on faces of
-            the polytope of a particular dimension. If not specified, then no
-            restriction is imposed.
+        The dimension of the desired cones can be specified, and one can also
+        restrict to cones that lie in faces of the polytope of a particular
+        dimension. The cones are generated by the points of the triangulation
+        (the origin is never a generator), and the results are cached.
 
-        **Returns:**
-        *(tuple)* The tuple of cones with the specified properties defined by
-            the star triangulation.
+        Args:
+            d (int | None): The dimension of the desired cones. If not
+                specified, it defaults to `face_dim` if that is given, and
+                otherwise to the dimension of the variety (i.e. the maximal
+                cones are returned).
+            face_dim (int | None): Restricts to cones whose generators lie in a
+                common face of the polytope of this dimension. If not
+                specified, then no restriction is imposed.
 
-        **Example:**
-        We construct a toric variety and find the maximal and 2-dimensional
-        cones of the defining fan.
-        ```python {4,5}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        max_cones = v.fan_cones() # By default it returns the maximal cones
-        cones_2d = v.fan_cones(d=2) # We can select cones of a specific dimension
-        ```
+        Returns:
+            tuple[Cone, ...]: The cones of the fan with the specified
+                properties, in no particular order.
+
+        Raises:
+            ValueError: If `d` is not between 1 and the dimension of the
+                variety.
+
+        Examples:
+            We construct a toric variety and find the maximal and 2-dimensional
+            cones of the defining fan.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> v = t.get_toric_variety()
+            >>> max_cones = v.fan_cones()  # By default it returns the maximal cones
+            >>> len(max_cones)
+            9
+            >>> cones_2d = v.fan_cones(d=2)  # We can select cones of a given dimension
+            >>> len(cones_2d)
+            15
         """
         if d is None:
             d = self.dim() if face_dim is None else face_dim
@@ -1905,37 +1933,46 @@ class ToricVariety:
         return self._fan_cones[(d, face_dim)]
 
     def get_cy(self, nef_partition=None):
-        """
-        **Description:**
-        Returns a CalabiYau object corresponding to the anti-canonical
-        hypersurface on the toric variety defined by the fine, star, regular
-        triangulation. If a nef-partition is specified then it returns the
-        complete intersection Calabi-Yau that it specifies.
+        """Return the Calabi-Yau hypersurface or complete intersection.
 
-        :::note
-        Only Calabi-Yau 3-fold hypersurfaces are fully supported. Other
-        dimensions and CICYs require enabling the experimental features of
-        CYTools. See [experimental features](./experimental) for more details.
-        :::
+        By default, this returns a [`CalabiYau`][cytools.calabiyau.CalabiYau]
+        object corresponding to the anticanonical hypersurface in the toric
+        variety, which requires the triangulation to be fine. If a
+        nef-partition is specified, then it returns the complete intersection
+        Calabi-Yau that it defines. The result is cached as long as the same
+        nef-partition is used.
 
-        **Arguments:**
-        - `nef_partition` *(list, optional)*: A list of tuples of indices
-            specifying a nef-partition of the polytope, which correspondingly
-            defines a complete intersection Calabi-Yau.
+        Note:
+            Only Calabi-Yau 3-fold hypersurfaces are fully supported. Other
+            dimensions, non-favorable polytopes, and CICYs require enabling the
+            experimental features of CYTools. See
+            [experimental features](experimental.md) for more details.
 
-        **Returns:**
-        *(CalabiYau)* The Calabi-Yau arising from the triangulation.
+        Args:
+            nef_partition (list[tuple[int, ...]] | None): A list of tuples of
+                point indices specifying a nef-partition of the polytope, which
+                defines a complete intersection Calabi-Yau. If not specified,
+                the anticanonical hypersurface is returned.
 
-        **Example:**
-        We construct a toric variety and obtain its Calabi-Yau hypersurface.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        v.get_cy()
-        # A Calabi-Yau 3-fold hypersurface with h11=2 and h21=272 in a
-        # 4-dimensional toric variety
-        ```
+        Returns:
+            CalabiYau: The Calabi-Yau arising from the triangulation.
+
+        Raises:
+            ValueError: If the triangulation is not fine, if it uses neither
+                exactly the points not interior to facets nor all the points
+                of the polytope, or if the nef-partition is invalid.
+            Exception: If the experimental features are required but not
+                enabled.
+
+        Examples:
+            We construct a toric variety and obtain its Calabi-Yau hypersurface.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> v = t.get_toric_variety()
+            >>> v.get_cy()
+            A Calabi-Yau 3-fold hypersurface with h11=2 and h21=272 in a ...
         """
         # First check if the nef partition is the same as the cached one.
         # If not, it resets the cached CY.

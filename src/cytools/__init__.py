@@ -14,6 +14,14 @@
 # CYTools. If not, see <https://www.gnu.org/licenses/>.
 # =============================================================================
 
+"""CYTools: a software package for analyzing Calabi-Yau manifolds.
+
+The most commonly used classes and functions, such as
+[`Polytope`][cytools.polytope.Polytope] and
+[`fetch_polytopes`][cytools.utils.fetch_polytopes], can be imported directly
+from the package root.
+"""
+
 # Make the main classes and function accessible from the root of CYTools.
 import os
 import threading
@@ -42,30 +50,26 @@ versions_with_serious_bugs = []
 
 # Check for more recent versions of CYTools
 def check_for_updates():
-    """
-    **Description:**
-    Checks for updates of CYTools. It prints a message if a new version is
-    available, and displays a warning if the current version has a serious bug.
+    """Check whether a newer version of CYTools is available.
+
+    The version number on the `main` branch of the CYTools GitHub repository
+    is compared with the installed one. A message is printed if a
+    newer version is available, and a warning is printed if the installed
+    version is known to contain a serious bug. Nothing is printed otherwise.
 
     This performs a network request, so it blocks until the request completes
-    or times out. On import CYTools instead runs it in a background daemon
-    thread (see `start_update_check`), so that `import cytools` never waits on
-    the network. Any failure (no network, DNS failure, timeout, ...) is
-    silently ignored.
+    or times out (after 2 seconds). On import, CYTools instead runs it in a
+    background daemon thread (see
+    [`start_update_check`][cytools.start_update_check]), so that
+    `import cytools` never waits on the network. Any failure (no network, DNS
+    failure, timeout, ...) is silently ignored.
 
-    **Arguments:**
-    None.
+    Examples:
+        We check for updates of CYTools. This is done automatically on import,
+        so there is usually no need to do this.
 
-    **Returns:**
-    Nothing.
-
-    **Example:**
-    We check for updates of CYTools. This is done automatically, so there is
-    usually no need to do this.
-    ```python {2}
-    import cytools
-    cytools.check_for_updates()
-    ```
+        >>> import cytools
+        >>> cytools.check_for_updates()
     """
     from ast import literal_eval
     import requests
@@ -126,32 +130,28 @@ def check_for_updates():
 
 
 def start_update_check():
-    """
-    **Description:**
-    Starts [`check_for_updates`](#check_for_updates) in a background daemon
-    thread and returns immediately. This is what runs on import, so that
-    `import cytools` never blocks on the network. The thread is a daemon, so it
-    never keeps the interpreter alive, and any error it encounters is silently
-    ignored.
+    """Start an update check in a background thread.
 
-    The check is skipped entirely (returning `None`) if the
-    `CYTOOLS_NO_UPDATE_CHECK` environment variable is set to a non-empty value,
-    which is useful on clusters and air-gapped machines.
+    This runs [`check_for_updates`][cytools.check_for_updates] in a background
+    daemon thread and returns immediately. It is what runs on import, so that
+    `import cytools` never blocks on the network. Since the thread is a daemon,
+    it never keeps the interpreter alive, and any error it encounters is
+    silently ignored.
 
-    **Arguments:**
-    None.
+    The check is skipped entirely if the `CYTOOLS_NO_UPDATE_CHECK` environment
+    variable is set to a non-empty value, which is useful on clusters and
+    air-gapped machines.
 
-    **Returns:**
-    *(threading.Thread or None)* The thread performing the check, or `None` if
-    the check is disabled.
+    Returns:
+        threading.Thread | None: The thread performing the check, or `None` if
+            the check is disabled.
 
-    **Example:**
-    We start a background update check. This is done automatically on import,
-    so there is usually no need to do this.
-    ```python {2}
-    import cytools
-    cytools.start_update_check()
-    ```
+    Examples:
+        We start a background update check. This is done automatically on
+        import, so there is usually no need to do this.
+
+        >>> import cytools
+        >>> thread = cytools.start_update_check()
     """
     if os.environ.get("CYTOOLS_NO_UPDATE_CHECK"):
         return None

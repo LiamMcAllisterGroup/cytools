@@ -51,20 +51,41 @@ Apple Silicon, across the supported Python versions, with the environment built
 from `environment-dev.yml` via micromamba. Please make sure the test suite passes
 locally before opening a pull request.
 
-The other workflows are `website.yml`, which regenerates the documentation site
-from the source docstrings, and `deploy.yml`, which builds the sdist and wheel
-and publishes them to PyPI when a GitHub release is published.
+The other workflows are `website.yml`, which builds the documentation site and
+deploys it to [cy.tools](https://cy.tools) on pushes to `main`, and `deploy.yml`,
+which builds the sdist and wheel and publishes them to PyPI when a GitHub release
+is published.
 
 ## Code style and documentation
 
 There is no automated formatter or linter configured in this repository, so
 please match the style of the surrounding code.
 
-Public functions and methods are documented with docstrings in the CYTools
-convention (`**Description:**`, `**Arguments:**`, `**Returns:**`, and an
-`**Example:**` block). These docstrings are the single source for the
-documentation on [cy.tools](https://cy.tools), so new public API should be
-documented the same way.
+Public classes, functions, and methods are documented with
+[Google-style docstrings](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings):
+a one-line summary, an optional longer description, and `Args:`, `Returns:`,
+`Raises:`, and `Examples:` sections as applicable. Always include the types in
+`Args:` (`name (type): description`) and `Returns:` (`type: description`), and
+write examples in doctest format (`>>> ...` followed by the expected output).
+Constructor arguments are documented in the class docstring rather than in
+`__init__`. These docstrings are the single source for the API reference on
+[cy.tools](https://cy.tools), so new public API should be documented the same
+way.
+
+## Documentation website
+
+The website is built with [Zensical](https://zensical.org), and the API
+reference is generated from the docstrings with
+[mkdocstrings](https://mkdocstrings.github.io/python/). The configuration lives
+in `zensical.toml`, and the hand-written pages, images, and other static files
+live in the `docs` directory. To preview the website locally, run
+
+```bash
+uv run --only-group docs zensical serve
+```
+
+and open the printed URL in your browser. `zensical build --strict` is run in CI,
+so please make sure the build finishes without warnings.
 
 Every source file carries the GPL header; please keep it when adding new files.
 

@@ -19,6 +19,14 @@
 #               computations.
 # -----------------------------------------------------------------------------
 
+"""Faces of lattice polytopes.
+
+This module defines the [`PolytopeFace`][cytools.polytopeface.PolytopeFace]
+class, which describes a face of a lattice polytope. Faces are normally obtained
+from [`Polytope.faces`][cytools.polytope.Polytope.faces] rather than constructed
+directly.
+"""
+
 # 'standard' imports
 
 # 3rd party imports
@@ -39,42 +47,40 @@ if TYPE_CHECKING:
 
 
 class PolytopeFace:
-    """
-    This class handles all computations relating to faces of lattice polytopes.
+    """A face of a lattice polytope.
 
-    :::important
-    Generally, objects of this class should not be constructed directly by the
-    user. Instead, they should be created by the [`faces`](./polytope#faces)
-    function of the [`Polytope`](./polytope) class.
-    :::
+    A face is described by its ambient polytope, the labels of its vertices, and
+    the set of defining inequalities of the ambient polytope that it saturates.
+    Its lattice points are the points of the ambient polytope that saturate all
+    of these inequalities, and they keep the labels they have in the ambient
+    polytope.
 
-    ## Constructor
+    Warning:
+        Generally, objects of this class should not be constructed directly by
+        the user. Instead, they should be obtained from
+        [`Polytope.faces`][cytools.polytope.Polytope.faces].
 
-    ### `cytools.polytopeface.PolytopeFace`
+    Args:
+        ambient_poly (Polytope): The ambient polytope.
+        vert_labels (list): The vertices of the face, specified by their labels
+            in `ambient_poly`.
+        saturated_ineqs (frozenset): The indices of the inequalities of
+            `ambient_poly` (as returned by
+            [`Polytope.inequalities`][cytools.polytope.Polytope.inequalities])
+            that this face saturates.
+        dim (int | None): The dimension of the face. If not specified, it is
+            computed from the vertices.
 
-    **Description:**
-    Constructs a `PolytopeFace` object describing a face of a lattice polytope.
-    This is handled by the hidden [`__init__`](#__init__) function.
+    Examples:
+        Since objects of this class should not be directly created by the end
+        user, we demonstrate how to obtain them using
+        [`Polytope.faces`][cytools.polytope.Polytope.faces].
 
-    **Arguments:**
-    - `ambient_poly` *(Polytope)*: The ambient polytope.
-    - `vertices` *(array_like)*: The list of vertices.
-    - `saturated_ineqs` *(frozenset)*: A frozenset containing the indices of
-        the inequalities that this face saturates.
-    - `dim` *(int, optional)*: The dimension of the face. If it is not given
-        then it is computed.
-
-    **Example:**
-    Since objects of this class should not be directly created by the end user,
-    we demonstrate how to construct these objects using the
-    [`faces`](./polytope#faces) function of the [`Polytope`](./polytope) class.
-    ```python {3}
-    from cytools import Polytope
-    p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-    faces_3 = p.faces(3) # Find the 3-dimensional faces
-    print(faces_3[0]) # Print the first 3-face
-    # A 3-dimensional face of a 4-dimensional polytope in ZZ^4
-    ```
+        >>> from cytools import Polytope
+        >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        >>> faces_3 = p.faces(3)  # find the 3-dimensional faces
+        >>> print(faces_3[0])  # print the first 3-face
+        A 3-dimensional face of a 4-dimensional polytope in ZZ^4
     """
 
     def __init__(
@@ -84,30 +90,6 @@ class PolytopeFace:
         saturated_ineqs: frozenset,
         dim: int = None,
     ) -> None:
-        """
-        **Description:**
-        Initializes a `PolytopeFace` object.
-
-        **Arguments:**
-        - `ambient_poly`: The ambient polytope.
-        - `vert_labels`: The vertices, specified by labels in ambient_poly.
-        - `saturated_ineqs`: Indices of inequalities that this face saturates.
-        - `dim`: The dimension of this face. If not given, then it's computed.
-
-        **Returns:**
-        Nothing.
-
-        **Example:**
-        This is the function that is called when creating a new
-        `PolytopeFace` object. Thus, it is used in the following example.
-        ```python {3}
-        from cytools import Polytope
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        faces_3 = p.faces(3) # Find the 3-dimensional faces
-        print(faces_3[0]) # Print the first 3-face
-        # A 3-dimensional face of a 4-dimensional polytope in ZZ^4
-        ```
-        """
         # initialize attributes
         # ---------------------
         self.clear_cache()
@@ -128,25 +110,20 @@ class PolytopeFace:
     # defaults
     # ========
     def __repr__(self) -> str:
-        """
-        **Description:**
-        Returns a string describing the face.
+        """Return a string describing the face.
 
-        **Arguments:**
-        None.
+        Returns:
+            str: A string describing the face.
 
-        **Returns:**
-        *(str)* A string describing the face.
+        Examples:
+            This function can be used to convert the face to a string or to
+            print information about the face.
 
-        **Example:**
-        This function can be used to convert the face to a string or to print
-        information about the face.
-        ```python {3,4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        f = p.faces(3)[0]
-        face_info = str(f) # Converts to string
-        print(f) # Prints face info
-        ```
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+            >>> f = p.faces(3)[0]
+            >>> face_info = str(f)  # converts to string
+            >>> print(f)  # prints face info
+            A 3-dimensional face of a 4-dimensional polytope in ZZ^4
         """
         return (
             f"A {self.dim()}-dimensional face of a "
@@ -157,26 +134,22 @@ class PolytopeFace:
     # caching
     # =======
     def clear_cache(self) -> None:
-        """
-        **Description:**
-        Clears the cached results of any previous computation.
+        """Clear the cached results of any previous computation.
 
-        **Arguments:**
-        None.
+        This clears the cached point labels, the face as a
+        [`Polytope`][cytools.polytope.Polytope], the dual face, and the
+        subfaces. The ambient polytope, vertices, saturated inequalities, and
+        dimension are kept.
 
-        **Returns:**
-        Nothing.
+        Examples:
+            We construct a face object and find its lattice points, then we
+            clear the cache and compute the points again.
 
-        **Example:**
-        We construct a face object and find its lattice points, then we clear
-        the cache and compute the points again.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        f = p.faces(3)[0] # Pick one of the 3-faces
-        pts = f.points() # Find the lattice points
-        f.clear_cache() # Clears the results of any previous computation
-        pts = f.points() # Find the lattice points again
-        ```
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+            >>> f = p.faces(3)[0]  # pick one of the 3-faces
+            >>> pts = f.points()  # find the lattice points
+            >>> f.clear_cache()  # clears the results of any previous computation
+            >>> pts = f.points()  # find the lattice points again
         """
         self._labels = None
         self._saturating = None
@@ -191,32 +164,33 @@ class PolytopeFace:
     # (all methods here should be @property)
     @property
     def ambient_poly(self) -> "Polytope":
-        """
-        **Description:**
-        Returns the ambient polytope.
+        """Return the ambient polytope.
 
-        **Arguments:**
-        None.
-
-        **Returns:**
-        The ambient polytope.
+        Returns:
+            Polytope: The polytope that this is a face of.
         """
         return self._ambient_poly
 
     def ambient_polytope(self):
+        """Return the ambient polytope.
+
+        This is the method form of the `ambient_poly` property.
+
+        Returns:
+            Polytope: The polytope that this is a face of.
+        """
         return self.ambient_poly
 
     @property
     def labels(self) -> tuple:
-        """
-        **Description:**
-        Returns the labels of lattice points in the face.
+        """Return the labels of the lattice points of the face.
 
-        **Arguments:**
-        None.
+        The labels are those of the ambient polytope, and they are ordered as
+        in the ambient polytope. The result is computed on first access and
+        cached.
 
-        **Returns:**
-        The labels of lattice points in the face.
+        Returns:
+            tuple: The labels of the lattice points of the face.
         """
         if self._labels is None:
             self._process_points()
@@ -225,15 +199,14 @@ class PolytopeFace:
 
     @property
     def labels_bdry(self) -> tuple:
-        """
-        **Description:**
-        Returns the labels of boundary lattice points in the face.
+        """Return the labels of the boundary lattice points of the face.
 
-        **Arguments:**
-        None.
+        These are the points of the face that lie on one of its proper faces
+        (i.e. that saturate more inequalities of the ambient polytope than the
+        face does).
 
-        **Returns:**
-        The labels of boundary lattice points in the face.
+        Returns:
+            tuple: The labels of the boundary lattice points of the face.
         """
         if self._labels_bdry is None:
             self._process_points()
@@ -242,15 +215,13 @@ class PolytopeFace:
 
     @property
     def labels_int(self) -> tuple:
-        """
-        **Description:**
-        Returns the labels of interior lattice points in the face.
+        """Return the labels of the relative-interior lattice points of the face.
 
-        **Arguments:**
-        None.
+        These are the points of the face that saturate exactly the same
+        inequalities of the ambient polytope as the face itself.
 
-        **Returns:**
-        The labels of interior lattice points in the face.
+        Returns:
+            tuple: The labels of the interior lattice points of the face.
         """
         if self._labels_int is None:
             self._process_points()
@@ -259,31 +230,21 @@ class PolytopeFace:
 
     @property
     def labels_vertices(self) -> tuple:
-        """
-        **Description:**
-        Returns the labels of vertices in the face.
+        """Return the labels of the vertices of the face.
 
-        **Arguments:**
-        None.
-
-        **Returns:**
-        The labels of vertices in the face.
+        Returns:
+            list: The labels of the vertices of the face, as passed to the
+                constructor.
         """
         return self._labels_vertices
 
     def dimension(self) -> int:
-        """
-        **Description:**
-        Returns the dimension of the face.
+        """Return the dimension of the face.
 
-        **Arguments:**
-        None.
+        Also available as `dim`.
 
-        **Returns:**
-        *(int)* The dimension of the face.
-
-        **Aliases:**
-        `dim`.
+        Returns:
+            int: The dimension of the face.
         """
         return self._dim
 
@@ -291,18 +252,15 @@ class PolytopeFace:
     dim = dimension
 
     def ambient_dimension(self) -> int:
-        """
-        **Description:**
-        Returns the dimension of the ambient lattice.
+        """Return the dimension of the ambient lattice.
 
-        **Arguments:**
-        None.
+        This is the ambient dimension of the ambient polytope, not the
+        dimension of the ambient polytope itself.
 
-        **Returns:**
-        The dimension of the ambient lattice.
+        Also available as `ambient_dim`.
 
-        **Aliases:**
-        `ambient_dim`.
+        Returns:
+            int: The dimension of the ambient lattice.
         """
         return self.ambient_poly.ambient_dimension()
 
@@ -312,16 +270,12 @@ class PolytopeFace:
     # points
     # ======
     def _process_points(self) -> None:
-        """
-        **Description:**
-        Grabs the labels of the lattice points of the face along with the
-        indices of the hyperplane inequalities that they saturate.
+        """Compute and cache the labels of the lattice points of the face.
 
-        **Arguments:**
-        None.
-
-        **Returns:**
-        Nothing.
+        A point of the ambient polytope belongs to the face if it saturates
+        every inequality that the face saturates. It is an interior point of
+        the face if it saturates no others, and a boundary point otherwise. The
+        results are stored in `_labels`, `_labels_int`, and `_labels_bdry`.
         """
         self._labels = []
         _saturating = []
@@ -353,31 +307,51 @@ class PolytopeFace:
     def points(
         self, which=None, optimal: bool = False, as_indices: bool = False
     ) -> np.ndarray:
-        """
-        **Description:**
-        Returns the lattice points of the face.
+        """Return the lattice points of the face.
 
-        **Arguments:**
-        - `as_indices`: Return the points as indices of the full list of
-            points of the polytope.
+        The points are ordered as in the ambient polytope (see
+        [`Polytope.points`][cytools.polytope.Polytope.points]).
 
-        **Returns:**
-        *(numpy.ndarray)* The list of lattice points of the face.
+        Also available as `pts`.
 
-        **Aliases:**
-        `pts`.
+        Args:
+            which (list | None): Which points to return, specified by a list of
+                labels (not indices). The labels must be labels of points of
+                the face. If not specified, all points of the face are
+                returned.
+            optimal (bool): Whether to return the points in optimal
+                coordinates. If the face is not full-dimensional in the ambient
+                lattice, the points are translated so that the first returned
+                point is at the origin and are then LLL-reduced to coordinates
+                in a lattice of the same dimension as the face. Otherwise, the
+                optimal coordinates of the ambient polytope are used.
+            as_indices (bool): Whether to return the indices of the points in
+                the full list of points of the ambient polytope instead of
+                their coordinates. Takes precedence over `optimal`.
 
-        **Example:**
-        We construct a face object and find its lattice points.
-        ```python {3}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        f = p.faces(3)[0] # Pick one of the 3-faces
-        f.points()
-        # array([[-1, -1, -1, -1],
-        #        [ 0,  0,  0,  1],
-        #        [ 0,  0,  1,  0],
-        #        [ 0,  1,  0,  0]])
-        ```
+        Returns:
+            np.ndarray | list[int]: The lattice points of the face, one per
+                row, or a list of their indices if `as_indices` is true.
+
+        Raises:
+            ValueError: If `which` contains labels that are not labels of
+                points of the face.
+
+        Examples:
+            We construct a face object and find its lattice points.
+
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+            >>> f = p.faces(3)[0]  # pick one of the 3-faces
+            >>> f.points()
+            array([[-1, -1, -1, -1],
+                   [ 0,  0,  0,  1],
+                   [ 0,  0,  1,  0],
+                   [ 0,  1,  0,  0]])
+            >>> f.points(optimal=True)
+            array([[0, 0, 0],
+                   [0, 0, 1],
+                   [0, 1, 0],
+                   [1, 0, 0]])
         """
         # get the labels of the relevant points
         if which is None:
@@ -409,29 +383,29 @@ class PolytopeFace:
     pts = points
 
     def interior_points(self, as_indices: bool = False) -> ArrayLike:
-        """
-        **Description:**
-        Returns the interior lattice points of the face.
+        """Return the relative-interior lattice points of the face.
 
-        **Arguments:**
-        - `as_indices`: Return the points as indices of the full list of
-            points of the polytope.
+        See `labels_int` for the definition.
 
-        **Returns:**
-        The list of interior lattice points of the face.
+        Also available as `interior_pts`.
 
-        **Aliases:**
-        `interior_pts`.
+        Args:
+            as_indices (bool): Whether to return the indices of the points in
+                the full list of points of the ambient polytope instead of
+                their coordinates.
 
-        **Example:**
-        We construct a face object and find its interior lattice points.
-        ```python {3}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        f = p.faces(3)[2] # Pick one of the 3-faces
-        f.interior_points()
-        # array([[ 0,  0, -1, -2],
-        #        [ 0,  0,  0, -1]])
-        ```
+        Returns:
+            np.ndarray | list[int]: The interior lattice points of the face, one
+                per row, or a list of their indices if `as_indices` is true.
+
+        Examples:
+            We construct a face object and find its interior lattice points.
+
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> f = p.faces(3)[3]  # pick one of the 3-faces
+            >>> f.interior_points()
+            array([[ 0,  0, -1, -2],
+                   [ 0,  0,  0, -1]])
         """
         return self.ambient_poly.points(which=self.labels_int, as_indices=as_indices)
 
@@ -439,31 +413,31 @@ class PolytopeFace:
     interior_pts = interior_points
 
     def boundary_points(self, as_indices: bool = False) -> ArrayLike:
-        """
-        **Description:**
-        Returns the boundary lattice points of the face.
+        """Return the boundary lattice points of the face.
 
-        **Arguments:**
-        - `as_indices`: Return the points as indices of the full list of
-            points of the polytope.
+        See `labels_bdry` for the definition.
 
-        **Returns:**
-        The list of boundary lattice points of the face.
+        Also available as `boundary_pts`.
 
-        **Aliases:**
-        `boundary_pts`.
+        Args:
+            as_indices (bool): Whether to return the indices of the points in
+                the full list of points of the ambient polytope instead of
+                their coordinates.
 
-        **Example:**
-        We construct a face object and find its boundary lattice points.
-        ```python {3}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        f = p.faces(3)[0] # Pick one of the 3-faces
-        f.boundary_points()
-        # array([[-1, -1, -1, -1],
-        #        [ 0,  0,  0,  1],
-        #        [ 0,  0,  1,  0],
-        #        [ 0,  1,  0,  0]])
-        ```
+        Returns:
+            np.ndarray | list[int]: The boundary lattice points of the face, one
+                per row, or a list of their indices if `as_indices` is true.
+
+        Examples:
+            We construct a face object and find its boundary lattice points.
+
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+            >>> f = p.faces(3)[0]  # pick one of the 3-faces
+            >>> f.boundary_points()
+            array([[-1, -1, -1, -1],
+                   [ 0,  0,  0,  1],
+                   [ 0,  0,  1,  0],
+                   [ 0,  1,  0,  0]])
         """
         return self.ambient_poly.points(which=self.labels_bdry, as_indices=as_indices)
 
@@ -471,27 +445,26 @@ class PolytopeFace:
     boundary_pts = boundary_points
 
     def vertices(self, as_indices: bool = False) -> ArrayLike:
-        """
-        **Description:**
-        Returns the vertices of the face.
+        """Return the vertices of the face.
 
-        **Arguments:**
-        - `as_indices` *(bool, optional, default=False)*: Whether to return
-            the vertices as indices instead of coordinates.
+        Args:
+            as_indices (bool): Whether to return the indices of the vertices in
+                the full list of points of the ambient polytope instead of
+                their coordinates.
 
-        **Returns:**
-        The list of vertices of the face.
+        Returns:
+            np.ndarray | list[int]: The vertices of the face, one per row, or a
+                list of their indices if `as_indices` is true.
 
-        **Example:**
-        We construct a face from a polytope and find its vertices.
-        ```python {3}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        f = p.faces(2)[0] # Pick one of the 2-faces
-        f.vertices()
-        # array([[-1, -1, -1, -1],
-        #        [ 0,  0,  0,  1],
-        #        [ 0,  0,  1,  0]])
-        ```
+        Examples:
+            We construct a face from a polytope and find its vertices.
+
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+            >>> f = p.faces(2)[0]  # pick one of the 2-faces
+            >>> f.vertices()
+            array([[-1, -1, -1, -1],
+                   [ 0,  0,  0,  1],
+                   [ 0,  0,  1,  0]])
         """
         return self.ambient_poly.points(
             which=self._labels_vertices, as_indices=as_indices
@@ -500,26 +473,27 @@ class PolytopeFace:
     # polytope
     # ========
     def as_polytope(self) -> "Polytope":
-        """
-        **Description:**
-        Returns the face as a Polytope object.
+        """Return the face as a [`Polytope`][cytools.polytope.Polytope] object.
 
-        **Arguments:**
-        None.
+        The new polytope is built from the lattice points of the face (in the
+        coordinates of the ambient lattice), keeps the labels that the points
+        have in the ambient polytope, and uses the same backend as the ambient
+        polytope. The result is cached.
 
-        **Returns:**
-        The [`Polytope`](./polytope) corresponding to the face.
+        Also available as `as_poly`.
 
-        **Example:**
-        We construct a face object and then convert it into a
-        [`Polytope`](./polytope) object.
-        ```python {3}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        f = p.faces(3)[0] # Pick one of the 3-faces
-        f_poly = f.as_polytope()
-        print(f_poly)
-        # A 3-dimensional lattice polytope in ZZ^4
-        ```
+        Returns:
+            Polytope: The polytope corresponding to the face.
+
+        Examples:
+            We construct a face object and then convert it into a
+            [`Polytope`][cytools.polytope.Polytope] object.
+
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+            >>> f = p.faces(3)[0]  # pick one of the 3-faces
+            >>> f_poly = f.as_polytope()
+            >>> print(f_poly)
+            A 3-dimensional lattice polytope in ZZ^4
         """
         if self._polytope is None:
             from cytools.polytope import Polytope
@@ -537,34 +511,34 @@ class PolytopeFace:
     # dual
     # ====
     def dual_face(self) -> "PolytopeFace":
-        """
-        **Description:**
-        Returns the dual face of the dual polytope.
+        """Return the dual face of the dual polytope.
 
-        :::note
-        This duality is only implemented for reflexive polytopes. An exception
-        is raised if the polytope is not reflexive.
-        :::
+        For a $k$-dimensional face of a $d$-dimensional reflexive polytope,
+        the dual face is the $(d-k-1)$-dimensional face of the dual polytope
+        whose vertices are the normals of the inequalities saturated by this
+        face. The result is cached, and the dual face's own dual face is set
+        to this face.
 
-        **Arguments:**
-        None.
+        Also available as `dual`.
 
-        **Returns:**
-        The dual face.
+        Returns:
+            PolytopeFace: The dual face.
 
-        **Aliases:**
-        `dual`.
+        Raises:
+            NotImplementedError: If the ambient polytope is not reflexive.
 
-        **Example:**
-        We construct a face object from a polytope, then find the dual face in
-        the dual polytope.
-        ```python {3}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        f = p.faces(2)[0] # Pick one of the 2-faces
-        f_dual = f.dual_face()
-        print(f_dual)
-        # A 1-dimensional face of a 4-dimensional polytope in ZZ^4
-        ```
+        Note:
+            This duality is only implemented for reflexive polytopes.
+
+        Examples:
+            We construct a face object from a polytope, then find the dual face
+            in the dual polytope.
+
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+            >>> f = p.faces(2)[0]  # pick one of the 2-faces
+            >>> f_dual = f.dual_face()
+            >>> print(f_dual)
+            A 1-dimensional face of a 4-dimensional polytope in ZZ^4
         """
         # return answer, if known
         if self._dual_face is not None:
@@ -604,28 +578,36 @@ class PolytopeFace:
     # faces
     # =====
     def faces(self, d: int = None) -> tuple:
-        """
-        **Description:**
-        Computes the faces of the face.
+        """Return the faces of the face.
 
-        **Arguments:**
-        - `d`: Optional parameter that specifies the dimension of the desired
-            faces.
+        The faces are obtained from
+        [`Polytope.faces`][cytools.polytope.Polytope.faces] of the ambient
+        polytope, so they are faces of the ambient polytope that are contained
+        in this face (including the face itself). The result is cached.
 
-        **Returns:**
-        A tuple of [`PolytopeFace`](./polytopeface) objects of dimension d, if
-        specified. Otherwise, a tuple of tuples of
-        [`PolytopeFace`](./polytopeface) objects organized in ascending
-        dimension.
+        Args:
+            d (int | None): The dimension of the desired faces. If not
+                specified, the faces of all dimensions are returned.
 
-        **Example:**
-        We construct a face from a polytope and find its vertices.
-        ```python {3}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        f = p.faces(3)[0] # Pick one of the 3-faces
-        print(f.faces(2)[0]) # Print one of its 2-faces
-        # A 2-dimensional face of a 4-dimensional polytope in ZZ^4
-        ```
+        Returns:
+            tuple: A tuple of [`PolytopeFace`][cytools.polytopeface.PolytopeFace]
+                objects of dimension `d` if `d` is specified. Otherwise, a
+                tuple of such tuples, where the $i$-th entry contains the
+                $i$-dimensional faces, for $i$ from 0 to the dimension of the
+                face.
+
+        Raises:
+            ValueError: If `d` is not between 0 and the dimension of the face.
+
+        Examples:
+            We construct a face from a polytope and find its 2-faces.
+
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+            >>> f = p.faces(3)[0]  # pick one of the 3-faces
+            >>> print(f.faces(2)[0])  # print one of its 2-faces
+            A 2-dimensional face of a 4-dimensional polytope in ZZ^4
+            >>> [len(ff) for ff in f.faces()]  # number of faces of each dimension
+            [4, 6, 4, 1]
         """
         # input checking
         if (d is not None) and (d not in range(self._dim + 1)):
@@ -655,39 +637,49 @@ class PolytopeFace:
         verbosity=0,
         seed: int = None,
     ) -> "Triangulation":
-        """
-        **Description:**
-        Returns a single regular triangulation of the face.
+        """Return a single regular triangulation of the face.
 
-        Just a simple wrapper for the Triangulation constructor.
+        This is a simple wrapper around the
+        [`Triangulation`][cytools.triangulation.Triangulation] constructor that
+        triangulates all lattice points of the face (including points interior
+        to facets of the ambient polytope) and never makes it star. See also
+        [`Polytope.triangulate`][cytools.polytope.Polytope.triangulate].
 
-        Also see Polytope.triangulate
+        Args:
+            heights (list | None): The heights specifying the regular
+                triangulation, one per lattice point of the face, in the order
+                of `labels`. If not specified, the Delaunay triangulation is
+                returned when using CGAL, a triangulation obtained from random
+                heights near the Delaunay heights when using QHull, or the
+                placing triangulation when using TOPCOM. Heights can only be
+                specified when using CGAL or QHull as the backend.
+            simplices (ArrayLike | None): The simplices specifying the
+                triangulation, each given as a list of point labels. This is
+                useful when a triangulation was previously computed and needs
+                to be used again.
+            check_input_simplices (bool): Whether to check if the input
+                simplices define a valid triangulation.
+            backend (str): The backend used to compute the triangulation. The
+                options are `"cgal"`, `"qhull"`, and `"topcom"`. CGAL is the
+                default as it is very fast and robust.
+            verbosity (int): The verbosity level.
+            seed (int | None): Seed for the height perturbation used by the
+                QHull backend. Only that backend perturbs its heights, so this
+                has no effect for CGAL or TOPCOM. If not specified, the
+                perturbation is drawn afresh each time and the triangulation is
+                not reproducible.
 
-        **Arguments:**
-        - `heights`: A list of heights specifying the regular triangulation.
-            When not specified, it will return the Delaunay triangulation when
-            using CGAL, a triangulation obtained from random heights near the
-            Delaunay when using QHull, or the placing triangulation when using
-            TOPCOM. Heights can only be specified when using CGAL or QHull as
-            the backend.
-        - `simplices`: A list of simplices specifying the triangulation. This
-            is useful when a triangulation was previously computed and it
-            needs to be used again. Note that the order of the points needs to
-            be consistent with the order that the `Polytope` class uses.
-        - `check_input_simplices`: Flag that specifies whether to check if the
-            input simplices define a valid triangulation.
-        - `backend`: Specifies the backend used to compute the triangulation.
-            The available options are "qhull", "cgal", and "topcom". CGAL is
-            the default one as it is very fast and robust.
-        - `verbosity`: The verbosity level.
-        - `seed`: Seed for the height perturbation used by the QHull backend.
-            Only that backend perturbs its heights, so this has no effect for
-            CGAL or TOPCOM. Left unset, the perturbation is drawn afresh each
-            time and the triangulation is not reproducible.
+        Returns:
+            Triangulation: A triangulation of the lattice points of the face.
 
-        **Returns:**
-        A [`Triangulation`](./triangulation) object describing a triangulation
-        of the polytope.
+        Examples:
+            We triangulate one of the 3-faces of a polytope.
+
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+            >>> f = p.faces(3)[0]  # pick one of the 3-faces
+            >>> t = f.triangulate()
+            >>> t.simplices()
+            array([[1, 2, 3, 4]], dtype=uint8)
         """
         return Triangulation(
             self.ambient_poly,

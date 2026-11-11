@@ -14,6 +14,19 @@
 # CYTools. If not, see <https://www.gnu.org/licenses/>.
 # =============================================================================
 
+"""F-theory uplifts of Calabi-Yau orientifolds.
+
+This subpackage constructs O3/O7 orientifolds of Calabi-Yau hypersurfaces in toric
+varieties ([`CY_orientifold`][cytools.f_theory.FT_CY.CY_orientifold]) and their
+F-theory uplifts, described as toric complete intersections
+([`F_Theory_Uplift`][cytools.f_theory.FT_CY.F_Theory_Uplift]). It also provides
+functions to generate orientifolds and uplifts from the Kreuzer-Skarke database
+([`fetch_orientifolds`][cytools.f_theory.FT_CY.fetch_orientifolds],
+[`fetch_F_Theory_uplifts`][cytools.f_theory.FT_CY.fetch_F_Theory_uplifts]) and to
+read a precomputed dataset of nef-partition uplifts
+([`fetch_nef_partition_uplifts`][cytools.f_theory.FT_CY.fetch_nef_partition_uplifts]).
+"""
+
 from cytools.f_theory.FT_CY import (
     CY_orientifold,
     F_Theory_Uplift,

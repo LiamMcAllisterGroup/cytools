@@ -18,6 +18,12 @@
 # Description:  Miscellaneous utilities not needed for mainline CYTools.
 # -----------------------------------------------------------------------------
 
+"""Miscellaneous utilities that are not needed for mainline CYTools.
+
+This includes mixed-radix integer conversions and the saving and loading of
+compressed pickle files (by default in the CYTools cache directory).
+"""
+
 # 'standard' imports
 import gzip
 import os
@@ -34,17 +40,26 @@ from typing import Any
 # numbers
 # -------
 def to_base10(c: list[int], B: list[int]) -> int:
-    """
-    **Description:**
-    Converts a number given in components w.r.t. some bases to an integer base
-    10.
+    """Convert a number from a mixed-radix representation to an integer.
 
-    **Arguments:**
-    - `c`: A list of the components.
-    - `B`: A list of the bases.
+    The digits are ordered from most to least significant, and digit `c[i]` is
+    expected to lie in `range(B[i])`. The first radix `B[0]` is not needed for the
+    conversion. This is the inverse of
+    [`from_base10`][cytools.helpers.misc.from_base10].
 
-    **Returns:**
-    The integer in base-10.
+    Args:
+        c (list[int]): The digits.
+        B (list[int]): The radix of each digit.
+
+    Returns:
+        int: The integer.
+
+    Examples:
+        >>> from cytools.helpers.misc import to_base10
+        >>> to_base10([1,0,1], [2,2,2])
+        5
+        >>> to_base10([1,2], [3,4])
+        6
     """
     result = 0
     multiplier = 1
@@ -55,16 +70,26 @@ def to_base10(c: list[int], B: list[int]) -> int:
 
 
 def from_base10(n: int, B: list[int]) -> list[int]:
-    """
-    **Description:**
-    Split an integer in base 10 to components components w.r.t. some bases.
+    """Convert an integer to a mixed-radix representation.
 
-    **Arguments:**
-    - `n`: The integer in base 10.
-    - `B`: A list of the bases.
+    The digits are ordered from most to least significant, with digit `i` in
+    `range(B[i])`. If the integer is not smaller than the product of the radices, the
+    most significant digit wraps around. This is the inverse of
+    [`to_base10`][cytools.helpers.misc.to_base10].
 
-    **Returns:**
-    The bases
+    Args:
+        n (int): The non-negative integer.
+        B (list[int]): The radix of each digit.
+
+    Returns:
+        list[int]: The digits.
+
+    Examples:
+        >>> from cytools.helpers.misc import from_base10
+        >>> from_base10(5, [2,2,2])
+        [1, 0, 1]
+        >>> from_base10(6, [3,4])
+        [1, 2]
     """
     c = []
     for B_i in reversed(B):
@@ -82,18 +107,19 @@ os.makedirs(cache_dir, exist_ok=True)
 
 # saving/loading functions
 def load_zipped_pickle(fname, path=cache_dir):
-    """
-    **Description:**
-    Loads zipped pickle files.
+    """Load an object from a gzip-compressed pickle file.
 
-    Custom/atypical classes may fail to load.
+    If the file is broken (not valid gzip, truncated, or not unpicklable), a warning
+    is printed, the file is deleted, and `None` is returned. Objects of custom
+    classes may fail to load.
 
-    **Arguments:**
-    - `fname`: Filename.
-    - `path`: Path to file.
+    Args:
+        fname (str): The file name. If it has no extension, `.p` is appended.
+        path (str): The directory containing the file. By default, the CYTools cache
+            directory is used.
 
-    **Returns:**
-    Data from file.
+    Returns:
+        Any: The loaded object, or `None` if the file does not exist or is broken.
     """
     if "." not in fname:
         fname += ".p"
@@ -128,18 +154,17 @@ def save_zipped_pickle(
     path: str = cache_dir,
     protocol: int = pickle.DEFAULT_PROTOCOL,
 ):
-    """
-    **Description:**
-    Saves zipped pickle files.
+    """Save an object to a gzip-compressed pickle file.
 
-    **Arguments:**
-    - `obj`: The object to save.
-    - `fname`: Filename.
-    - `path`: Path to file.
-    - `protocol`: Protocol to use for saving the file. Defaults to -1.
+    The object is first written to a temporary file which then replaces the target
+    file atomically, so concurrent readers never see a partially written file.
 
-    **Returns:**
-    Nothing.
+    Args:
+        obj (Any): The object to save.
+        fname (str): The file name. If it has no extension, `.p` is appended.
+        path (str): The directory to save the file in. By default, the CYTools cache
+            directory is used.
+        protocol (int): The pickle protocol to use.
     """
     if "." not in fname:
         fname += ".p"

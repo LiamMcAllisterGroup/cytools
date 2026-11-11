@@ -19,6 +19,16 @@
 #               computations.
 # -----------------------------------------------------------------------------
 
+"""Calabi-Yau hypersurfaces and complete intersections in toric varieties.
+
+This module provides the [`CalabiYau`][cytools.calabiyau.CalabiYau] class, which
+handles computations such as Hodge numbers, intersection numbers, the second
+Chern class, toric Mori and Kähler cones, volumes, and Gopakumar-Vafa and
+Gromov-Witten invariants. It also provides the
+[`Invariants`][cytools.calabiyau.Invariants] class, a container for the
+computed invariants.
+"""
+
 # 'standard' imports
 from collections import defaultdict
 import copy
@@ -50,90 +60,64 @@ if TYPE_CHECKING:
 
 
 class CalabiYau:
-    r"""
+    r"""A Calabi-Yau manifold in a toric variety.
+
     This class handles various computations relating to the Calabi-Yau manifold
     itself. It can be used to compute intersection numbers and the toric Mori
-    and Kähler cones, among other things.
+    and Kähler cones, among other things. The Calabi-Yau is either the
+    anticanonical hypersurface of its ambient toric variety or, if a
+    nef partition is specified, the corresponding complete intersection.
 
-    :::important
-    Generally, objects of this class should not be constructed directly by the
-    end user. Instead, they should be created by the
-    [`get_cy`](./toricvariety#get_cy) function of the
-    [`ToricVariety`](./toricvariety) class or the
-    [`get_cy`](./triangulation#get_cy) function of the
-    [`Triangulation`](./triangulation) class.
-    :::
+    Warning:
+        Generally, objects of this class should not be constructed directly by
+        the end user. Instead, they should be created with the
+        [`get_cy`][cytools.toricvariety.ToricVariety.get_cy] method of
+        [`ToricVariety`][cytools.toricvariety.ToricVariety] or the
+        [`get_cy`][cytools.triangulation.Triangulation.get_cy] method of
+        [`Triangulation`][cytools.triangulation.Triangulation].
 
-    :::tip experimental feature
-    This package is focused on computations on Calabi-Yau 3-fold hypersurfaces,
-    but there is experimental support for Calabi-Yaus of other dimensions and
-    complete intersections. See [experimental features](./experimental) for more
-    details.
-    :::
+    Tip:
+        This package is focused on computations on Calabi-Yau 3-fold
+        hypersurfaces, but there is experimental support for Calabi-Yaus of
+        other dimensions, for non-favorable ones, and for complete
+        intersections. See [experimental features](experimental.md) for more
+        details.
 
-    ## Constructor
+    Args:
+        toric_var (ToricVariety): The ambient toric variety of the Calabi-Yau.
+            For hypersurfaces, its defining triangulation must be fine and use
+            either all the points of the polytope not interior to facets, or
+            all of its points.
+        nef_partition (list[tuple[int, ...]] | None): A nef partition of the
+            polytope, given as a list of tuples of indices of points of the
+            polytope, which defines a complete intersection Calabi-Yau. If not
+            specified, the anticanonical hypersurface is constructed.
 
-    ### `cytools.calabiyau.CalabiYau`
+    Raises:
+        ValueError: If `nef_partition` does not define a nef partition, if the
+            triangulation is not fine (for hypersurfaces), or if the
+            triangulation does not use a valid set of points (for
+            hypersurfaces).
+        Exception: If the experimental features are not enabled and a nef
+            partition is given, the Calabi-Yau is not a 3-fold, or the polytope
+            is not favorable.
 
-    **Description:**
-    Constructs a `CalabiYau` object. This is handled by the hidden
-    [`__init__`](#__init__) function.
+    Examples:
+        We construct a Calabi-Yau from a fine, regular, star triangulation of a
+        polytope. Since this class is not intended to be initialized by the end
+        user, we create it with the
+        [`get_cy`][cytools.triangulation.Triangulation.get_cy] method of
+        [`Triangulation`][cytools.triangulation.Triangulation]. In this example
+        we obtain the quintic hypersurface in $\mathbb{P}^4$.
 
-    **Arguments:**
-    - `toric_var` *(ToricVariety)*: The ambient toric variety of the
-        Calabi-Yau.
-    - `nef_partition` *(list, optional)*: A list of tuples of indices
-        specifying a nef-partition of the polytope, which correspondingly
-        defines a complete intersection Calabi-Yau.
-
-    **Example:**
-    We construct a Calabi-Yau from a fine, regular, star triangulation of a
-    polytope. Since this class is not intended to be initialized by the end
-    user, we create it via the [`get_cy`](./triangulation#get_cy) function of
-    the [`Triangulation`](./triangulation) class. In this example we obtain the
-    quintic hypersurface in $\mathbb{P}^4$.
-    ```python {4}
-    from cytools import Polytope
-    p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-    t = p.triangulate()
-    t.get_cy()
-    # A Calabi-Yau 3-fold hypersurface with h11=1 and h21=101 in a
-    # 4-dimensional toric variety
-    ```
+        >>> from cytools import Polytope
+        >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+        >>> t = p.triangulate()
+        >>> t.get_cy()
+        A Calabi-Yau 3-fold hypersurface with h11=1 and h21=101 ...
     """
 
     def __init__(self, toric_var, nef_partition=None):
-        r"""
-        **Description:**
-        Initializes a `CalabiYau` object.
-
-        **Arguments:**
-        - `toric_var` *(ToricVariety)*: The ambient toric variety of the
-            Calabi-Yau.
-        - `nef_partition` *(list, optional)*: A list of tuples of indices
-            specifying a nef-partition of the polytope, which correspondingly
-            defines a complete intersection Calabi-Yau.
-
-        **Returns:**
-        Nothing.
-
-        **Example:**
-        This is the function that is called when creating a new
-        `ToricVariety` object. We construct a Calabi-Yau from a fine,
-        regular, star triangulation of a polytope. Since this class is not
-        intended to be initialized by the end user, we create it via the
-        [`get_cy`](./triangulation#get_cy) function of the
-        [`Triangulation`](./triangulation) class. In this example we obtain the
-        quintic hypersurface in $\mathbb{P}^4$.
-        ```python {4}
-        from cytools import Polytope
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        t = p.triangulate()
-        t.get_cy()
-        # A Calabi-Yau 3-fold hypersurface with h11=1 and h21=101 in a
-        # 4-dimensional toric variety
-        ```
-        """
         # We first make sure that the input triangulation is appropriate.
         # Regularity is not checked since it is generally slow.
         triang = toric_var.triangulation()
@@ -223,33 +207,31 @@ class CalabiYau:
             self._compute_cicy_hodge_numbers(only_from_cache=True)
 
     def clear_cache(self, recursive=False, only_in_basis=False):
-        """
-        **Description:**
-        Clears the cached results of any previous computation.
+        """Clear the cached results of any previous computation.
 
-        **Arguments:**
-        - `recursive` *(bool, optional, default=False)*: Whether to also clear
-            the cache of the ambient toric variety, defining triangulation, and
-            polytope. This is ignored when only_in_basis=True.
-        - `only_in_basis` *(bool, optional, default=False)*: Only clears the
-            cache of computations that depend on a choice of basis.
+        Note that clearing the full cache also resets the bases of divisors and
+        curves.
 
-        **Returns:**
-        Nothing.
+        Args:
+            recursive (bool): Whether to also clear the cache of the ambient toric
+                variety, defining triangulation, and polytope. This is ignored when
+                `only_in_basis=True`.
+            only_in_basis (bool): Whether to only clear the cache of computations
+                that depend on the choice of basis.
 
-        **Example:**
-        We construct a CY hypersurface, compute its toric Mori cone, clear the
-        cache and then compute it again.
-        ```python {6}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        cy.toric_mori_cone()
-        # A 2-dimensional rational polyhedral cone in RR^7 generated by 3 rays
-        cy.clear_cache() # Clears the cached result
-        cy.toric_mori_cone() # The Mori cone is recomputed
-        # A 2-dimensional rational polyhedral cone in RR^7 generated by 3 rays
-        ```
+        Examples:
+            We construct a Calabi-Yau hypersurface, compute its toric Mori cone,
+            clear the cache, and then compute it again.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> cy.toric_mori_cone()
+            A 2-dimensional rational polyhedral cone in RR^7 generated by 3 rays
+            >>> cy.clear_cache()  # Clears the cached result
+            >>> cy.toric_mori_cone()  # The Mori cone is recomputed
+            A 2-dimensional rational polyhedral cone in RR^7 generated by 3 rays
         """
         if only_in_basis:
             self._mori_cone[2] = None
@@ -281,28 +263,25 @@ class CalabiYau:
                 self.ambient_variety().clear_cache(recursive=True)
 
     def __repr__(self):
-        """
-        **Description:**
-        Returns a string describing the Calabi-Yau manifold.
+        """Return a string describing the Calabi-Yau manifold.
 
-        **Arguments:**
-        None.
+        The string includes the dimension and, when available, the Hodge numbers
+        of the Calabi-Yau, as well as the dimension of the ambient toric variety.
 
-        **Returns:**
-        *(str)* A string describing the Calabi-Yau manifold.
+        Returns:
+            str: A string describing the Calabi-Yau manifold.
 
-        **Example:**
-        This function can be used to convert the Calabi-Yau to a string or to
-        print information about the Calabi-Yau.
-        ```python {4,5}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        cy_info = str(cy) # Converts to string
-        print(cy) # Prints Calabi-Yau info
-        # A Calabi-Yau 3-fold hypersurface with h11=1 and h21=101 in a
-        # 4-dimensional toric variety
-        ```
+        Examples:
+            This function can be used to convert the Calabi-Yau to a string or to
+            print information about the Calabi-Yau.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> cy_info = str(cy)  # Converts to string
+            >>> print(cy)  # Prints Calabi-Yau info
+            A Calabi-Yau 3-fold hypersurface with h11=1 and h21=101 ...
         """
         d = self.dim()
         if self._is_hypersurface:
@@ -358,39 +337,35 @@ class CalabiYau:
         return out_str
 
     def __eq__(self, other):
-        """
-        **Description:**
-        Implements comparison of Calabi-Yaus with ==.
+        """Compare two Calabi-Yaus with `==`.
 
-        :::important
-        This function provides only a fairly trivial comparison using the
-        [`is_trivially_equivalent`](#is_trivially_equivalent) function. It is
-        not recommended to compare CYs with ==, and a warning will be printed
-        every time it evaluates to False. This is only implemented so that sets
-        and dictionaries of CYs can be created. The
-        [`is_trivially_equivalent`](#is_trivially_equivalent) function should
-        be used to avoid confusion.
-        :::
+        Warning:
+            This function only provides a fairly trivial comparison, checking for
+            [trivial equivalence][cytools.calabiyau.CalabiYau.is_trivially_equivalent].
+            It is not recommended to compare CYs with `==`, and a warning is issued
+            every time it evaluates to `False`. It is only implemented so that sets
+            and dictionaries of CYs can be created. The `is_trivially_equivalent`
+            function should be used instead to avoid confusion.
 
-        **Arguments:**
-        - `other` *(CalabiYau)*: The other CY that is being compared.
+        Args:
+            other (CalabiYau): The other CY that is being compared.
 
-        **Returns:**
-        *(bool)* The truth value of the CYs being equal.
+        Returns:
+            bool: Whether the two CYs are trivially equivalent. `NotImplemented`
+                is returned if `other` is not a `CalabiYau` or if either of them is
+                a complete intersection.
 
-        **Example:**
-        We construct two Calabi-Yaus and compare them. We use the
-        [`is_trivially_equivalent`](#is_trivially_equivalent) instead of this
-        function, since it is recommended to avoid confusion.
-        ```python {6}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        t1 = p.triangulate(backend="qhull")
-        cy1 = t1.get_cy()
-        t2 = p.triangulate(backend="topcom")
-        cy2 = t2.get_cy()
-        cy1.is_trivially_equivalent(cy2)
-        # True
-        ```
+        Examples:
+            We construct two Calabi-Yaus from triangulations obtained with
+            different backends and compare them. We use `is_trivially_equivalent`
+            instead of `==`, as recommended.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+            >>> cy1 = p.triangulate(backend="qhull").get_cy()
+            >>> cy2 = p.triangulate(backend="topcom").get_cy()
+            >>> cy1.is_trivially_equivalent(cy2)
+            True
         """
         if not isinstance(other, CalabiYau):
             return NotImplemented
@@ -406,66 +381,63 @@ class CalabiYau:
         return False
 
     def __ne__(self, other):
-        """
-        **Description:**
-        Implements comparison of Calabi-Yaus with !=.
+        """Compare two Calabi-Yaus with `!=`.
 
-        :::important
-        This function provides only a fairly trivial comparison using the
-        [`is_trivially_equivalent`](#is_trivially_equivalent) function. It is
-        not recommended to compare CYs with !=, and a warning will be printed
-        every time it evaluates to False. This is only implemented so that sets
-        and dictionaries of CYs can be created. The
-        [`is_trivially_equivalent`](#is_trivially_equivalent) function should
-        be used to avoid confusion.
-        :::
+        Warning:
+            This function only provides a fairly trivial comparison, checking for
+            [trivial equivalence][cytools.calabiyau.CalabiYau.is_trivially_equivalent].
+            It is not recommended to compare CYs with `!=`, and a warning is issued
+            every time the CYs are found not to be trivially equivalent (i.e. when
+            this evaluates to `True`). It is only implemented so that sets and
+            dictionaries of CYs can be created. The `is_trivially_equivalent`
+            function should be used instead to avoid confusion.
 
-        **Arguments:**
-        - `other` *(CalabiYau)*: The other CY that is being compared.
+        Args:
+            other (CalabiYau): The other CY that is being compared.
 
-        **Returns:**
-        *(bool)* The truth value of the CYs being different.
+        Returns:
+            bool: Whether the two CYs are not trivially equivalent.
+                `NotImplemented` is returned if `other` is not a `CalabiYau`.
 
-        **Example:**
-        We construct two Calabi-Yaus and compare them. We use the
-        [`is_trivially_equivalent`](#is_trivially_equivalent) instead of
-        this function, since it is recommended to avoid confusion.
-        ```python {6}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        t1 = p.triangulate(backend="qhull")
-        cy1 = t1.get_cy()
-        t2 = p.triangulate(backend="topcom")
-        cy2 = t2.get_cy()
-        cy1.is_trivially_equivalent(cy2)
-        # True
-        ```
+        Examples:
+            We construct two Calabi-Yaus from triangulations obtained with
+            different backends and compare them. We use `is_trivially_equivalent`
+            instead of `!=`, as recommended.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+            >>> cy1 = p.triangulate(backend="qhull").get_cy()
+            >>> cy2 = p.triangulate(backend="topcom").get_cy()
+            >>> not cy1.is_trivially_equivalent(cy2)
+            False
         """
         if not isinstance(other, CalabiYau):
             return NotImplemented
         return not (self == other)
 
     def __hash__(self):
-        """
-        **Description:**
-        Implements the ability to obtain hash values from Calabi-Yaus.
+        """Return the hash value of the Calabi-Yau.
 
-        **Arguments:**
-        None.
+        For hypersurfaces, the hash is computed from the polytope and from the
+        orbit, under the polytope automorphisms, of the restriction of the
+        triangulation to codimension-2 faces, so that trivially equivalent CYs
+        have the same hash. For complete intersections, it is computed from the
+        ambient variety and the nef partition. The result is cached.
 
-        **Returns:**
-        *(int)* The hash value of the CY.
+        Returns:
+            int: The hash value of the CY.
 
-        **Example:**
-        We compute the hash value of a Calabi-Yau. Also, we construct a set and
-        a dictionary with a Calabi-Yau, which make use of the hash function.
-        ```python {4,5,6}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        h = hash(cy) # Obtain hash value
-        d = {cy: 1} # Create dictionary with Calabi-Yau keys
-        s = {cy} # Create a set of Calabi-Yaus
-        ```
+        Examples:
+            We compute the hash value of a Calabi-Yau. We also construct a set and
+            a dictionary with a Calabi-Yau, which make use of the hash function.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> h = hash(cy)  # Obtain hash value
+            >>> d = {cy: 1}  # Create dictionary with Calabi-Yau keys
+            >>> s = {cy}  # Create a set of Calabi-Yaus
         """
         if self._hash is not None:
             return self._hash
@@ -478,58 +450,45 @@ class CalabiYau:
         return self._hash
 
     def is_trivially_equivalent(self, other):
-        """
-        **Description:**
-        Checks if the Calabi-Yaus are trivially equivalent by checking if the
-        restrictions of the triangulations to codimension-2 faces are the same.
-        Polytope automorphisms are also taken into account. This function is
-        only implemented for CY hypersurfaces.
+        """Check if the Calabi-Yaus are trivially equivalent.
 
-        :::important
-        This function only provides a fairly trivial equivalence check. When
-        this function returns False, there is still the possibility of the
-        Calabi-Yaus being equivalent, but is only made evident with a change of
-        basis. The full equivalence check is generically very difficult, so it
-        is not implemented.
-        :::
+        Two Calabi-Yau hypersurfaces are trivially equivalent if they come from
+        the same polytope and the restrictions of their triangulations to
+        codimension-2 faces are the same, up to automorphisms of the polytope.
+        This function is only implemented for CY hypersurfaces.
 
-        **Arguments:**
-        - `other` (CalabiYau): The other CY that is being compared.
+        Warning:
+            This function only provides a fairly trivial equivalence check. When
+            it returns `False`, the Calabi-Yaus may still be equivalent, which
+            could, for example, only become evident after a change of basis. The
+            full equivalence check is generically very difficult, so it is not
+            implemented.
 
-        **Returns:**
-        (boolean) The truth value of the CYs being trivially equivalent.
+        Args:
+            other (CalabiYau): The other CY that is being compared.
 
-        **Example:**
-        We construct two Calabi-Yaus and compare them. We also show how to get
-        the set of Calabi-Yaus that are not trivially equivalent. As previously
-        mentioned, if two CYs are not trivially equivalent it does not mean
-        that they are actually inequivalent as there might exist some more
-        complicated basis transformation that relates them.
-        ```python {5,7}
-        p = Polytope(
-            [
-                [-1, 0, 0, 0],
-                [-1, 1, 0, 0],
-                [-1, 0, 1, 0],
-                [2, -1, 0, -1],
-                [2, 0, -1, -1],
-                [2, -1, -1, -1],
-                [-1, 0, 0, 1],
-                [-1, 1, 0, 1],
-                [-1, 0, 1, 1],
-            ]
-        )
-        triangs = p.all_triangulations(as_list=True)
-        cy0 = triangs[0].get_cy()
-        cy1 = triangs[1].get_cy()
-        print(cy0.is_trivially_equivalent(cy1))
-        # False
-        # Not trivially equivalent, but not necessarily inequivalent
-        cys_not_triv_eq = {t.get_cy() for t in triangs}
-        # We see that many CYs from these triangulations can be trivially equated
-        print(len(triangs),len(cys_not_triv_eq))
-        # 102 5
-        ```
+        Returns:
+            bool: Whether the CYs are trivially equivalent. `NotImplemented` is
+                returned if either of them is a complete intersection.
+
+        Examples:
+            We construct two Calabi-Yaus and compare them. We also show how to get
+            the set of Calabi-Yaus that are not trivially equivalent. As previously
+            mentioned, if two CYs are not trivially equivalent it does not mean
+            that they are actually inequivalent, as there might exist some more
+            complicated transformation that relates them.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[-1,0,0,0],[-1,1,0,0],[-1,0,1,0],[2,-1,0,-1],[2,0,-1,-1],
+            ...               [2,-1,-1,-1],[-1,0,0,1],[-1,1,0,1],[-1,0,1,1]])
+            >>> triangs = p.all_triangulations(as_list=True)
+            >>> cy0 = triangs[0].get_cy()
+            >>> cy1 = triangs[1].get_cy()
+            >>> cy0.is_trivially_equivalent(cy1)  # Not necessarily inequivalent
+            False
+            >>> cys_not_triv_eq = {t.get_cy() for t in triangs}
+            >>> len(triangs), len(cys_not_triv_eq)  # Many are trivially equivalent
+            (102, 5)
         """
         if not self._is_hypersurface or not other._is_hypersurface:
             return NotImplemented
@@ -542,104 +501,82 @@ class CalabiYau:
         )
 
     def ambient_variety(self):
-        """
-        **Description:**
-        Returns the ambient toric variety.
+        """Return the ambient toric variety.
 
-        **Arguments:**
-        None.
+        Returns:
+            ToricVariety: The ambient toric variety.
 
-        **Returns:**
-        *(ToricVariety)* The ambient toric variety.
+        Examples:
+            We construct a Calabi-Yau hypersurface in a toric variety and check
+            that this function returns the ambient variety.
 
-        **Example:**
-        We construct a Calabi-Yau hypersurface in a toric variety and check
-        that this function returns the ambient variety.
-        ```python {5}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        t = p.triangulate()
-        v = t.get_toric_variety()
-        cy = v.get_cy()
-        cy.ambient_variety() is v
-        # True
-        ```
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+            >>> t = p.triangulate()
+            >>> v = t.get_toric_variety()
+            >>> cy = v.get_cy()
+            >>> cy.ambient_variety() is v
+            True
         """
         return self._ambient_var
 
     def triangulation(self):
-        """
-        **Description:**
-        Returns the triangulation giving rise to the ambient toric variety.
+        """Return the triangulation giving rise to the ambient toric variety.
 
-        **Arguments:**
-        None.
+        Returns:
+            Triangulation: The triangulation giving rise to the ambient toric
+                variety.
 
-        **Returns:**
-        *(Triangulation)* The triangulation giving rise to the ambient toric
-            variety.
+        Examples:
+            We construct a Calabi-Yau and check that the triangulation that this
+            function returns is the same as the one we used to construct it.
 
-        **Example:**
-        We construct a Calabi-Yau and check that the triangulation that this
-        function returns is the same as the one we used to construct it.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        cy.triangulation() is t
-        # True
-        ```
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> cy.triangulation() is t
+            True
         """
         return self.ambient_variety().triangulation()
 
     def polytope(self):
-        """
-        **Description:**
-        Returns the polytope whose triangulation gives rise to the ambient
-        toric variety.
+        """Return the polytope whose triangulation gives rise to the ambient variety.
 
-        **Arguments:**
-        None.
+        Returns:
+            Polytope: The polytope whose triangulation gives rise to the ambient
+                toric variety.
 
-        **Returns:**
-        *(Polytope)* The polytope whose triangulation gives rise to the ambient
-            toric variety.
+        Examples:
+            We construct a Calabi-Yau and check that the polytope that this
+            function returns is the same as the one we used to construct it.
 
-        **Example:**
-        We construct a Calabi-Yau and check that the polytope that this
-        function returns is the same as the one we used to construct it.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        cy.polytope() is p
-        # True
-        ```
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> cy.polytope() is p
+            True
         """
         return self.ambient_variety().polytope()
 
     def ambient_dimension(self):
-        """
-        **Description:**
-        Returns the complex dimension of the ambient toric variety.
+        """Return the complex dimension of the ambient toric variety.
 
-        **Arguments:**
-        None.
+        Also available as `ambient_dim`.
 
-        **Returns:**
-        *(int)* The complex dimension of the ambient toric variety.
+        Returns:
+            int: The complex dimension of the ambient toric variety.
 
-        **Aliases:**
-        `ambient_dim`.
+        Examples:
+            We construct a Calabi-Yau and find the dimension of its ambient variety.
 
-        **Example:**
-        We construct a Calabi-Yau and find the dimension of its ambient variety.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        cy.ambient_dimension()
-        # 4
-        ```
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> cy.ambient_dimension()
+            np.int64(4)
         """
         return self.ambient_variety().dim()
 
@@ -647,28 +584,27 @@ class CalabiYau:
     ambient_dim = ambient_dimension
 
     def dimension(self):
-        """
-        **Description:**
-        Returns the complex dimension of the Calabi-Yau hypersurface.
+        """Return the complex dimension of the Calabi-Yau.
 
-        **Arguments:**
-        None.
+        For hypersurfaces, this is one less than the dimension of the ambient
+        variety. For complete intersections, it is the dimension of the ambient
+        variety minus the number of parts of the nef partition. The result is
+        cached.
 
-        **Returns:**
-        *(int)* The complex dimension of the Calabi-Yau hypersurface.
+        Also available as `dim`.
 
-        **Aliases:**
-        `dim`.
+        Returns:
+            int: The complex dimension of the Calabi-Yau.
 
-        **Example:**
-        We construct a Calabi-Yau and find its dimension.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        cy.dimension()
-        # 3
-        ```
+        Examples:
+            We construct a Calabi-Yau and find its dimension.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-1,-1]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> cy.dimension()
+            np.int64(3)
         """
         if self._dim is not None:
             return self._dim
@@ -686,43 +622,50 @@ class CalabiYau:
     dim = dimension
 
     def hpq(self, p, q):
-        """
-        **Description:**
-        Returns the Hodge number $h^{p,q}$ of the Calabi-Yau.
+        """Return the Hodge number $h^{p,q}$ of the Calabi-Yau.
 
-        :::note notes
-        - Only Calabi-Yau hypersurfaces of dimension 2-4 are currently
-          supported. Hodge numbers of CICYs are computed with PALP.
-        - This function always computes Hodge numbers from scratch, unless
-          they were computed with PALP. The functions [`h11`](#h11),
-          [`h21`](#h21), [`h12`](#h12), [`h13`](#h13), and [`h22`](#h22)
-          delegate to `Polytope`, which caches the results.
-        :::
+        Hodge numbers with indices outside the Hodge diamond are returned as 0.
 
-        **Arguments:**
-        - `p` *(int)*: The holomorphic index of the Dolbeault cohomology of
-            interest.
-        - `q` *(int)*: The anti-holomorphic index of the Dolbeault cohomology
-            of interest.
+        Note:
+            For hypersurfaces, the Hodge numbers are computed from the polytope
+            (see [`Polytope.hpq`][cytools.polytope.Polytope.hpq]), and only
+            Calabi-Yaus of dimension 2-4 are supported. For complete
+            intersections, they are computed with PALP.
 
-        **Returns:**
-        *(int)* The Hodge number $h^{p,q}$ of the arising Calabi-Yau manifold.
+        Warning:
+            For hypersurfaces, only the Hodge numbers with $p+q$ not greater than
+            the dimension of the Calabi-Yau are currently computed correctly. The
+            remaining ones are returned as 0, even though they are related to the
+            others by $h^{p,q}=h^{n-p,n-q}$, where $n$ is the dimension.
 
-        **Example:**
-        We construct a Calabi-Yau and check some of its Hodge numbers.
-        ```python {4,6,8,10}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        cy.hpq(0,0)
-        # 1
-        cy.hpq(0,1)
-        # 0
-        cy.hpq(1,1)
-        # 2
-        cy.hpq(1,2)
-        # 272
-        ```
+        Args:
+            p (int): The holomorphic index of the Dolbeault cohomology of interest.
+            q (int): The anti-holomorphic index of the Dolbeault cohomology of
+                interest.
+
+        Returns:
+            int: The Hodge number $h^{p,q}$ of the Calabi-Yau.
+
+        Raises:
+            NotImplementedError: If the Calabi-Yau is a hypersurface whose
+                dimension is not 2, 3, or 4, or if it is a complete intersection
+                whose Hodge numbers cannot be computed.
+
+        Examples:
+            We construct a Calabi-Yau and check some of its Hodge numbers.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> cy.hpq(0,0)
+            1
+            >>> cy.hpq(0,1)
+            0
+            >>> cy.hpq(1,1)
+            2
+            >>> cy.hpq(1,2)
+            272
         """
         if not self._is_hypersurface:
             if self._hodge_nums is None:
@@ -735,30 +678,31 @@ class CalabiYau:
         return self.polytope().hpq(p, q, lattice="N")
 
     def h11(self):
-        """
-        **Description:**
-        Returns the Hodge number $h^{1,1}$ of the Calabi-Yau.
+        """Return the Hodge number $h^{1,1}$ of the Calabi-Yau.
 
-        :::note
-        Only Calabi-Yau hypersurfaces of dimension 2-4 are currently supported.
-        Hodge numbers of CICYs are computed with PALP.
-        :::
+        Note:
+            For hypersurfaces, the Hodge numbers are computed from the polytope
+            (see [`Polytope.hpq`][cytools.polytope.Polytope.hpq]), and only
+            Calabi-Yaus of dimension 2-4 are supported. For complete intersections,
+            they are computed with PALP.
 
-        **Arguments:**
-        None.
+        Returns:
+            int: The Hodge number $h^{1,1}$ of the Calabi-Yau.
 
-        **Returns:**
-        *(int)* The Hodge number $h^{1,1}$ of Calabi-Yau manifold.
+        Raises:
+            NotImplementedError: If the Calabi-Yau is a hypersurface whose
+                dimension is not 2, 3, or 4, or if it is a complete intersection
+                whose Hodge numbers cannot be computed.
 
-        **Example:**
-        We construct a Calabi-Yau hypersurface and compute its $h^{1,1}$.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        cy.h11()
-        # 2
-        ```
+        Examples:
+            We construct a Calabi-Yau hypersurface and compute its $h^{1,1}$.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> cy.h11()
+            2
         """
         if not self._is_hypersurface:
             return self.hpq(1, 1)
@@ -769,33 +713,33 @@ class CalabiYau:
         return self.polytope().h11(lattice="N")
 
     def h12(self):
-        """
-        **Description:**
-        Returns the Hodge number $h^{1,2}$ of the Calabi-Yau.
+        """Return the Hodge number $h^{1,2}$ of the Calabi-Yau.
 
-        :::note
-        Only Calabi-Yau hypersurfaces of dimension 2-4 are currently supported.
-        Hodge numbers of CICYs are computed with PALP.
-        :::
+        Also available as `h21`.
 
-        **Arguments:**
-        None.
+        Note:
+            For hypersurfaces, the Hodge numbers are computed from the polytope
+            (see [`Polytope.hpq`][cytools.polytope.Polytope.hpq]), and only
+            Calabi-Yaus of dimension 2-4 are supported. For complete intersections,
+            they are computed with PALP.
 
-        **Returns:**
-        *(int)* The Hodge number $h^{1,2}$ of Calabi-Yau manifold.
+        Returns:
+            int: The Hodge number $h^{1,2}$ of the Calabi-Yau.
 
-        **Aliases:**
-        `h21`.
+        Raises:
+            NotImplementedError: If the Calabi-Yau is a hypersurface whose
+                dimension is not 2, 3, or 4, or if it is a complete intersection
+                whose Hodge numbers cannot be computed.
 
-        **Example:**
-        We construct a Calabi-Yau hypersurface and compute its $h^{1,2}$.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        cy.h12()
-        # 272
-        ```
+        Examples:
+            We construct a Calabi-Yau hypersurface and compute its $h^{1,2}$.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> cy.h12()
+            272
         """
         if not self._is_hypersurface:
             return self.hpq(1, 2)
@@ -809,33 +753,35 @@ class CalabiYau:
     h21 = h12
 
     def h13(self):
-        """
-        **Description:**
-        Returns the Hodge number $h^{1,3}$ of the Calabi-Yau.
+        """Return the Hodge number $h^{1,3}$ of the Calabi-Yau.
 
-        :::note
-        Only Calabi-Yau hypersurfaces of dimension 2-4 are currently supported.
-        Hodge numbers of CICYs are computed with PALP.
-        :::
+        Also available as `h31`.
 
-        **Arguments:**
-        None.
+        Note:
+            For hypersurfaces, the Hodge numbers are computed from the polytope
+            (see [`Polytope.hpq`][cytools.polytope.Polytope.hpq]), and only
+            Calabi-Yaus of dimension 2-4 are supported. For complete intersections,
+            they are computed with PALP.
 
-        **Returns:**
-        *(int)* The Hodge number $h^{1,3}$ of Calabi-Yau manifold.
+        Returns:
+            int: The Hodge number $h^{1,3}$ of the Calabi-Yau.
 
-        **Aliases:**
-        `h31`.
+        Raises:
+            NotImplementedError: If the Calabi-Yau is a hypersurface whose
+                dimension is not 2, 3, or 4, or if it is a complete intersection
+                whose Hodge numbers cannot be computed.
 
-        **Example:**
-        We construct a Calabi-Yau hypersurface and compute its $h^{1,3}$.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        cy.h13()
-        # 0
-        ```
+        Examples:
+            We construct a Calabi-Yau 4-fold hypersurface, which requires enabling
+            the experimental features, and compute its $h^{1,3}$.
+
+            >>> from cytools import Polytope, config
+            >>> config.enable_experimental_features()
+            >>> p = Polytope([[1,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],
+            ...               [0,0,0,0,1],[-1,-1,-1,-1,-1]])
+            >>> cy = p.triangulate().get_cy()
+            >>> cy.h13()
+            426
         """
         if not self._is_hypersurface:
             return self.hpq(1, 3)
@@ -849,30 +795,37 @@ class CalabiYau:
     h31 = h13
 
     def h22(self):
-        """
-        **Description:**
-        Returns the Hodge number $h^{2,2}$ of the Calabi-Yau.
+        """Return the Hodge number $h^{2,2}$ of the Calabi-Yau.
 
-        :::note
-        Only Calabi-Yau hypersurfaces of dimension 2-4 are currently supported.
-        Hodge numbers of CICYs are computed with PALP.
-        :::
+        This is mainly of interest for Calabi-Yau 4-folds. For 3-folds it
+        is currently returned as 0 (see the warning in
+        [`hpq`][cytools.calabiyau.CalabiYau.hpq]).
 
-        **Arguments:**
-        None.
+        Note:
+            For hypersurfaces, the Hodge numbers are computed from the polytope
+            (see [`Polytope.hpq`][cytools.polytope.Polytope.hpq]), and only
+            Calabi-Yaus of dimension 2-4 are supported. For complete intersections,
+            they are computed with PALP.
 
-        **Returns:**
-        *(int)* The Hodge number $h^{2,2}$ of Calabi-Yau manifold.
+        Returns:
+            int: The Hodge number $h^{2,2}$ of the Calabi-Yau.
 
-        **Example:**
-        We construct a Calabi-Yau hypersurface and compute its $h^{2,2}$.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        cy.h22()
-        # 0
-        ```
+        Raises:
+            NotImplementedError: If the Calabi-Yau is a hypersurface whose
+                dimension is not 2, 3, or 4, or if it is a complete intersection
+                whose Hodge numbers cannot be computed.
+
+        Examples:
+            We construct a Calabi-Yau 4-fold hypersurface, which requires enabling
+            the experimental features, and compute its $h^{2,2}$.
+
+            >>> from cytools import Polytope, config
+            >>> config.enable_experimental_features()
+            >>> p = Polytope([[1,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],
+            ...               [0,0,0,0,1],[-1,-1,-1,-1,-1]])
+            >>> cy = p.triangulate().get_cy()
+            >>> cy.h22()
+            1752
         """
         if not self._is_hypersurface:
             return self.hpq(2, 2)
@@ -883,31 +836,34 @@ class CalabiYau:
         return self.polytope().h22(lattice="N")
 
     def chi(self):
-        """
-        **Description:**
-        Computes the Euler characteristic of the Calabi-Yau.
+        """Compute the Euler characteristic of the Calabi-Yau.
 
-        :::note
-        Only Calabi-Yau hypersurfaces of dimension 2-4 are currently supported.
-        Hodge numbers of CICYs are computed with PALP.
-        :::
+        For hypersurfaces, it is computed from the polytope (see
+        [`Polytope.chi`][cytools.polytope.Polytope.chi]). For complete
+        intersections, it is computed as the alternating sum of the Hodge numbers,
+        which are computed with PALP.
 
-        **Arguments:**
-        None.
+        Note:
+            For hypersurfaces, only Calabi-Yaus of dimension 2-4 are supported.
 
-        **Returns:**
-        *(int)* The Euler characteristic of the Calabi-Yau manifold.
+        Returns:
+            int: The Euler characteristic of the Calabi-Yau.
 
-        **Example:**
-        We construct a Calabi-Yau hypersurface and compute its Euler
-        characteristic.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        cy.chi()
-        # -540
-        ```
+        Raises:
+            NotImplementedError: If the Calabi-Yau is a hypersurface whose
+                dimension is not 2, 3, or 4, or if it is a complete intersection
+                whose Hodge numbers cannot be computed.
+
+        Examples:
+            We construct a Calabi-Yau hypersurface and compute its Euler
+            characteristic.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> cy.chi()
+            -540
         """
         if not self._is_hypersurface:
             if self._hodge_nums is None:
@@ -933,29 +889,34 @@ class CalabiYau:
         return self.polytope().chi(lattice="N")
 
     def glsm_charge_matrix(self, include_origin=True):
-        """
-        **Description:**
-        Computes the GLSM charge matrix of the theory.
+        """Compute the GLSM charge matrix of the Calabi-Yau.
 
-        **Arguments:**
-        - `include_origin` *(bool, optional, default=True)*: Indicates whether
-            to use the origin in the calculation. This corresponds to the
-            inclusion of the canonical divisor.
+        The columns correspond to the canonical divisor (the origin of the
+        polytope) followed by the prime toric divisors that intersect the
+        Calabi-Yau (see
+        [`prime_toric_divisors`][cytools.calabiyau.CalabiYau.prime_toric_divisors]).
+        Each row is a linear relation among the corresponding points of the
+        polytope, with one row per independent $U(1)$ charge. The result is cached,
+        and a copy is returned.
 
-        **Returns:**
-        *(numpy.ndarray)* The GLSM charge matrix.
+        Args:
+            include_origin (bool): Whether to include the column corresponding to
+                the origin, i.e. the canonical divisor.
 
-        **Example:**
-        We construct a Calabi-Yau hypersurface and compute its GLSM charge
-        matrix.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        cy.glsm_charge_matrix()
-        # array([[-18,   1,   9,   6,   1,   1,   0],
-        #        [ -6,   0,   3,   2,   0,   0,   1]])
-        ```
+        Returns:
+            np.ndarray: The GLSM charge matrix.
+
+        Examples:
+            We construct a Calabi-Yau hypersurface and compute its GLSM charge
+            matrix.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> cy.glsm_charge_matrix()
+            array([[-18,   1,   9,   6,   1,   1,   0],
+                   [ -6,   0,   3,   2,   0,   0,   1]])
         """
         if self._glsm_charge_matrix is not None:
             return np.array(self._glsm_charge_matrix)[:, (0 if include_origin else 1) :]
@@ -966,33 +927,44 @@ class CalabiYau:
         return np.array(self._glsm_charge_matrix)[:, (0 if include_origin else 1) :]
 
     def glsm_linear_relations(self, include_origin=True):
-        """
-        **Description:**
-        Computes the linear relations of the GLSM charge matrix.
+        r"""Compute the linear relations among the columns of the GLSM charge matrix.
 
-        **Arguments:**
-        - `include_origin` *(bool, optional, default=True)*: Indicates whether
-            to use the origin in the calculation. This corresponds to the
-            inclusion of the canonical divisor.
+        Each row is a vector of coefficients $r$ such that
+        $\sum_j r_j Q_{\cdot j} = 0$, where $Q$ is the GLSM charge matrix returned
+        by [`glsm_charge_matrix`][cytools.calabiyau.CalabiYau.glsm_charge_matrix].
+        The columns follow the same ordering as the columns of the charge matrix.
+        The result is cached, and a copy is returned.
 
-        **Returns:**
-        *(numpy.ndarray)* A matrix of linear relations of the columns of the
-            GLSM charge matrix.
+        Args:
+            include_origin (bool): Whether to include the origin (i.e. the
+                canonical divisor). If false, the first row and the first column of
+                the matrix are removed.
 
-        **Example:**
-        We construct a Calabi-Yau hypersurface and compute the GLSM linear
-        relations.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        cy.glsm_linear_relations()
-        # array([[ 1,  1,  1,  1,  1,  1,  1],
-        #        [ 0,  9, -1,  0,  0,  0,  3],
-        #        [ 0,  6,  0, -1,  0,  0,  2],
-        #        [ 0,  1,  0,  0, -1,  0,  0],
-        #        [ 0,  1,  0,  0,  0, -1,  0]])
-        ```
+        Returns:
+            np.ndarray: A matrix whose rows are linear relations among the columns
+                of the GLSM charge matrix.
+
+        Examples:
+            We construct a Calabi-Yau hypersurface and compute the GLSM linear
+            relations. By definition, their product with the transposed charge
+            matrix must vanish.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> cy.glsm_linear_relations()
+            array([[ 1,  0,  0,  0,  0, 18,  6],
+                   [ 0,  1,  0,  0,  0, -1,  0],
+                   [ 0,  0,  1,  0,  0, -9, -3],
+                   [ 0,  0,  0,  1,  0, -6, -2],
+                   [ 0,  0,  0,  0,  1, -1,  0]])
+            >>> cy.glsm_linear_relations().dot(cy.glsm_charge_matrix().T)
+            array([[0, 0],
+                   [0, 0],
+                   [0, 0],
+                   [0, 0],
+                   [0, 0]])
         """
         if self._glsm_linrels is not None:
             return np.array(self._glsm_linrels)[
@@ -1007,43 +979,49 @@ class CalabiYau:
         ]
 
     def divisor_basis(self, include_origin=True, as_matrix=False):
-        """
-        **Description:**
-        Returns the current basis of divisors of the Calabi-Yau.
+        """Return the current basis of divisors of the Calabi-Yau.
 
-        **Arguments:**
-        - `include_origin` *(bool, optional, default=True)*: Whether to include
-            the origin in the indexing of the vector, or in the basis matrix.
-        - `as_matrix` *(bool, optional, default=False)*: Indicates whether to
-            return the basis as a matrix instead of a list of indices of prime
-            toric divisors. Note that if a matrix basis was specified, then it
-            will always be returned as a matrix.
+        If no basis has been set, a default integral basis of prime toric divisors
+        is chosen and set. A different basis can be set with
+        [`set_divisor_basis`][cytools.calabiyau.CalabiYau.set_divisor_basis] or
+        [`set_curve_basis`][cytools.calabiyau.CalabiYau.set_curve_basis].
 
-        **Returns:**
-        *(numpy.ndarray)* A list of column indices that form a basis. If a more
-            generic basis has been specified with the
-            [`set_divisor_basis`](#set_divisor_basis) or
-            [`set_curve_basis`](#set_curve_basis) functions then it returns a
-            matrix where the rows are the basis elements specified as a linear
-            combination of the canonical divisor and the prime toric divisors.
+        Args:
+            include_origin (bool): Whether the indexing of the returned vector (or
+                the columns of the returned matrix) includes the origin, i.e. the
+                canonical divisor at index 0.
+            as_matrix (bool): Whether to return the basis as a matrix instead of a
+                vector of indices of prime toric divisors. If a generic (matrix)
+                basis was set, then it is always returned as a matrix.
 
-        **Example:**
-        We consider a simple Calabi-Yau with two independent divisors. If no
-        basis has been set, then this function finds one. If a basis has been
-        set, then this function returns it.
-        ```python {4,7,9}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        cy.divisor_basis() # We haven't set any basis
-        # array([5, 6])
-        cy.set_divisor_basis([5,6]) # Here we set a basis
-        cy.divisor_basis() # We get the basis we set
-        # array([5, 6])
-        cy.divisor_basis(as_matrix=True) # We get the basis in matrix form
-        # array([[0, 0, 0, 0, 0, 1, 0],
-        #        [0, 0, 0, 0, 0, 0, 1]])
-        ```
+        Returns:
+            np.ndarray: A vector of the indices of the prime toric divisors that
+                form the basis. If `as_matrix` is true, or if a generic (matrix)
+                basis has been set, a matrix is returned instead, where each row is
+                a basis element expressed as a linear combination of the canonical
+                divisor and the prime toric divisors.
+
+        Raises:
+            ValueError: If `include_origin=False` but the current basis includes
+                the canonical divisor.
+
+        Examples:
+            We consider a simple Calabi-Yau with two independent divisors. If no
+            basis has been set, then this function finds one. If a basis has been
+            set, then this function returns it.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> cy.divisor_basis()  # We haven't set any basis
+            array([5, 6])
+            >>> cy.set_divisor_basis([5,6])  # Here we set a basis
+            >>> cy.divisor_basis()  # We get the basis we set
+            array([5, 6])
+            >>> cy.divisor_basis(as_matrix=True)  # We get the basis in matrix form
+            array([[0, 0, 0, 0, 0, 1, 0],
+                   [0, 0, 0, 0, 0, 0, 1]])
         """
         if self._divisor_basis is None:
             pts = [0] + list(self.prime_toric_divisors())
@@ -1066,91 +1044,106 @@ class CalabiYau:
         return np.array(self._divisor_basis[:, (0 if include_origin else 1) :])
 
     def set_divisor_basis(self, basis, include_origin=True):
-        """
-        **Description:**
-        Specifies a basis of divisors of the Calabi-Yau. This can be done with
-        a vector specifying the indices of the prime toric divisors.
+        """Set a basis of divisors of the Calabi-Yau.
 
-        :::note
-        Only integral bases are supported by CYTools, meaning that all prime
-        toric divisors must be able to be written as an integral linear
-        combination of the basis divisors.
-        :::
+        This also sets the dual basis of curves. The basis can be specified with a
+        vector of indices of prime toric divisors or, if the experimental features
+        are enabled, with a matrix whose rows are linear combinations of the
+        canonical divisor and the prime toric divisors. Cached results that depend
+        on the choice of basis are cleared.
 
-        **Arguments:**
-        - `basis` *(array_like)*: Vector or matrix specifying a basis. When a
-            vector is used, the entries will be taken as the indices of points
-            of the polytope or prime divisors of the toric variety. When a
-            matrix is used, the rows are taken as linear combinations of the
-            aforementioned divisors.
-        - `include_origin` *(bool, optional, default=True)*: Whether to
-            interpret the indexing specified by the input vector as including
-            the origin.
+        Note:
+            Only integral bases are supported by CYTools, meaning that all prime
+            toric divisors must be able to be written as an integral linear
+            combination of the basis divisors.
 
-        **Returns:**
-        Nothing.
+        Args:
+            basis (ArrayLike): Vector or matrix specifying a basis. When a vector
+                is used, its entries are taken as the indices of the columns of the
+                GLSM charge matrix (i.e. the canonical divisor at index 0 followed by
+                the prime toric divisors); the indices are sorted before being
+                stored. When a matrix is used, its rows are taken as linear
+                combinations of the aforementioned divisors. The matrix may omit the
+                column of the canonical divisor, in which case its coefficient is set
+                to zero.
+            include_origin (bool): Whether to interpret the indices in the input
+                vector as including the origin at index 0. This is only used when
+                `basis` is a vector.
 
-        **Example:**
-        We consider a simple Calabi-Yau with two independent divisors. We first
-        find the default basis it picks and then we set a basis of our choice.
-        ```python {6}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        cy.divisor_basis() # We haven't set any basis
-        # array([5, 6])
-        cy.set_divisor_basis([5,6]) # Here we set a basis
-        cy.divisor_basis() # We get the basis we set
-        # array([5, 6])
-        cy.divisor_basis(as_matrix=True) # We get the basis in matrix form
-        # array([[0, 0, 0, 0, 0, 1, 0],
-        #        [0, 0, 0, 0, 0, 0, 1]])
-        ```
-        An example for more generic basis choices can be found in the
-        [experimental features](./experimental) section.
+        Raises:
+            ValueError: If the input does not specify a valid integral basis.
+            Exception: If a matrix is given and the experimental features are not
+                enabled.
+
+        Examples:
+            We consider a simple Calabi-Yau with two independent divisors. We first
+            find the default basis it picks and then we set a basis of our choice.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> cy.divisor_basis()  # We haven't set any basis
+            array([5, 6])
+            >>> cy.set_divisor_basis([5,6])  # Here we set a basis
+            >>> cy.divisor_basis()  # We get the basis we set
+            array([5, 6])
+            >>> cy.divisor_basis(as_matrix=True)  # We get the basis in matrix form
+            array([[0, 0, 0, 0, 0, 1, 0],
+                   [0, 0, 0, 0, 0, 0, 1]])
+
+            An example with more generic basis choices can be found in the
+            [experimental
+            features](experimental.md#generic-bases-for-divisors-and-curves)
+            section.
         """
         # This is handled by a function in utils since the functionality is
         # shared with the ToricVariety class.
         set_divisor_basis(self, basis, include_origin=include_origin)
 
     def curve_basis(self, include_origin=True, as_matrix=False):
-        """
-        **Description:**
-        Returns the current basis of curves of the Calabi-Yau.
+        """Return the current basis of curves of the Calabi-Yau.
 
-        **Arguments:**
-        - `include_origin` *(bool, optional, default=True)*: Whether to include
-            the origin in the indexing of the vector, or in the basis matrix.
-        - `as_matrix` *(bool, optional, default=False)*: Indicates whether to
-            return the basis as a matrix instead of a list of indices of prime
-            toric divisors. Note that if a matrix basis was specified, then it
-            will always be returned as a matrix.
+        If no basis has been set, a default integral basis of divisors is chosen
+        and set, and its dual basis of curves is returned.
 
-        **Returns:**
-        *(numpy.ndarray)* A list of column indices that form a basis. If a more
-            generic basis has been specified with the
-            [`set_divisor_basis`](#set_divisor_basis) or
-            [`set_curve_basis`](#set_curve_basis) functions then it returns a
-            matrix where the rows are the basis elements specified as a linear
-            combination of the canonical divisor and the prime toric divisors.
+        Args:
+            include_origin (bool): Whether the indexing of the returned vector (or
+                the columns of the returned matrix) includes the origin, i.e. the
+                canonical divisor at index 0.
+            as_matrix (bool): Whether to return the basis as a matrix instead of a
+                vector of indices. If a generic (matrix) basis was set, then it is
+                always returned as a matrix.
 
-        **Example:**
-        We consider a simple Calabi-Yau with two independent curves. If no
-        basis has been set, then this function finds one. If a basis has been
-        set, then this function returns it.
-        ```python {4,7,9}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        cy.curve_basis() # We haven't set any basis
-        # array([5, 6])
-        cy.set_curve_basis([5,6]) # Here we set a basis
-        cy.curve_basis() # We get the basis we set
-        # array([5, 6])
-        cy.curve_basis(as_matrix=True) # We get the basis in matrix form
-        # array([[-18,   1,   9,   6,   1,   1,   0],
-        #        [ -6,   0,   3,   2,   0,   0,   1]])
-        ```
+        Returns:
+            np.ndarray: A vector of indices of the standard basis of the lattice
+                dual to the lattice of prime toric divisors that form the basis of
+                curves. If `as_matrix` is true, or if a generic basis has been set
+                with `set_divisor_basis` or `set_curve_basis`, a matrix is returned
+                instead, where each row gives the intersection numbers of a basis
+                curve with the canonical divisor and the prime toric divisors.
+
+        Raises:
+            ValueError: If `include_origin=False` but the current basis includes
+                the index of the canonical divisor.
+
+        Examples:
+            We consider a simple Calabi-Yau with two independent curves. If no
+            basis has been set, then this function finds one. If a basis has been
+            set, then this function returns it.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> cy.curve_basis()  # We haven't set any basis
+            array([5, 6])
+            >>> cy.set_curve_basis([5,6])  # Here we set a basis
+            >>> cy.curve_basis()  # We get the basis we set
+            array([5, 6])
+            >>> cy.curve_basis(as_matrix=True)  # We get the basis in matrix form
+            array([[-18,   1,   9,   6,   1,   1,   0],
+                   [ -6,   0,   3,   2,   0,   0,   1]])
         """
         if self._curve_basis is None:
             # NOTE: the point set must match the one used by divisor_basis
@@ -1178,55 +1171,66 @@ class CalabiYau:
         return np.array(self._curve_basis[:, (0 if include_origin else 1) :])
 
     def set_curve_basis(self, basis, include_origin=True):
-        """
-        **Description:**
-        Specifies a basis of curves of the Calabi-Yau, which in turn induces a
-        basis of divisors. This can be done with a vector specifying the
-        indices of the standard basis of the lattice dual to the lattice of
-        prime toric divisors. Note that this case is equivalent to using the
-        same vector in the [`set_divisor_basis`](#set_divisor_basis) function.
+        """Set a basis of curves of the Calabi-Yau.
 
-        :::note
-        Only integral bases are supported by CYTools, meaning that all toric
-        curves must be able to be written as an integral linear combination of
-        the basis curves.
-        :::
+        This in turn induces the dual basis of divisors. The basis can be
+        specified with a vector of indices of the standard basis of the lattice
+        dual to the lattice of prime toric divisors, which is equivalent to passing
+        the same vector to
+        [`set_divisor_basis`][cytools.calabiyau.CalabiYau.set_divisor_basis]. If
+        the experimental features are enabled, it can also be specified with a
+        matrix whose rows give the intersection numbers of each basis curve with
+        the canonical divisor and the prime toric divisors. Cached results that
+        depend on the choice of basis are cleared.
 
-        **Arguments:**
-        - `basis` *(array_like)*: Vector or matrix specifying a basis. When a
-            vector is used, the entries will be taken as indices of the
-            standard basis of the dual to the lattice of prime toric divisors.
-            When a matrix is used, the rows are taken as linear combinations of
-            the aforementioned elements.
-        - `include_origin` *(bool, optional, default=True)*: Whether to
-            interpret the indexing specified by the input vector as including
-            the origin.
+        Note:
+            Only integral bases are supported by CYTools, meaning that all toric
+            curves must be able to be written as an integral linear combination of
+            the basis curves.
 
-        **Returns:**
-        Nothing.
+        Args:
+            basis (ArrayLike): Vector or matrix specifying a basis. When a vector
+                is used, its entries are taken as indices of the standard basis of
+                the lattice dual to the lattice of prime toric divisors (with index
+                0 corresponding to the canonical divisor). When a matrix is used,
+                its rows are taken as linear combinations of the aforementioned
+                elements. The matrix may omit the column of the canonical divisor,
+                in which case it is computed as minus the sum of the other entries
+                of the row.
+            include_origin (bool): Whether to interpret the indices in the input
+                vector as including the origin at index 0. This is only used when
+                `basis` is a vector.
 
-        **Example:**
-        We consider a simple Calabi-Yau with two independent curves. We first
-        find the default basis of curves it picks and then set a basis of our
-        choice.
-        ```python {6}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        cy.curve_basis() # We haven't set any basis
-        # array([5, 6])
-        cy.set_curve_basis([5,6]) # Here we set a basis
-        cy.curve_basis() # We get the basis we set
-        # array([5, 6])
-        cy.curve_basis(as_matrix=True) # We get the basis in matrix form
-        # array([[-18,   1,   9,   6,   1,   1,   0],
-        #        [ -6,   0,   3,   2,   0,   0,   1]])
-        ```
-        Note that when setting a curve basis in this way, the function behaves
-        exactly the same as [`set_divisor_basis`](#set_divisor_basis). For a
-        more advanced example involving generic bases these two functions
-        differ. An example can be found in the
-        [experimental features](./experimental) section.
+        Raises:
+            ValueError: If the input does not specify a valid integral basis.
+            Exception: If a matrix is given and the experimental features are not
+                enabled.
+
+        Examples:
+            We consider a simple Calabi-Yau with two independent curves. We first
+            find the default basis of curves it picks and then set a basis of our
+            choice.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> cy.curve_basis()  # We haven't set any basis
+            array([5, 6])
+            >>> cy.set_curve_basis([5,6])  # Here we set a basis
+            >>> cy.curve_basis()  # We get the basis we set
+            array([5, 6])
+            >>> cy.curve_basis(as_matrix=True)  # We get the basis in matrix form
+            array([[-18,   1,   9,   6,   1,   1,   0],
+                   [ -6,   0,   3,   2,   0,   0,   1]])
+
+            Note that when setting a curve basis with a vector, this function
+            behaves exactly the same as
+            [`set_divisor_basis`][cytools.calabiyau.CalabiYau.set_divisor_basis].
+            The two functions differ for generic (matrix) bases. An example can be
+            found in the [experimental
+            features](experimental.md#generic-bases-for-divisors-and-curves)
+            section.
         """
         # This is handled by a function in utils since the functionality is
         # shared with the ToricVariety class.
@@ -1245,113 +1249,122 @@ class CalabiYau:
         verbose=0,
         exact_arithmetic=False,
     ):
-        """
-        **Description:**
-        Returns the intersection numbers of the Calabi-Yau manifold.
+        r"""Return the intersection numbers of the Calabi-Yau.
 
-        :::tip experimental feature
-        The intersection numbers are computed as integers when the Calabi-Yau
-        is smooth, and a subset of the prime toric divisors is used as the
-        basis. Otherwise, they are computed as floating-point numbers. There is
-        the option to turn them into rationals. The process is fairly quick,
-        but it is unreliable at large $h^{1,1}$. Furthermore, verifying that
-        they are correct becomes very slow at large $h^{1,1}$.
-        :::
+        The indices refer to the canonical divisor of the ambient variety (index
+        0) and the prime toric divisors that intersect the Calabi-Yau (indices
+        1, 2, ..., in the order given by
+        [`prime_toric_divisors`][cytools.calabiyau.CalabiYau.prime_toric_divisors]),
+        all restricted to the Calabi-Yau. They are computed from the
+        [intersection numbers][cytools.toricvariety.ToricVariety.intersection_numbers]
+        of the ambient variety. For hypersurfaces,
+        $\kappa_{ijk\cdots} = -\kappa^{V}_{0ijk\cdots}$, where $\kappa^{V}$ are
+        the intersection numbers of the ambient variety. For
+        complete intersections, the ambient intersection numbers are successively
+        restricted to each part of the nef partition.
 
-        **Arguments:**
-        - `in_basis` *(bool, optional, default=False)*: Return the intersection
-            numbers in the current basis of divisors.
-        - `format` *(str, optional, default="dok")*: The output format of the
-            intersection numbers. The options are "dok", "coo", and "dense".
-            When set to "dok" (Dictionary Of Keys), it returns a dictionary
-            where the keys are divisor indices in ascending order and the
-            corresponding value is their intersection number. When set to "coo"
-            (COOrdinate format), it returns a numpy array in the format
-            [[a,b,...,c,K_ab...c],...], i.e. all but the last entry of each row
-            correspond to divisor indices in ascending order, with the last
-            entry of the row being their intersection number. Lastly, when set
-            to "dense", it returns the full dense array of intersection numbers.
-        - `zero_as_anticanonical` *(bool, optional, default=False)*: Treat the
-            zeroth index as corresponding to the anticanonical divisor instead
-            of the canonical divisor.
-        - `backend` *(str, optional, default="all")*: The sparse linear solver
-            to use. Options are "all", "sksparse" and "scipy". When set to
-            "all" every solver is tried in order until one succeeds.
-        - `check` *(bool, optional, default=True)*: Whether to explicitly check
-            the solution to the linear system.
-        - `backend_error_tol` *(float, optional, default=1e-3)*: Error
-            tolerance for the solution of the linear system.
-        - `round_to_zero_threshold` *(float, optional, default=1e-3)*:
-            Intersection numbers with magnitude smaller than this threshold are
-            rounded to zero.
-        - `round_to_integer_error_tol` *(float, optional, default=5e-2)*: All
-            intersection numbers of the Calabi-Yau hypersurface must be
-            integers up to errors less than this value, when the CY is smooth.
-        - `verbose` *(int, optional, default=0)*: The verbosity level.
-          - verbose = 0: Do not print anything.
-          - verbose = 1: Print linear backend warnings.
-        - `exact_arithmetic` *(bool, optional, default=False)*: Converts the
-            intersection numbers into exact rational fractions.
+        Only the nonzero intersection numbers are stored, and the results are
+        cached for each combination of `in_basis`, `format`,
+        `zero_as_anticanonical`, and `exact_arithmetic`. The remaining parameters
+        only affect the first computation.
 
-        **Returns:**
-        *(dict or numpy.array)* When `format` is set to "dok" (Dictionary Of
-        Keys), it returns a dictionary where the keys are divisor indices in
-        ascending order and the corresponding value is their intersection
-        number. When `format` is set to "coo" (COOrdinate format), it returns a
-        numpy array in the format [[a,b,...,c,K_ab...c],...], i.e. all but the
-        last entry of each row correspond to divisor indices in ascending
-        order, with the last entry of the row being their intersection number.
-        Lastly, when set to "dense", it returns the full dense array of
-        intersection numbers.
+        Tip:
+            The intersection numbers are integers when the Calabi-Yau is smooth.
+            Otherwise, they are computed as floating-point numbers, but there is
+            the experimental option to turn them into exact rationals with
+            `exact_arithmetic=True`. The process is fairly quick, but it is
+            unreliable at large $h^{1,1}$. Furthermore, verifying that they are
+            correct becomes very slow at large $h^{1,1}$.
 
-        **Example:**
-        We construct a toric variety and compute its intersection numbers We
-        demonstrate the usage of the `in_basis` flag and the different
-        available output formats.
-        ```python {5,15,23,29}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        # By default this function computes the intersection numbers of the
-        # canonical and prime toric divisors
-        intnum_nobasis = cy.intersection_numbers()
-        # Let's print the output and see how to interpret it
-        print(intnum_nobasis)
-        # {(1, 2, 3): 18, (2, 3, 4): 18, (1, 3, 4): 2, (1, 2, 4): 3, (1, 2, 5):
-        # 3, (2, 3, 5): 18, [the output is too long so we truncate it]
-        # The above output means that the intersection number of divisors 1, 2,
-        # 3  is 18, and so on
-        # Let us now compute the intersection numbers in a given basis of
-        # divisors
-        # First, let's check the current basis of divisors
-        cy.divisor_basis()
-        # array([5, 6])
-        # Now, setting in_basis=True we only compute the intersection numbers
-        # of divisors 1 and 6
-        intnum_basis = cy.intersection_numbers(in_basis=True)
-        # Let's print the output and see how to interpret it
-        print(intnum_basis)
-        # {(0, 0, 1): 1, (0, 1, 1): -3, (1, 1, 1): 9}
-        # Here, the indices correspond to indices of the basis divisors
-        # So the intersection of 1, 1, 6 is 1, and so on
-        # Now, let's look at the different output formats. The default one is
-        # the "dok" (Dictionary Of Keys) format shown above
-        # There is also the "coo" (COOrdinate format)
-        print(cy.intersection_numbers(in_basis=True, format="coo"))
-        # [[ 0  0  1  1]
-        #  [ 0  1  1 -3]
-        #  [ 1  1  1  9]]
-        # In this format, all but the last entry of each row are the indices
-        # and the last entry of the row is the intersection number
-        # Lastrly, there is the "dense" format where it outputs the full dense
-        # array
-        print(cy.intersection_numbers(in_basis=True, format="dense"))
-        # [[[ 0  1]
-        #   [ 1 -3]]
-        #
-        #  [[ 1 -3]
-        #   [-3  9]]]
-        ```
+        Args:
+            in_basis (bool): Whether to return the intersection numbers in the
+                current basis of divisors (see
+                [`divisor_basis`][cytools.calabiyau.CalabiYau.divisor_basis]). In
+                this case, the indices refer to the basis elements.
+            format (str): The output format of the intersection numbers. The
+                options are `"dok"`, `"coo"`, and `"dense"`. When set to `"dok"`
+                (Dictionary Of Keys), a dictionary is returned where the keys are
+                tuples of divisor indices in ascending order and the values are the
+                corresponding intersection numbers. When set to `"coo"` (COOrdinate
+                format), a numpy array is returned with rows of the form
+                `[a, b, ..., c, K_ab...c]`, i.e. all but the last entry of each row
+                are divisor indices in ascending order, and the last entry is their
+                intersection number. When set to `"dense"`, the full dense array of
+                intersection numbers is returned.
+            zero_as_anticanonical (bool): Whether to treat the zeroth index as
+                corresponding to the anticanonical divisor instead of the canonical
+                divisor. This is ignored when `in_basis=True`.
+            backend (str): The sparse linear solver to use. Options are `"all"`,
+                `"sksparse"`, and `"scipy"`. When set to `"all"`, every solver is
+                tried in order until one succeeds.
+            check (bool): Whether to explicitly check the solution to the linear
+                system.
+            backend_error_tol (float): Error tolerance for the solution of the
+                linear system.
+            round_to_zero_threshold (float): Intersection numbers with magnitude
+                smaller than this threshold are rounded to zero (i.e. dropped).
+            round_to_integer_error_tol (float): Maximum allowed distance from an
+                integer for intersection numbers that are expected to be integral.
+                For complete intersections, the Calabi-Yau is considered smooth if
+                all of its intersection numbers are within this distance of an
+                integer.
+            verbose (int): The verbosity level. If 0, nothing is printed. If 1 or
+                higher, warnings from the linear backends are printed.
+            exact_arithmetic (bool): Whether to convert the intersection numbers
+                into exact rational numbers (`flint.fmpq`). This requires the
+                experimental features to be enabled.
+
+        Returns:
+            dict[tuple[int, ...], int | float] | np.ndarray: The intersection
+                numbers in the requested format: a dictionary for `"dok"`, a 2D
+                array for `"coo"`, or a dense array of rank equal to the dimension
+                of the Calabi-Yau for `"dense"`. A shallow copy of the cached result
+                is returned.
+
+        Raises:
+            ValueError: If `format` or `backend` is not a valid option, or if
+                `exact_arithmetic=True` and the experimental features are not
+                enabled.
+            RuntimeError: If the intersection numbers of the ambient variety could
+                not be computed.
+            NotImplementedError: If the Calabi-Yau is a complete intersection of an
+                unsupported type.
+
+        Examples:
+            We construct a Calabi-Yau hypersurface and compute its intersection
+            numbers. By default, the intersection numbers of the canonical divisor
+            (index 0) and the prime toric divisors are returned as a dictionary
+            whose keys are the divisor indices in ascending order.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> intnums = cy.intersection_numbers()
+            >>> intnums[(1, 2, 3)]
+            18
+            >>> intnums[(0, 0, 0)]
+            -1944
+
+            We can also compute the intersection numbers in the current basis of
+            divisors. In this case, the indices refer to the basis elements, so
+            `(0, 0, 1)` corresponds to the intersection of divisors 5, 5, and 6.
+
+            >>> cy.divisor_basis()
+            array([5, 6])
+            >>> cy.intersection_numbers(in_basis=True)
+            {(0, 1, 1): -3, (1, 1, 1): 9, (0, 0, 1): 1}
+
+            Other output formats are also available. In the `"coo"` format, all but
+            the last entry of each row are the indices and the last entry is the
+            intersection number. The `"dense"` format gives the full array.
+
+            >>> cy.intersection_numbers(in_basis=True, format="coo")
+            array([[ 0,  1,  1, -3],
+                   [ 1,  1,  1,  9],
+                   [ 0,  0,  1,  1]])
+            >>> cy.intersection_numbers(in_basis=True, format="dense").tolist()
+            [[[0, 1], [1, -3]], [[1, -3], [-3, 9]]]
         """
         # input checking
         formats = ["dok", "coo", "dense"]
@@ -1522,32 +1535,31 @@ class CalabiYau:
         return copy.copy(self._intersection_numbers[args_id])
 
     def prime_toric_divisors(self):
-        """
-        **Description:**
-        Returns the list of inherited prime toric divisors. Due to the sorting
-        of points in the polytope class, this list is trivial for
-        hypersurfaces, but may be non-trivial for CICYs. The indices in the
-        returned tuple correspond to indices of the corresponding points of the
-        polytope (i.e. if $n$ is in the tuple, then the $n$th point in
-        `p.points()` is a prime toric divisor that intersects the CY).
+        """Return the indices of the prime toric divisors that intersect the Calabi-Yau.
 
-        **Arguments:**
-        None
+        The indices correspond to points of the polytope, i.e. if $n$ is in the
+        returned tuple, then the prime toric divisor corresponding to the $n$-th
+        point in `p.points()` intersects the Calabi-Yau. Due to the ordering of the
+        points in the [`Polytope`][cytools.polytope.Polytope] class, this is simply
+        `(1, 2, ..., k)` for hypersurfaces, where `k` is the number of points not
+        interior to facets, excluding the origin. For complete intersections, it
+        may be non-trivial, and it is found by computing the intersection numbers.
+        The result is cached.
 
-        **Returns:**
-        *(tuple)* A list of indices indicating the points in the polytope whose
-            corresponding prime toric divisor intersects the CY.
+        Returns:
+            tuple[int, ...]: The indices of the points of the polytope whose
+                corresponding prime toric divisors intersect the Calabi-Yau.
 
-        **Example:**
-        We construct a Calabi-Yau hypersurface and find the list of prime toric
-        divisors.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        cy.prime_toric_divisors()
-        # (1, 2, 3, 4, 5, 6)
-        ```
+        Examples:
+            We construct a Calabi-Yau hypersurface and find its prime toric
+            divisors.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> cy.prime_toric_divisors()
+            (1, 2, 3, 4, 5, 6)
         """
         if self._prime_divs is not None:
             return self._prime_divs
@@ -1563,34 +1575,44 @@ class CalabiYau:
         return self._prime_divs
 
     def second_chern_class(self, in_basis=False, include_origin=True):
-        """
-        **Description:**
-        Computes the second Chern class of the CY hypersurface. Returns the
-        integral of the second Chern class over the prime effective divisors.
+        r"""Compute the second Chern class of the Calabi-Yau.
 
-        :::note
-        This function currently only supports CY 3-folds.
-        :::
+        The second Chern class is returned as the vector of its integrals over the
+        canonical divisor and the prime toric divisors, i.e.
+        $\int_X c_2 \wedge D_k = \sum_{i<j} \kappa_{ijk}$, where the sum runs over
+        pairs of distinct prime toric divisors. The entry corresponding to the
+        canonical divisor is minus the sum of all the others. The result is cached.
 
-        **Arguments:**
-        - `in_basis` *(bool, optional, default=False)*: Only return the
-            integrals over a basis of divisors.
-        - `include_origin` *(bool, optional, default=True)*: Include the origin
-            in the vector, which corresponds to the canonical divisor.
+        Note:
+            This function currently only supports Calabi-Yau 3-folds, and the
+            formula it uses is only valid for hypersurfaces.
 
-        **Returns:**
-        *(numpy.ndarray)* A vector containing the integrals.
+        Args:
+            in_basis (bool): Whether to only return the integrals over the current
+                basis of divisors. If true, `include_origin` is ignored.
+            include_origin (bool): Whether to include the integral over the
+                canonical divisor as the first entry of the vector.
 
-        **Example:**
-        We construct a Calabi-Yau hypersurface and compute its second Chern
-        class.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        cy.second_chern_class()
-        # array([-612,   36,  306,  204,   36,   36,   -6])
-        ```
+        Returns:
+            np.ndarray: A vector containing the integrals. It has integer entries if
+                the intersection numbers are integral, and floating-point entries
+                otherwise.
+
+        Raises:
+            NotImplementedError: If the Calabi-Yau is not a 3-fold.
+
+        Examples:
+            We construct a Calabi-Yau hypersurface and compute its second Chern
+            class.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> cy.second_chern_class()
+            array([-612,   36,  306,  204,   36,   36,   -6])
+            >>> cy.second_chern_class(in_basis=True)
+            array([36, -6])
         """
         if self.dim() != 3:
             raise NotImplementedError("This function currently only supports 3-folds.")
@@ -1628,25 +1650,27 @@ class CalabiYau:
         return np.array(self._second_chern_class)[(0 if include_origin else 1) :]
 
     def is_smooth(self):
-        """
-        **Description:**
-        Returns True if the Calabi-Yau is smooth.
+        """Return whether the Calabi-Yau is smooth.
 
-        **Arguments:**
-        None.
+        For hypersurfaces, this is determined by whether the canonical divisor of
+        the ambient variety is
+        [smooth][cytools.toricvariety.ToricVariety.canonical_divisor_is_smooth].
+        For complete intersections, it is determined while computing the
+        intersection numbers, by checking whether they are all integral. The result
+        is cached.
 
-        **Returns:**
-        *(bool)* The truth value of the CY being smooth.
+        Returns:
+            bool: Whether the Calabi-Yau is smooth.
 
-        **Example:**
-        We construct a Calabi-Yau hypersurface and check if it is smooth.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        cy.is_smooth()
-        # True
-        ```
+        Examples:
+            We construct a Calabi-Yau hypersurface and check if it is smooth.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> cy.is_smooth()
+            True
         """
         if self._is_smooth is not None:
             return self._is_smooth
@@ -1657,36 +1681,40 @@ class CalabiYau:
         return self._is_smooth
 
     def toric_mori_cone(self, in_basis=False, include_origin=True):
-        """
-        **Description:**
-        Returns the Mori cone inferred from toric geometry.
+        """Return the Mori cone inferred from toric geometry.
 
-        **Arguments:**
-        - `in_basis` *(bool, optional, default=False)*: Use the current basis
-            of curves, which is dual to what the basis returned by the
-            [`divisor_basis`](#divisor_basis) function.
-        - `include_origin` *(bool, optional, default=True)*: Includes the
-            origin of the polytope in the computation, which corresponds to the
-            canonical divisor.
+        This is the Mori cone of the ambient toric variety (or, for complete
+        intersections, of a toric variety constructed from only the prime toric
+        divisors that intersect the Calabi-Yau). It contains the Mori cone of the
+        Calabi-Yau. Each ray is a curve class, given by its intersection numbers
+        with the canonical divisor and the prime toric divisors, or with the basis
+        divisors if `in_basis=True`. The result is cached.
 
-        **Returns:**
-        *(Cone)* The Mori cone inferred from toric geometry.
+        Args:
+            in_basis (bool): Whether to use the current basis of curves, which is
+                dual to the basis returned by
+                [`divisor_basis`][cytools.calabiyau.CalabiYau.divisor_basis]. If
+                true, `include_origin` is ignored.
+            include_origin (bool): Whether to include the coordinate corresponding
+                to the origin of the polytope, i.e. the canonical divisor.
 
-        **Example:**
-        We construct a Calabi-Yau hypersurface and find its Mori cone in an
-        $h^{1,1}+d+1$ dimensional lattice (i.e. without a particular choice of
-        basis) and in an $h^{1,1}$ dimensional lattice (i.e. after picking a
-        basis of curves).
-        ```python {4,6}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        cy.toric_mori_cone() # By default it does not use a basis of curves.
-        # A 2-dimensional rational polyhedral cone in RR^7 generated by 3 rays
-        # It uses the dual basis of curves to the current divisor basis
-        cy.toric_mori_cone(in_basis=True)
-        # A 2-dimensional rational polyhedral cone in RR^2 generated by 3 rays
-        ```
+        Returns:
+            Cone: The Mori cone inferred from toric geometry.
+
+        Examples:
+            We construct a Calabi-Yau hypersurface and find its Mori cone in an
+            $(h^{1,1}+d+1)$-dimensional lattice, where $d$ is the dimension of the
+            ambient variety (i.e. without a particular choice of basis), and in an
+            $h^{1,1}$-dimensional lattice (i.e. after picking a basis of curves).
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> cy.toric_mori_cone()  # By default it does not use a basis of curves
+            A 2-dimensional rational polyhedral cone in RR^7 generated by 3 rays
+            >>> cy.toric_mori_cone(in_basis=True)  # Dual to the current divisor basis
+            A 2-dimensional rational polyhedral cone in RR^2 generated by 3 rays
         """
         if self._mori_cone[0] is None:
             if (
@@ -1714,51 +1742,48 @@ class CalabiYau:
         return self._mori_cone[args_id]
 
     def toric_kahler_cone(self):
-        """
-        **Description:**
-        Returns the Kähler cone inferred from toric geometry in the current
-        basis of divisors.
+        """Return the Kähler cone inferred from toric geometry.
 
-        **Arguments:**
-        None.
+        This is the dual of the toric Mori cone (see
+        [`toric_mori_cone`][cytools.calabiyau.CalabiYau.toric_mori_cone]) in the
+        current basis of divisors. It is contained in the Kähler cone of the
+        Calabi-Yau.
 
-        **Returns:**
-        *(Cone)* The Kähler cone inferred from toric geometry.
+        Returns:
+            Cone: The Kähler cone inferred from toric geometry, in the current basis
+                of divisors.
 
-        **Example:**
-        We construct a Calabi-Yau hypersurface and find its Kähler cone.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        cy.toric_kahler_cone()
-        # A rational polyhedral cone in RR^2 defined by 3 hyperplanes normals
-        ```
+        Examples:
+            We construct a Calabi-Yau hypersurface and find its Kähler cone.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> cy.toric_kahler_cone()
+            A rational polyhedral cone in RR^2 defined by 3 hyperplanes
         """
         return self.toric_mori_cone(in_basis=True).dual()
 
     def toric_effective_cone(self):
-        """
-        **Description:**
-        Returns the cone of effective divisors, aka the effective cone,
-        inferred from toric geometry.
+        """Return the effective cone inferred from toric geometry.
 
-        **Arguments:**
-        None.
+        This is the cone generated by the classes of the prime toric divisors, in
+        the current basis of divisors. The result is cached.
 
-        **Returns:**
-        *(Cone)* The toric effective cone.
+        Returns:
+            Cone: The toric effective cone.
 
-        **Example:**
-        We construct a Calabi-Yau hypersurface and find its toric effective
-        cone.
-        ```python {4}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        cy.toric_effective_cone()
-        # A 2-dimensional rational polyhedral cone in RR^2 generated by 6 rays
-        ```
+        Examples:
+            We construct a Calabi-Yau hypersurface and find its toric effective
+            cone.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> cy.toric_effective_cone()
+            A 2-dimensional rational polyhedral cone in RR^2 generated by 6 rays
         """
         if self._eff_cone is not None:
             return self._eff_cone
@@ -1766,33 +1791,27 @@ class CalabiYau:
         return self._eff_cone
 
     def _basis_intersection_numbers(self):
-        r"""
-        **Description:**
-        Returns the intersection numbers $\kappa_{ijk}$ of the Calabi-Yau in
-        the *current* basis of divisors, as a dense symmetric array.
-
-        :::note
-        This function should not be called by the user. It is a helper for the
-        volume and Kähler-metric functions. The returned array is cached and
-        must be treated as read-only.
-        :::
+        r"""Return the intersection numbers of the Calabi-Yau in the current basis.
 
         The fan of the defining triangulation can compute the in-basis
         intersection numbers much faster than
-        [`intersection_numbers`](#intersection_numbers), but it only knows
-        about the polytope's own (Gale) basis. It is therefore only used when
-        that basis agrees with the basis currently set on this Calabi-Yau;
-        otherwise we fall back to
-        [`intersection_numbers`](#intersection_numbers), which honors bases set
-        with [`set_divisor_basis`](#set_divisor_basis) and
-        [`set_curve_basis`](#set_curve_basis).
+        [`intersection_numbers`][cytools.calabiyau.CalabiYau.intersection_numbers],
+        but it only knows about the polytope's own (Gale) basis. It is therefore
+        only used when that basis agrees with the basis currently set on this
+        Calabi-Yau. Otherwise, this falls back to
+        [`intersection_numbers`][cytools.calabiyau.CalabiYau.intersection_numbers],
+        which honors bases set with
+        [`set_divisor_basis`][cytools.calabiyau.CalabiYau.set_divisor_basis] and
+        [`set_curve_basis`][cytools.calabiyau.CalabiYau.set_curve_basis].
 
-        **Arguments:**
-        None.
+        Note:
+            This function should not be called by the user. It is a helper for the
+            volume and Kähler metric functions. The returned array is cached and
+            must be treated as read-only.
 
-        **Returns:**
-        *(numpy.ndarray)* The dense, symmetric array of intersection numbers in
-            the current basis of divisors.
+        Returns:
+            np.ndarray: The dense, symmetric array of intersection numbers
+                $\kappa_{ijk\cdots}$ in the current basis of divisors.
         """
         if self._basis_intnums is not None:
             return self._basis_intnums
@@ -1822,28 +1841,36 @@ class CalabiYau:
         return self._basis_intnums
 
     def compute_cy_volume(self, tloc):
-        """
-        **Description:**
-        Computes the volume of the Calabi-Yau at a location in the Kähler cone.
+        r"""Compute the volume of the Calabi-Yau at a location in the Kähler cone.
 
-        **Arguments:**
-        - `tloc` *(array_like)*: A vector specifying a location in the Kähler
-            cone.
+        The volume is given by $\mathcal{V} = \frac{1}{6}\kappa_{ijk}t^i t^j t^k$,
+        where $\kappa_{ijk}$ are the intersection numbers in the current basis of
+        divisors.
 
-        **Returns:**
-        *(float)* The volume of the Calabi-Yau at the specified location.
+        Note:
+            This function only supports Calabi-Yau 3-folds.
 
-        **Example:**
-        We construct a Calabi-Yau hypersurface and find its volume at the tip
-        of the stretched Kähler cone.
-        ```python {5}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        tip = cy.toric_kahler_cone().tip_of_stretched_cone(1)
-        cy.compute_cy_volume(tip)
-        # 3.4999999988856496
-        ```
+        Args:
+            tloc (ArrayLike): A vector specifying a location in the Kähler cone, in
+                the current basis of divisors.
+
+        Returns:
+            float: The volume of the Calabi-Yau at the specified location.
+
+        Raises:
+            NotImplementedError: If the Calabi-Yau is not a 3-fold.
+
+        Examples:
+            We construct a Calabi-Yau hypersurface and find its volume at the tip
+            of the stretched Kähler cone.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> tip = cy.toric_kahler_cone().tip_of_stretched_cone(1)
+            >>> cy.compute_cy_volume(tip)
+            np.float64(3.4999999...)
         """
         if self.dim() != 3:
             raise NotImplementedError(
@@ -1856,36 +1883,45 @@ class CalabiYau:
         return (K @ tloc) @ tloc / 6
 
     def compute_divisor_volumes(self, tloc, in_basis=False):
-        """
-        **Description:**
-        Computes the volume of the basis divisors at a location in the Kähler
-        cone.
+        r"""Compute the volumes of divisors at a location in the Kähler cone.
 
-        The volume of the ith divisor is 0.5*kappa_{ijk} t^j t^k.
+        The volume of the $i$-th basis divisor is given by
+        $\tau_i = \frac{1}{2}\kappa_{ijk}t^j t^k$, where $\kappa_{ijk}$ are the
+        intersection numbers in the current basis of divisors. The volumes of the
+        prime toric divisors are obtained by expressing them in terms of the basis
+        divisors.
 
-        **Arguments:**
-        - `tloc` *(array_like)*: A vector specifying a location in the Kähler
-            cone.
-        - `in_basis` *(bool, optional, default=False)*: When set to True, the
-            volumes of the current basis of divisors are computed. Otherwise,
-            the volumes of all prime toric divisors are computed.
+        Note:
+            This function only supports Calabi-Yau 3-folds.
 
-        **Returns:**
-        *(numpy.ndarray)* The list of volumes of the prime toric divisors or of
-            the basis divisors at the specified location.
+        Args:
+            tloc (ArrayLike): A vector specifying a location in the Kähler cone, in
+                the current basis of divisors.
+            in_basis (bool): Whether to compute the volumes of the current basis of
+                divisors. Otherwise, the volumes of all the prime toric divisors are
+                computed.
 
-        **Example:**
-        We construct a Calabi-Yau hypersurface and find the volumes of the
-        prime toric divisors at the tip of the stretched Kähler cone.
-        ```python {5}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        tip = cy.toric_kahler_cone().tip_of_stretched_cone(1)
-        cy.compute_divisor_volumes(tip)
-        # array([ 2.5       , 23.99999999, 16.        ,  2.5       ,  2.5       ,
-        #         0.5       ])
-        ```
+        Returns:
+            np.ndarray: The volumes of the prime toric divisors or of the basis
+                divisors at the specified location.
+
+        Raises:
+            NotImplementedError: If the Calabi-Yau is not a 3-fold.
+
+        Examples:
+            We construct a Calabi-Yau hypersurface and find the volumes of the
+            prime toric divisors and of the basis divisors at the tip of the
+            stretched Kähler cone.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> tip = cy.toric_kahler_cone().tip_of_stretched_cone(1)
+            >>> cy.compute_divisor_volumes(tip)
+            array([ 2.5, 24. , 16. ,  2.5,  2.5,  0.5])
+            >>> cy.compute_divisor_volumes(tip, in_basis=True)
+            array([2.5, 0.5])
         """
         if self.dim() != 3:
             raise NotImplementedError(
@@ -1906,36 +1942,39 @@ class CalabiYau:
         return np.asarray(curve_basis.T @ tau_basis)
 
     def compute_curve_volumes(self, tloc, only_extremal=False):
-        """
-        **Description:**
-        Computes the volume of the curves corresponding to (not necessarily
-        minimal) generators of the Mori cone inferred from toric geometry (i.e.
-        the cone obtained with the [`toric_mori_cone`](#toric_mori_cone)
-        function).
+        """Compute the volumes of the generators of the toric Mori cone.
 
-        **Arguments:**
-        - `tloc` *(array_like)*: A vector specifying a location in the Kähler
-            cone.
-        - `only_extremal` *(bool, optional, default=False)*: Use only the
-            extremal rays of the Mori cone.
+        The curves correspond to the (not necessarily minimal) generators of the
+        Mori cone inferred from toric geometry in the current basis of curves
+        (i.e. the rays of `toric_mori_cone(in_basis=True)`, see
+        [`toric_mori_cone`][cytools.calabiyau.CalabiYau.toric_mori_cone]). The
+        volume of a curve $C$ is $t^i C_i$.
 
-        **Returns:**
-        *(numpy.ndarray)* The list of volumes of the curves.
+        Args:
+            tloc (ArrayLike): A vector specifying a location in the Kähler cone, in
+                the current basis of divisors.
+            only_extremal (bool): Whether to only use the extremal rays of the Mori
+                cone.
 
-        **Example:**
-        We construct a Calabi-Yau hypersurface and find the volumes of the
-        generators of the Mori cone at the tip of the stretched Kähler cone.
-        ```python {5}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        tip = cy.toric_kahler_cone().tip_of_stretched_cone(1)
-        cy.compute_curve_volumes(tip)
-        # array([0.99997511, 3.99992091, 0.99998193])
-        ```
-        As expected, all generators of the Mori cone have volumes greater than
-        or equal to 1 (up to rounding errors) at the tip of the stretched
-        Kähler cone.
+        Returns:
+            np.ndarray: The volumes of the curves, in the same order as the rays of
+                the cone.
+
+        Examples:
+            We construct a Calabi-Yau hypersurface and find the volumes of the
+            generators of the Mori cone at the tip of the stretched Kähler cone.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> tip = cy.toric_kahler_cone().tip_of_stretched_cone(1)
+            >>> cy.compute_curve_volumes(tip)
+            array([1., 4., 1.])
+
+            As expected, all generators of the Mori cone have volumes greater than
+            or equal to 1 (up to rounding errors) at the tip of the stretched
+            Kähler cone.
         """
         c = self.toric_mori_cone(in_basis=True)
         if only_extremal:
@@ -1943,37 +1982,38 @@ class CalabiYau:
         return c.rays().dot(tloc)
 
     def compute_kappa_matrix(self, tloc):
-        r"""
-        **Description:**
-        Computes the matrix $\kappa_{ijk}t^k$ at a location in the Kähler cone.
+        r"""Compute the matrix $\kappa_{ijk}t^k$ at a location in the Kähler cone.
 
-        :::note
-        This function only supports Calabi-Yau 3-folds.
-        :::
+        Here $\kappa_{ijk}$ are the intersection numbers in the current basis of
+        divisors.
 
-        **Arguments:**
-        - `tloc` *(array_like)*: A vector specifying a location in the Kähler
-            cone.
+        Also available as `compute_AA`.
 
-        **Returns:**
-        *(numpy.ndarray)* The matrix $\kappa_{ijk}t^k$ at the specified
-            location.
+        Note:
+            This function only supports Calabi-Yau 3-folds.
 
-        **Aliases:**
-        `compute_AA`.
+        Args:
+            tloc (ArrayLike): A vector specifying a location in the Kähler cone, in
+                the current basis of divisors.
 
-        **Example:**
-        We construct a Calabi-Yau hypersurface and compute this matrix at the
-        tip of the stretched Kähler cone.
-        ```python {5}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        tip = cy.toric_kahler_cone().tip_of_stretched_cone(1)
-        cy.compute_kappa_matrix(tip)
-        # array([[ 1.,  1.],
-        #        [ 1., -3.]])
-        ```
+        Returns:
+            np.ndarray: The matrix $\kappa_{ijk}t^k$ at the specified location.
+
+        Raises:
+            NotImplementedError: If the Calabi-Yau is not a 3-fold.
+
+        Examples:
+            We construct a Calabi-Yau hypersurface and compute this matrix at the
+            tip of the stretched Kähler cone.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> tip = cy.toric_kahler_cone().tip_of_stretched_cone(1)
+            >>> cy.compute_kappa_matrix(tip)
+            array([[ 1.,  1.],
+                   [ 1., -3.]])
         """
         if self.dim() != 3:
             raise NotImplementedError(
@@ -1986,66 +2026,73 @@ class CalabiYau:
     compute_AA = compute_kappa_matrix
 
     def compute_kappa_vector(self, tloc):
-        r"""
-        **Description:**
-        Computes the vector $\kappa_{ijk} t^j t^k$ at a location in the Kähler
-        cone.
+        r"""Compute the vector $\kappa_{ijk}t^j t^k$ at a location in the Kähler cone.
 
-        :::note
-        This function only supports Calabi-Yau 3-folds.
-        :::
+        Here $\kappa_{ijk}$ are the intersection numbers in the current basis of
+        divisors.
 
-        **Arguments:**
-        - `tloc` *(array_like)*: A vector specifying a location in the Kähler
-            cone.
+        Note:
+            This function only supports Calabi-Yau 3-folds.
 
-        **Returns:**
-        *(numpy.ndarray)* The vector $\kappa_{ijk} t^j t^k$ at the specified
-            location.
+        Args:
+            tloc (ArrayLike): A vector specifying a location in the Kähler cone, in
+                the current basis of divisors.
 
-        **Example:**
-        We construct a Calabi-Yau hypersurface and compute this vector at the
-        tip of the stretched Kähler cone.
-        ```python {5}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        tip = cy.toric_kahler_cone().tip_of_stretched_cone(1)
-        cy.compute_kappa_vector(tip)
-        # array([5., 1.])
-        ```
+        Returns:
+            np.ndarray: The vector $\kappa_{ijk}t^j t^k$ at the specified location.
+
+        Raises:
+            NotImplementedError: If the Calabi-Yau is not a 3-fold.
+
+        Examples:
+            We construct a Calabi-Yau hypersurface and compute this vector at the
+            tip of the stretched Kähler cone.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> tip = cy.toric_kahler_cone().tip_of_stretched_cone(1)
+            >>> cy.compute_kappa_vector(tip)
+            array([5., 1.])
         """
         AA = self.compute_kappa_matrix(tloc)
         return AA.dot(tloc)
 
     def compute_inverse_kahler_metric(self, tloc):
-        """
-        **Description:**
-        Computes the inverse Kähler metric at a location in the Kähler cone.
+        r"""Compute the inverse Kähler metric at a location in the Kähler cone.
 
-        :::note
-        This function only supports Calabi-Yau 3-folds.
-        :::
+        It is computed as
+        $K^{ij} = 4\left(\tau_i\tau_j - \mathcal{V}\kappa_{ijk}t^k\right)$, where
+        $\mathcal{V}$ is the volume of the Calabi-Yau, $\tau_i$ are the volumes of
+        the basis divisors, and $\kappa_{ijk}$ are the intersection numbers in the
+        current basis of divisors.
 
-        **Arguments:**
-        - `tloc` *(array_like)*: A vector specifying a location in the Kähler
-            cone.
+        Note:
+            This function only supports Calabi-Yau 3-folds.
 
-        **Returns:**
-        *(numpy.ndarray)* The inverse Kähler metric at the specified location.
+        Args:
+            tloc (ArrayLike): A vector specifying a location in the Kähler cone, in
+                the current basis of divisors.
 
-        **Example:**
-        We construct a Calabi-Yau hypersurface and compute the inverse Kähler
-        metric at the tip of the stretched Kähler cone.
-        ```python {5}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        tip = cy.toric_kahler_cone().tip_of_stretched_cone(1)
-        cy.compute_inverse_kahler_metric(tip)
-        # array([[11., -9.],
-        #        [-9., 43.]])
-        ```
+        Returns:
+            np.ndarray: The inverse Kähler metric at the specified location.
+
+        Raises:
+            NotImplementedError: If the Calabi-Yau is not a 3-fold.
+
+        Examples:
+            We construct a Calabi-Yau hypersurface and compute the inverse Kähler
+            metric at the tip of the stretched Kähler cone.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> tip = cy.toric_kahler_cone().tip_of_stretched_cone(1)
+            >>> cy.compute_inverse_kahler_metric(tip)
+            array([[11., -9.],
+                   [-9., 43.]])
         """
         if self.dim() != 3:
             raise NotImplementedError("This function only supports Calabi-Yau 3-folds.")
@@ -2056,82 +2103,64 @@ class CalabiYau:
         return Kinv
 
     def compute_kahler_metric(self, tloc):
-        """
-        **Description:**
-        Computes the Kähler metric at a location in the Kähler cone.
+        """Compute the Kähler metric at a location in the Kähler cone.
 
-        :::note
-        This function only supports Calabi-Yau 3-folds.
-        :::
+        It is computed by inverting the result of `compute_inverse_kahler_metric`.
 
-        **Arguments:**
-        - `tloc` *(array_like)*: A vector specifying a location in the Kähler
-            cone.
+        Note:
+            This function only supports Calabi-Yau 3-folds.
 
-        **Returns:**
-        *(numpy.ndarray)* The Kähler metric at the specified location.
+        Args:
+            tloc (ArrayLike): A vector specifying a location in the Kähler cone, in
+                the current basis of divisors.
 
-        **Example:**
-        We construct a Calabi-Yau hypersurface and compute the Kähler metric at
-        the tip of the stretched Kähler cone.
-        ```python {5}
-        p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
-        t = p.triangulate()
-        cy = t.get_cy()
-        tip = cy.toric_kahler_cone().tip_of_stretched_cone(1)
-        cy.compute_kahler_metric(tip)
-        # array([[0.10969388, 0.02295918],
-        #        [0.02295918, 0.02806122]])
-        ```
+        Returns:
+            np.ndarray: The Kähler metric at the specified location.
+
+        Raises:
+            NotImplementedError: If the Calabi-Yau is not a 3-fold.
+
+        Examples:
+            We construct a Calabi-Yau hypersurface and compute the Kähler metric at
+            the tip of the stretched Kähler cone.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> tip = cy.toric_kahler_cone().tip_of_stretched_cone(1)
+            >>> cy.compute_kahler_metric(tip)
+            array([[0.10969388, 0.02295918],
+                   [0.02295918, 0.02806122]])
         """
         return np.linalg.inv(self.compute_inverse_kahler_metric(tloc))
 
     def _compute_cicy_hodge_numbers(self, only_from_cache=False):
-        """
-        **Description:**
-        Computes the Hodge numbers of a CICY using PALP. The results are stored
-        in a hidden dictionary.
+        """Compute the Hodge numbers of a complete intersection Calabi-Yau.
 
-        :::note
-        This function should generally not be called by the user. Instead, it
-        is called by [`hpq`](#hpq) and other Hodge number functions when
-        necessary.
-        :::
+        The Hodge numbers are looked up in the cache of nef partitions of the
+        polytope (see
+        [`Polytope.nef_partitions`][cytools.polytope.Polytope.nef_partitions]),
+        matching the nef partition of this Calabi-Yau restricted to the vertices
+        of the polytope. If they are not found there and `only_from_cache` is
+        false, the nef partitions (first without, and then with, symmetric ones)
+        are computed with PALP and the search is repeated. The results are stored
+        in a hidden dictionary keyed by `(p, q)`.
 
-        **Arguments:**
-        - `only_from_cache` *(bool, optional, default=False)*: Check if the
-            Hodge numbers of the CICY were previously computed and are stored in
-            the cache of the polytope object. Only if this flag is false and the
-            Hodge numbers are not cached, then PALP is used to compute them.
+        Note:
+            This function should generally not be called by the user. Instead, it
+            is called by [`hpq`][cytools.calabiyau.CalabiYau.hpq] and the other
+            Hodge number functions when necessary.
 
-        **Returns:**
-        Nothing.
+        Args:
+            only_from_cache (bool): Whether to only look up the Hodge numbers in
+                the cache of the polytope, without computing them with PALP if they
+                are not found. In that case, nothing is stored if they are not
+                found.
 
-        **Example:**
-        This function is not intended to be directly used, but it is used in
-        the following example. We construct a CICY and compute some of its
-        Hodge numbers.
-        ```python {5}
-        p = Polytope(
-            [
-                [1, 0, 0, 0, 0],
-                [0, 1, 0, 0, 0],
-                [0, 0, 1, 0, 0],
-                [0, 0, 0, 1, 0],
-                [-1, -1, -6, -9, 0],
-                [0, 0, 0, 0, 1],
-                [0, 0, 0, 0, -1],
-            ]
-        )
-        nef_part = p.nef_partitions(compute_hodge_numbers=False)
-        t = p.triangulate(include_points_interior_to_facets=True)
-        cy = t.get_cy(nef_part[0])
-        # The function is called here since the Hodge numbers have not been computed
-        cy.h11()
-        # 4
-        cy.h21() # It is not called here because the Hodge numbers are already cached
-        # 544
-        ```
+        Raises:
+            NotImplementedError: If the Calabi-Yau is a hypersurface, or if the
+                Hodge numbers could not be found and `only_from_cache` is false.
         """
         if self._is_hypersurface:
             raise NotImplementedError(
@@ -2199,29 +2228,59 @@ class CalabiYau:
         basis: "ArrayLike" = None,
         format: str = None,
     ):
-        """
-        **Description:**
-        Wrapper for cygv GV and GW computations. A method of `cytools.CalabiYau`. If
-        both `max_deg` and `min_points` are left unspecified, only the points in
-        `basis` are used.
+        r"""Compute Gopakumar-Vafa or Gromov-Witten invariants using cygv.
 
-        NOT INTENDED TO BE CALLED DIRECTLY!
+        This is the shared implementation of
+        [`compute_gvs`][cytools.calabiyau.CalabiYau.compute_gvs] and
+        [`compute_gws`][cytools.calabiyau.CalabiYau.compute_gws], and it is not
+        intended to be called directly. The charges are expressed in the current
+        basis of curves (see
+        [`curve_basis`][cytools.calabiyau.CalabiYau.curve_basis]).
 
-        **Arguments:**
-        - `gv_or_gw`: String specifying whether 'gv' or 'gw' computations are
-            performed.
-        - `mcap_generators`: Generators for the Mori cone cap. If provided,
-            these are used as the set of charges to compute invariants for.
-        - `grading_vec`: The grading vector to use in the computations. A default
-            is chosen if none is provided.
-        - `max_deg`: The maximum degree to compute GVs/GWs to.
-        - `min_points`: The minimum number of GVs/GWs to compute.
-        - `target_points`: A list of target points to compute GVs/GWs for.
-        - 'basis': An array specifying a new basis to represent the charges in.
-        - 'format': A string to request 'dok' or 'coo' formats.
+        Args:
+            gv_or_gw (str): Which invariants to compute: `"gv"` for Gopakumar-Vafa
+                invariants, or `"gw"` for Gromov-Witten invariants.
+            mcap_generators (ArrayLike | None): Generators of the cone of charges
+                to consider (typically the Mori cone cap), in the current basis of
+                curves, which are passed to cygv. If none of `max_deg`, `min_points`,
+                and `target_points` is specified, the invariants are computed only
+                for these charges, which must then include the origin. If not
+                specified, the rays of
+                [`mori_cone_cap`][cytools.calabiyau.CalabiYau.mori_cone_cap] (in
+                the current basis) together with at least $100\,h^{1,1}$ of its
+                lattice points are used.
+            grading_vec (ArrayLike | None): The grading vector $g$, which defines
+                the degree of a charge $q$ as $q \cdot g$. It must have a positive
+                dot product with all the generators of the Mori cone cap. If not
+                specified, one is found with
+                [`Cone.find_grading_vector`][cytools.cone.Cone.find_grading_vector].
+            max_deg (int | None): The maximum degree up to which the invariants are
+                computed.
+            min_points (int | None): The minimum number of invariants to compute.
+                The maximum degree is increased until at least this many are found.
+            target_points (ArrayLike | None): Charges, in the current basis of
+                curves, for which to compute the invariants. Invariants of other
+                charges may be computed as well.
+            basis (np.ndarray | None): A matrix used to change the basis of the
+                charges in the returned
+                [`Invariants`][cytools.calabiyau.Invariants] object, where each
+                charge $q$ is replaced by `basis @ q`. It is ignored if `format` is
+                specified.
+            format (str | None): The output format. If `"dok"`, a dictionary
+                mapping charges to invariants is returned. If `"coo"`, a list of
+                rows of the form `[q_1, ..., q_n, invariant]` is returned. If not
+                specified, an [`Invariants`][cytools.calabiyau.Invariants] object
+                is returned.
 
-        **Returns:**
-        The GV/GW invariants.
+        Returns:
+            Invariants | dict[tuple[int, ...], int] | list[list[int]]: The computed
+                invariants, in the format specified by `format`.
+
+        Raises:
+            ValueError: If more than one of `max_deg`, `min_points`, and
+                `target_points` is specified, or if none of them is specified and
+                `mcap_generators` is not specified or does not include the
+                origin.
         """
         # input checking
         if (max_deg is not None) and (min_points is not None):
@@ -2301,25 +2360,76 @@ class CalabiYau:
         basis: "ArrayLike" = None,
         format: str = None,
     ):
-        """
-        **Description:**
-        Wrapper for cygv GV computations. A method of `cytools.CalabiYau`. If
-        both `max_deg` and `min_points` are left unspecified, only the points in
-        `mcap_generators` are used.
+        r"""Compute the genus-zero Gopakumar-Vafa invariants of the Calabi-Yau.
 
-        **Arguments:**
-        - `mcap_generators`: Generators for the Mori cone cap. If provided,
-            these are used as the set of charges to compute invariants for.
-        - `grading_vec`: The grading vector to use in the computations. A default
-            is chosen if none is provided.
-        - `max_deg`: The maximum degree to compute GVs to.
-        - `min_points`: The minimum number of GVs to compute.
-        - `target_points`: A list of target points to compute GVs for.
-        - 'basis': An array specifying a new basis to represent the charges in.
-        - 'format': A string to request 'dok' or 'coo' formats.
+        The computation is performed with
+        [cygv](https://github.com/ariostas/cygv). The charges of the curves are
+        expressed in the current basis of curves (see
+        [`curve_basis`][cytools.calabiyau.CalabiYau.curve_basis]). At most one of
+        `max_deg`, `min_points`, and `target_points` can be specified. If none of
+        them is, the invariants are computed only for the charges in
+        `mcap_generators`.
 
-        **Returns:**
-        The GV invariants.
+        Also available as `compute_gv`.
+
+        Args:
+            mcap_generators (ArrayLike | None): Generators of the cone of charges
+                to consider (typically the Mori cone cap), in the current basis of
+                curves, which are passed to cygv. If none of `max_deg`, `min_points`,
+                and `target_points` is specified, the invariants are computed only
+                for these charges, which must then include the origin. If not
+                specified, the rays of
+                [`mori_cone_cap`][cytools.calabiyau.CalabiYau.mori_cone_cap] (in
+                the current basis) together with at least $100\,h^{1,1}$ of its
+                lattice points are used.
+            grading_vec (ArrayLike | None): The grading vector $g$, which defines
+                the degree of a charge $q$ as $q \cdot g$. It must have a positive
+                dot product with all the generators of the Mori cone cap. If not
+                specified, one is found with
+                [`Cone.find_grading_vector`][cytools.cone.Cone.find_grading_vector].
+            max_deg (int | None): The maximum degree up to which the invariants are
+                computed.
+            min_points (int | None): The minimum number of invariants to compute.
+                The maximum degree is increased until at least this many are found.
+            target_points (ArrayLike | None): Charges, in the current basis of
+                curves, for which to compute the invariants. Invariants of other
+                charges may be computed as well.
+            basis (np.ndarray | None): A matrix used to change the basis of the
+                charges in the returned
+                [`Invariants`][cytools.calabiyau.Invariants] object, where each
+                charge $q$ is replaced by `basis @ q`. It is ignored if `format` is
+                specified.
+            format (str | None): The output format. If `"dok"`, a dictionary
+                mapping charges to invariants is returned. If `"coo"`, a list of
+                rows of the form `[q_1, ..., q_n, invariant]` is returned. If not
+                specified, an [`Invariants`][cytools.calabiyau.Invariants] object
+                is returned.
+
+        Returns:
+            Invariants | dict[tuple[int, ...], int] | list[list[int]]: The GV
+                invariants, in the format specified by `format`.
+
+        Raises:
+            ValueError: If more than one of `max_deg`, `min_points`, and
+                `target_points` is specified, or if none of them is specified and
+                `mcap_generators` is not specified or does not include the
+                origin.
+
+        Examples:
+            We construct a Calabi-Yau hypersurface and compute its GV invariants
+            up to degree 2.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> gvs = cy.compute_gvs(max_deg=2)
+            >>> gvs
+            N=5 gv-invariants calculated for a Calabi-Yau 3-fold hypersurface ...
+            >>> gvs.gv((0, 1))
+            540
+            >>> sorted(cy.compute_gvs(max_deg=1, format="dok").items())
+            [((0, 1), 540), ((1, -3), 3)]
         """
         return self._compute_gvs_gws(
             gv_or_gw="gv",
@@ -2344,25 +2454,73 @@ class CalabiYau:
         basis: "ArrayLike" = None,
         format: str = None,
     ):
-        """
-        **Description:**
-        Wrapper for cygv GW computations. A method of `cytools.CalabiYau`. If
-        both `max_deg` and `min_points` are left unspecified, only the points in
-        `mcap_generators` are used.
+        r"""Compute the genus-zero Gromov-Witten invariants of the Calabi-Yau.
 
-        **Arguments:**
-        - `mcap_generators`: Generators for the Mori cone cap. If provided,
-            these are used as the set of charges to compute invariants for.
-        - `grading_vec`: The grading vector to use in the computations. A default
-            is chosen if none is provided.
-        - `max_deg`: The maximum degree to compute GWs to.
-        - `min_points`: The minimum number of GWs to compute.
-        - `target_points`: A list of target points to compute GWs for.
-        - 'basis': An array specifying a new basis to represent the charges in.
-        - 'format': A string to request 'dok' or 'coo' formats.
+        The computation is performed with
+        [cygv](https://github.com/ariostas/cygv). The charges of the curves are
+        expressed in the current basis of curves (see
+        [`curve_basis`][cytools.calabiyau.CalabiYau.curve_basis]). At most one of
+        `max_deg`, `min_points`, and `target_points` can be specified. If none of
+        them is, the invariants are computed only for the charges in
+        `mcap_generators`. The invariants are rational numbers, given as
+        `fractions.Fraction` objects.
 
-        **Returns:**
-        The GW invariants.
+        Also available as `compute_gw`.
+
+        Args:
+            mcap_generators (ArrayLike | None): Generators of the cone of charges
+                to consider (typically the Mori cone cap), in the current basis of
+                curves, which are passed to cygv. If none of `max_deg`, `min_points`,
+                and `target_points` is specified, the invariants are computed only
+                for these charges, which must then include the origin. If not
+                specified, the rays of
+                [`mori_cone_cap`][cytools.calabiyau.CalabiYau.mori_cone_cap] (in
+                the current basis) together with at least $100\,h^{1,1}$ of its
+                lattice points are used.
+            grading_vec (ArrayLike | None): The grading vector $g$, which defines
+                the degree of a charge $q$ as $q \cdot g$. It must have a positive
+                dot product with all the generators of the Mori cone cap. If not
+                specified, one is found with
+                [`Cone.find_grading_vector`][cytools.cone.Cone.find_grading_vector].
+            max_deg (int | None): The maximum degree up to which the invariants are
+                computed.
+            min_points (int | None): The minimum number of invariants to compute.
+                The maximum degree is increased until at least this many are found.
+            target_points (ArrayLike | None): Charges, in the current basis of
+                curves, for which to compute the invariants. Invariants of other
+                charges may be computed as well.
+            basis (np.ndarray | None): A matrix used to change the basis of the
+                charges in the returned
+                [`Invariants`][cytools.calabiyau.Invariants] object, where each
+                charge $q$ is replaced by `basis @ q`. It is ignored if `format` is
+                specified.
+            format (str | None): The output format. If `"dok"`, a dictionary
+                mapping charges to invariants is returned. If `"coo"`, a list of
+                rows of the form `[q_1, ..., q_n, invariant]` is returned. If not
+                specified, an [`Invariants`][cytools.calabiyau.Invariants] object
+                is returned.
+
+        Returns:
+            Invariants | dict[tuple[int, ...], Fraction] | list[list]: The GW
+                invariants, in the format specified by `format`.
+
+        Raises:
+            ValueError: If more than one of `max_deg`, `min_points`, and
+                `target_points` is specified, or if none of them is specified and
+                `mcap_generators` is not specified or does not include the
+                origin.
+
+        Examples:
+            We construct a Calabi-Yau hypersurface and compute its GW invariants
+            up to degree 2.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> gws = cy.compute_gws(max_deg=2)
+            >>> gws.gw((0, 2))
+            Fraction(1215, 2)
         """
         return self._compute_gvs_gws(
             gv_or_gw="gw",
@@ -2385,17 +2543,51 @@ class CalabiYau:
                       exclude_origin: bool = False,
                       format: str = None,
                       verbosity: int = 0):
-        """
-        **Arguments:**
-        - `in_basis`: Whether to express the rays in the divisor basis. Takes
-            precedence over exclude_origin.
-        - `exclude_origin`: Whether to drop the origin column.
-        - `format`: "sparse" returns the ray matrix instead of a Cone. Use it
-            at large h11, where a Cone densifies the rays.
-        - `verbosity`: The verbosity level.
+        """Return the Mori cone cap of the Calabi-Yau.
 
-        **Returns:**
-        The cone, or its ray matrix if format="sparse".
+        This is the intersection of the toric Mori cones of all the regular star
+        triangulations of the polytope that restrict to the same triangulations of
+        its 2-faces as the defining triangulation. Since all of these
+        triangulations give rise to the same Calabi-Yau hypersurface, this cone
+        contains the Mori cone of the Calabi-Yau, and it is generally smaller than
+        the one returned by
+        [`toric_mori_cone`][cytools.calabiyau.CalabiYau.toric_mori_cone]. Without
+        a basis, the coordinates correspond to the points of the triangulation,
+        with the origin (i.e. the canonical divisor) first.
+
+        Note:
+            This method is provisional and may change in future versions.
+
+        Args:
+            in_basis (bool): Whether to express the rays in the current basis of
+                curves (see [`curve_basis`][cytools.calabiyau.CalabiYau.curve_basis]).
+                If true, `exclude_origin` is ignored.
+            exclude_origin (bool): Whether to drop the coordinate corresponding to
+                the origin.
+            format (str | None): If `"sparse"`, the matrix of rays is returned as a
+                sparse matrix instead of a [`Cone`][cytools.cone.Cone]. This is
+                useful at large $h^{1,1}$, where constructing a `Cone` requires
+                densifying the rays. Otherwise, a `Cone` is returned.
+            verbosity (int): The verbosity level.
+
+        Returns:
+            Cone | scipy.sparse.csr_matrix: The Mori cone cap, or the sparse matrix
+                whose rows are its rays if `format="sparse"`.
+
+        Examples:
+            We construct a Calabi-Yau hypersurface and find its Mori cone cap. In
+            this case it agrees with the toric Mori cone.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> cy.mori_cone_cap(in_basis=True)
+            A 2-dimensional rational polyhedral cone in RR^2 generated by 3 rays
+            >>> cy.mori_cone_cap(in_basis=True).rays()
+            array([[ 1, -3],
+                   [ 1,  0],
+                   [ 0,  1]])
         """
         from cytools.ntfe.ntfe import cone_of_permissible_heights
 
@@ -2425,8 +2617,49 @@ class CalabiYau:
 
 
 class Invariants:
-    """
-    This class contains GV or GW-information.
+    """A container for Gopakumar-Vafa (GV) or Gromov-Witten (GW) invariants.
+
+    Objects of this class are generally obtained with
+    [`CalabiYau.compute_gvs`][cytools.calabiyau.CalabiYau.compute_gvs] or
+    [`CalabiYau.compute_gws`][cytools.calabiyau.CalabiYau.compute_gws]. They
+    store a map from curve charges to the corresponding invariants, along with
+    information about how they were computed.
+
+    Args:
+        invariant_type (str): The type of invariants, either `"gv"` or `"gw"`.
+        charge2invariant (dict[tuple[int, ...], int] | ArrayLike): The
+            invariants, either as a dictionary mapping charges to invariants
+            (`"dok"` format) or as a list of rows of the form
+            `[q_1, ..., q_n, invariant]` (`"coo"` format).
+        grading_vec (ArrayLike | None): The grading vector used in the
+            computation, which defines the degree of a charge.
+        cutoff (int | None): The maximum degree used in the computation, if
+            any. All invariants of charges up to this degree are assumed to be
+            included.
+        calabiyau (CalabiYau | None): The Calabi-Yau that the invariants
+            correspond to.
+        basis (np.ndarray | None): A matrix used to change the basis of the
+            charges, where each charge $q$ is replaced by `basis @ q`. The
+            grading vector is not transformed.
+
+    Raises:
+        ValueError: If `invariant_type` is not `"gv"` or `"gw"`.
+
+    Examples:
+        We compute the GV invariants of a Calabi-Yau hypersurface up to degree
+        2 and look at some of them.
+
+        >>> from cytools import Polytope
+        >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+        >>> t = p.triangulate()
+        >>> cy = t.get_cy()
+        >>> gvs = cy.compute_gvs(max_deg=2)
+        >>> gvs.size
+        5
+        >>> gvs.gv((1, -3))
+        3
+        >>> gvs.gv((5, 5)) is None  # Not computed
+        True
     """
 
     def __init__(
@@ -2438,21 +2671,6 @@ class Invariants:
         calabiyau: "CalabiYau" = None,
         basis: "ArrayLike" = None,
     ):
-        """
-        **Description:**
-        Container for GV or GW invariant information
-
-        **Arguments:**
-        - `invariant_type` *(str)*: Either `'gv'` or `'gw'`.
-        - `charge2invariant`: The invariants, in dok (dict) or coo format.
-        - `grading_vec` *(ArrayLike, optional)*: The grading vector used.
-        - `cutoff` *(int, optional)*: The degree cutoff used.
-        - `calabiyau` *(CalabiYau, optional)*: The associated CY.
-        - `basis` *(ArrayLike, optional)*: Basis to represent charges in.
-
-        **Returns:**
-        Nothing.
-        """
         if invariant_type not in ["gv", "gw"]:
             raise ValueError(f"Invariant type '{invariant_type}' not recognized")
         self._type = invariant_type
@@ -2479,6 +2697,14 @@ class Invariants:
     # standard methods
     # ----------------
     def __str__(self):
+        """Return a string describing the invariants.
+
+        The string includes the number and type of invariants, the Calabi-Yau (if
+        known), the grading vector, and the degree cutoff.
+
+        Returns:
+            str: A string describing the invariants.
+        """
         out_str = f"N={self.size} {self._type}-invariants calculated for a "
 
         # CY
@@ -2506,21 +2732,23 @@ class Invariants:
         return out_str
 
     def __repr__(self):
+        """Return a string describing the invariants.
+
+        This is the same as `str(self)`.
+
+        Returns:
+            str: A string describing the invariants.
+        """
         return str(self)
 
     # getters
     # -------
     @property
     def grading_vec(self):
-        """
-        **Description:**
-        Get a (copy of) the grading vector used.
+        """Return a copy of the grading vector used in the computation.
 
-        **Arguments:**
-        None.
-
-        **Returns:**
-        *(vector-like)* The grading vector.
+        Returns:
+            np.ndarray | None: The grading vector, or `None` if it is not known.
         """
         if self._grading_vec is None:
             return None
@@ -2529,29 +2757,45 @@ class Invariants:
 
     @property
     def cutoff(self):
-        """
-        **Description:**
-        Get the cutoff used.
+        """Return the degree cutoff used in the computation.
 
-        **Arguments:**
-        None.
-
-        **Returns:**
-        *(numeric)* The cutoff.
+        Returns:
+            int | None: The degree cutoff, or `None` if it is not known (e.g. if
+                the invariants were computed with `min_points` or `target_points`).
         """
         return self._cutoff
 
     def charges(self, by_deg=False, as_np_arr=False):
-        """
-        **Description:**
-        Get the charges.
+        """Return the charges of the stored invariants.
 
-        **Arguments:**
-        - `by_deg` *(bool, optional)*: Whether to organize charges in a
-            dictionary, with the keys being charge degree.
+        Args:
+            by_deg (bool): Whether to group the charges by degree, as determined by
+                the grading vector.
+            as_np_arr (bool): Whether to return the charges as numpy arrays instead
+                of tuples.
 
-        **Returns:**
-        *(set-like or dictionary)* The charges
+        Returns:
+            list[tuple[int, ...]] | np.ndarray | dict: If `by_deg` is false, a list
+                of charges (or a 2D array if `as_np_arr` is true), in the same
+                order as the invariants. If `by_deg` is true, a dictionary mapping
+                each degree, in ascending order, to a set of charges (or a 2D array
+                if `as_np_arr` is true).
+
+        Raises:
+            ValueError: If `by_deg` is true and the grading vector is not known.
+
+        Examples:
+            We compute some GV invariants and group their charges by degree.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> gvs = cy.compute_gvs(max_deg=2)
+            >>> {int(d): len(c) for d, c in gvs.charges(by_deg=True).items()}
+            {1: 2, 2: 3}
+            >>> gvs.charges(by_deg=True)[1] == {(0, 1), (1, -3)}
+            True
         """
         out = None
         if not by_deg:
@@ -2573,31 +2817,36 @@ class Invariants:
         )
 
     def cone(self):
-        """
-        **Description:**
-        Get the "GV-cone".
+        """Return the cone generated by the charges of the stored invariants.
 
-        This is the V-cone over the charges with nonzero GVs.
+        For GV invariants, this is the "GV cone", i.e. the cone generated by the
+        charges of the computed invariants.
 
-        **Arguments:**
-        None.
+        Returns:
+            Cone: The cone generated by the charges.
 
-        **Returns:**
-        *(Cone)* The GV-cone
+        Examples:
+            We compute some GV invariants and find the cone generated by their
+            charges.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> gvs = cy.compute_gvs(max_deg=2)
+            >>> gvs.cone()
+            A 2-dimensional rational polyhedral cone in RR^2 generated by 5 rays
         """
         return Cone(self.charges(as_np_arr=True))
 
     @property
     def gvs(self) -> list:
-        """
-        **Description:**
-        Get the GVs.
+        """Return the GV invariants.
 
-        **Arguments:**
-        None.
-
-        **Returns:**
-        The GV invariants.
+        Returns:
+            list | None: The GV invariants, in the same order as
+                [`charges`][cytools.calabiyau.Invariants.charges], or `None` if the
+                stored invariants are GW invariants.
         """
         if self._type == "gv":
             return list(self._charge2invariant.values())
@@ -2606,15 +2855,12 @@ class Invariants:
 
     @property
     def gws(self) -> list:
-        """
-        **Description:**
-        Get the GWs.
+        """Return the GW invariants.
 
-        **Arguments:**
-        None.
-
-        **Returns:**
-        The GW invariants.
+        Returns:
+            list | None: The GW invariants, in the same order as
+                [`charges`][cytools.calabiyau.Invariants.charges], or `None` if the
+                stored invariants are GV invariants.
         """
         if self._type == "gw":
             return list(self._charge2invariant.values())
@@ -2622,18 +2868,33 @@ class Invariants:
             return None
 
     def invariant(self, charge, check_deg=True):
-        """
-        **Description:**
-        Get the GVs invariant for a specific charge.
+        """Return the invariant for a specific charge.
 
-        **Arguments:**
-        - `charge` *(vector-like)*: The charge of interest.
-        - `check_deg` *(bool, optional)*: Whether to check if a charge has 0 GV
-            (i.e., if it's not in self.charges() but its degree is less than
-            self.cutoff())
+        Args:
+            charge (ArrayLike): The charge of interest.
+            check_deg (bool): Whether to return 0 for charges that are not stored
+                but whose degree is not greater than the cutoff. This is only done
+                if the cutoff and the grading vector are known.
 
-        **Returns:**
-        *(int)* The GV invariant.
+        Returns:
+            int | Fraction | None: The invariant. If the charge is not stored, 0 is
+                returned if `check_deg` is true and the degree of the charge is not
+                greater than the cutoff, and `None` otherwise.
+
+        Examples:
+            We compute some GV invariants and look them up.
+
+            >>> from cytools import Polytope
+            >>> p = Polytope([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[-1,-1,-6,-9]])
+            >>> t = p.triangulate()
+            >>> cy = t.get_cy()
+            >>> gvs = cy.compute_gvs(max_deg=2)
+            >>> gvs.invariant((0, 1))
+            540
+            >>> gvs.invariant((2, -7))  # Not stored, but degree 1 <= 2
+            0
+            >>> gvs.invariant((2, -5)) is None  # Not stored, and degree 3 > 2
+            True
         """
         out = self._charge2invariant.get(tuple(charge), None)
 
@@ -2653,12 +2914,40 @@ class Invariants:
         return out
 
     def gv(self, charge, check_deg=True):
+        """Return the GV invariant for a specific charge.
+
+        This is the same as [`invariant`][cytools.calabiyau.Invariants.invariant],
+        but it returns `None` if the stored invariants are GW invariants.
+
+        Args:
+            charge (ArrayLike): The charge of interest.
+            check_deg (bool): Whether to return 0 for charges that are not stored
+                but whose degree is not greater than the cutoff. This is only done
+                if the cutoff and the grading vector are known.
+
+        Returns:
+            int | None: The GV invariant, or `None` if it is not known.
+        """
         if self._type == "gv":
             return self.invariant(charge, check_deg)
         else:
             return None
 
     def gw(self, charge, check_deg=True):
+        """Return the GW invariant for a specific charge.
+
+        This is the same as [`invariant`][cytools.calabiyau.Invariants.invariant],
+        but it returns `None` if the stored invariants are GV invariants.
+
+        Args:
+            charge (ArrayLike): The charge of interest.
+            check_deg (bool): Whether to return 0 for charges that are not stored
+                but whose degree is not greater than the cutoff. This is only done
+                if the cutoff and the grading vector are known.
+
+        Returns:
+            Fraction | None: The GW invariant, or `None` if it is not known.
+        """
         if self._type == "gw":
             return self.invariant(charge, check_deg)
         else:
@@ -2668,25 +2957,31 @@ class Invariants:
     # -----------
     @property
     def dok(self):
+        """Return the invariants in the "dok" (Dictionary Of Keys) format.
+
+        Returns:
+            dict[tuple[int, ...], int | Fraction]: A copy of the dictionary mapping
+                charges to invariants.
+        """
         return self._charge2invariant.copy()
 
     @property
     def coo(self):
+        """Return the invariants in the "coo" (COOrdinate) format.
+
+        Returns:
+            np.ndarray: An array with rows of the form `[q_1, ..., q_n, invariant]`.
+        """
         return np.array([list(k) + [v] for k, v in self._charge2invariant.items()])
 
     # misc others
     # -----------
     @property
     def size(self):
-        """
-        **Description:**
-        Get the number of charges/GVs.
+        """Return the number of stored invariants.
 
-        **Arguments:**
-        None.
-
-        **Returns:**
-        *(int)* The number of charges/GVs.
+        Returns:
+            int: The number of stored charges and invariants.
         """
         return len(self._charge2invariant)
 
@@ -2694,17 +2989,18 @@ class Invariants:
 def _group_by_deg(
     charges: "Iterable", grading_vec: "ArrayLike", as_np_arr: bool = False
 ):
-    """
-    **Description:**
-    Organize the charges by their degrees.
+    r"""Group charges by their degrees.
 
-    **Arguments:**
-    - `charges`: The charges.
-    - `grading_vec`: The grading vector.
-    - `as_np_arr`: Whether to map charges to np.array  (True) or leave as set (False).
+    Args:
+        charges (Iterable): The charges.
+        grading_vec (ArrayLike): The grading vector $g$. The degree of a charge
+            $q$ is $q \cdot g$.
+        as_np_arr (bool): Whether to collect the charges of each degree into a
+            2D numpy array instead of a set of tuples.
 
-    **Returns:**
-    *(dictionary)* Dictionary mapping degree to charges.
+    Returns:
+        dict: A dictionary mapping each degree, in ascending order, to the
+            charges of that degree.
     """
     charges = np.asarray(sorted(charges))
     degs = charges @ grading_vec

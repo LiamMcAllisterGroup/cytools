@@ -1,0 +1,150 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-160 0 441.02761 100.17959" role="img" aria-label="CYTools">
+  <!--
+    Animated version of titleimage.svg. The mascot walks in from the left, stops,
+    raises its arms, and then the "CY" and "Tools" letters appear. The final
+    frame matches titleimage.svg. The canvas is wider than the original (160
+    units of padding on each side) so that the mascot can walk in from further
+    away; the mascot itself has the same size and position.
+
+    The base styles describe the final pose, and the animations only describe
+    how to get there, so the static image is correct if animations are
+    disabled.
+  -->
+  <style>
+    .walker {
+      animation: walk 2.2s cubic-bezier(0.25, 0.5, 0.45, 1) both;
+    }
+    .bob {
+      animation:
+        bob 0.275s ease-in-out 8,
+        hop 0.45s ease-out 2.3s;
+    }
+    .leg {
+      transform-box: fill-box;
+      transform-origin: 50% 0;
+      animation: step 0.55s ease-in-out 4;
+    }
+    .leg-right {
+      animation-direction: reverse;
+    }
+    .arm {
+      transform-box: fill-box;
+    }
+    .arm-right {
+      transform-origin: 0 100%;
+      animation:
+        swing-right 0.55s ease-in-out 4 forwards,
+        raise-right 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 2.3s forwards;
+    }
+    .arm-left {
+      transform-origin: 100% 100%;
+      animation:
+        swing-left 0.55s ease-in-out 4 forwards,
+        raise-left 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 2.3s forwards;
+    }
+    .eyes {
+      transform-box: fill-box;
+      transform-origin: 50% 50%;
+      animation: blink 0.3s ease-in-out 3.8s;
+    }
+    .word {
+      transform-box: fill-box;
+      transform-origin: 50% 50%;
+      animation: pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    }
+    .letter {
+      animation: appear 0.3s ease-out both;
+    }
+
+    @keyframes walk {
+      from { transform: translateX(-240px); }
+      to { transform: translateX(0); }
+    }
+    @keyframes bob {
+      50% { transform: translateY(-1.5px); }
+    }
+    @keyframes hop {
+      40% { transform: translateY(-5px); }
+    }
+    @keyframes step {
+      25% { transform: rotate(22deg); }
+      75% { transform: rotate(-22deg); }
+    }
+    /*
+      While walking, the arms are straight lines (see the "animate" elements
+      below) that hang down from the same spot where they attach in the final
+      pose. Rotating them by 94.57deg points them 40deg below the horizontal.
+    */
+    @keyframes swing-right {
+      0%, 100% { transform: rotate(94.57deg); }
+      50% { transform: rotate(84.57deg); }
+    }
+    @keyframes swing-left {
+      0%, 100% { transform: rotate(-94.57deg); }
+      50% { transform: rotate(-84.57deg); }
+    }
+    @keyframes raise-right {
+      from { transform: rotate(94.57deg); }
+      to { transform: rotate(0deg); }
+    }
+    @keyframes raise-left {
+      from { transform: rotate(-94.57deg); }
+      to { transform: rotate(0deg); }
+    }
+    @keyframes blink {
+      50% { transform: scaleY(0.1); }
+    }
+    @keyframes pop {
+      from { transform: scale(0.85); }
+      to { transform: scale(1); }
+    }
+    @keyframes appear {
+      from { fill-opacity: 0; }
+      to { fill-opacity: 1; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation: none !important;
+      }
+    }
+  </style>
+  <g transform="translate(-31.466406,0.29418022)" fill="none" stroke="#000" stroke-width="1.5">
+    <g class="walker">
+      <g class="bob">
+        <path class="leg leg-left" d="M 84.458556,84.199404 V 99.885414"/>
+        <path class="leg leg-right" d="M 102.03445,84.199404 V 99.885414"/>
+        <path class="arm arm-right" d="M 128.5497,75.657143 C 142.15684,69.798512 142.53482,56.00238 142.53482,56.00238">
+          <!-- Straight while walking, then bend into the final curve while the arm is raised. -->
+          <animate attributeName="d" dur="2.9s" fill="freeze" keyTimes="0; 0.7931; 1" calcMode="spline" keySplines="0 0 1 1; 0.25 0.1 0.25 1"
+            values="M 128.5497,75.657143 C 133.21141,69.105555 137.87311,62.553968 142.53482,56.00238; M 128.5497,75.657143 C 133.21141,69.105555 137.87311,62.553968 142.53482,56.00238; M 128.5497,75.657143 C 142.15684,69.798512 142.53482,56.00238 142.53482,56.00238"/>
+        </path>
+        <path class="arm arm-left" d="M 57.943302,75.657143 C 44.336162,69.798512 43.958182,56.00238 43.958182,56.00238">
+          <!-- Straight while walking, then bend into the final curve while the arm is raised. -->
+          <animate attributeName="d" dur="2.9s" fill="freeze" keyTimes="0; 0.7931; 1" calcMode="spline" keySplines="0 0 1 1; 0.25 0.1 0.25 1"
+            values="M 57.943302,75.657143 C 53.281595,69.105555 48.619889,62.553968 43.958182,56.00238; M 57.943302,75.657143 C 53.281595,69.105555 48.619889,62.553968 43.958182,56.00238; M 57.943302,75.657143 C 44.336162,69.798512 43.958182,56.00238 43.958182,56.00238"/>
+        </path>
+        <path fill="#93008c" d="M 93.246507,15.02821 113.32064,49.553043 133.18296,84.200175 93.246506,84.322472 53.310053,84.200173 73.172367,49.553043 Z"/>
+        <g class="eyes">
+          <g fill="#000" stroke-width="0.953">
+            <ellipse cx="106.77828" cy="62.276786" rx="4.0632439" ry="6.3311014"/>
+            <ellipse cx="79.941966" cy="62.276786" rx="4.0632439" ry="6.3311014"/>
+          </g>
+          <g fill="#fff" stroke-width="0.580403">
+            <ellipse cx="108.81598" cy="59.441925" rx="0.68754673" ry="0.68952918"/>
+            <ellipse cx="82.022209" cy="59.441925" rx="0.68754673" ry="0.68952918"/>
+          </g>
+        </g>
+        <path stroke-width="0.878" stroke-linecap="square" d="M 96.582895,72.194511 A 3.2210937,3.2210937 0 0 1 93.374558,75.41558 3.2210937,3.2210937 0 0 1 90.140809,72.220026"/>
+      </g>
+    </g>
+    <g fill="#000" stroke="none" font-family="sans-serif" font-size="25.4px">
+      <g class="word" style="animation-delay: 2.7s">
+        <text x="5.5718446" y="69.663284" transform="rotate(-30)"><tspan class="letter" style="animation-delay: 2.7s">C</tspan><tspan class="letter" style="animation-delay: 2.8s">Y</tspan></text>
+      </g>
+      <g class="word" style="animation-delay: 2.95s">
+        <text x="79.139549" y="-60.96447" transform="rotate(45)"><tspan class="letter" style="animation-delay: 2.95s">T</tspan><tspan class="letter" style="animation-delay: 3.05s">o</tspan><tspan class="letter" style="animation-delay: 3.15s">o</tspan><tspan class="letter" style="animation-delay: 3.25s">l</tspan><tspan class="letter" style="animation-delay: 3.35s">s</tspan></text>
+      </g>
+    </g>
+  </g>
+</svg>

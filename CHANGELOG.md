@@ -27,6 +27,10 @@ are occasionally published a day or two later.
 - Direct dependencies are declared explicitly, and `uv` installs the test
   tools by default
   ([#73](https://github.com/LiamMcAllisterGroup/cytools/pull/73)).
+- The website is now built with [Zensical](https://zensical.org) from the `docs`
+  directory of the main branch, and the API reference is generated with
+  mkdocstrings. All docstrings were converted to Google style, and many were
+  corrected or clarified in the process.
 - Ruff-driven lint and style fixes across the codebase, plus a follow-up
   bugfix for a change ruff applied automatically.
 - Added a `.mailmap` so that author names are merged in the git log output

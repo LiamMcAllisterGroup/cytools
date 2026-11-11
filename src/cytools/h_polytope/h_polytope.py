@@ -19,6 +19,8 @@
 #               computations.
 # -----------------------------------------------------------------------------
 
+"""Lattice polytopes defined by hyperplane inequalities (H-representations)."""
+
 # 'standard' imports
 import itertools
 
@@ -40,36 +42,73 @@ from cytools.utils import gcd_list
 
 
 class HPolytope(polytope.Polytope):
-    """
-    This class handles all computations relating to H-polytopes. These are not
-    always lattice. There are two primary methods for making them lattice:
-        1) study their integer hull. This is the convex hull of their
-           contained lattice points.
-        2) study their smallest dilation such that they become lattice.
-           This is a normally equivalent polytope.
-    These notions both agree with the original polytope iff it was lattice.
+    r"""A lattice polytope constructed from hyperplane inequalities.
 
-    ## Constructor
+    An `HPolytope` is specified by an H-representation, i.e. a list of linear
+    inequalities. The polytope cut out by the inequalities need not be a lattice
+    polytope (its vertices may be rational), so it is converted into one in one of
+    two ways:
 
-    ### `cytools.h_polytope.h_polytope.HPolytope`
+    1. By taking its integer hull, i.e. the convex hull of the lattice points it
+       contains (the default).
+    2. By rescaling it by the smallest positive factor that makes all of its
+       vertices integral (`dilate=True`). The result is normally equivalent to the
+       original polytope.
 
-    **Description:**
-    Constructs a `HPolytope` object describing a lattice polytope. This is
-    handled by the hidden [`__init__`](#__init__) function.
+    Both notions agree with the original polytope if and only if it is already a
+    lattice polytope. The resulting lattice polytope is then used to construct the
+    parent [`Polytope`][cytools.polytope.Polytope] object, so all of its methods are
+    available.
 
-    **Arguments:**
-    - `ineqs`: The defining hyperplane inequalities. Of the form c, a
-        matrix, such that each row, c[i], corresponds to an inequality:
-            c[i][0]*x_0 + ... + c[i][dim-1]*x_{dim-1} + c[i][dim] >= 0
-        If the corresponding vertices are rational, then convex hull of the
-        contained lattice points will be stored.
-    - `dilate`: Whether to dilate the rational polytope into a normally
-        equivalent integer polytope or not. If False, then just compute the
-        integer hull (convex hull of contained lattice points) instead.
-    - `backend`: A string that specifies the backend used to construct the
-        convex hull. The available options are "ppl", "qhull", or "palp". When
-        not specified, it uses PPL for dimensions up to four, and palp
-        otherwise.
+    If every constant term $c_{i,d}$ equals 1, the inequalities describe the polar
+    dual of the convex hull of the normal vectors, and the vertices are computed from
+    the facets of that convex hull. Otherwise, they are computed with PPL. If the
+    inequalities have no solution, an empty (-1-dimensional) polytope is constructed.
+
+    Args:
+        ineqs (ArrayLike): The defining inequalities, as a matrix $c$ where each row
+            $c_i$ encodes the inequality
+            $c_{i,0}x_0 + \dots + c_{i,d-1}x_{d-1} + c_{i,d} \geq 0$, with $d$ the
+            ambient dimension. They must define a bounded region.
+        dilate (bool): Whether to rescale the polytope so that it becomes a lattice
+            polytope, instead of taking its integer hull.
+        backend (str | None): The backend used to construct the convex hull. The
+            options are `"ppl"`, `"qhull"`, and `"palp"`. If not specified, PPL is
+            used when all constant terms equal 1; otherwise the default of
+            [`Polytope`][cytools.polytope.Polytope] is used (PPL for dimensions up to
+            four and PALP otherwise).
+        verbosity (int): The verbosity level.
+
+    Raises:
+        ValueError: If `ineqs` is not given or is not a 2D matrix, if the region they
+            define is unbounded, or if taking the integer hull and the polytope
+            contains no lattice points.
+
+    Examples:
+        We construct the triangle with vertices $(0,0)$, $(1/2,0)$ and $(0,3/2)$,
+        which is not a lattice polytope. By default, its integer hull is computed,
+        while with `dilate=True` it is rescaled into a lattice polytope.
+
+        >>> from cytools import HPolytope
+        >>> ineqs = [[1,0,0],[0,1,0],[-6,-2,3]]
+        >>> HPolytope(ineqs).vertices()
+        array([[0, 0],
+               [0, 1]])
+        >>> HPolytope(ineqs, dilate=True).vertices()
+        array([[0, 0],
+               [0, 3],
+               [1, 0]])
+
+        When all constant terms are 1, the polytope is the polar dual of the convex
+        hull of the normal vectors.
+
+        >>> p = HPolytope([[1,0,1],[0,1,1],[-1,-1,1]])
+        >>> p.vertices()
+        array([[-1, -1],
+               [-1,  2],
+               [ 2, -1]])
+        >>> p.is_reflexive()
+        True
     """
 
     def __init__(
@@ -79,28 +118,6 @@ class HPolytope(polytope.Polytope):
         backend: str = None,
         verbosity: int = 0,
     ) -> None:
-        """
-        **Description:**
-        Initializes a `HPolytope` object describing a lattice polytope.
-
-        **Arguments:**
-        - `ineqs`: The defining hyperplane inequalities. Of the form c, a
-            matrix, such that each row, c[i], corresponds to an inequality:
-                c[i][0]*x_0 + ... + c[i][dim-1]*x_{dim-1} + c[i][dim] >= 0
-            If the corresponding vertices are rational, then convex hull of the
-            contained lattice points will be stored.
-        - `dilate` *(bool, optional, default=False)*: Whether to dilate the
-            rational polytope into a normally equivalent integer polytope. If
-            False, computes the integer hull instead.
-        - `backend`: A string that specifies the backend used to construct the
-            convex hull. The available options are "ppl", "qhull", or "palp".
-            When not specified, it uses PPL for dimensions up to four, and palp
-            otherwise.
-        - `verbosity` *(int, optional, default=0)*: The verbosity level.
-
-        **Returns:**
-        Nothing.
-        """
         # save inputs
         if ineqs is None:
             raise ValueError("The defining inequalities, `ineqs`, are required.")
@@ -177,23 +194,35 @@ class HPolytope(polytope.Polytope):
 def poly_h_to_v(
     hypers: "ArrayLike", verbosity: int = 0
 ) -> ("ArrayLike", "ppl.C_Polyhedron"):
-    """
-    **Description:**
-    Generate the V-representation of a polytope, given the H-representation.
-    I.e., map hyperplanes inequalities to points/vertices.
+    r"""Compute the V-representation of a polytope from its H-representation.
 
-    The inequalities, c, must organized as a matrix for which each row is an
-    inequality of the form
-        c[i,0] * x_0 + ... + c[i,d-1] * x_{d-1} + c[i,d] >= 0
+    That is, map hyperplane inequalities to the vertices of the polytope they define.
+    The computation is done with PPL. If the inequalities are not integral, each row
+    is first divided by the GCD of its entries and rounded, so rational inputs are
+    made integral without changing the polytope.
 
-    Only works with ppl backend, currently.
+    Args:
+        hypers (ArrayLike): The inequalities, as a matrix $c$ where each row $c_i$
+            encodes the inequality
+            $c_{i,0}x_0 + \dots + c_{i,d-1}x_{d-1} + c_{i,d} \geq 0$.
+        verbosity (int): The verbosity level.
 
-    **Arguments:**
-    - `hypers`: The hyperplanes inequalities.
-    - `verbosity`: The verbosity level.
+    Returns:
+        tuple[np.ndarray, ppl.C_Polyhedron]: The vertices of the polytope, one per
+            row, and the PPL polyhedron. The vertices have an integer dtype if they
+            are all integral and a float dtype otherwise. If the inequalities have no
+            solution, the array of vertices is empty.
 
-    **Returns:**
-    The associated points of the polytope and the formal convex hull.
+    Raises:
+        ValueError: If the inequalities define an unbounded polyhedron.
+
+    Examples:
+        >>> from cytools.h_polytope.h_polytope import poly_h_to_v
+        >>> pts, poly = poly_h_to_v([[1,0,0],[0,1,0],[-6,-2,3]])
+        >>> pts
+        array([[0.5, 0. ],
+               [0. , 1.5],
+               [0. , 0. ]])
     """
     hypers = np.array(hypers)  # don't use .asarray so as to ensure we copy them
 
@@ -243,24 +272,30 @@ def poly_h_to_v(
 
 
 def lattice_points(verts: "ArrayLike", ineqs: "ArrayLike") -> "ArrayLike":
-    """
-    **Description:**
-    Enumerate all lattice points in a polytope with given vertices and
-    hyperplanes inequalities.
+    r"""Enumerate the lattice points of a polytope.
 
-    Simpler than the `saturating_lattice_pts` variant in polytope.py because,
-    here, we just enumerate the lattice points.
+    The polytope is given by both its vertices and its inequalities, and need not be
+    a lattice polytope. All lattice points in the bounding box of the vertices are
+    tested against the inequalities, so this is only suitable for small polytopes.
+    This is simpler than `saturating_lattice_pts` in the `polytope` module since it
+    only enumerates the lattice points.
 
-    Also ***non-lattice polytopes are allowed.***
+    Args:
+        verts (ArrayLike): The vertices of the polytope, one per row. They may be
+            rational.
+        ineqs (np.ndarray): The inequalities, as a matrix $c$ where each row $c_i$
+            encodes the inequality
+            $c_{i,0}x_0 + \dots + c_{i,d-1}x_{d-1} + c_{i,d} \geq 0$.
 
-    **Arguments:**
-    - `verts`: The vertices of the polytope.
-    - `ineqs`: The hyperplanes inequalities. Of the form
-        [[c_00, ... , c0(n-1), c0n], ...] which signifies
-        c_00 r[0] + ... + c_0(n-1) r[n-1] + c_0n >= 0
+    Returns:
+        list[list[int]]: The lattice points of the polytope.
 
-    **Returns:**
-    The lattice points in the polytope.
+    Examples:
+        >>> import numpy as np
+        >>> from cytools.h_polytope.h_polytope import lattice_points
+        >>> ineqs = np.array([[1,0,0],[0,1,0],[-6,-2,3]])
+        >>> lattice_points([[0,0],[0.5,0],[0,1.5]], ineqs)
+        [[0, 0], [0, 1]]
     """
     # output variable
     _lattice_pts = []
