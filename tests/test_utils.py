@@ -197,3 +197,43 @@ def test_fetch_polytopes_accepts_consistent_euler_characteristic(kwargs, monkeyp
 def test_fetch_polytopes_rejects_inconsistent_euler_characteristic(kwargs):
     with pytest.raises(ValueError, match="Inconsistent Euler characteristic"):
         fetch_polytopes(**kwargs)
+
+
+# The dim-5 h22 consistency check used 44 + 6*h11 - 2*h12 + 4*h13, but the
+# relation for Calabi-Yau 4-folds is h22 = 44 + 4*h11 - 2*h12 + 4*h13. The
+# relation is symmetric in h11 and h13, so it must hold in both lattice
+# conventions. (h11=1, h12=0, h13=426, h22=1752 is the 4-fold in the
+# experimental features documentation.)
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        dict(dim=5, h11=1, h12=0, h13=426, h22=1752, lattice="M"),
+        dict(dim=5, h11=426, h12=0, h13=1, h22=1752, lattice="N"),
+        dict(dim=5, h11=2, h12=3, h13=4, h22=62, lattice="M"),
+    ],
+)
+def test_fetch_polytopes_accepts_consistent_h22(kwargs, monkeypatch):
+    sentinel = RuntimeError("request attempted")
+
+    def no_requests(*args, **kwargs):
+        raise sentinel
+
+    monkeypatch.setattr("cytools.utils.requests.get", no_requests)
+
+    # reaching the request means the consistency check passed
+    with pytest.raises(RuntimeError) as excinfo:
+        fetch_polytopes(**kwargs)
+    assert excinfo.value is sentinel
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        # what the old relation (6*h11) expected
+        dict(dim=5, h11=1, h12=0, h13=426, h22=1754, lattice="M"),
+        dict(dim=5, h11=2, h12=3, h13=4, h22=66, lattice="M"),
+    ],
+)
+def test_fetch_polytopes_rejects_inconsistent_h22(kwargs):
+    with pytest.raises(ValueError, match="Inconsistent h22"):
+        fetch_polytopes(**kwargs)

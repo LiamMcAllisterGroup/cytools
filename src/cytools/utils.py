@@ -1891,7 +1891,7 @@ def fetch_polytopes(
             and (h11 is not None)
             and (h12 is not None)
             and (h13 is not None)
-            and (h22 != 44 + 6 * h11 - 2 * h12 + 4 * h13)
+            and (h22 != 44 + 4 * h11 - 2 * h12 + 4 * h13)
         ):
             raise ValueError("Inconsistent h22 input.")
 
