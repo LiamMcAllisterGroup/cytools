@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-14]
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-26]
         python-version: ['3.10', '3.14']
     defaults:
       run:
